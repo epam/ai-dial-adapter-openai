@@ -1,0 +1,22 @@
+[tool.pyright]
+exclude = [
+    ".git",
+    ".venv",
+    "**/__pycache__"
+]
+
+[tool.black]
+line-length = 80
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.__pycache__
+)/
+'''
+
+[tool.autoflake]
+check = true
+
+[tool.isort]
+profile = "black"

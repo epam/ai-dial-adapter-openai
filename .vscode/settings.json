@@ -1,0 +1,27 @@
+{
+  "editor.formatOnSave": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "cSpell.enabled": true,
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.gradle": true,
+    "**/bin": true,
+    "**/build": true,
+    ".idea": true,
+    ".venv": true
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    },
+    "editor.tabSize": 4
+  }
+}
