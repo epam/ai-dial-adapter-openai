@@ -1,6 +1,8 @@
 # For more information, please refer to https://aka.ms/vscode-docker-python
 FROM python:3.11-slim
 
+RUN apt-get update && apt-get install -y libgeos-dev
+
 # Keeps Python from generating .pyc files in the container
 ENV PYTHONDONTWRITEBYTECODE=1
 
@@ -9,6 +11,8 @@ ENV PYTHONUNBUFFERED=1
 
 # Install pip requirements
 COPY requirements.txt .
+# Enable to test locally
+# COPY secret /secret
 RUN python -m pip install -r requirements.txt
 
 WORKDIR /app
