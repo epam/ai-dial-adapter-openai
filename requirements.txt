@@ -10,8 +10,8 @@ uvicorn==0.22.0
 openai==0.27.8
 prompt-toolkit==3.0.38
 tiktoken==0.4.0
-google-auth
-google-auth-oauthlib
-google-cloud-aiplatform
-vertexai
-requests
+google-auth==2.21.0
+google-auth-oauthlib==1.0.0
+google-cloud-aiplatform==1.26.1
+vertexai==0.0.1
+requests==2.31.0
