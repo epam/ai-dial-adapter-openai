@@ -1,9 +1,12 @@
 image:
   pullPolicy: Always
   registry: registry-dev.deltixhub.com
+  repository: ai/dial/vertex-ai-open-ai-adapter
   tag: development
   pullSecrets:
     - epm-rtc-registry-dev
+
+fullnameOverride: "vertex-adapter"
 
 podAnnotations:
   autorestart: '{{ dateInZone "2006-01-02 15:04:05Z" (now) "UTC" }}'
@@ -31,3 +34,19 @@ ingress:
 
 serviceAccount:
   create: true
+
+env:
+  GOOGLE_APPLICATION_CREDENTIALS: "/mnt/secrets-store/gcp-ai-proxy-key"
+
+extraVolumes:
+  - name: key-file
+    secret:
+      secretName: '{{ template "bedrockAdapter.names.fullname" . }}'
+      items:
+        - key: gcp-ai-proxy-key
+          path: gcp-ai-proxy-key
+
+extraVolumeMounts:
+  - name: key-file
+    mountPath: "/mnt/secrets-store"
+    readOnly: true

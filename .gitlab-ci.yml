@@ -9,15 +9,15 @@ variables:
   DOCKER_REGISTRY_SERVER: "registry-dev.deltixhub.com"
   HELM_REPO: https://nexus.deltixhub.com/repository/epm-rtc-helm
   SECRET_NAME: "epm-rtc-registry-dev"
-  CHART: "openai-vertex-ai-adapter" # Helm chart name, e.g. "gitlab-runner"
+  CHART: "openai-bedrock-adapter" # Helm chart name, e.g. "gitlab-runner"
   VERSION: "0.0.1" # Helm chart version
   NAMESPACE: "openai-vertex-ai-adapter"
   HELM_EXTRA_ARGS: "-f ${HELM_SECRET_FILE}"
+  RELEASE: ${CI_PROJECT_NAME}
 
   development_ENV_ID: "staging"
   development_HELM_VALUES_FILE: "helm/development.yaml"
   development_ENV_URL: "https://vertex-ai.staging.deltixhub.io"
-  # development_HELM_EXTRA_ARGS: "-f ${HELM_SECRET_FILE_dev}"
 
   staging_DEPLOY_ENV: "false"
 
@@ -26,7 +26,7 @@ variables:
   review_HELM_VALUES_FILE: "helm/review.yaml"
   review_ENV_URL: "https://${CI_PROJECT_NAME}-mr-${CI_MERGE_REQUEST_IID}.staging.deltixhub.io"
   review_HELM_CUSTOM_VALUES: "ingress.hosts[0]=${CI_PROJECT_NAME}-mr-${CI_MERGE_REQUEST_IID}.staging.deltixhub.io,fullnameOverride=mr-${CI_MERGE_REQUEST_IID},image.tag=mr-${CI_MERGE_REQUEST_IID}"
-  review_RELEASE: ${CHART}-mr-${CI_MERGE_REQUEST_IID}
+  review_RELEASE: ${CI_PROJECT_NAME}-mr-${CI_MERGE_REQUEST_IID}
   review_SECRET_NAME: "epm-rtc-registry-test"
   review_DOCKER_REGISTRY_SERVER: "registry-test.deltixhub.com"
   # review_HELM_EXTRA_ARGS: "-f ${HELM_SECRET_FILE_review}"
