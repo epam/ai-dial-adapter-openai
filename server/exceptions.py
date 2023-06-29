@@ -1,7 +1,7 @@
 from functools import wraps
 from typing import Literal, Optional, TypedDict
 
-from google.api_core.exceptions import PermissionDenied
+from google.api_core.exceptions import InvalidArgument, PermissionDenied
 from google.auth.exceptions import GoogleAuthError
 
 from utils.printing import print_exception
@@ -42,6 +42,16 @@ def error_handling_decorator(func):
                     "type": "invalid_request_error",
                     "message": f"Permission denied: {str(e)}",
                     "code": "permission_denied",
+                    "param": None,
+                },
+            )
+        except InvalidArgument as e:
+            raise OpenAIException(
+                status_code=400,
+                error={
+                    "type": "invalid_request_error",
+                    "message": f"Invalid argument: {str(e)}",
+                    "code": "invalid_argument",
                     "param": None,
                 },
             )

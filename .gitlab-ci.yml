@@ -14,8 +14,6 @@ variables:
   NAMESPACE: "openai-vertex-ai-adapter"
   HELM_EXTRA_ARGS: "-f ${HELM_SECRET_FILE}"
 
-  development_AWS_ACCESS_KEY_ID: ${staging_AWS_ACCESS_KEY_ID}
-  development_AWS_SECRET_ACCESS_KEY: ${staging_AWS_SECRET_ACCESS_KEY}
   development_ENV_ID: "staging"
   development_HELM_VALUES_FILE: "helm/development.yaml"
   development_ENV_URL: "https://vertex-ai.staging.deltixhub.io"
