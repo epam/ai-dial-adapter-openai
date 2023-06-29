@@ -1,40 +1,51 @@
 import json
 from typing import List
 
-import requests
-from langchain.chat_models import ChatOpenAI
+import openai
+from langchain.chat_models import AzureChatOpenAI
 from langchain.schema import AIMessage, BaseMessage, HumanMessage
+from openai.error import OpenAIError
+from prompt_toolkit.history import FileHistory
 
 from llm.callback import CallbackWithNewLines
 from utils.args import get_host_port_args
 from utils.cli import select_option
-from utils.env import get_env, get_project_id
-from utils.init import init
 from utils.input import make_input
-from utils.printing import print_ai, print_info
+from utils.printing import print_ai, print_error, print_info
+
+api_version = "2023-03-15-preview"
 
 
 def get_available_models(base_url: str) -> List[str]:
-    resp = requests.get(f"{base_url}/models").json()
-    models = [r["id"] for r in resp["data"]]
+    resp: dict = openai.Model.list(
+        api_type="azure", api_base=base_url, api_version=api_version
+    )  # type: ignore
+    models = [r["id"] for r in resp.get("data", [])]
     return models
 
 
+def print_exception(exc: Exception) -> None:
+    if isinstance(exc, OpenAIError):
+        print_error(json.dumps(exc.json_body, indent=2))
+    else:
+        print_error(str(exc))
+
+
 if __name__ == "__main__":
-    init()
-    project_id = get_project_id()
-
     host, port = get_host_port_args()
-    base_url = f"http://{host}:{port}"
 
-    model = select_option("Select the model", get_available_models(base_url))
+    base_url = f"http://{host}:{port}"
+    model_id = select_option("Select the model", get_available_models(base_url))
+
+    prompt_history = FileHistory(".history")
 
     streaming = select_option("Streaming?", [True, False])
     callbacks = [CallbackWithNewLines()]
-    model = ChatOpenAI(
+    model = AzureChatOpenAI(
+        deployment_name=model_id,
         callbacks=callbacks,
-        model=model,
-        openai_api_base=f"{base_url}/{project_id}",
+        openai_api_base=base_url,
+        openai_api_version=api_version,
         verbose=True,
         streaming=streaming,
         temperature=0,
@@ -49,7 +60,12 @@ if __name__ == "__main__":
         content = input()
         history.append(HumanMessage(content=content))
 
-        llm_result = model.generate([history])
+        try:
+            llm_result = model.generate([history])
+        except Exception as e:
+            print_exception(e)
+            history.pop()
+            continue
 
         usage = (
             llm_result.llm_output.get("token_usage", {})

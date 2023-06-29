@@ -6,7 +6,7 @@ from langchain.schema import AIMessage, BaseMessage, HumanMessage
 
 from llm.vertex_ai import VertexAIModel
 from open_ai.types import CompletionParameters
-from utils.env import get_env, get_project_id
+from utils.env import get_project_id
 from utils.init import init
 from utils.input import make_input
 from utils.printing import print_ai, print_info
@@ -15,6 +15,7 @@ if __name__ == "__main__":
     init()
 
     model = VertexAIModel(
+        location="us-central1",
         model_id="chat-bison@001",
         project_id=get_project_id(),
         model_params=CompletionParameters(),

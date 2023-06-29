@@ -29,6 +29,7 @@ def compute_usage_estimation(prompt: List[str], completion: str) -> TokenUsage:
 
 
 def prepare_model_kwargs(model_params: CompletionParameters) -> Dict[str, Any]:
+    # See chat playground: https://console.cloud.google.com/vertex-ai/generative/language/create/chat
     model_kwargs = {}
 
     if model_params.max_tokens is not None:
@@ -56,12 +57,12 @@ class VertexAIModel:
         self,
         model_id: str,
         project_id: str,
+        location: str,
         model_params: CompletionParameters,
     ):
         self.model_id = model_id
         self.model_params = model_params
 
-        location = "us-central1"
         vertexai.init(project=project_id, location=location)
 
         self.params = prepare_model_kwargs(model_params)

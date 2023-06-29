@@ -3,13 +3,15 @@
 import logging
 
 import uvicorn
-from fastapi import Body, FastAPI, Path
+from fastapi import Body, FastAPI, Path, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from llm.vertex_ai import VertexAIModel, vertex_ai_models
 from open_ai.response import make_response
 from open_ai.types import ChatCompletionQuery, CompletionQuery
+from server.exceptions import OpenAIException, error_handling_decorator
 from utils.args import get_host_port_args
 from utils.init import init
 from utils.log_config import LogConfig
@@ -41,7 +43,7 @@ class ModelDescription(BaseModel):
     object: str
 
 
-@app.get("/models")
+@app.get("/openai/models")
 def models():
     models = [
         ModelDescription(id=model, object="model").dict()
@@ -51,14 +53,25 @@ def models():
     return {"object": "list", "data": models}
 
 
-@app.post("/{project_id}/chat/completions")
+default_region = "us-central1"
+default_project_id = "EPM-AI-PROXY"
+
+
+@app.post("/openai/deployments/{model_id}/chat/completions")
+@error_handling_decorator
 def chat_completions(
+    model_id: str = Path(...),
+    project_id: str = Query(
+        default=default_project_id, description="GCP project"
+    ),
+    region: str = Query(default=default_region, description="Region"),
     query: ChatCompletionQuery = Body(...),
-    project_id: str = Path(...),
 ):
-    model_id = query.model
     model = VertexAIModel(
-        model_id=model_id, project_id=project_id, model_params=query
+        location=region,
+        model_id=model_id,
+        project_id=project_id,
+        model_params=query,
     )
     messages = [message.to_base_message() for message in query.messages]
     response = model.chat(messages)
@@ -67,20 +80,34 @@ def chat_completions(
     return make_response(streaming, model_id, "chat.completion", response)
 
 
-@app.post("/{project_id}/completions")
+@app.post("/openai/deployments/{model_id}/completions")
+@error_handling_decorator
 def completions(
+    model_id: str = Path(...),
+    project_id: str = Query(
+        default=default_project_id, description="GCP project"
+    ),
+    region: str = Query(default=default_region, description="Region"),
     query: CompletionQuery = Body(...),
-    project_id: str = Path(...),
 ):
-    model_id = query.model
     model = VertexAIModel(
-        model_id=model_id, project_id=project_id, model_params=query
+        location=region,
+        model_id=model_id,
+        project_id=project_id,
+        model_params=query,
     )
 
     response = model.completion(query.prompt)
 
     streaming = query.stream or False
     return make_response(streaming, model_id, "text_completion", response)
+
+
+@app.exception_handler(OpenAIException)
+async def open_ai_exception_handler(request: Request, exc: OpenAIException):
+    return JSONResponse(
+        status_code=exc.status_code, content={"error": exc.error}
+    )
 
 
 if __name__ == "__main__":

@@ -38,7 +38,6 @@ class CompletionParameters(BaseModel):
 
 # Direct translation of https://platform.openai.com/docs/api-reference/chat/create
 class ChatCompletionQuery(CompletionParameters, BaseModel):
-    model: str
     messages: List[Message]
 
     class Config:
@@ -46,7 +45,6 @@ class ChatCompletionQuery(CompletionParameters, BaseModel):
 
 
 class CompletionQuery(CompletionParameters, BaseModel):
-    model: str
     prompt: str
 
     class Config:

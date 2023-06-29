@@ -1,4 +1,5 @@
 import vertexai
+from vertexai.language_models._language_models import _TUNED_MODEL_LOCATION
 from vertexai.preview.language_models import ChatModel
 
 from utils.env import get_project_id
@@ -9,7 +10,7 @@ from utils.printing import print_ai
 
 def main():
     # Currently chat-bison is only available in us-central1
-    location = "us-central1"
+    location = _TUNED_MODEL_LOCATION  # "us-central1"
     model_id = "chat-bison@001"
 
     vertexai.init(project=get_project_id(), location=location)
