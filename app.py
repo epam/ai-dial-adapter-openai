@@ -54,7 +54,8 @@ def models():
 
 
 default_region = "us-central1"
-default_project_id = "EPM-AI-PROXY"
+default_user_project_id = "EPM-AI-PROXY"
+user_to_palm_mapping = {default_user_project_id: "or2-msq-epm-rtc-t1iylu"}
 
 
 @app.post("/openai/deployments/{model_id}/chat/completions")
@@ -62,11 +63,12 @@ default_project_id = "EPM-AI-PROXY"
 def chat_completions(
     model_id: str = Path(...),
     project_id: str = Query(
-        default=default_project_id, description="GCP project"
+        default=default_user_project_id, description="GCP project"
     ),
     region: str = Query(default=default_region, description="Region"),
     query: ChatCompletionQuery = Body(...),
 ):
+    project_id = user_to_palm_mapping.get(project_id, project_id)
     model = VertexAIModel(
         location=region,
         model_id=model_id,
@@ -85,11 +87,12 @@ def chat_completions(
 def completions(
     model_id: str = Path(...),
     project_id: str = Query(
-        default=default_project_id, description="GCP project"
+        default=default_user_project_id, description="GCP project"
     ),
     region: str = Query(default=default_region, description="Region"),
     query: CompletionQuery = Body(...),
 ):
+    project_id = user_to_palm_mapping.get(project_id, project_id)
     model = VertexAIModel(
         location=region,
         model_id=model_id,
