@@ -5,7 +5,7 @@ from typing import List
 from langchain.schema import AIMessage, BaseMessage, HumanMessage
 
 from llm.vertex_ai import VertexAIModel
-from open_ai.types import CompletionParameters
+from universal_api.request import CompletionParameters
 from utils.env import get_project_id
 from utils.init import init
 from utils.input import make_input

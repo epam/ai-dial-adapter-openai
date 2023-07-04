@@ -7,8 +7,8 @@ from langchain.schema import AIMessage, BaseMessage, SystemMessage
 from vertexai.language_models._language_models import ChatMessage
 from vertexai.preview.language_models import ChatModel
 
-from llm.chat_model import TokenUsage
-from open_ai.types import CompletionParameters
+from universal_api.request import CompletionParameters
+from universal_api.token_usage import TokenUsage
 from utils.json import to_json
 from utils.text import enforce_stop_tokens
 from utils.token_counter import get_num_tokens

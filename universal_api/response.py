@@ -6,7 +6,7 @@ from typing import Generator, List, Tuple
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from llm.chat_model import TokenUsage
+from universal_api.token_usage import TokenUsage
 
 
 class ResponseParameters(BaseModel):
