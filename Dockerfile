@@ -25,4 +25,4 @@ USER appuser
 
 # During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
 EXPOSE 5000
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "10"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]

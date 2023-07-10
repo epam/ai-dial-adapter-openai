@@ -13,7 +13,6 @@ from universal_api.request import CompletionParameters
 from universal_api.token_usage import TokenUsage
 from utils.json import to_json
 from utils.text import enforce_stop_tokens
-from utils.token_counter import get_num_tokens
 
 vertex_ai_models: List[str] = ["chat-bison@001"]
 
@@ -27,8 +26,11 @@ async def make_async(func, *args):
 
 
 def compute_usage_estimation(prompt: List[str], completion: str) -> TokenUsage:
-    prompt_tokens = get_num_tokens("\n".join(prompt))
-    completion_tokens = get_num_tokens(completion)
+    # Extremely rough estimation of the number of tokens used by the model.
+    # Make sure to upload tokenizer model upfront if you are going to use any.
+    symbols_per_token = 3
+    prompt_tokens = len(prompt) // symbols_per_token
+    completion_tokens = len(completion) // symbols_per_token
     token_per_message = 5
     return TokenUsage(
         prompt_tokens=prompt_tokens + len(prompt) * token_per_message,
