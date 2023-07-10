@@ -1,7 +1,11 @@
 from functools import wraps
 from typing import Literal, Optional, TypedDict
 
-from google.api_core.exceptions import InvalidArgument, PermissionDenied
+from google.api_core.exceptions import (
+    GoogleAPICallError,
+    InvalidArgument,
+    PermissionDenied,
+)
 from google.auth.exceptions import GoogleAuthError
 
 from utils.printing import print_exception
@@ -24,7 +28,7 @@ def error_handling_decorator(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
-            return func(*args, **kwargs)
+            return await func(*args, **kwargs)
         except GoogleAuthError as e:
             raise OpenAIException(
                 status_code=401,
@@ -52,6 +56,16 @@ def error_handling_decorator(func):
                     "type": "invalid_request_error",
                     "message": f"Invalid argument: {str(e)}",
                     "code": "invalid_argument",
+                    "param": None,
+                },
+            )
+        except GoogleAPICallError as e:
+            raise OpenAIException(
+                status_code=e.code if e.code is not None else 500,
+                error={
+                    "type": "invalid_request_error",
+                    "message": f"Invalid argument: {str(e)}",
+                    "code": None,
                     "param": None,
                 },
             )

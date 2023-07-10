@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import asyncio
 from typing import List
 
 from langchain.schema import AIMessage, BaseMessage, HumanMessage
@@ -11,10 +12,11 @@ from utils.init import init
 from utils.input import make_input
 from utils.printing import print_ai, print_info
 
-if __name__ == "__main__":
+
+async def main():
     init()
 
-    model = VertexAIModel(
+    model = await VertexAIModel.create(
         location="us-central1",
         model_id="chat-bison@001",
         project_id=get_project_id(),
@@ -29,9 +31,13 @@ if __name__ == "__main__":
         content = input()
         history.append(HumanMessage(content=content))
 
-        response, usage = model.chat(history)
+        response, usage = await model.chat(history)
 
         print_info(usage.json(indent=2))
 
         print_ai(response.strip())
         history.append(AIMessage(content=response))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

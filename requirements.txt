@@ -15,3 +15,5 @@ google-auth-oauthlib==1.0.0
 google-cloud-aiplatform==1.27.0
 requests==2.31.0
 transformers==4.30.2
+locust==2.15.1
+locust-plugins==3.3.1
