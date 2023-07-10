@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 import vertexai
@@ -16,6 +18,12 @@ from utils.token_counter import get_num_tokens
 vertex_ai_models: List[str] = ["chat-bison@001"]
 
 log = logging.getLogger("vertex-ai")
+
+
+async def make_async(func, *args):
+    with ThreadPoolExecutor() as executor:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(executor, func, *args)
 
 
 def compute_usage_estimation(prompt: List[str], completion: str) -> TokenUsage:
@@ -55,20 +63,37 @@ def to_chat_message(message: BaseMessage) -> ChatMessage:
 class VertexAIModel:
     def __init__(
         self,
+        model: ChatModel,
+        model_params: CompletionParameters,
+        params: Dict[str, Any],
+    ):
+        self.model = model
+        self.model_params = model_params
+        self.params = params
+
+    @classmethod
+    async def create(
+        cls,
         model_id: str,
         project_id: str,
         location: str,
         model_params: CompletionParameters,
-    ):
-        self.model_id = model_id
-        self.model_params = model_params
+    ) -> "VertexAIModel":
+        model_id = model_id
+        model_params = model_params
 
-        vertexai.init(project=project_id, location=location)
+        await make_async(
+            lambda _: vertexai.init(project=project_id, location=location), ()
+        )
 
-        self.params = prepare_model_kwargs(model_params)
-        self.model = ChatModel.from_pretrained(self.model_id)
+        params = prepare_model_kwargs(model_params)
+        model = await make_async(
+            lambda model_id: ChatModel.from_pretrained(model_id), model_id
+        )
 
-    def _call(
+        return cls(model, model_params, params)
+
+    async def _call(
         self,
         context: Optional[str],
         message_history: List[ChatMessage],
@@ -92,7 +117,10 @@ class VertexAIModel:
             **self.params,
         )
 
-        response = chat.send_message(prompt).text
+        response = await make_async(
+            lambda prompt: chat.send_message(prompt).text, prompt
+        )
+
         log.debug(f"response:\n{response}")
 
         if self.model_params.stop is not None:
@@ -108,10 +136,10 @@ class VertexAIModel:
 
         return response, usage
 
-    def completion(self, prompt: str) -> Tuple[str, TokenUsage]:
-        return self._call(None, [], prompt)
+    async def completion(self, prompt: str) -> Tuple[str, TokenUsage]:
+        return await self._call(None, [], prompt)
 
-    def chat(self, history: List[BaseMessage]) -> Tuple[str, TokenUsage]:
+    async def chat(self, history: List[BaseMessage]) -> Tuple[str, TokenUsage]:
         messages = history.copy()
 
         context: Optional[str] = None
@@ -125,4 +153,4 @@ class VertexAIModel:
 
         message_history = list(map(to_chat_message, messages[:-1]))
 
-        return self._call(context, message_history, messages[-1].content)
+        return await self._call(context, message_history, messages[-1].content)
