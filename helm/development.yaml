@@ -37,6 +37,7 @@ serviceAccount:
 
 env:
   GOOGLE_APPLICATION_CREDENTIALS: "/mnt/secrets-store/gcp-ai-proxy-key"
+  WEB_CONCURRENCY: "17"
 
 extraVolumes:
   - name: key-file
