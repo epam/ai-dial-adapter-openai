@@ -62,6 +62,33 @@ def to_chat_message(message: BaseMessage) -> ChatMessage:
     return ChatMessage(author=author, content=message.content)
 
 
+cached_init = False
+
+
+# TODO: For now assume that there will be only one project and location.
+# We need to fix it otherwise.
+async def init_vertex_ai(project_id: str, location: str):
+    global cached_init
+    if not cached_init:
+        await make_async(
+            lambda _: vertexai.init(project=project_id, location=location),
+            (),
+        )
+        cached_init = True
+
+
+cached_models: Dict[str, ChatModel] = {}
+
+
+async def get_vertex_ai_model(model_id):
+    global cached_models
+    if model_id not in cached_models:
+        cached_models[model_id] = await make_async(
+            lambda id: ChatModel.from_pretrained(id), model_id
+        )
+    return cached_models[model_id]
+
+
 class VertexAIModel:
     def __init__(
         self,
@@ -83,16 +110,11 @@ class VertexAIModel:
     ) -> "VertexAIModel":
         model_id = model_id
         model_params = model_params
-
-        await make_async(
-            lambda _: vertexai.init(project=project_id, location=location), ()
-        )
-
         params = prepare_model_kwargs(model_params)
-        model = await make_async(
-            lambda model_id: ChatModel.from_pretrained(model_id), model_id
-        )
 
+        await init_vertex_ai(project_id, location)
+
+        model = await get_vertex_ai_model(model_id)
         return cls(model, model_params, params)
 
     async def _call(
