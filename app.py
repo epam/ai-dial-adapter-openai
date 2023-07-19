@@ -11,6 +11,7 @@ from llm.vertex_ai import VertexAIModel, vertex_ai_models
 from server.exceptions import OpenAIException, error_handling_decorator
 from universal_api.request import ChatCompletionQuery, CompletionQuery
 from universal_api.response import make_response
+from utils.env import get_env
 from utils.log_config import LogConfig
 
 logging.config.dictConfig(LogConfig().dict())  # type: ignore
@@ -50,9 +51,9 @@ async def models():
     return {"object": "list", "data": models}
 
 
-default_region = "us-central1"
-default_user_project_id = "EPM-AI-PROXY"
-user_to_palm_mapping = {default_user_project_id: "or2-msq-epm-rtc-t1iylu"}
+default_region = get_env("DEFAULT_REGION")
+default_user_project_id = get_env("ADAPTER_PROJECT_ID")
+user_to_palm_mapping = {default_user_project_id: get_env("GCP_PROJECT_ID")}
 
 
 @app.post("/openai/deployments/{model_id}/chat/completions")
