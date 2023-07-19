@@ -1,13 +1,10 @@
 image:
   pullPolicy: Always
-  registry: registry-dev.deltixhub.com
-  repository: ai/dial/api/openai
+  registry: registry-test.deltixhub.com
+  repository: ai/dial/openai-adapter
   tag: development
   pullSecrets:
-    - epm-rtc-registry-dev-openai
-
-
-fullnameOverride: "openai"
+    - epm-rtc-registry-test
 
 containerSecurityContext:
   runAsUser: 1666
