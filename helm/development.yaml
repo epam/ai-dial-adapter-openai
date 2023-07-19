@@ -38,6 +38,9 @@ serviceAccount:
 env:
   GOOGLE_APPLICATION_CREDENTIALS: "/mnt/secrets-store/gcp-ai-proxy-key"
   WEB_CONCURRENCY: "17"
+  DEFAULT_REGION: "us-central1"
+  DEFAULT_USER_PROJECT_ID: "EPM-AI-PROXY"
+  USER_PROJECT_ID: "or2-msq-epm-rtc-t1iylu"
 
 extraVolumes:
   - name: key-file
