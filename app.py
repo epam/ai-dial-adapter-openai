@@ -37,7 +37,7 @@ async def generate_stream(messages, response, model):
         async for chunk in response:
             chunk_dict = chunk.to_dict_recursive()
 
-            if chunk_dict['choices'][0]['finish_reason'] == 'stop':
+            if chunk_dict['choices'][0]['finish_reason'] != None:
                 completion_tokens = len(encoding.encode(total_content))
                 chunk_dict['usage'] = {
                     'completion_tokens': completion_tokens,
