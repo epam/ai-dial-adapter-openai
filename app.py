@@ -7,6 +7,8 @@ import os
 import tiktoken
 from openai_override import OpenAIException, OpenAIChatCompletion
 import openai
+from uuid import uuid4
+from time import time
 
 app = FastAPI()
 logging.basicConfig(
@@ -16,10 +18,13 @@ logging.basicConfig(
 )
 model_aliases = json.loads(os.environ.get('MODEL_ALIASES', '{}'))
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 def generate_chunk(data):
     return 'data: ' + json.dumps(data, separators=(',', ':')) + '\n\n'
 
-async def generate_stream(messages, response, model):
+async def generate_stream(messages, response, model, deployment):
     encoding = tiktoken.encoding_for_model(model)
 
     prompt_tokens = 3
@@ -32,12 +37,15 @@ async def generate_stream(messages, response, model):
             if key == "name":
                 prompt_tokens += 1
 
+    last_chunk = None
+    is_stream_finished = False
     try:
         total_content = ''
         async for chunk in response:
             chunk_dict = chunk.to_dict_recursive()
 
             if chunk_dict['choices'][0]['finish_reason'] != None:
+                is_stream_finished = True
                 completion_tokens = len(encoding.encode(total_content))
                 chunk_dict['usage'] = {
                     'completion_tokens': completion_tokens,
@@ -47,9 +55,50 @@ async def generate_stream(messages, response, model):
             else:
                 total_content += chunk_dict['choices'][0]['delta'].get('content', '')
 
+            last_chunk = chunk_dict
             yield generate_chunk(chunk_dict)
     except OpenAIException as e:
+        last_chunk = None
         yield e.body
+
+    if not is_stream_finished:
+        completion_tokens = len(encoding.encode(total_content))
+
+        if last_chunk != None:
+            logger.info('Don\'t received chunk with the finish reason')
+
+            last_chunk['usage'] = {
+                'completion_tokens': completion_tokens,
+                'prompt_tokens': prompt_tokens,
+                'total_tokens': prompt_tokens + completion_tokens
+            }
+            last_chunk['choices'][0]['delta']['content'] = ''
+            last_chunk['choices'][0]['delta']['finish_reason'] = 'length'
+
+            yield generate_chunk(chunk_dict)
+        else:
+            logger.info('Received 0 chunks')
+
+            yield generate_chunk(
+                {
+                    "id": "chatcmpl-" + str(uuid4()),
+                    "object": "chat.completion.chunk",
+                    "created": str(int(time())),
+                    "model": deployment,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "length",
+                            "delta": {}
+                        }
+                    ],
+                    "usage": {
+                        "completion_tokens": completion_tokens,
+                        "prompt_tokens": prompt_tokens,
+                        "total_tokens": prompt_tokens + completion_tokens
+                    }
+                }
+            )
 
     yield 'data: [DONE]\n'
 
@@ -77,8 +126,7 @@ async def chat(deployment_id: str, request: Request):
         )
 
     if is_stream:        
-        deployment_id = model_aliases.get(deployment_id, deployment_id)
-        return StreamingResponse(generate_stream(messages, response, deployment_id), media_type='text/event-stream')
+        return StreamingResponse(generate_stream(messages, response, model_aliases.get(deployment_id, deployment_id), deployment_id), media_type='text/event-stream')
     else:
         return response
 
