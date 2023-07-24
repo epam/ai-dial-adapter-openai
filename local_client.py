@@ -7,7 +7,7 @@ from langchain.schema import AIMessage, BaseMessage, HumanMessage
 
 from llm.vertex_ai import VertexAIModel
 from universal_api.request import CompletionParameters
-from utils.env import get_project_id
+from utils.env import get_env
 from utils.init import init
 from utils.input import make_input
 from utils.printing import print_ai, print_info
@@ -19,7 +19,7 @@ async def main():
     model = await VertexAIModel.create(
         location="us-central1",
         model_id="chat-bison@001",
-        project_id=get_project_id(),
+        project_id=get_env("GCP_PROJECT_ID"),
         model_params=CompletionParameters(),
     )
 

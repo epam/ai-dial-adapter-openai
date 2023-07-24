@@ -2,7 +2,7 @@ import vertexai
 from vertexai.language_models._language_models import _TUNED_MODEL_LOCATION
 from vertexai.preview.language_models import ChatModel
 
-from utils.env import get_project_id
+from utils.env import get_env
 from utils.init import init
 from utils.input import make_input
 from utils.printing import print_ai
@@ -13,7 +13,7 @@ def main():
     location = _TUNED_MODEL_LOCATION  # "us-central1"
     model_id = "chat-bison@001"
 
-    vertexai.init(project=get_project_id(), location=location)
+    vertexai.init(project=get_env("GCP_PROJECT_ID"), location=location)
     chat_model = ChatModel.from_pretrained(model_id)
     parameters = {
         "temperature": 0.2,

@@ -5,14 +5,14 @@ import requests
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 
-from utils.env import get_env, get_project_id
+from utils.env import get_env
 from utils.init import init
 
 init()
 
 JSON_CREDENTIALS = get_env("GOOGLE_APPLICATION_CREDENTIALS")
 
-PROJECT_ID = get_project_id()
+PROJECT_ID = get_env("GCP_PROJECT_ID")
 API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
 LOCATION = "us-central1"
 MODEL_ID = "chat-bison@001"
@@ -22,12 +22,14 @@ credentials = service_account.Credentials.from_service_account_file(
     scopes=["https://www.googleapis.com/auth/cloud-platform"],
 )
 
+token_file = Path("secret") / ".gcp-token"
+
 if not credentials.valid:
     print("Refreshing the token...")
     credentials.refresh(Request())
-    Path(".gcp-token").write_text(credentials.token)
+    token_file.write_text(credentials.token)
 
-access_token = Path(".gcp-token").read_text()
+access_token = token_file.read_text()
 
 url = f"https://{API_ENDPOINT}/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{MODEL_ID}:predict"
 
@@ -68,4 +70,20 @@ payload = {
 
 data = json.dumps(payload)
 response = requests.post(url, headers=headers, data=data)
-print(response.json())
+print(json.dumps(response.json(), indent=2))
+
+# # Token count
+# # Needs PaLM API Key
+# payload = {
+#     "prompt": {
+#         "messages": [
+#             {"content": "How many tokens?"},
+#             {"content": "For this whole conversation?"},
+#         ]
+#     }
+# }
+
+# url = f"https://generativelanguage.googleapis.com/v1beta2/models/chat-bison-001:countMessageTokens?key={API_KEY}"
+# data = json.dumps(payload)
+# response = requests.post(url, headers=headers, data=data)
+# print(json.dumps(response.json(), indent=2))
