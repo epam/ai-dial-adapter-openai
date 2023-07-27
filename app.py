@@ -1,14 +1,14 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import StreamingResponse, Response, JSONResponse
 import logging
 import json
 import uvicorn
 import os
 import tiktoken
-from openai_override import OpenAIException, OpenAIChatCompletion
-import openai
+from openai_override import OpenAIException, OpenAIChatCompletion, OpenAIEmbedding
 from uuid import uuid4
 from time import time
+from json import JSONDecodeError
 
 app = FastAPI()
 logging.basicConfig(
@@ -24,11 +24,10 @@ logger.setLevel(logging.DEBUG)
 def generate_chunk(data):
     return 'data: ' + json.dumps(data, separators=(',', ':')) + '\n\n'
 
-async def generate_stream(messages, response, model, deployment):
-    encoding = tiktoken.encoding_for_model(model)
-
+def calculate_prompt_tokens(messages, model, encoding):
     prompt_tokens = 3
     tokens_per_message = 4 if model == 'gpt-3.5-turbo' else 3
+    
     for message in messages:
         prompt_tokens += tokens_per_message
 
@@ -36,6 +35,13 @@ async def generate_stream(messages, response, model, deployment):
             prompt_tokens += len(encoding.encode(value))
             if key == "name":
                 prompt_tokens += 1
+    
+    return prompt_tokens
+
+async def generate_stream(messages, response, model, deployment):
+    encoding = tiktoken.encoding_for_model(model)
+
+    prompt_tokens = calculate_prompt_tokens(messages, model, encoding)
 
     last_chunk = None
     is_stream_finished = False
@@ -58,8 +64,9 @@ async def generate_stream(messages, response, model, deployment):
             last_chunk = chunk_dict
             yield generate_chunk(chunk_dict)
     except OpenAIException as e:
-        last_chunk = None
         yield e.body
+        yield 'data: [DONE]\n'
+        return
 
     if not is_stream_finished:
         completion_tokens = len(encoding.encode(total_content))
@@ -102,12 +109,46 @@ async def generate_stream(messages, response, model, deployment):
 
     yield 'data: [DONE]\n'
 
+async def get_data_or_generate_error(request):
+    try:
+        data = await request.json()
+    except JSONDecodeError as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                'error': {
+                    'message': 'Your request contained invalid JSON: ' + str(e),
+                    'type': 'invalid_request_error',
+                    'param': None,
+                    'code': None
+                }
+            }
+        )
+
+    if type(data) != dict:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "message": str(data) + " is not of type 'object'",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": None
+                }
+            }
+        )
+    
+    return data
+
+
 @app.post('/openai/deployments/{deployment_id}/chat/completions')
 async def chat(deployment_id: str, request: Request):
-    data = await request.json()
+    data = await get_data_or_generate_error(request)
+
+    if type(data) == JSONResponse:
+        return data
 
     is_stream = data.get('stream', False)
-    messages = data['messages']
     dial_api_key = request.headers.get('X-UPSTREAM-KEY')
     api_base = request.headers.get('X-UPSTREAM-ENDPOINT')
 
@@ -125,24 +166,35 @@ async def chat(deployment_id: str, request: Request):
             content=e.body
         )
 
-    if is_stream:        
+    if is_stream:
+        messages = data['messages']
         return StreamingResponse(generate_stream(messages, response, model_aliases.get(deployment_id, deployment_id), deployment_id), media_type='text/event-stream')
     else:
         return response
 
 @app.post('/openai/deployments/{deployment_id}/embeddings')
 async def embedding(deployment_id: str, request: Request):
-    data = await request.json()
+    data = await get_data_or_generate_error(request)
+
+    if type(data) == JSONResponse:
+        return data
+
     dial_api_key = request.headers.get('X-UPSTREAM-KEY')
     api_base = request.headers.get('X-UPSTREAM-ENDPOINT')
 
-    return await openai.Embedding.acreate(
-        deployment_id=deployment_id,
-        api_key=dial_api_key,
-        api_base=api_base,
-        **data
-    )
-
+    try:
+        return await OpenAIEmbedding().acreate(
+            deployment_id=deployment_id,
+            api_key=dial_api_key,
+            api_base=api_base,
+            **data
+        )
+    except OpenAIException as e:
+        return Response(
+            status_code=e.code,
+            headers=e.headers,
+            content=e.body
+        )
 
 @app.get('/health')
 def health():
