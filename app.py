@@ -62,6 +62,7 @@ async def generate_stream(request_id, messages, response, model, deployment):
                 total_content += chunk_dict['choices'][0]['delta'].get('content', '')
 
             last_chunk = chunk_dict
+            logger.info('Chunk ' + request_id + ': ' + str(chunk_dict))
             yield generate_chunk(chunk_dict)
     except OpenAIException as e:
         yield e.body
