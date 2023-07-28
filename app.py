@@ -38,7 +38,7 @@ def calculate_prompt_tokens(messages, model, encoding):
     
     return prompt_tokens
 
-async def generate_stream(messages, response, model, deployment):
+async def generate_stream(request_id, messages, response, model, deployment):
     encoding = tiktoken.encoding_for_model(model)
 
     prompt_tokens = calculate_prompt_tokens(messages, model, encoding)
@@ -107,6 +107,8 @@ async def generate_stream(messages, response, model, deployment):
                 }
             )
 
+    logger.info('Response ' + request_id + ': ' + total_content)
+
     yield 'data: [DONE]\n'
 
 async def get_data_or_generate_error(request):
@@ -143,6 +145,7 @@ async def get_data_or_generate_error(request):
 
 @app.post('/openai/deployments/{deployment_id}/chat/completions')
 async def chat(deployment_id: str, request: Request):
+    request_id = str(uuid4())
     data = await get_data_or_generate_error(request)
 
     if type(data) == JSONResponse:
@@ -151,6 +154,8 @@ async def chat(deployment_id: str, request: Request):
     is_stream = data.get('stream', False)
     dial_api_key = request.headers.get('X-UPSTREAM-KEY')
     api_base = request.headers.get('X-UPSTREAM-ENDPOINT')
+
+    logger.info('Request ' + request_id + ': ' + str(data) + ' (base: ' + api_base + ', key: ' + dial_api_key[0:3] + '...' + dial_api_key[len(dial_api_key)-3:len(dial_api_key)] + ')')
 
     try:
         response = await OpenAIChatCompletion().acreate(
@@ -168,7 +173,7 @@ async def chat(deployment_id: str, request: Request):
 
     if is_stream:
         messages = data['messages']
-        return StreamingResponse(generate_stream(messages, response, model_aliases.get(deployment_id, deployment_id), deployment_id), media_type='text/event-stream')
+        return StreamingResponse(generate_stream(request_id, messages, response, model_aliases.get(deployment_id, deployment_id), deployment_id), media_type='text/event-stream')
     else:
         return response
 
