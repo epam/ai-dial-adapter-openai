@@ -9,6 +9,7 @@ from openai_override import OpenAIException, OpenAIChatCompletion, OpenAIEmbeddi
 from uuid import uuid4
 from time import time
 from json import JSONDecodeError
+from openai import error
 
 app = FastAPI()
 logging.basicConfig(
@@ -62,7 +63,7 @@ async def generate_stream(request_id, messages, response, model, deployment):
                 total_content += chunk_dict['choices'][0]['delta'].get('content', '')
 
             last_chunk = chunk_dict
-            logger.info('Chunk ' + request_id + ': ' + str(chunk_dict))
+            # logger.info('Chunk ' + request_id + ': ' + str(chunk_dict))
             yield generate_chunk(chunk_dict)
     except OpenAIException as e:
         yield e.body
@@ -73,7 +74,7 @@ async def generate_stream(request_id, messages, response, model, deployment):
         completion_tokens = len(encoding.encode(total_content))
 
         if last_chunk != None:
-            logger.info('Don\'t received chunk with the finish reason')
+            # logger.info('Don\'t received chunk with the finish reason')
 
             last_chunk['usage'] = {
                 'completion_tokens': completion_tokens,
@@ -85,7 +86,7 @@ async def generate_stream(request_id, messages, response, model, deployment):
 
             yield generate_chunk(chunk_dict)
         else:
-            logger.info('Received 0 chunks')
+            # logger.info('Received 0 chunks')
 
             yield generate_chunk(
                 {
@@ -108,7 +109,7 @@ async def generate_stream(request_id, messages, response, model, deployment):
                 }
             )
 
-    logger.info('Response ' + request_id + ': ' + total_content)
+    # logger.info('Response ' + request_id + ': ' + total_content)
 
     yield 'data: [DONE]\n'
 
@@ -156,13 +157,14 @@ async def chat(deployment_id: str, request: Request):
     dial_api_key = request.headers.get('X-UPSTREAM-KEY')
     api_base = request.headers.get('X-UPSTREAM-ENDPOINT')
 
-    logger.info('Request ' + request_id + ': ' + str(data) + ' (base: ' + api_base + ', key: ' + dial_api_key[0:3] + '...' + dial_api_key[len(dial_api_key)-3:len(dial_api_key)] + ')')
+    # logger.info('Request ' + request_id + ': ' + str(data) + ' (base: ' + api_base + ', key: ' + dial_api_key[0:3] + '...' + dial_api_key[len(dial_api_key)-3:len(dial_api_key)] + ')')
 
     try:
         response = await OpenAIChatCompletion().acreate(
             engine=deployment_id,
             api_key=dial_api_key,
             api_base=api_base,
+            request_timeout=(10, 600), # connect timeout and total timeout
             **data
         )
     except OpenAIException as e:
@@ -170,6 +172,18 @@ async def chat(deployment_id: str, request: Request):
             status_code=e.code,
             headers=e.headers,
             content=e.body
+        )
+    except error.Timeout:
+        return JSONResponse(
+            status_code=504,
+            content={
+                'error': {
+                    'message': 'Request timed out',
+                    'type': 'timeout',
+                    'param': None,
+                    'code': None
+                }
+            }
         )
 
     if is_stream:
@@ -193,6 +207,7 @@ async def embedding(deployment_id: str, request: Request):
             deployment_id=deployment_id,
             api_key=dial_api_key,
             api_base=api_base,
+            request_timeout=(10, 600), # connect timeout and total timeout
             **data
         )
     except OpenAIException as e:
@@ -200,6 +215,18 @@ async def embedding(deployment_id: str, request: Request):
             status_code=e.code,
             headers=e.headers,
             content=e.body
+        )
+    except error.Timeout:
+        return JSONResponse(
+            status_code=504,
+            content={
+                'error': {
+                    'message': 'Request timed out',
+                    'type': 'timeout',
+                    'param': None,
+                    'code': None
+                }
+            }
         )
 
 @app.get('/health')
