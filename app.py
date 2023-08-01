@@ -74,7 +74,7 @@ async def generate_stream(request_id, messages, response, model, deployment):
         completion_tokens = len(encoding.encode(total_content))
 
         if last_chunk != None:
-            # logger.info('Don\'t received chunk with the finish reason')
+            logger.info('Don\'t received chunk with the finish reason')
 
             last_chunk['usage'] = {
                 'completion_tokens': completion_tokens,
@@ -86,7 +86,7 @@ async def generate_stream(request_id, messages, response, model, deployment):
 
             yield generate_chunk(chunk_dict)
         else:
-            # logger.info('Received 0 chunks')
+            logger.info('Received 0 chunks')
 
             yield generate_chunk(
                 {
