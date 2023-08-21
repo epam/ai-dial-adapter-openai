@@ -2,12 +2,12 @@
 
 import logging
 
-from fastapi import Body, FastAPI, Path, Query, Request
+from fastapi import Body, FastAPI, Path, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from llm.vertex_ai import VertexAIModel, vertex_ai_models
+from llm.vertex_ai_adapter import VertexAIModel, vertex_ai_models
 from server.exceptions import OpenAIException, error_handling_decorator
 from universal_api.request import ChatCompletionQuery, CompletionQuery
 from universal_api.response import make_response
@@ -34,6 +34,11 @@ app.add_middleware(
 )
 
 # Endpoints
+
+
+@app.get("/healthcheck")
+def healthcheck():
+    return Response("OK")
 
 
 class ModelDescription(BaseModel):
