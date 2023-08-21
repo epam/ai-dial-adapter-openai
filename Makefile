@@ -1,6 +1,6 @@
 ENV ?= DEV
 PORT ?= 5001
-IMAGE_NAME ?= vertex-ai-open-ai-adapter
+IMAGE_NAME ?= vertex-ai-adapter
 
 ifeq ($(ENV),DEV)
 	REQ = requirements-dev.txt
@@ -15,7 +15,8 @@ all: $(BUILD)
 
 $(BUILD): $(REQ)
 	python3 -m venv $(VENV)
-	pip install -r $(REQ)
+	$(VENV)/bin/pip install -r $(REQ)
+	echo "\033[31mActivate venv by running:\n> source $(BUILD)\033[0m"
 
 .PHONY: all server-run client-run clean lint format test docker-build docker-run
 

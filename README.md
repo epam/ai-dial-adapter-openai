@@ -6,6 +6,7 @@ The server provides `{project_id}/chat/completions`, `{project_id}/completions` 
 
 ```sh
 make all
+source .venv/bin/activate
 ```
 
 ## Configuration
