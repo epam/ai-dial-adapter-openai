@@ -46,7 +46,7 @@ make docker-build
 Run the image:
 
 ```sh
-make docker-build
+make docker-run
 ```
 
 Open `localhost:5001/docs` to make sure the server is up and running.
