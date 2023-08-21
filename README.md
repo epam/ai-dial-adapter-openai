@@ -64,3 +64,9 @@ Run linters and formatters before committing:
 make lint
 make format
 ```
+
+## Running tests
+
+```sh
+make test
+```

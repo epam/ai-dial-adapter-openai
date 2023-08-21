@@ -8,7 +8,7 @@ from google.api_core.exceptions import (
 )
 from google.auth.exceptions import GoogleAuthError
 
-from utils.printing import print_exception
+from utils.log_config import app_logger as log
 
 
 class OpenAIError(TypedDict):
@@ -70,7 +70,7 @@ def error_handling_decorator(func):
                 },
             )
         except Exception as e:
-            print_exception()
+            log.exception(f"Error: {str(e)}")
             raise OpenAIException(
                 status_code=500,
                 error={

@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-
-import logging
+import logging.config
 
 from fastapi import Body, FastAPI, Path, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +12,7 @@ from universal_api.response import make_response
 from utils.env import get_env
 from utils.log_config import LogConfig
 
-logging.config.dictConfig(LogConfig().dict())  # type: ignore
+logging.config.dictConfig(LogConfig().dict())
 
 app = FastAPI(
     description="Vertex AI adapter for OpenAI Chat API",
