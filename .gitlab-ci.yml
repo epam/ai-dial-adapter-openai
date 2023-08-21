@@ -35,10 +35,27 @@ variables:
 
 stages:
   - tag
-  - publish # publush docker images
+  - lint
+  - publish # publish docker images
   - deploy
   - promote # copy docker image to public repo
   - production # Stage name used in include. Not used. ToDo - delete this
+
+
+lint:
+  image: python:3.11-slim
+  stage: lint
+  before_script:
+    - apt-get update && apt-get install -y make
+    - make all
+    - source .venv/bin/activate
+  script:
+    - make lint
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "development" && $review_DEPLOY_ENV == "true"
+    - if: $CI_COMMIT_BRANCH  == "development"
+  tags:
+    - kubernetes
 
 deploy_development:
   image: "registry.deltixhub.com/deltix.docker/devops/kubernetes-tools:0.17.1"

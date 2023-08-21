@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -12,11 +11,10 @@ from vertexai.preview.language_models import ChatModel
 from universal_api.request import CompletionParameters
 from universal_api.token_usage import TokenUsage
 from utils.json import to_json
+from utils.log_config import vertex_ai_logger as log
 from utils.text import enforce_stop_tokens
 
 vertex_ai_models: List[str] = ["chat-bison@001"]
-
-log = logging.getLogger("vertex-ai")
 
 
 async def make_async(func, *args):

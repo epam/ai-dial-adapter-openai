@@ -1,20 +1,18 @@
-#!/usr/bin/env python3
+import logging.config
 
-import logging
-
-from fastapi import Body, FastAPI, Path, Query, Request
+from fastapi import Body, FastAPI, Path, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from llm.vertex_ai import VertexAIModel, vertex_ai_models
+from llm.vertex_ai_adapter import VertexAIModel, vertex_ai_models
 from server.exceptions import OpenAIException, error_handling_decorator
 from universal_api.request import ChatCompletionQuery, CompletionQuery
 from universal_api.response import make_response
 from utils.env import get_env
 from utils.log_config import LogConfig
 
-logging.config.dictConfig(LogConfig().dict())  # type: ignore
+logging.config.dictConfig(LogConfig().dict())
 
 app = FastAPI(
     description="Vertex AI adapter for OpenAI Chat API",
@@ -34,6 +32,11 @@ app.add_middleware(
 )
 
 # Endpoints
+
+
+@app.get("/healthcheck")
+def healthcheck():
+    return Response("OK")
 
 
 class ModelDescription(BaseModel):
