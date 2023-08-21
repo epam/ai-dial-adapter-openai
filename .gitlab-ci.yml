@@ -46,6 +46,7 @@ lint:
   image: python:3.11-slim
   stage: lint
   before_script:
+    - apt-get update && apt-get install -y make
     - make all
     - source .venv/bin/activate
   script:
