@@ -6,3 +6,6 @@ ignore = E501, W503, E203
 exclude =
     .venv,
     __pycache__
+per-file-ignores =
+    # imported but unused
+    test/locust.py: F401

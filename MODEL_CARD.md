@@ -45,7 +45,7 @@ The tokenizer is unknown.
 
 ## Text completion
 
-[text-bison](https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/text)
+[PaLM 2 for Chat](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/chat-bison)
 
 ```
 

@@ -5,12 +5,12 @@ The server provides `{project_id}/chat/completions`, `{project_id}/completions` 
 ## Installation
 
 ```sh
-./install.sh
+make all
 ```
 
 ## Configuration
 
-Create `.env` file and enter Google credentials:
+Copy `.env.example` to `.env` and fill the gaps with Google credentials:
 
 ```
 GOOGLE_APPLICATION_CREDENTIALS=<json with private key>
@@ -21,15 +21,15 @@ GOOGLE_APPLICATION_CREDENTIALS=<json with private key>
 Run the server:
 
 ```sh
-python ./app.py
+make server-run
 ```
 
-Open `localhost:8080/docs` to make sure the server is up and running.
+Open `localhost:5001/docs` to make sure the server is up and running.
 
 Run the client:
 
 ```sh
-python ./client.py
+make client-run
 ```
 
 Select the Vertex AI model and chat with the model.
@@ -39,27 +39,28 @@ Select the Vertex AI model and chat with the model.
 Build the image:
 
 ```sh
-./build.sh
+make docker-build
 ```
 
 Run the image:
 
 ```sh
-./run.sh
+make docker-build
 ```
 
-Open `localhost:8080/docs` to make sure the server is up and running.
+Open `localhost:5001/docs` to make sure the server is up and running.
 
 Run the client:
 
 ```sh
-python ./client.py
+make client-run
 ```
 
 ## Dev
 
-Run linters before committing:
+Run linters and formatters before committing:
 
 ```sh
-(pyright; flake8)
+make lint
+make format
 ```
