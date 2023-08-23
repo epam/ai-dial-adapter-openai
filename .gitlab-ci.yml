@@ -133,6 +133,11 @@ publish:
   image: alpine/git:v2.32.0
   stage: tag
   script:
+    - |
+      if git tag --contains HEAD; then
+        echo "Current commit is already tagged. Exiting..."
+        exit 0
+      fi
     - ver=$(echo -n $CI_COMMIT_REF_NAME | cut -f 2 -d '-') || ver=0.0
     - minor_tag=$(git describe --abbrev=0 --tags | cut -f 3 -d '.') || minor_tag=0
     - release_tag=${ver}.$(( minor_tag+1 ))
