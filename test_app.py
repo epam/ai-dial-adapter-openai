@@ -57,6 +57,7 @@ def models_request_openai() -> Any:
         api_type="azure",
         api_base=BASE_URL,
         api_version=DEFAULT_API_VERSION,
+        api_key="dummy_key",
     )
 
 

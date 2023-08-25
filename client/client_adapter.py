@@ -42,6 +42,7 @@ def create_model(
         callbacks=callbacks,
         openai_api_base=base_url,
         openai_api_version=DEFAULT_API_VERSION,
+        openai_api_key="dummy_key",
         verbose=True,
         streaming=streaming,
         temperature=0,
