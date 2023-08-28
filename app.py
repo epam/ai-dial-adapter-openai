@@ -185,6 +185,19 @@ async def chat(deployment_id: str, request: Request):
                 }
             }
         )
+    except error.APIConnectionError:
+        return JSONResponse(
+            status_code=502,
+            content={
+                'error': {
+                    'message': 'Error communicating with OpenAI',
+                    'type': 'connection',
+                    'param': None,
+                    'code': None
+                }
+            }
+        )
+
 
     if is_stream:
         messages = data['messages']
@@ -223,6 +236,18 @@ async def embedding(deployment_id: str, request: Request):
                 'error': {
                     'message': 'Request timed out',
                     'type': 'timeout',
+                    'param': None,
+                    'code': None
+                }
+            }
+        )
+    except error.APIConnectionError:
+        return JSONResponse(
+            status_code=502,
+            content={
+                'error': {
+                    'message': 'Error communicating with OpenAI',
+                    'type': 'connection',
                     'param': None,
                     'code': None
                 }
