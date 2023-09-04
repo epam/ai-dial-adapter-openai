@@ -17,9 +17,9 @@ async def main():
 
     model_id = choose_model()
     model = await VertexAIModel.create(
-        location="us-central1",
-        model_id=model_id,
+        location=get_env("DEFAULT_REGION"),
         project_id=get_env("GCP_PROJECT_ID"),
+        model_id=model_id,
         model_params=CompletionParameters(),
     )
 

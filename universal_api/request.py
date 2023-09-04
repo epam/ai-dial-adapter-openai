@@ -6,9 +6,9 @@ from pydantic import BaseModel
 
 class Message(BaseModel):
     role: str
-    content: Optional[str]
-    name: Optional[str]
-    function_call: Optional[str]
+    content: Optional[str] = None
+    name: Optional[str] = None
+    function_call: Optional[str] = None
 
     class Config:
         extra = "allow"
@@ -42,6 +42,16 @@ class ChatCompletionQuery(CompletionParameters, BaseModel):
 
     class Config:
         extra = "allow"
+
+    @staticmethod
+    def example() -> "ChatCompletionQuery":
+        return ChatCompletionQuery(
+            max_tokens=1024,
+            temperature=0.0,
+            messages=[
+                Message(role="user", content="Who are you?"),
+            ],
+        )
 
 
 class CompletionQuery(CompletionParameters, BaseModel):

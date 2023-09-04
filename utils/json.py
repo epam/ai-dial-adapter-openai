@@ -1,3 +1,4 @@
+import dataclasses
 import json
 from typing import Any
 
@@ -19,9 +20,12 @@ def to_json(data: Any, drill_down: bool = False) -> Any:
             json.dumps(data)
             return data
         except (TypeError, OverflowError):
-            _str = str(data)
-            d = _get_dict(data)
-            if d and drill_down:
-                return {"@@this": _str, **to_json(d, drill_down)}
-            else:
-                return _str
+            try:
+                return dataclasses.asdict(data)
+            except TypeError:
+                _str = str(data)
+                d = _get_dict(data)
+                if d and drill_down:
+                    return {"@@this": _str, **to_json(d, drill_down)}
+                else:
+                    return _str

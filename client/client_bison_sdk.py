@@ -1,7 +1,7 @@
 import vertexai
-from vertexai.language_models._language_models import _TUNED_MODEL_LOCATION
 from vertexai.preview.language_models import ChatModel
 
+from llm.vertex_ai_models import VertexAIModels
 from utils.env import get_env
 from utils.init import init
 from utils.input import make_input
@@ -9,11 +9,12 @@ from utils.printing import print_ai
 
 
 def main():
-    # Currently chat-bison is only available in us-central1
-    location = _TUNED_MODEL_LOCATION  # "us-central1"
-    model_id = "chat-bison@001"
+    location = get_env("DEFAULT_REGION")
+    project = get_env("GCP_PROJECT_ID")
 
-    vertexai.init(project=get_env("GCP_PROJECT_ID"), location=location)
+    model_id = VertexAIModels.CHAT_BISON_1.value
+
+    vertexai.init(project=project, location=location)
     chat_model = ChatModel.from_pretrained(model_id)
     parameters = {
         "temperature": 0.2,

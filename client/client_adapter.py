@@ -19,7 +19,10 @@ DEFAULT_API_VERSION = "2023-03-15-preview"
 
 def get_available_models(base_url: str) -> List[str]:
     resp = openai.Model.list(
-        api_type="azure", api_base=base_url, api_version=DEFAULT_API_VERSION
+        api_type="azure",
+        api_base=base_url,
+        api_version=DEFAULT_API_VERSION,
+        api_key="dummy_key",
     )
     assert isinstance(resp, dict)
     models = [r["id"] for r in resp.get("data", [])]

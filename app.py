@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from llm.vertex_ai_adapter import VertexAIModel, vertex_ai_models
+from llm.vertex_ai_models import VertexAIModels
 from server.exceptions import OpenAIException, error_handling_decorator
 from universal_api.request import ChatCompletionQuery, CompletionQuery
 from universal_api.response import make_response
@@ -62,12 +63,14 @@ user_to_palm_mapping = {default_user_project_id: get_env("GCP_PROJECT_ID")}
 @app.post("/openai/deployments/{model_id}/chat/completions")
 @error_handling_decorator
 async def chat_completions(
-    model_id: str = Path(...),
+    model_id: VertexAIModels = Path(...),
     project_id: str = Query(
         default=default_user_project_id, description="GCP project"
     ),
     region: str = Query(default=default_region, description="Region"),
-    query: ChatCompletionQuery = Body(...),
+    query: ChatCompletionQuery = Body(
+        ..., example=ChatCompletionQuery.example()
+    ),
 ):
     project_id = user_to_palm_mapping.get(project_id, project_id)
     model = await VertexAIModel.create(
@@ -79,19 +82,20 @@ async def chat_completions(
     messages = [message.to_base_message() for message in query.messages]
     response = await model.chat(messages)
 
-    streaming = query.stream or False
-    return make_response(streaming, model_id, "chat.completion", response)
+    return make_response(
+        bool(query.stream), model_id, "chat.completion", response
+    )
 
 
 @app.post("/openai/deployments/{model_id}/completions")
 @error_handling_decorator
 async def completions(
-    model_id: str = Path(...),
+    model_id: VertexAIModels = Path(...),
     project_id: str = Query(
         default=default_user_project_id, description="GCP project"
     ),
     region: str = Query(default=default_region, description="Region"),
-    query: CompletionQuery = Body(...),
+    query: CompletionQuery = Body(..., example=ChatCompletionQuery.example()),
 ):
     project_id = user_to_palm_mapping.get(project_id, project_id)
     model = await VertexAIModel.create(
@@ -103,8 +107,9 @@ async def completions(
 
     response = await model.completion(query.prompt)
 
-    streaming = query.stream or False
-    return make_response(streaming, model_id, "text_completion", response)
+    return make_response(
+        bool(query.stream), model_id, "text_completion", response
+    )
 
 
 @app.exception_handler(OpenAIException)

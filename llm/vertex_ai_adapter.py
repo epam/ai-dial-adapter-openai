@@ -1,26 +1,32 @@
 import asyncio
 import json
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
 import vertexai
 from langchain.schema import AIMessage, BaseMessage, SystemMessage
+from typing_extensions import override
 from vertexai.language_models._language_models import ChatMessage
 from vertexai.preview.language_models import ChatModel
 
+from llm.vertex_ai_models import VertexAIModels
 from universal_api.request import CompletionParameters
 from universal_api.token_usage import TokenUsage
 from utils.json import to_json
 from utils.log_config import vertex_ai_logger as log
 from utils.text import enforce_stop_tokens
 
-vertex_ai_models: List[str] = ["chat-bison@001"]
+vertex_ai_models: List[str] = [VertexAIModels.CHAT_BISON_1.value]
+
+T = TypeVar("T")
+A = TypeVar("A")
 
 
-async def make_async(func, *args):
+async def make_async(func: Callable[[A], T], arg: A) -> T:
     with ThreadPoolExecutor() as executor:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(executor, func, *args)
+        return await loop.run_in_executor(executor, func, arg)
 
 
 def compute_usage_estimation(prompt: List[str], completion: str) -> TokenUsage:
@@ -78,16 +84,46 @@ async def init_vertex_ai(project_id: str, location: str):
 cached_models: Dict[str, ChatModel] = {}
 
 
-async def get_vertex_ai_model(model_id):
+async def get_vertex_ai_model(model_id: str):
     global cached_models
     if model_id not in cached_models:
         cached_models[model_id] = await make_async(
-            lambda id: ChatModel.from_pretrained(id), model_id
+            ChatModel.from_pretrained, model_id
         )
     return cached_models[model_id]
 
 
-class VertexAIModel:
+class TextModel(ABC):
+    @abstractmethod
+    async def _call(
+        self,
+        context: Optional[str],
+        message_history: List[ChatMessage],
+        prompt: str,
+    ) -> Tuple[str, TokenUsage]:
+        pass
+
+    async def completion(self, prompt: str) -> Tuple[str, TokenUsage]:
+        return await self._call(None, [], prompt)
+
+    async def chat(self, history: List[BaseMessage]) -> Tuple[str, TokenUsage]:
+        messages = history.copy()
+
+        context: Optional[str] = None
+        if len(messages) > 0 and isinstance(messages[0], SystemMessage):
+            context = messages.pop(0).content
+
+        if len(messages) == 0:
+            raise Exception(
+                "The chat message must have at least one message besides initial system message"
+            )
+
+        message_history = list(map(to_chat_message, messages[:-1]))
+
+        return await self._call(context, message_history, messages[-1].content)
+
+
+class VertexAIModel(TextModel):
     def __init__(
         self,
         model: ChatModel,
@@ -115,6 +151,7 @@ class VertexAIModel:
         model = await get_vertex_ai_model(model_id)
         return cls(model, model_params, params)
 
+    @override
     async def _call(
         self,
         context: Optional[str],
@@ -139,11 +176,11 @@ class VertexAIModel:
             **self.params,
         )
 
-        response = await make_async(
-            lambda prompt: chat.send_message(prompt).text, prompt
-        )
+        response = await make_async(chat.send_message, prompt)
+        response_log = json.dumps(to_json(response), indent=2)
+        log.debug(f"response:\n{response_log}")
 
-        log.debug(f"response:\n{response}")
+        response = response.text
 
         if self.model_params.stop is not None:
             response = enforce_stop_tokens(response, self.model_params.stop)
@@ -154,25 +191,7 @@ class VertexAIModel:
         messages.extend(map(lambda m: m.content, message_history))
         messages.append(prompt)
 
+        # TODO: Return number of symbols generated, since Vertex AI is charging by symbols.
         usage = compute_usage_estimation(messages, response)
 
         return response, usage
-
-    async def completion(self, prompt: str) -> Tuple[str, TokenUsage]:
-        return await self._call(None, [], prompt)
-
-    async def chat(self, history: List[BaseMessage]) -> Tuple[str, TokenUsage]:
-        messages = history.copy()
-
-        context: Optional[str] = None
-        if len(messages) > 0 and isinstance(messages[0], SystemMessage):
-            context = messages.pop(0).content
-
-        if len(messages) == 0:
-            raise Exception(
-                "The chat message must have at least one message besides initial system message"
-            )
-
-        message_history = list(map(to_chat_message, messages[:-1]))
-
-        return await self._call(context, message_history, messages[-1].content)
