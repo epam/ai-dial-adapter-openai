@@ -10,6 +10,10 @@ from uuid import uuid4
 from time import time
 from json import JSONDecodeError
 from openai import error
+import re
+
+CHAT_COMPLETION_PATTERN = r"(.+?)/openai/deployments/(.+?)/chat/completions"
+EMBEDDING_PATTERN = r"(.+?)/openai/deployments/(.+?)/embeddings"
 
 app = FastAPI()
 logging.basicConfig(
@@ -155,13 +159,20 @@ async def chat(deployment_id: str, request: Request):
 
     is_stream = data.get('stream', False)
     dial_api_key = request.headers.get('X-UPSTREAM-KEY')
-    api_base = request.headers.get('X-UPSTREAM-ENDPOINT')
+    api_endpoint = request.headers.get('X-UPSTREAM-ENDPOINT')
+
+    api_base, upstream_deployment = None, None
+    try:
+        match = re.search(CHAT_COMPLETION_PATTERN, api_endpoint)
+        api_base, upstream_deployment = match[1], match[2]
+    except Exception as e:
+        return Response(status_code=400, content='Invalid upstream endpoint format')
 
     # logger.info('Request ' + request_id + ': ' + str(data) + ' (base: ' + api_base + ', key: ' + dial_api_key[0:3] + '...' + dial_api_key[len(dial_api_key)-3:len(dial_api_key)] + ')')
 
     try:
         response = await OpenAIChatCompletion().acreate(
-            engine=deployment_id,
+            engine=upstream_deployment,
             api_key=dial_api_key,
             api_base=api_base,
             request_timeout=(10, 600), # connect timeout and total timeout
@@ -213,11 +224,18 @@ async def embedding(deployment_id: str, request: Request):
         return data
 
     dial_api_key = request.headers.get('X-UPSTREAM-KEY')
-    api_base = request.headers.get('X-UPSTREAM-ENDPOINT')
+    api_endpoint = request.headers.get('X-UPSTREAM-ENDPOINT')
+
+    api_base, upstream_deployment = None, None
+    try:
+        match = re.search(EMBEDDING_PATTERN, api_endpoint)
+        api_base, upstream_deployment = match[1], match[2]
+    except Exception as e:
+        return Response(status_code=400, content='Invalid upstream endpoint format')
 
     try:
         return await OpenAIEmbedding().acreate(
-            deployment_id=deployment_id,
+            deployment_id=upstream_deployment,
             api_key=dial_api_key,
             api_base=api_base,
             request_timeout=(10, 600), # connect timeout and total timeout
