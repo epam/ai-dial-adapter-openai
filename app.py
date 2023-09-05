@@ -7,11 +7,12 @@ from pydantic import BaseModel
 
 from llm.vertex_ai_adapter import VertexAIModel, vertex_ai_models
 from llm.vertex_ai_models import VertexAIModels
-from server.exceptions import OpenAIException, error_handling_decorator
+from server.exceptions import OpenAIException, open_ai_exception_decorator
 from universal_api.request import ChatCompletionQuery, CompletionQuery
 from universal_api.response import make_response
 from utils.env import get_env
 from utils.log_config import LogConfig
+from utils.log_config import app_logger as log
 
 logging.config.dictConfig(LogConfig().dict())
 
@@ -46,6 +47,7 @@ class ModelDescription(BaseModel):
 
 
 @app.get("/openai/models")
+@open_ai_exception_decorator
 async def models():
     models = [
         ModelDescription(id=model, object="model").dict()
@@ -61,7 +63,7 @@ user_to_palm_mapping = {default_user_project_id: get_env("GCP_PROJECT_ID")}
 
 
 @app.post("/openai/deployments/{model_id}/chat/completions")
-@error_handling_decorator
+@open_ai_exception_decorator
 async def chat_completions(
     model_id: VertexAIModels = Path(...),
     project_id: str = Query(
@@ -88,7 +90,7 @@ async def chat_completions(
 
 
 @app.post("/openai/deployments/{model_id}/completions")
-@error_handling_decorator
+@open_ai_exception_decorator
 async def completions(
     model_id: VertexAIModels = Path(...),
     project_id: str = Query(
@@ -113,7 +115,8 @@ async def completions(
 
 
 @app.exception_handler(OpenAIException)
-async def open_ai_exception_handler(request: Request, exc: OpenAIException):
+async def exception_handler(request: Request, exc: OpenAIException):
+    log.exception(f"Exception: {str(exc)}")
     return JSONResponse(
         status_code=exc.status_code, content={"error": exc.error}
     )

@@ -8,8 +8,6 @@ from google.api_core.exceptions import (
 )
 from google.auth.exceptions import GoogleAuthError
 
-from utils.log_config import app_logger as log
-
 
 class OpenAIError(TypedDict):
     type: Literal["invalid_request_error", "internal_server_error"] | str
@@ -23,62 +21,72 @@ class OpenAIException(Exception):
         self.status_code = status_code
         self.error = error
 
+    def __str__(self) -> str:
+        return f"OpenAIException(status_code={self.status_code}, error={self.error})"
 
-def error_handling_decorator(func):
+
+def to_open_ai_exception(e: Exception) -> OpenAIException:
+    if isinstance(e, GoogleAuthError):
+        return OpenAIException(
+            status_code=401,
+            error={
+                "type": "invalid_request_error",
+                "message": f"Invalid Authentication: {str(e)}",
+                "code": "invalid_api_key",
+                "param": None,
+            },
+        )
+
+    if isinstance(e, PermissionDenied):
+        return OpenAIException(
+            status_code=403,
+            error={
+                "type": "invalid_request_error",
+                "message": f"Permission denied: {str(e)}",
+                "code": "permission_denied",
+                "param": None,
+            },
+        )
+
+    if isinstance(e, InvalidArgument):
+        return OpenAIException(
+            status_code=400,
+            error={
+                "type": "invalid_request_error",
+                "message": f"Invalid argument: {str(e)}",
+                "code": "invalid_argument",
+                "param": None,
+            },
+        )
+
+    if isinstance(e, GoogleAPICallError):
+        return OpenAIException(
+            status_code=e.code or 500,
+            error={
+                "type": "invalid_request_error",
+                "message": f"Invalid argument: {str(e)}",
+                "code": None,
+                "param": None,
+            },
+        )
+
+    return OpenAIException(
+        status_code=500,
+        error={
+            "type": "internal_server_error",
+            "message": str(e),
+            "code": None,
+            "param": None,
+        },
+    )
+
+
+def open_ai_exception_decorator(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except GoogleAuthError as e:
-            raise OpenAIException(
-                status_code=401,
-                error={
-                    "type": "invalid_request_error",
-                    "message": f"Invalid Authentication: {str(e)}",
-                    "code": "invalid_api_key",
-                    "param": None,
-                },
-            )
-        except PermissionDenied as e:
-            raise OpenAIException(
-                status_code=403,
-                error={
-                    "type": "invalid_request_error",
-                    "message": f"Permission denied: {str(e)}",
-                    "code": "permission_denied",
-                    "param": None,
-                },
-            )
-        except InvalidArgument as e:
-            raise OpenAIException(
-                status_code=400,
-                error={
-                    "type": "invalid_request_error",
-                    "message": f"Invalid argument: {str(e)}",
-                    "code": "invalid_argument",
-                    "param": None,
-                },
-            )
-        except GoogleAPICallError as e:
-            raise OpenAIException(
-                status_code=e.code if e.code is not None else 500,
-                error={
-                    "type": "invalid_request_error",
-                    "message": f"Invalid argument: {str(e)}",
-                    "code": None,
-                    "param": None,
-                },
-            )
         except Exception as e:
-            log.exception(f"Error: {str(e)}")
-            raise OpenAIException(
-                status_code=500,
-                error={
-                    "type": "internal_server_error",
-                    "message": str(e),
-                    "code": None,
-                    "param": None,
-                },
-            )
+            raise to_open_ai_exception(e)
 
     return wrapper

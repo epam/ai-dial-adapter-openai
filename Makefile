@@ -22,11 +22,11 @@ $(BUILD): $(REQ)
 
 server-run: $(BUILD)
 	@source ./load_env.sh; load_env; \
-	python ./debug_app.py --port=$(PORT)
+	python -m debug_app --port=$(PORT)
 
 client-run: $(BUILD)
 	@source ./load_env.sh; load_env; \
-	(PYTHONPATH=. python ./client/client_adapter.py)
+	python -m client.client_adapter
 
 clean:
 	rm -rf $(VENV)
