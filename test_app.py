@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from app import app
 from client.client_adapter import create_model
-from llm.vertex_ai_models import VertexAIModels
+from llm.vertex_ai_models import VertexAIModelName
 from utils.server import ping_server, wait_for_server
 
 client = TestClient(app)
@@ -22,6 +22,11 @@ HOST = "0.0.0.0"
 PORT = 5001
 
 BASE_URL = f"http://{HOST}:{PORT}"
+
+available_models = [
+    VertexAIModelName.CHAT_BISON_1,
+    VertexAIModelName.CODECHAT_BISON_1,
+]
 
 
 def run_server():
@@ -63,7 +68,7 @@ def models_request_openai() -> Any:
 
 def assert_models_subset(models: Any):
     actual_models = [model["id"] for model in models["data"]]
-    expected_models = [option.value for option in VertexAIModels]
+    expected_models = list(map(lambda e: e.value, available_models))
 
     assert set(expected_models).issubset(
         set(actual_models)
@@ -119,11 +124,6 @@ async def assert_dialog(
     ), f"Failed output test, actual output: {actual_output}"
 
 
-llm_models = [
-    VertexAIModels.CHAT_BISON_1,
-]
-
-
 class ModelTestCase(BaseModel):
     model_id: str
     query: str | List[str]
@@ -159,7 +159,7 @@ def get_test_cases_for_model(model_id: str) -> List[ModelTestCase]:
     "test_case",
     [
         test_case
-        for model in llm_models
+        for model in available_models
         for test_case in get_test_cases_for_model(model.value)
     ],
     ids=lambda test_case: test_case.get_id(),
