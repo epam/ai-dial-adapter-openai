@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from llm.vertex_ai_adapter import VertexAIModel, vertex_ai_models
-from llm.vertex_ai_models import VertexAIModels
+from llm.vertex_ai_adapter import get_model
+from llm.vertex_ai_models import VertexAIModelName
 from server.exceptions import OpenAIException, open_ai_exception_decorator
 from universal_api.request import ChatCompletionQuery, CompletionQuery
 from universal_api.response import make_response
@@ -50,8 +50,8 @@ class ModelDescription(BaseModel):
 @open_ai_exception_decorator
 async def models():
     models = [
-        ModelDescription(id=model, object="model").dict()
-        for model in vertex_ai_models
+        ModelDescription(id=model.value, object="model").dict()
+        for model in VertexAIModelName
     ]
 
     return {"object": "list", "data": models}
@@ -65,7 +65,7 @@ user_to_palm_mapping = {default_user_project_id: get_env("GCP_PROJECT_ID")}
 @app.post("/openai/deployments/{model_id}/chat/completions")
 @open_ai_exception_decorator
 async def chat_completions(
-    model_id: VertexAIModels = Path(...),
+    model_id: VertexAIModelName = Path(...),
     project_id: str = Query(
         default=default_user_project_id, description="GCP project"
     ),
@@ -75,7 +75,7 @@ async def chat_completions(
     ),
 ):
     project_id = user_to_palm_mapping.get(project_id, project_id)
-    model = await VertexAIModel.create(
+    model = await get_model(
         location=region,
         model_id=model_id,
         project_id=project_id,
@@ -92,7 +92,7 @@ async def chat_completions(
 @app.post("/openai/deployments/{model_id}/completions")
 @open_ai_exception_decorator
 async def completions(
-    model_id: VertexAIModels = Path(...),
+    model_id: VertexAIModelName = Path(...),
     project_id: str = Query(
         default=default_user_project_id, description="GCP project"
     ),
@@ -100,7 +100,7 @@ async def completions(
     query: CompletionQuery = Body(..., example=ChatCompletionQuery.example()),
 ):
     project_id = user_to_palm_mapping.get(project_id, project_id)
-    model = await VertexAIModel.create(
+    model = await get_model(
         location=region,
         model_id=model_id,
         project_id=project_id,

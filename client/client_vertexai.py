@@ -3,8 +3,8 @@ from typing import List
 
 from langchain.schema import AIMessage, BaseMessage, HumanMessage
 
-from llm.vertex_ai_adapter import VertexAIModel
-from llm.vertex_ai_models import VertexAIModels
+from llm.vertex_ai_adapter import get_model
+from llm.vertex_ai_models import VertexAIModelName
 from universal_api.request import CompletionParameters
 from utils.cli import select_enum
 from utils.env import get_env
@@ -16,8 +16,8 @@ from utils.printing import print_ai, print_info
 async def main():
     init()
 
-    model_id = select_enum("Select the model", VertexAIModels)
-    model = await VertexAIModel.create(
+    model_id = select_enum("Select the model", VertexAIModelName)
+    model = await get_model(
         location=get_env("DEFAULT_REGION"),
         project_id=get_env("GCP_PROJECT_ID"),
         model_id=model_id,

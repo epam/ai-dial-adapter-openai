@@ -33,7 +33,7 @@ class CompletionParameters(BaseModel):
     n: Optional[int] = None
     stream: Optional[bool] = None
     top_p: Optional[float] = None
-    top_k: Optional[float] = None
+    top_k: Optional[int] = None
 
 
 # Direct translation of https://platform.openai.com/docs/api-reference/chat/create
