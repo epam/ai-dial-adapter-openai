@@ -2,7 +2,7 @@ from typing import Any, List, Optional, Self, Tuple
 
 from vertexai.language_models._language_models import ChatMessage
 
-from llm.endpoint_chat_model import EndpointChatModel
+from llm.endpoint_chat_completion_adapter import EndpointChatCompletionAdapter
 from universal_api.request import CompletionParameters
 from utils.env import get_env
 from utils.list import list_to_tuples
@@ -30,7 +30,7 @@ def get_llama2_chat_prompt(
     return "".join(texts)
 
 
-class Llama2Model(EndpointChatModel):
+class Llama2Adapter(EndpointChatCompletionAdapter):
     @classmethod
     async def create(
         cls, project_id: str, location: str, model_params: CompletionParameters

@@ -6,7 +6,7 @@ from google.cloud.aiplatform import Endpoint
 from typing_extensions import override
 from vertexai.language_models._language_models import ChatMessage
 
-from llm.chat_adapter import ChatAdapter
+from llm.chat_completion_adapter import ChatCompletionAdapter
 from llm.vertex_ai import init_vertex_ai
 from universal_api.request import CompletionParameters
 from universal_api.token_usage import TokenUsage
@@ -14,7 +14,7 @@ from utils.concurrency import make_async
 from utils.log_config import vertex_ai_logger as log
 
 
-class EndpointChatModel(ChatAdapter):
+class EndpointChatCompletionAdapter(ChatCompletionAdapter):
     def __init__(
         self,
         model_params: CompletionParameters,

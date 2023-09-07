@@ -1,7 +1,7 @@
 import vertexai
 from vertexai.preview.language_models import CodeChatModel
 
-from llm.vertex_ai_models import VertexAIModelName
+from llm.vertex_ai_deployments import ChatCompletionDeployment
 from utils.env import get_env
 from utils.init import init
 from utils.input import make_input
@@ -12,7 +12,7 @@ def main():
     location = get_env("DEFAULT_REGION")
     project = get_env("GCP_PROJECT_ID")
 
-    model_id = VertexAIModelName.CODECHAT_BISON_1
+    model_id = ChatCompletionDeployment.CODECHAT_BISON_1
 
     vertexai.init(project=project, location=location)
     chat_model = CodeChatModel.from_pretrained(model_id)

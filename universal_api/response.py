@@ -1,8 +1,9 @@
 import json
 import time
 import uuid
-from typing import Generator, List, Tuple
+from typing import Generator, List, Literal, Tuple, TypedDict
 
+from fastapi import Response
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
@@ -74,9 +75,9 @@ def wrap_single_message(
     }
 
 
-def make_response(
+def make_chat_completion_response(
     streaming: bool, model_id: str, name: str, resp: Tuple[str, TokenUsage]
-):
+) -> Response | dict:
     id = str(uuid.uuid4())
     timestamp = int(time.time())
     content, usage = resp
@@ -96,3 +97,39 @@ def make_response(
             "content": content,
         }
         return wrap_single_message(params, chunk, usage)
+
+
+class EmbeddingsDict(TypedDict):
+    index: int
+    object: Literal["embedding"]
+    embedding: List[float]
+
+
+class EmbeddingsTokenUsageDict(TypedDict):
+    prompt_tokens: int
+    total_tokens: int
+
+
+class EmbeddingsResponseDict(TypedDict):
+    object: Literal["list"]
+    model: str
+    data: List[EmbeddingsDict]
+    usage: EmbeddingsTokenUsageDict
+
+
+def make_embeddings_response(
+    model_id: str, resp: Tuple[List[List[float]], TokenUsage]
+) -> EmbeddingsResponseDict:
+    vectors, usage = resp
+
+    data: List[EmbeddingsDict] = [
+        {"index": idx, "object": "embedding", "embedding": vec}
+        for idx, vec in enumerate(vectors)
+    ]
+
+    return {
+        "object": "list",
+        "model": model_id,
+        "data": data,
+        "usage": usage.to_dict(),
+    }

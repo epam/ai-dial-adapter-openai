@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List, Optional
 
 from langchain.schema import AIMessage, BaseMessage, HumanMessage, SystemMessage
@@ -59,3 +60,18 @@ class CompletionQuery(CompletionParameters, BaseModel):
 
     class Config:
         extra = "allow"
+
+
+class EmbeddingsType(str, Enum):
+    SYMMETRIC = "symmetric"
+    DOCUMENT = "document"
+    QUERY = "query"
+
+
+class EmbeddingsQuery(BaseModel):
+    input: str | List[str]
+    user: Optional[str] = None
+
+    @staticmethod
+    def example() -> "EmbeddingsQuery":
+        return EmbeddingsQuery(input=["fish", "ball"])

@@ -2,7 +2,7 @@ from typing import Self, TypedDict
 
 from vertexai.preview.language_models import ChatModel, CodeChatModel
 
-from llm.chat_adapter import ChatAdapter
+from llm.chat_completion_adapter import ChatCompletionAdapter
 from llm.vertex_ai import (
     get_vertex_ai_chat_model,
     get_vertex_ai_code_chat_model,
@@ -65,7 +65,7 @@ def prepare_code_chat_model_kwargs(
     return model_kwargs
 
 
-class VertexAIChatModel(ChatAdapter):
+class ChatModelAdapter(ChatCompletionAdapter):
     def __init__(
         self,
         model: ChatModel,
@@ -92,7 +92,7 @@ class VertexAIChatModel(ChatAdapter):
         return cls(model, model_params, params)
 
 
-class VertexAICodeChatModel(ChatAdapter):
+class CodeChatModelAdapter(ChatCompletionAdapter):
     def __init__(
         self,
         model: CodeChatModel,
@@ -111,7 +111,7 @@ class VertexAICodeChatModel(ChatAdapter):
         location: str,
         model_params: CompletionParameters,
     ) -> Self:
-        params = prepare_chat_model_kwargs(model_params)
+        params = prepare_code_chat_model_kwargs(model_params)
 
         await init_vertex_ai(project_id, location)
 

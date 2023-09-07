@@ -12,7 +12,7 @@ def to_chat_message(message: BaseMessage) -> ChatMessage:
     return ChatMessage(author=author, content=message.content)
 
 
-class ChatAdapter(ABC):
+class ChatCompletionAdapter(ABC):
     @abstractmethod
     async def _call(
         self,

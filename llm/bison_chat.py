@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 from typing_extensions import override
 from vertexai.language_models._language_models import ChatMessage
 
-from llm.vertex_ai_chat_model import VertexAIChatModel, VertexAICodeChatModel
+from llm.chat_model_adapter import ChatModelAdapter, CodeChatModelAdapter
 from universal_api.token_usage import TokenUsage
 from utils.concurrency import make_async
 from utils.json import to_json
@@ -26,7 +26,7 @@ def compute_usage(prompt: List[str], completion: str) -> TokenUsage:
     )
 
 
-class BisonChatModel(VertexAIChatModel):
+class BisonChatAdapter(ChatModelAdapter):
     @override
     async def _call(
         self,
@@ -74,7 +74,7 @@ class BisonChatModel(VertexAIChatModel):
         return response, usage
 
 
-class BisonCodeChatModel(VertexAICodeChatModel):
+class BisonCodeChatAdapter(CodeChatModelAdapter):
     @override
     async def _call(
         self,

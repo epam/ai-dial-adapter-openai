@@ -5,18 +5,18 @@ import requests
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 
-from llm.vertex_ai_models import VertexAIModelName
+from llm.vertex_ai_deployments import ChatCompletionDeployment
 from utils.env import get_env
 from utils.init import init
 
 init()
 
 JSON_CREDENTIALS = get_env("GOOGLE_APPLICATION_CREDENTIALS")
-
 PROJECT_ID = get_env("GCP_PROJECT_ID")
 LOCATION = get_env("DEFAULT_REGION")
+
 API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
-MODEL_ID = VertexAIModelName.CHAT_BISON_1.value
+MODEL_ID = ChatCompletionDeployment.CHAT_BISON_1.value
 
 credentials = service_account.Credentials.from_service_account_file(
     JSON_CREDENTIALS,
