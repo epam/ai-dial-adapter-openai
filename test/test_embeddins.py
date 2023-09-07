@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from itertools import product
 from test.conftest import BASE_URL, DEFAULT_API_VERSION
 from typing import Callable, Dict, List, cast
 
@@ -36,7 +37,7 @@ class TestCase:
 
 
 def get_test_cases(
-    deployment: EmbeddingsDeployment, types: List[EmbeddingsType]
+    deployment: EmbeddingsDeployment, allowed_types: List[EmbeddingsType]
 ) -> List[TestCase]:
     input = ["fish", "cat"]
 
@@ -48,18 +49,25 @@ def get_test_cases(
 
     ret: List[TestCase] = []
 
-    for ty in ["", "symmetric", "document", "query"]:
-        headers = {
-            "X-DIAL-Instruction": "dummy",
-        }
+    for ty, instr in product(
+        ["", "symmetric", "document", "query"], ["", "dummy"]
+    ):
+        headers = {}
+
+        if instr:
+            headers["X-DIAL-Instruction"] = instr
+
         if ty:
             headers["X-DIAL-Type"] = ty
 
-        expected = (
-            test
-            if ty == "" or ty in types
-            else Exception("Invalid embedding type")
-        )
+        expected: Callable[[EmbeddingsResponseDict], None] | Exception = test
+        if instr != "":
+            expected = Exception("Instruction prompt is not supported")
+        elif ty != "" and ty not in allowed_types:
+            allowed = ", ".join([e.value for e in allowed_types])
+            expected = Exception(
+                f"Embedding types other than {allowed} are not supported"
+            )
 
         ret.append(
             TestCase(

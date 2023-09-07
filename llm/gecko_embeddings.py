@@ -4,10 +4,10 @@ from typing import List, Optional, Tuple
 from vertexai.language_models import TextEmbeddingInput
 
 from llm.embeddings_adapter import EmbeddingsAdapter
+from llm.exception import ValidationError
 from llm.vertex_ai import TextEmbeddingModel
 from universal_api.request import EmbeddingsType
 from universal_api.token_usage import TokenUsage
-from utils.log_config import vertex_ai_logger as log
 
 
 class GeckoEmbeddingType(str, Enum):
@@ -48,6 +48,21 @@ async def get_gecko_embeddings(
     return vectors, TokenUsage(prompt_tokens=token_count, completion_tokens=0)
 
 
+def validate_parameters(
+    embedding_type: EmbeddingsType,
+    embedding_instruction: Optional[str],
+    supported_embedding_types: List[EmbeddingsType],
+) -> None:
+    if embedding_instruction is not None:
+        raise ValidationError("Instruction prompt is not supported")
+
+    if embedding_type not in supported_embedding_types:
+        allowed = ", ".join([e.value for e in supported_embedding_types])
+        raise ValidationError(
+            f"Embedding types other than {allowed} are not supported"
+        )
+
+
 class GeckoTextGenericEmbeddingsAdapter(EmbeddingsAdapter):
     async def embeddings(
         self,
@@ -55,10 +70,10 @@ class GeckoTextGenericEmbeddingsAdapter(EmbeddingsAdapter):
         embedding_instruction: Optional[str],
         embedding_type: EmbeddingsType,
     ) -> Tuple[List[List[float]], TokenUsage]:
-        if embedding_instruction is not None:
-            log.warning(
-                "The embedding model doesn't support instruction prompt"
-            )
+        validate_parameters(
+            embedding_type, embedding_instruction, [e for e in EmbeddingsType]
+        )
+
         task_type = to_gecko_embedding_type(embedding_type)
         return await get_gecko_embeddings(self.model, input, task_type)
 
@@ -70,13 +85,10 @@ class GeckoTextClassificationEmbeddingsAdapter(EmbeddingsAdapter):
         embedding_instruction: Optional[str],
         embedding_type: EmbeddingsType,
     ) -> Tuple[List[List[float]], TokenUsage]:
-        if embedding_instruction is not None:
-            log.warning(
-                "The embedding model doesn't support instruction prompt"
-            )
-        assert (
-            embedding_type == EmbeddingsType.SYMMETRIC
-        ), "Invalid embedding type"
+        validate_parameters(
+            embedding_type, embedding_instruction, [EmbeddingsType.SYMMETRIC]
+        )
+
         return await get_gecko_embeddings(
             self.model, input, GeckoEmbeddingType.CLASSIFICATION
         )
@@ -89,13 +101,10 @@ class GeckoTextClusteringEmbeddingsAdapter(EmbeddingsAdapter):
         embedding_instruction: Optional[str],
         embedding_type: EmbeddingsType,
     ) -> Tuple[List[List[float]], TokenUsage]:
-        if embedding_instruction is not None:
-            log.warning(
-                "The embedding model doesn't support instruction prompt"
-            )
-        assert (
-            embedding_type == EmbeddingsType.SYMMETRIC
-        ), "Invalid embedding type"
+        validate_parameters(
+            embedding_type, embedding_instruction, [EmbeddingsType.SYMMETRIC]
+        )
+
         return await get_gecko_embeddings(
             self.model, input, GeckoEmbeddingType.CLUSTERING
         )

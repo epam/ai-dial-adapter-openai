@@ -8,6 +8,8 @@ from google.api_core.exceptions import (
 )
 from google.auth.exceptions import GoogleAuthError
 
+from llm.exception import ValidationError
+
 
 class OpenAIError(TypedDict):
     type: Literal["invalid_request_error", "internal_server_error"] | str
@@ -66,6 +68,17 @@ def to_open_ai_exception(e: Exception) -> OpenAIException:
                 "type": "invalid_request_error",
                 "message": f"Invalid argument: {str(e)}",
                 "code": None,
+                "param": None,
+            },
+        )
+
+    if isinstance(e, ValidationError):
+        return OpenAIException(
+            status_code=422,
+            error={
+                "type": "invalid_request_error",
+                "message": e.message,
+                "code": "invalid_argument",
                 "param": None,
             },
         )
