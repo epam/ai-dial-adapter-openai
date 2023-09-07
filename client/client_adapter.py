@@ -36,7 +36,7 @@ def print_exception(exc: Exception) -> None:
         print_error(str(exc))
 
 
-def create_model(
+def create_chat_model(
     base_url: str, model_id: str, streaming: bool
 ) -> BaseChatModel:
     callbacks: Callbacks = [CallbackWithNewLines()]
@@ -61,7 +61,7 @@ def main():
     model_id = select_option("Select the model", get_available_models(base_url))
     streaming = select_option("Streaming?", [False, True])
 
-    model = create_model(base_url, model_id, streaming)
+    model = create_chat_model(base_url, model_id, streaming)
 
     history: List[BaseMessage] = []
 

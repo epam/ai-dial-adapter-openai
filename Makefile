@@ -42,7 +42,7 @@ format: $(BUILD)
 # Add options "-s --log-cli-level=NOTSET" to pytest to see all logs
 test: $(BUILD)
 	@source ./load_env.sh; load_env; \
-	pytest . -v --durations=0 -rA
+	python -m pytest . -v --durations=0 -rA
 
 docker-build: Dockerfile
 	docker build --platform linux/amd64 -t $(IMAGE_NAME) .

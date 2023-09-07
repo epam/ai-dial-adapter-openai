@@ -1,54 +1,20 @@
-from multiprocessing import Process
+from dataclasses import dataclass
+from test.conftest import BASE_URL, DEFAULT_API_VERSION
 from typing import Any, Callable, List
 
 import openai
 import pytest
 import requests
-import uvicorn
-from fastapi.testclient import TestClient
 from langchain.chat_models.base import BaseChatModel
 from langchain.schema import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from pydantic import BaseModel
 
-from app import app
-from client.client_adapter import create_model
-from llm.vertex_ai_models import VertexAIModelName
-from utils.server import ping_server, wait_for_server
+from client.client_adapter import create_chat_model
+from llm.vertex_ai_deployments import ChatCompletionDeployment
 
-client = TestClient(app)
-
-DEFAULT_API_VERSION = "2023-03-15-preview"
-HOST = "0.0.0.0"
-PORT = 5001
-
-BASE_URL = f"http://{HOST}:{PORT}"
-
-available_models = [
-    VertexAIModelName.CHAT_BISON_1,
-    VertexAIModelName.CODECHAT_BISON_1,
+deployments = [
+    ChatCompletionDeployment.CHAT_BISON_1,
+    ChatCompletionDeployment.CODECHAT_BISON_1,
 ]
-
-
-def run_server():
-    uvicorn.run(app, host=HOST, port=PORT)
-
-
-@pytest.fixture(scope="module")
-def server():
-    already_exists = ping_server(BASE_URL)
-
-    server_process: Process | None = None
-    if not already_exists:
-        server_process = Process(target=run_server)
-        server_process.start()
-
-    assert wait_for_server(BASE_URL), "Server didn't start in time!"
-
-    yield
-
-    if server_process is not None:
-        server_process.terminate()
-        server_process.join()
 
 
 def models_request_http() -> Any:
@@ -68,7 +34,7 @@ def models_request_openai() -> Any:
 
 def assert_models_subset(models: Any):
     actual_models = [model["id"] for model in models["data"]]
-    expected_models = list(map(lambda e: e.value, available_models))
+    expected_models = list(map(lambda e: e.value, deployments))
 
     assert set(expected_models).issubset(
         set(actual_models)
@@ -124,28 +90,33 @@ async def assert_dialog(
     ), f"Failed output test, actual output: {actual_output}"
 
 
-class ModelTestCase(BaseModel):
-    model_id: str
+@dataclass
+class TestCase:
+    __test__ = False
+
+    deployment: ChatCompletionDeployment
     query: str | List[str]
     test: Callable[[str], bool]
 
     def get_id(self):
-        return f"{self.model_id}: {self.query}"
+        return f"{self.deployment.value}: {self.query}"
 
     def get_history(self) -> List[str]:
         return [self.query] if isinstance(self.query, str) else self.query
 
 
-def get_test_cases_for_model(model_id: str) -> List[ModelTestCase]:
-    ret: List[ModelTestCase] = []
+def get_test_cases(
+    deployment: ChatCompletionDeployment,
+) -> List[TestCase]:
+    ret: List[TestCase] = []
 
     ret.append(
-        ModelTestCase(model_id=model_id, query="2+3=?", test=lambda s: "5" in s)
+        TestCase(deployment=deployment, query="2+3=?", test=lambda s: "5" in s)
     )
 
     ret.append(
-        ModelTestCase(
-            model_id=model_id,
+        TestCase(
+            deployment=deployment,
             query='Reply with "Hello"',
             test=lambda s: "hello" in s.lower(),
         )
@@ -156,18 +127,12 @@ def get_test_cases_for_model(model_id: str) -> List[ModelTestCase]:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "test_case",
-    [
-        test_case
-        for model in available_models
-        for test_case in get_test_cases_for_model(model.value)
-    ],
-    ids=lambda test_case: test_case.get_id(),
+    "test",
+    [test_case for model in deployments for test_case in get_test_cases(model)],
+    ids=lambda test: test.get_id(),
 )
-async def test_bedrock_llm_openai(server, test_case: ModelTestCase):
+async def test_chat_completion_langchain(server, test: TestCase):
     streaming = False
-    model = create_model(BASE_URL, test_case.model_id, streaming)
+    model = create_chat_model(BASE_URL, test.deployment, streaming)
 
-    await assert_dialog(
-        model, test_case.get_history(), test_case.test, streaming
-    )
+    await assert_dialog(model, test.get_history(), test.test, streaming)

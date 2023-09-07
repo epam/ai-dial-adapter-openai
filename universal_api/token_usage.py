@@ -20,11 +20,15 @@ class TokenUsage(BaseModel):
         return self.prompt_tokens + self.completion_tokens
 
     def to_dict(self) -> TokenUsageDict:
-        return {
+        ret: TokenUsageDict = {
             "prompt_tokens": self.prompt_tokens,
-            "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
         }
+
+        if self.completion_tokens != 0:
+            ret["completion_tokens"] = self.completion_tokens
+
+        return ret
 
     @staticmethod
     def zero_usage() -> "TokenUsage":
