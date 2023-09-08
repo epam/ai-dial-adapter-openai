@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import requests
 from google.auth.transport.requests import Request
@@ -23,14 +22,9 @@ credentials = service_account.Credentials.from_service_account_file(
     scopes=["https://www.googleapis.com/auth/cloud-platform"],
 )
 
-token_file = Path("secret") / ".gcp-token"
-
-if not credentials.valid:
-    print("Refreshing the token...")
-    credentials.refresh(Request())
-    token_file.write_text(credentials.token)
-
-access_token = token_file.read_text()
+print("Refreshing the token...")
+credentials.refresh(Request())
+access_token = credentials.token
 
 url = f"https://{API_ENDPOINT}/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{MODEL_ID}:predict"
 

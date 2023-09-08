@@ -33,11 +33,14 @@ clean:
 	find . -type f -name '*.pyc' -not -path './.venv/*' -delete
 
 lint: $(BUILD)
-	PYRIGHT_PYTHON_FORCE_VERSION=latest pyright
+	pyright
 	flake8
+	$(MAKE) format ARGS="--check"
 
 format: $(BUILD)
-	black . --exclude '(/\.venv/)'
+	autoflake . $(ARGS)
+	isort . $(ARGS)
+	black . $(ARGS)
 
 # Add options "-s --log-cli-level=NOTSET" to pytest to see all logs
 test: $(BUILD)

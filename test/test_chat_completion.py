@@ -81,7 +81,7 @@ async def assert_dialog(
     )
 
     # Usage is missing when and only where streaming is enabled
-    assert (actual_usage is None) == streaming
+    assert (actual_usage in [None, {}]) == streaming
 
     actual_output = llm_result.generations[0][-1].text
 
@@ -95,28 +95,36 @@ class TestCase:
     __test__ = False
 
     deployment: ChatCompletionDeployment
+    streaming: bool
+
     query: str | List[str]
     test: Callable[[str], bool]
 
     def get_id(self):
-        return f"{self.deployment.value}: {self.query}"
+        return f"{self.deployment.value}[stream={self.streaming}]: {self.query}"
 
     def get_history(self) -> List[str]:
         return [self.query] if isinstance(self.query, str) else self.query
 
 
 def get_test_cases(
-    deployment: ChatCompletionDeployment,
+    deployment: ChatCompletionDeployment, streaming: bool
 ) -> List[TestCase]:
     ret: List[TestCase] = []
 
     ret.append(
-        TestCase(deployment=deployment, query="2+3=?", test=lambda s: "5" in s)
+        TestCase(
+            deployment=deployment,
+            streaming=streaming,
+            query="2+3=?",
+            test=lambda s: "5" in s,
+        )
     )
 
     ret.append(
         TestCase(
             deployment=deployment,
+            streaming=streaming,
             query='Reply with "Hello"',
             test=lambda s: "hello" in s.lower(),
         )
@@ -128,11 +136,15 @@ def get_test_cases(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "test",
-    [test_case for model in deployments for test_case in get_test_cases(model)],
+    [
+        test_case
+        for model in deployments
+        for streaming in [False, True]
+        for test_case in get_test_cases(model, streaming)
+    ],
     ids=lambda test: test.get_id(),
 )
 async def test_chat_completion_langchain(server, test: TestCase):
-    streaming = False
+    streaming = test.streaming
     model = create_chat_model(BASE_URL, test.deployment, streaming)
-
     await assert_dialog(model, test.get_history(), test.test, streaming)

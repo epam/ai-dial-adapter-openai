@@ -6,7 +6,10 @@ from google.cloud.aiplatform import Endpoint
 from typing_extensions import override
 from vertexai.language_models._language_models import ChatMessage
 
-from llm.chat_completion_adapter import ChatCompletionAdapter
+from llm.chat_completion_adapter import (
+    ChatCompletionAdapter,
+    ChatCompletionResponse,
+)
 from llm.vertex_ai import init_vertex_ai
 from universal_api.request import CompletionParameters
 from universal_api.token_usage import TokenUsage
@@ -53,10 +56,11 @@ class EndpointChatCompletionAdapter(ChatCompletionAdapter):
     @override
     async def _call(
         self,
+        streaming: bool,
         context: Optional[str],
         message_history: List[ChatMessage],
         prompt: str,
-    ) -> Tuple[str, TokenUsage]:
+    ) -> ChatCompletionResponse:
         instances, opt_prompt = await self.compile_request(
             context, message_history, prompt
         )

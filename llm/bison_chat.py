@@ -1,10 +1,11 @@
 import json
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from typing_extensions import override
 from vertexai.language_models._language_models import ChatMessage
 
+from llm.chat_completion_adapter import ChatCompletionResponse
 from llm.chat_model_adapter import ChatModelAdapter, CodeChatModelAdapter
 from universal_api.token_usage import TokenUsage
 from utils.concurrency import make_async
@@ -30,10 +31,11 @@ class BisonChatAdapter(ChatModelAdapter):
     @override
     async def _call(
         self,
+        streaming: bool,
         context: Optional[str],
         message_history: List[ChatMessage],
         prompt: str,
-    ) -> Tuple[str, TokenUsage]:
+    ) -> ChatCompletionResponse:
         if log.isEnabledFor(logging.DEBUG):
             msg = json.dumps(
                 to_json(
@@ -59,10 +61,7 @@ class BisonChatAdapter(ChatModelAdapter):
             msg = json.dumps(to_json(response), indent=2)
             log.debug(f"response:\n{msg}")
 
-        response = response.text
-
-        if self.model_params.stop is not None:
-            response = enforce_stop_tokens(response, self.model_params.stop)
+        response = enforce_stop_tokens(response.text, self.model_params.stop)
 
         messages: List[str] = []
         if context is not None:
@@ -78,10 +77,11 @@ class BisonCodeChatAdapter(CodeChatModelAdapter):
     @override
     async def _call(
         self,
+        streaming: bool,
         context: Optional[str],
         message_history: List[ChatMessage],
         prompt: str,
-    ) -> Tuple[str, TokenUsage]:
+    ) -> ChatCompletionResponse:
         if context is not None:
             log.warning("System message is ignored for the code chat models")
 
@@ -103,10 +103,7 @@ class BisonCodeChatAdapter(CodeChatModelAdapter):
             msg = json.dumps(to_json(response), indent=2)
             log.debug(f"response:\n{msg}")
 
-        response = response.text
-
-        if self.model_params.stop is not None:
-            response = enforce_stop_tokens(response, self.model_params.stop)
+        response = enforce_stop_tokens(response.text, self.model_params.stop)
 
         messages: List[str] = []
         messages.extend(map(lambda m: m.content, message_history))

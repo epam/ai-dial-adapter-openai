@@ -76,10 +76,10 @@ default_user_project_id = get_env("ADAPTER_PROJECT_ID")
 user_to_palm_mapping = {default_user_project_id: get_env("GCP_PROJECT_ID")}
 
 
-@app.post("/openai/deployments/{model_id}/chat/completions")
+@app.post("/openai/deployments/{deployment}/chat/completions")
 @open_ai_exception_decorator
 async def chat_completions(
-    model_id: ChatCompletionDeployment = Path(...),
+    deployment: ChatCompletionDeployment = Path(...),
     project_id: str = Query(
         default=default_user_project_id, description="GCP project"
     ),
@@ -90,16 +90,18 @@ async def chat_completions(
 ):
     project_id = user_to_palm_mapping.get(project_id, project_id)
     model = await get_chat_completion_model(
-        location=region,
-        deployment=model_id,
+        deployment=deployment,
         project_id=project_id,
+        location=region,
         model_params=query,
     )
     messages = [message.to_base_message() for message in query.messages]
-    response = await model.chat(messages)
+
+    streaming = bool(query.stream)
+    response = await model.chat(streaming, messages)
 
     return make_chat_completion_response(
-        bool(query.stream), model_id, "chat.completion", response
+        streaming, deployment, "chat.completion", response
     )
 
 

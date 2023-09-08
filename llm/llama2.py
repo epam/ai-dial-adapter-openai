@@ -32,7 +32,7 @@ def get_llama2_chat_prompt(
 
 class Llama2Adapter(EndpointChatCompletionAdapter):
     @classmethod
-    async def create(
+    async def create_endpoint(
         cls, project_id: str, location: str, model_params: CompletionParameters
     ) -> Self:
         return await super().create(
