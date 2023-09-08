@@ -6,7 +6,7 @@ from langchain.schema import AIMessage, BaseMessage, HumanMessage
 from llm.vertex_ai_adapter import get_chat_completion_model
 from llm.vertex_ai_deployments import ChatCompletionDeployment
 from universal_api.request import CompletionParameters
-from utils.cli import select_enum
+from utils.cli import select_enum, select_option
 from utils.env import get_env
 from utils.init import init
 from utils.input import make_input
@@ -17,6 +17,8 @@ async def main():
     init()
 
     model_id = select_enum("Select the model", ChatCompletionDeployment)
+    streaming = select_option("Streaming?", [False, True])
+
     model = await get_chat_completion_model(
         location=get_env("DEFAULT_REGION"),
         project_id=get_env("GCP_PROJECT_ID"),
@@ -32,7 +34,7 @@ async def main():
         content = input()
         history.append(HumanMessage(content=content))
 
-        response, usage = await model.chat(history)
+        response, usage = await model.chat(streaming, history)
 
         print_info(usage.json(indent=2))
 

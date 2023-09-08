@@ -34,11 +34,11 @@ async def get_chat_completion_model(
                 model_id, project_id, location, model_params
             )
         case ExtraChatCompletionDeployment.LLAMA2_7B_CHAT_1:
-            return await Llama2Adapter.create(
+            return await Llama2Adapter.create_endpoint(
                 project_id, location, model_params
             )
         case ExtraChatCompletionDeployment.DOLLY_V2_7B:
-            return await Dolly2Adapter.create(
+            return await Dolly2Adapter.create_endpoint(
                 project_id, location, model_params
             )
 

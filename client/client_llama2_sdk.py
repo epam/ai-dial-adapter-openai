@@ -26,12 +26,7 @@ chat_prompt = get_llama2_chat_prompt(
 completion_prompt = "Write a poem about Valencia."
 
 instances = [
-    {
-        "prompt": chat_prompt,
-        "max_length": 1024,
-        "temperature": 1.0,
-        "n": 1,  # 2 doesn't work
-    },
+    {"prompt": chat_prompt, "max_length": 1024, "temperature": 1.0, "n": 1},
 ]
 
 with Timer("Prediction") as elapsed:

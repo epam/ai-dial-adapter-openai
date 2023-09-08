@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple
 from langchain.schema import AIMessage, BaseMessage, SystemMessage
 from vertexai.language_models._language_models import ChatMessage
 
+from llm.exception import ValidationError
 from universal_api.token_usage import TokenUsage
 
 
@@ -12,20 +13,28 @@ def to_chat_message(message: BaseMessage) -> ChatMessage:
     return ChatMessage(author=author, content=message.content)
 
 
+ChatCompletionResponse = Tuple[str, TokenUsage]
+
+
 class ChatCompletionAdapter(ABC):
     @abstractmethod
     async def _call(
         self,
+        streaming: bool,
         context: Optional[str],
         message_history: List[ChatMessage],
         prompt: str,
-    ) -> Tuple[str, TokenUsage]:
+    ) -> ChatCompletionResponse:
         pass
 
-    async def completion(self, prompt: str) -> Tuple[str, TokenUsage]:
-        return await self._call(None, [], prompt)
+    async def completion(
+        self, streaming: bool, prompt: str
+    ) -> ChatCompletionResponse:
+        return await self._call(streaming, None, [], prompt)
 
-    async def chat(self, history: List[BaseMessage]) -> Tuple[str, TokenUsage]:
+    async def chat(
+        self, streaming: bool, history: List[BaseMessage]
+    ) -> ChatCompletionResponse:
         messages = history.copy()
 
         context: Optional[str] = None
@@ -33,10 +42,12 @@ class ChatCompletionAdapter(ABC):
             context = messages.pop(0).content
 
         if len(messages) == 0:
-            raise Exception(
+            raise ValidationError(
                 "The chat message must have at least one message besides initial system message"
             )
 
         message_history = list(map(to_chat_message, messages[:-1]))
 
-        return await self._call(context, message_history, messages[-1].content)
+        return await self._call(
+            streaming, context, message_history, messages[-1].content
+        )
