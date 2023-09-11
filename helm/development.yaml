@@ -41,6 +41,7 @@ env:
   DEFAULT_REGION: "us-central1"
   ADAPTER_PROJECT_ID: "EPM-AI-PROXY"
   GCP_PROJECT_ID: "or2-msq-epm-rtc-t1iylu"
+  LOG_LEVEL: "DEBUG"
 
 extraVolumes:
   - name: key-file
