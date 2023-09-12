@@ -40,11 +40,16 @@ class ChatCompletionAdapter(ABC):
         context: Optional[str] = None
         if len(messages) > 0 and isinstance(messages[0], SystemMessage):
             context = messages.pop(0).content
+            context = context if context.strip() else None
 
         if len(messages) == 0:
             raise ValidationError(
-                "The chat message must have at least one message besides initial system message"
+                "The chat history must have at least one message besides system message"
             )
+
+        for message in messages:
+            if message.content == "":
+                raise ValidationError("Empty messages are not allowed")
 
         message_history = list(map(to_chat_message, messages[:-1]))
 

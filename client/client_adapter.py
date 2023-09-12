@@ -54,6 +54,7 @@ def create_chat_model(
         streaming=streaming,
         temperature=0,
         request_timeout=10,
+        max_retries=0,
         client=None,
     )
 

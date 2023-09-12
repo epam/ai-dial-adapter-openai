@@ -7,6 +7,7 @@ from vertexai.language_models._language_models import ChatMessage
 
 from llm.chat_completion_adapter import ChatCompletionResponse
 from llm.chat_model_adapter import ChatModelAdapter, CodeChatModelAdapter
+from llm.exception import ValidationError
 from universal_api.token_usage import TokenUsage
 from utils.concurrency import make_async
 from utils.json import to_json
@@ -83,7 +84,7 @@ class BisonCodeChatAdapter(CodeChatModelAdapter):
         prompt: str,
     ) -> ChatCompletionResponse:
         if context is not None:
-            log.warning("System message is ignored for the code chat models")
+            raise ValidationError("System message is not supported")
 
         if log.isEnabledFor(logging.DEBUG):
             msg = json.dumps(
