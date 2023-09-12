@@ -1,12 +1,14 @@
 from enum import Enum
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from langchain.schema import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
+from llm.exception import ValidationError
+
 
 class Message(BaseModel):
-    role: str
+    role: Literal["system", "user", "assistant", "function"]
     content: Optional[str] = None
     name: Optional[str] = None
     function_call: Optional[str] = None
@@ -23,8 +25,8 @@ class Message(BaseModel):
                 return HumanMessage(content=self.content)
             case "assistant":
                 return AIMessage(content=self.content)
-            case _:
-                raise ValueError(f"Unknown role: {self.role}")
+            case "function":
+                raise ValidationError("Function calls aren't supported")
 
 
 class CompletionParameters(BaseModel):

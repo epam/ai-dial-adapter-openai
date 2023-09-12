@@ -89,7 +89,7 @@ async def chat_completions(
         ..., example=ChatCompletionQuery.example()
     ),
 ):
-    log.debug(f"query:\n{json.dumps(query.dict())}")
+    log.debug(f"query:\n{json.dumps(query.dict(exclude_none=True))}")
 
     project_id = user_to_palm_mapping.get(project_id, project_id)
     model = await get_chat_completion_model(

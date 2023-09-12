@@ -49,29 +49,24 @@ def test_model_list_openai(server):
     assert_models_subset(models_request_openai())
 
 
+def sys(content: str) -> SystemMessage:
+    return SystemMessage(content=content)
+
+
+def ai(content: str) -> AIMessage:
+    return AIMessage(content=content)
+
+
+def user(content: str) -> HumanMessage:
+    return HumanMessage(content=content)
+
+
 async def assert_dialog(
     model: BaseChatModel,
-    history: List[str],
+    messages: List[BaseMessage],
     output_predicate: Callable[[str], bool],
     streaming: bool,
 ):
-    messages: List[BaseMessage] = []
-
-    SYS_PREFIX = "SYSTEM: "
-    AI_PREFIX = "AI: "
-    USER_PREFIX = "USER: "
-
-    for s in history:
-        msg: BaseMessage = HumanMessage(content=s)
-        if s.startswith(SYS_PREFIX):
-            msg = SystemMessage(content=s[len(SYS_PREFIX) :])
-        elif s.startswith(AI_PREFIX):
-            msg = AIMessage(content=s[len(AI_PREFIX) :])
-        elif s.startswith(USER_PREFIX):
-            msg = HumanMessage(content=s[len(USER_PREFIX) :])
-
-        messages.append(msg)
-
     llm_result = await model.agenerate([messages])
 
     actual_usage = (
@@ -97,14 +92,14 @@ class TestCase:
     deployment: ChatCompletionDeployment
     streaming: bool
 
-    query: str | List[str]
+    query: str | List[BaseMessage]
     test: Callable[[str], bool]
 
     def get_id(self):
         return f"{self.deployment.value}[stream={self.streaming}]: {self.query}"
 
-    def get_history(self) -> List[str]:
-        return [self.query] if isinstance(self.query, str) else self.query
+    def get_messages(self) -> List[BaseMessage]:
+        return [user(self.query)] if isinstance(self.query, str) else self.query
 
 
 def get_test_cases(
@@ -147,4 +142,72 @@ def get_test_cases(
 async def test_chat_completion_langchain(server, test: TestCase):
     streaming = test.streaming
     model = create_chat_model(BASE_URL, test.deployment, streaming)
-    await assert_dialog(model, test.get_history(), test.test, streaming)
+    await assert_dialog(model, test.get_messages(), test.test, streaming)
+
+
+@dataclass
+class ValidationTestCase:
+    deployment: ChatCompletionDeployment
+    messages: List[BaseMessage]
+    expected_error: str
+
+    def get_id(self) -> str:
+        return f"{self.expected_error}"
+
+
+EMPTY_MESSAGE_ERROR = "Empty messages are not allowed"
+EMPTY_HISTORY_ERROR = (
+    "The chat history must have at least one message besides system message"
+)
+
+
+def get_validation_test_cases(
+    deployment: ChatCompletionDeployment,
+) -> List[ValidationTestCase]:
+    return [
+        ValidationTestCase(
+            deployment=deployment,
+            messages=[],
+            expected_error=EMPTY_HISTORY_ERROR,
+        ),
+        ValidationTestCase(
+            deployment=deployment,
+            messages=[sys("Act as a helpful assistant")],
+            expected_error=EMPTY_HISTORY_ERROR,
+        ),
+        ValidationTestCase(
+            deployment=deployment,
+            messages=[user("")],
+            expected_error=EMPTY_MESSAGE_ERROR,
+        ),
+        ValidationTestCase(
+            deployment=deployment,
+            messages=[user("2+2=?"), ai("4"), user("")],
+            expected_error=EMPTY_MESSAGE_ERROR,
+        ),
+    ]
+
+
+validation_test_cases: List[ValidationTestCase] = [
+    test_case
+    for deployment in deployments
+    for test_case in get_validation_test_cases(deployment)
+] + [
+    ValidationTestCase(
+        deployment=ChatCompletionDeployment.CODECHAT_BISON_1,
+        messages=[sys("Act as a helpful assistant"), user("2+2=?")],
+        expected_error="System message is not supported",
+    ),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "test", validation_test_cases, ids=lambda test: test.get_id()
+)
+async def test_input_validation(server, test: ValidationTestCase):
+    streaming = False
+    model = create_chat_model(BASE_URL, test.deployment, streaming)
+
+    with pytest.raises(Exception, match=test.expected_error):
+        await assert_dialog(model, test.messages, lambda s: True, streaming)
