@@ -21,31 +21,46 @@ $(BUILD): $(REQ)
 .PHONY: all server-run client-run clean lint format test docker-build docker-run
 
 server-run: $(BUILD)
-	@source ./load_env.sh; load_env; \
-	python -m debug_app --port=$(PORT)
+	( \
+    	source $(VENV)/bin/activate; \
+		source ./load_env.sh; load_env; \
+		python -m debug_app --port=$(PORT); \
+	)
 
 client-run: $(BUILD)
-	@source ./load_env.sh; load_env; \
-	python -m client.client_adapter
+	( \
+    	source $(VENV)/bin/activate; \
+		source ./load_env.sh; load_env; \
+		python -m client.client_adapter; \
+	)
 
 clean:
 	rm -rf $(VENV)
 	find . -type f -name '*.pyc' -not -path './.venv/*' -delete
 
 lint: $(BUILD)
-	pyright
-	flake8
+	( \
+    	source $(VENV)/bin/activate; \
+		pyright; \
+		flake8; \
+	)
 	$(MAKE) format ARGS="--check"
 
 format: $(BUILD)
-	autoflake . $(ARGS)
-	isort . $(ARGS)
-	black . $(ARGS)
+	( \
+		source $(VENV)/bin/activate; \
+		autoflake . $(ARGS); \
+		isort . $(ARGS); \
+		black . $(ARGS); \
+	)
 
 # Add options "-s --log-cli-level=NOTSET" to pytest to see all logs
 test: $(BUILD)
-	@source ./load_env.sh; load_env; \
-	python -m pytest . -v --durations=0 -rA
+	( \
+		source $(VENV)/bin/activate; \
+		source ./load_env.sh; load_env; \
+		python -m pytest . -v --durations=0 -rA ; \
+	)
 
 docker-build: Dockerfile
 	docker build --platform linux/amd64 -t $(IMAGE_NAME) .
