@@ -10,7 +10,7 @@ endif
 
 VENV=.venv
 BUILD=$(VENV)/bin/activate
-SHELL := /bin/sh
+SHELL := /bin/bash
 
 all: $(BUILD)
 
