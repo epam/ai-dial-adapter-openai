@@ -117,5 +117,10 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/blah")
+def blah():
+    return {"blah": "blah"}
+
+
 if __name__ == "__main__":
     uvicorn.run(app, port=5000)
