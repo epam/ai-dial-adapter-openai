@@ -1,28 +1,31 @@
-# For more information, please refer to https://aka.ms/vscode-docker-python
-FROM python:3.11-slim
+FROM python:3.11-alpine as builder
 
-# Keeps Python from generating .pyc files in the container
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Turns off buffering for easier container logging
-ENV PYTHONUNBUFFERED=1
-
-# Install pip requirements
-COPY requirements.txt .
-RUN python -m pip install -r requirements.txt
+RUN pip install poetry
 
 WORKDIR /app
-COPY . /app
 
-ENV OPENAI_API_TYPE=azure
-ENV OPENAI_API_VERSION="2023-03-15-preview"
-ENV MODEL_ALIASES="{\"gpt-35-turbo\":\"gpt-3.5-turbo\"}"
+# Install split into two steps (the dependencies and the sources)
+# in order to leverage the Docker caching
+COPY pyproject.toml poetry.lock poetry.toml ./
+RUN poetry install --no-interaction --no-ansi --no-cache --no-root --no-directory --only main
 
-# Creates a non-root user with an explicit UID and adds permission to access the /app folder
-# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
-RUN adduser -u 1666 --disabled-password --gecos "" appuser && chown -R appuser /app
-USER appuser
+COPY . .
+RUN poetry install --no-interaction --no-ansi --no-cache --only main
 
-# During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
+FROM python:3.11-alpine as server
+
+WORKDIR /app
+
+# Copy the sources and virtual env. No poetry.
+RUN adduser -u 1001 --disabled-password --gecos "" appuser
+COPY --chown=appuser --from=builder /app .
+
+COPY ./scripts/docker_entrypoint.sh /docker_entrypoint.sh
+RUN chmod +x /docker_entrypoint.sh
+
 EXPOSE 5000
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
+
+USER appuser
+ENTRYPOINT ["/docker_entrypoint.sh"]
+
+CMD ["uvicorn", "aidial_adapter_openai.app:app", "--host", "0.0.0.0", "--port", "5000"]

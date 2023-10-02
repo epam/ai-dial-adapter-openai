@@ -9,10 +9,10 @@ image:
 fullnameOverride: "openai"
 
 containerSecurityContext:
-  runAsUser: 1666
+  runAsUser: 1001
 
 podSecurityContext:
-  fsGroup: 1666
+  fsGroup: 1001
 
 podAnnotations:
   autorestart: '{{ dateInZone "2006-01-02 15:04:05Z" (now) "UTC" }}'
@@ -43,4 +43,4 @@ serviceAccount:
 
 env:
   WEB_CONCURRENCY: "17"
-
+  MODEL_ALIASES: "{\"gpt-35-turbo\":\"gpt-3.5-turbo-0301\"}"
