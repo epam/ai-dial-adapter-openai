@@ -20,13 +20,14 @@ clean = "scripts.clean:main"
 env_files = [".env"]
 
 [tool.poetry.dependencies]
-python = "^3.11,<4.0"
+python = ">=3.11,<3.13"
 fastapi = "0.103"
 openai = "0.28.1"
 tiktoken = "0.5.1"
 uvicorn = "0.23"
 wrapt = "^1.15.0"
 pydantic = "^1.10.12"
+numpy = "^1.26.0" # need for openai embeddings
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
