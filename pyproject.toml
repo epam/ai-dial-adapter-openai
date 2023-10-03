@@ -1,0 +1,82 @@
+[tool.poetry]
+name = "aidial-adapter-openai"
+version = "0.1.0rc"
+description = "DIAL adapter for OpenAI"
+authors = ["EPAM RAIL <SpecialEPM-DIALDevTeam@epam.com>"]
+homepage = "https://epam-rail.com"
+documentation = "https://epam-rail.com/dial_api"
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["ai"]
+classifiers = [
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+repository = "https://github.com/epam/ai-dial-adapter-openai"
+
+[tool.poetry.scripts]
+clean = "scripts.clean:main"
+
+[pytest]
+env_files = [".env"]
+
+[tool.poetry.dependencies]
+python = "^3.11,<4.0"
+fastapi = "0.103"
+openai = "0.28.1"
+tiktoken = "0.5.1"
+uvicorn = "0.23"
+wrapt = "^1.15.0"
+pydantic = "^1.10.12"
+
+[tool.poetry.group.test.dependencies]
+pytest = "7.4.0"
+python-dotenv = "1.0.0"
+pytest-aioresponses = "^0.2.0"
+httpx = "^0.25.0"
+
+[tool.poetry.group.lint.dependencies]
+pyright = "1.1.324"
+black = "23.3.0"
+isort = "5.12.0"
+autoflake = "2.2.0"
+flake8 = "6.0.0"
+
+[tool.poetry.group.dev.dependencies]
+nox = "^2023.4.22"
+
+[tool.pyright]
+typeCheckingMode = "basic"
+reportUnusedVariable = "error"
+reportIncompatibleMethodOverride = "error"
+exclude = [
+    ".git",
+    ".venv",
+    ".nox",
+    "**/__pycache__"
+]
+
+[tool.black]
+line-length = 80
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.nox
+  | \.__pycache__
+)/
+'''
+
+[tool.isort]
+line_length = 80
+profile = "black"
+
+[tool.autoflake]
+ignore_init_module_imports = true
+remove_all_unused_imports = true
+in_place = true
+recursive = true
+quiet = true
+exclude = [
+    "\\.venv",
+    "\\.nox",
+]
