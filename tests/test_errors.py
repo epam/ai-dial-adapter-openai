@@ -114,7 +114,7 @@ async def test_incorrect_upstream_url(aioresponses: aioresponses):
 
 
 @pytest.mark.asyncio
-async def test_asdasd(aioresponses: aioresponses):
+async def test_incorrect_format(aioresponses: aioresponses):
     aioresponses.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         status=400,
@@ -134,3 +134,46 @@ async def test_asdasd(aioresponses: aioresponses):
     assert response.status_code == 400
 
     assert response.content == b"Incorrect format"
+
+
+@pytest.mark.asyncio
+async def test_incorrect_streaming_request(aioresponses: aioresponses):
+    aioresponses.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        status=400,
+        body=json.dumps(
+            {
+                "error": {
+                    "message": "0 is less than the minimum of 1 - 'n'",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": None,
+                }
+            }
+        ),
+        content_type="application/json",
+    )
+    test_app = AsyncClient(app=app, base_url="http://test.com")
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+            "n": 0,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "message": "0 is less than the minimum of 1 - 'n'",
+            "type": "invalid_request_error",
+            "param": None,
+            "code": None,
+        }
+    }
