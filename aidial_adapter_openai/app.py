@@ -60,6 +60,9 @@ async def chat_completion(deployment_id: str, request: Request):
     )
 
     if is_stream:
+        if isinstance(response, Response):
+            return response
+
         return StreamingResponse(
             generate_stream(
                 data["messages"],
