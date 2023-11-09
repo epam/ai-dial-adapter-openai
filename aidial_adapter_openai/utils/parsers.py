@@ -1,7 +1,7 @@
 import re
 from enum import Enum
 from json import JSONDecodeError
-from typing import Any, Mapping
+from typing import Any, Dict
 
 from fastapi import Request
 
@@ -32,7 +32,7 @@ def parse_upstream(
 
 async def parse_body(
     request: Request,
-) -> Mapping[str, Any]:
+) -> Dict[str, Any]:
     try:
         data = await request.json()
     except JSONDecodeError as e:

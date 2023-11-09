@@ -1,6 +1,6 @@
 import json
 from time import time
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 from uuid import uuid4
 
 import tiktoken
@@ -21,7 +21,11 @@ END_CHUNK = chunk_format("[DONE]")
 
 
 async def generate_stream(
-    messages: list[Any], response, model: str, deployment: str
+    messages: list[Any],
+    response,
+    model: str,
+    deployment: str,
+    discarded_messages: Optional[int],
 ):
     encoding = tiktoken.encoding_for_model(model)
 
@@ -42,6 +46,10 @@ async def generate_stream(
                     "prompt_tokens": prompt_tokens,
                     "total_tokens": prompt_tokens + completion_tokens,
                 }
+                if discarded_messages is not None:
+                    chunk_dict["statistics"] = {
+                        "discarded_messages": discarded_messages
+                    }
             else:
                 total_content += chunk_dict["choices"][0]["delta"].get(
                     "content", ""
