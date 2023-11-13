@@ -1,5 +1,6 @@
 FROM python:3.11-alpine as builder
 
+RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
 RUN pip install poetry
 
 WORKDIR /app
@@ -13,6 +14,8 @@ COPY . .
 RUN poetry install --no-interaction --no-ansi --no-cache --only main
 
 FROM python:3.11-alpine as server
+
+RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
 
 WORKDIR /app
 
