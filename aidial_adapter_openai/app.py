@@ -1,11 +1,13 @@
 import json
 import logging.config
 import os
+from typing import Dict
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import ChatCompletion, Embedding, error
+from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.exceptions import HTTPException
@@ -16,11 +18,12 @@ from aidial_adapter_openai.utils.parsers import (
     parse_upstream,
 )
 from aidial_adapter_openai.utils.streaming import generate_stream
+from aidial_adapter_openai.utils.tokens import discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
 
 logging.config.dictConfig(LogConfig().dict())
 app = FastAPI()
-model_aliases = json.loads(os.getenv("MODEL_ALIASES", "{}"))
+model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
 azure_api_version = os.getenv("AZURE_API_VERSION", "2023-03-15-preview")
 
 
@@ -42,6 +45,7 @@ async def chat_completion(deployment_id: str, request: Request):
     data = await parse_body(request)
 
     is_stream = data.get("stream", False)
+    openai_model_name = model_aliases.get(deployment_id, deployment_id)
     dial_api_key = request.headers["X-UPSTREAM-KEY"]
 
     api_base, upstream_deployment = parse_upstream(
@@ -52,10 +56,31 @@ async def chat_completion(deployment_id: str, request: Request):
     if "functions" in data or "function_call" in data:
         request_api_version = request.query_params.get("api-version")
 
-        if request_api_version != None:
+        if request_api_version is not None:
             compare_result = compare_versions(request_api_version, "2023-07-01")
             if compare_result == 0 or compare_result == 1:
                 api_version = request_api_version
+
+    discarded_messages = None
+    if "max_prompt_tokens" in data:
+        max_prompt_tokens = data["max_prompt_tokens"]
+        if type(max_prompt_tokens) != int:
+            raise HTTPException(
+                f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
+                400,
+                "invalid_request_error",
+            )
+        if max_prompt_tokens < 1:
+            raise HTTPException(
+                f"'{max_prompt_tokens}' is less than the minimum of 1 - 'max_prompt_tokens'",
+                400,
+                "invalid_request_error",
+            )
+        del data["max_prompt_tokens"]
+
+        data["messages"], discarded_messages = discard_messages(
+            data["messages"], openai_model_name, max_prompt_tokens
+        )
 
     response = await handle_exceptions(
         ChatCompletion().acreate(
@@ -65,21 +90,34 @@ async def chat_completion(deployment_id: str, request: Request):
             api_type="azure",
             api_version=api_version,
             request_timeout=(10, 600),  # connect timeout and total timeout
-            **data
+            **data,
         )
     )
 
     if is_stream:
+        if isinstance(response, Response):
+            return response
+
         return StreamingResponse(
             generate_stream(
                 data["messages"],
                 response,
-                model_aliases.get(deployment_id, deployment_id),
+                openai_model_name,
                 deployment_id,
+                discarded_messages,
             ),
             media_type="text/event-stream",
         )
     else:
+        if discarded_messages is not None:
+            assert type(response) == OpenAIObject
+
+            response_with_statistics = response.to_dict() | {
+                "statistics": {"discarded_messages": discarded_messages}
+            }
+
+            return response_with_statistics
+
         return response
 
 
@@ -100,7 +138,7 @@ async def embedding(deployment_id: str, request: Request):
             api_type="azure",
             api_version=azure_api_version,
             request_timeout=(10, 600),  # connect timeout and total timeout
-            **data
+            **data,
         )
     )
 
