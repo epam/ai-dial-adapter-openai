@@ -53,10 +53,12 @@ async def chat_completion(deployment_id: str, request: Request):
     )
 
     api_version = azure_api_version
+
     if "functions" in data or "function_call" in data:
         request_api_version = request.query_params.get("api-version")
 
         if request_api_version is not None:
+            # 2023-07-01-preview is the first azure api version that supports functions
             compare_result = compare_versions(request_api_version, "2023-07-01")
             if compare_result == 0 or compare_result == 1:
                 api_version = request_api_version
