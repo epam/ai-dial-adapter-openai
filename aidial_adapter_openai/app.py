@@ -16,6 +16,7 @@ from aidial_adapter_openai.utils.parsers import (
     parse_upstream,
 )
 from aidial_adapter_openai.utils.streaming import generate_stream
+from aidial_adapter_openai.utils.versions import compare_versions
 
 logging.config.dictConfig(LogConfig().dict())
 app = FastAPI()
@@ -47,13 +48,22 @@ async def chat_completion(deployment_id: str, request: Request):
         request.headers["X-UPSTREAM-ENDPOINT"], ApiType.CHAT_COMPLETION
     )
 
+    api_version = azure_api_version
+    if "functions" in data or "function_call" in data:
+        request_api_version = request.query_params.get("api-version")
+
+        if request_api_version != None:
+            compare_result = compare_versions(request_api_version, "2023-07-01")
+            if compare_result == 0 or compare_result == 1:
+                api_version = request_api_version
+
     response = await handle_exceptions(
         ChatCompletion().acreate(
             engine=upstream_deployment,
             api_key=dial_api_key,
             api_base=api_base,
             api_type="azure",
-            api_version=azure_api_version,
+            api_version=api_version,
             request_timeout=(10, 600),  # connect timeout and total timeout
             **data
         )
