@@ -34,6 +34,7 @@ pytest = "7.4.0"
 python-dotenv = "1.0.0"
 pytest-aioresponses = "^0.2.0"
 httpx = "^0.25.0"
+aioresponses = "^0.7.6"
 
 [tool.poetry.group.lint.dependencies]
 pyright = "1.1.324"
