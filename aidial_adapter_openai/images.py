@@ -1,7 +1,6 @@
 from typing import Any, AsyncGenerator, Optional
 
 import aiohttp
-from fastapi import Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
