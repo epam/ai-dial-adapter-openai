@@ -17,6 +17,33 @@ def chunk_format(data: str | Mapping[str, Any]):
         return "data: " + json.dumps(data, separators=(",", ":")) + "\n\n"
 
 
+def generate_id():
+    return "chatcmpl-" + str(uuid4())
+
+
+def build_chunk(
+    id: str,
+    finish_reason: Optional[str],
+    delta: Any,
+    created: str,
+    is_stream,
+    **extra
+):
+    return {
+        "id": id,
+        "object": "chat.completion.chunk" if is_stream else "chat.completion",
+        "created": created,
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": finish_reason,
+                "delta": delta,
+            }
+        ],
+        **extra,
+    }
+
+
 END_CHUNK = chunk_format("[DONE]")
 
 
@@ -83,7 +110,7 @@ async def generate_stream(
 
             yield chunk_format(
                 {
-                    "id": "chatcmpl-" + str(uuid4()),
+                    "id": generate_id(),
                     "object": "chat.completion.chunk",
                     "created": str(int(time())),
                     "model": deployment,
