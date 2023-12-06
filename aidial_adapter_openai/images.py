@@ -12,6 +12,12 @@ from aidial_adapter_openai.utils.streaming import (
     generate_id,
 )
 
+IMG_USAGE = {
+    "completion_tokens": 0,
+    "prompt_tokens": 1,
+    "total_tokens": 1,
+}
+
 
 async def generate_image(api_url: str, api_key: str, user_prompt: str) -> Any:
     async with aiohttp.ClientSession() as session:
@@ -34,8 +40,8 @@ def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
     return {
         "custom_content": {
             "attachments": [
-                {"title": "Image", "type": "image/png", "data": base64_image},
                 {"title": "Revised prompt", "data": revised_prompt},
+                {"title": "Image", "type": "image/png", "data": base64_image},
             ]
         }
     }
@@ -51,32 +57,24 @@ async def generate_stream(
     yield chunk_format(build_chunk(id, None, custom_content, created, True))
 
     yield chunk_format(
-        build_chunk(
-            id,
-            "stop",
-            {},
-            created,
-            True,
-            usage={
-                "completion_tokens": 0,
-                "prompt_tokens": 1,
-                "total_tokens": 1,
-            },
-        )
+        build_chunk(id, "stop", {}, created, True, usage=IMG_USAGE)
     )
 
     yield END_CHUNK
 
 
-def validate_request_data(data: Any):
+def get_user_prompt(data: Any):
     if (
         "messages" not in data
         or len(data["messages"]) == 0
         or "content" not in data["messages"][-1]
+        or not data["messages"][-1]
     ):
         raise HTTPException(
             "Your request is invalid", 400, "invalid_request_error"
         )
+
+    return data["messages"][-1]["content"]
 
 
 async def text_to_image_chat_completion(
@@ -86,10 +84,8 @@ async def text_to_image_chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
 ) -> Response:
-    validate_request_data(data)
-
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
-    user_prompt = data["messages"][-1]["content"]
+    user_prompt = get_user_prompt(data)
     model_response = await generate_image(api_url, api_key, user_prompt)
 
     if isinstance(model_response, JSONResponse):
@@ -109,8 +105,8 @@ async def text_to_image_chat_completion(
         )
         image_url = file_metadata["path"] + "/" + file_metadata["name"]
 
-        del custom_content["custom_content"]["attachments"][0]["data"]
-        custom_content["custom_content"]["attachments"][0]["url"] = image_url
+        del custom_content["custom_content"]["attachments"][1]["data"]
+        custom_content["custom_content"]["attachments"][1]["url"] = image_url
 
     if not is_stream:
         return JSONResponse(
@@ -120,11 +116,7 @@ async def text_to_image_chat_completion(
                 {**custom_content, "role": "assistant"},
                 created,
                 False,
-                usage={
-                    "completion_tokens": 0,
-                    "prompt_tokens": 1,
-                    "total_tokens": 1,
-                },
+                usage=IMG_USAGE,
             )
         )
     else:
