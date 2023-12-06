@@ -84,6 +84,13 @@ async def text_to_image_chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
 ) -> Response:
+    if data.get("n", 1) > 1:
+        raise HTTPException(
+            status_code=422,
+            message=f"The deployment doesn't support n > 1",
+            type="invalid_request_error",
+        )
+
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
     user_prompt = get_user_prompt(data)
     model_response = await generate_image(api_url, api_key, user_prompt)
