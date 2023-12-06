@@ -36,15 +36,34 @@ async def generate_image(api_url: str, api_key: str, user_prompt: str) -> Any:
                 return JSONResponse(content=data, status_code=status_code)
 
 
-def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
+def build_common_custom_content(revised_prompt: str):
     return {
         "custom_content": {
-            "attachments": [
-                {"title": "Revised prompt", "data": revised_prompt},
-                {"title": "Image", "type": "image/png", "data": base64_image},
-            ]
+            "attachments": [{"title": "Revised prompt", "data": revised_prompt}]
         }
     }
+
+
+def build_custom_content_with_base64(
+    base64_image: str, revised_prompt: str
+) -> Any:
+    custom_content = build_common_custom_content(revised_prompt)
+
+    custom_content["custom_content"]["attachments"].append(
+        {"title": "Image", "type": "image/png", "data": base64_image}
+    )
+
+    return custom_content
+
+
+def build_custom_content_with_url(url_image: str, revised_prompt: str) -> Any:
+    custom_content = build_common_custom_content(revised_prompt)
+
+    custom_content["custom_content"]["attachments"].append(
+        {"title": "Image", "type": "image/png", "url": url_image},
+    )
+
+    return custom_content
 
 
 async def generate_stream(
@@ -104,16 +123,19 @@ async def text_to_image_chat_completion(
     id = generate_id()
     created = model_response["created"]
 
-    custom_content = build_custom_content(base64_image, revised_prompt)
-
     if file_storage is not None:
         file_metadata = await upload_base64_file(
             file_storage, base64_image, "image/png"
         )
         image_url = file_metadata["path"] + "/" + file_metadata["name"]
 
-        del custom_content["custom_content"]["attachments"][1]["data"]
-        custom_content["custom_content"]["attachments"][1]["url"] = image_url
+        custom_content = build_custom_content_with_url(
+            image_url, revised_prompt
+        )
+    else:
+        custom_content = build_custom_content_with_base64(
+            base64_image, revised_prompt
+        )
 
     if not is_stream:
         return JSONResponse(
