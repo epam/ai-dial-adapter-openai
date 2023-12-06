@@ -31,7 +31,9 @@ app = FastAPI()
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
 azure_api_version = os.getenv("AZURE_API_VERSION", "2023-03-15-preview")
 
-dial_use_file_storage = os.getenv("DIAL_USE_FILE_STORAGE", False)
+dial_use_file_storage = (
+    os.getenv("DIAL_USE_FILE_STORAGE", "false").lower() == "true"
+)
 
 file_storage = None
 if dial_use_file_storage:
