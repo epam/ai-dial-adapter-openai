@@ -87,7 +87,7 @@ async def text_to_image_chat_completion(
     if data.get("n", 1) > 1:
         raise HTTPException(
             status_code=422,
-            message=f"The deployment doesn't support n > 1",
+            message="The deployment doesn't support n > 1",
             type="invalid_request_error",
         )
 
