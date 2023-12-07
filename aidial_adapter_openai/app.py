@@ -9,7 +9,11 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import ChatCompletion, Embedding, error
 from openai.openai_object import OpenAIObject
 
+from aidial_adapter_openai.images import text_to_image_chat_completion
 from aidial_adapter_openai.openai_override import OpenAIException
+from aidial_adapter_openai.utils.deployment_classifier import (
+    is_text_to_image_deployment,
+)
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
@@ -17,6 +21,7 @@ from aidial_adapter_openai.utils.parsers import (
     parse_body,
     parse_upstream,
 )
+from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import generate_stream
 from aidial_adapter_openai.utils.tokens import discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
@@ -25,6 +30,22 @@ logging.config.dictConfig(LogConfig().dict())
 app = FastAPI()
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
 azure_api_version = os.getenv("AZURE_API_VERSION", "2023-03-15-preview")
+
+dial_use_file_storage = (
+    os.getenv("DIAL_USE_FILE_STORAGE", "false").lower() == "true"
+)
+
+file_storage = None
+if dial_use_file_storage:
+    dial_url = os.getenv("DIAL_URL")
+    dial_api_key = os.getenv("DIAL_API_KEY")
+
+    if not dial_url or not dial_api_key:
+        raise ValueError(
+            "DIAL_URL and DIAL_API_KEY environment variables must be initialized if DIAL_USE_FILE_STORAGE is true"
+        )
+
+    file_storage = FileStorage(dial_url, "dalle", dial_api_key)
 
 
 async def handle_exceptions(call):
@@ -46,10 +67,16 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
-    dial_api_key = request.headers["X-UPSTREAM-KEY"]
+    api_key = request.headers["X-UPSTREAM-KEY"]
+    upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+
+    if is_text_to_image_deployment(deployment_id):
+        return await text_to_image_chat_completion(
+            data, upstream_endpoint, api_key, is_stream, file_storage
+        )
 
     api_base, upstream_deployment = parse_upstream(
-        request.headers["X-UPSTREAM-ENDPOINT"], ApiType.CHAT_COMPLETION
+        upstream_endpoint, ApiType.CHAT_COMPLETION
     )
 
     api_version = azure_api_version
@@ -87,7 +114,7 @@ async def chat_completion(deployment_id: str, request: Request):
     response = await handle_exceptions(
         ChatCompletion().acreate(
             engine=upstream_deployment,
-            api_key=dial_api_key,
+            api_key=api_key,
             api_base=api_base,
             api_type="azure",
             api_version=api_version,
@@ -127,7 +154,7 @@ async def chat_completion(deployment_id: str, request: Request):
 async def embedding(deployment_id: str, request: Request):
     data = await parse_body(request)
 
-    dial_api_key = request.headers["X-UPSTREAM-KEY"]
+    api_key = request.headers["X-UPSTREAM-KEY"]
     api_base, upstream_deployment = parse_upstream(
         request.headers["X-UPSTREAM-ENDPOINT"], ApiType.EMBEDDING
     )
@@ -135,7 +162,7 @@ async def embedding(deployment_id: str, request: Request):
     return await handle_exceptions(
         Embedding().acreate(
             deployment_id=upstream_deployment,
-            api_key=dial_api_key,
+            api_key=api_key,
             api_base=api_base,
             api_type="azure",
             api_version=azure_api_version,
