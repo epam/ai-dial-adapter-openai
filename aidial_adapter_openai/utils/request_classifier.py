@@ -1,25 +1,23 @@
 from typing import Any
 
 
-def is_request_used_functions_or_tools(data: Any):
+def does_request_use_functions_or_tools(request: Any):
     if (
-        "functions" in data
-        or "function_call" in data
-        or "tools" in data
-        or "tool_choice" in data
+        "functions" in request
+        or "function_call" in request
+        or "tools" in request
+        or "tool_choice" in request
     ):
         return True
 
-    if "messages" not in data:
+    if "messages" not in request:
         return False
 
-    for message in data["messages"]:
-        role = message.get("role", None)
-
+    for message in request["messages"]:
         if (
             "tool_calls" in message
             or "function_call" in message
-            or role in ["tool", "function"]
+            or message.get("role") in ["tool", "function"]
         ):
             return True
 
