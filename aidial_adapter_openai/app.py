@@ -21,6 +21,9 @@ from aidial_adapter_openai.utils.parsers import (
     parse_body,
     parse_upstream,
 )
+from aidial_adapter_openai.utils.request_classifier import (
+    is_request_used_functions_or_tools,
+)
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import generate_stream
 from aidial_adapter_openai.utils.tokens import discard_messages
@@ -81,7 +84,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     api_version = azure_api_version
 
-    if "functions" in data or "function_call" in data:
+    if is_request_used_functions_or_tools(data):
         request_api_version = request.query_params.get("api-version")
 
         if request_api_version is not None:
