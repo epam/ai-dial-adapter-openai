@@ -43,7 +43,8 @@ def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
                 {"title": "Revised prompt", "data": revised_prompt},
                 {"title": "Image", "type": "image/png", "data": base64_image},
             ]
-        }
+        },
+        "content": "",
     }
 
 
