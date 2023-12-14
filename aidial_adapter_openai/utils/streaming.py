@@ -80,7 +80,7 @@ async def generate_stream(
             else:
                 content = chunk_dict["choices"][0]["delta"].get("content", "")
 
-                if content != None:
+                if content is not None:
                     total_content += content
 
             last_chunk = chunk_dict
