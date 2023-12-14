@@ -78,10 +78,9 @@ async def generate_stream(
                         "discarded_messages": discarded_messages
                     }
             else:
-                content = chunk_dict["choices"][0]["delta"].get("content", "")
+                content = chunk_dict["choices"][0]["delta"].get("content") or ""
 
-                if content is not None:
-                    total_content += content
+                total_content += content
 
             last_chunk = chunk_dict
             yield chunk_format(chunk_dict)
