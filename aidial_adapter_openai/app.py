@@ -41,14 +41,13 @@ dial_use_file_storage = (
 file_storage = None
 if dial_use_file_storage:
     dial_url = os.getenv("DIAL_URL")
-    dial_api_key = os.getenv("DIAL_API_KEY")
 
-    if not dial_url or not dial_api_key:
+    if not dial_url:
         raise ValueError(
-            "DIAL_URL and DIAL_API_KEY environment variables must be initialized if DIAL_USE_FILE_STORAGE is true"
+            "DIAL_URL environment variable must be initialized if DIAL_USE_FILE_STORAGE is true"
         )
 
-    file_storage = FileStorage(dial_url, "dalle", dial_api_key)
+    file_storage = FileStorage(dial_url, "images/dall-e")
 
 
 async def handle_exceptions(call):
@@ -75,7 +74,12 @@ async def chat_completion(deployment_id: str, request: Request):
 
     if is_text_to_image_deployment(deployment_id):
         return await text_to_image_chat_completion(
-            data, upstream_endpoint, api_key, is_stream, file_storage
+            data,
+            upstream_endpoint,
+            api_key,
+            is_stream,
+            file_storage,
+            request.headers["authorization"],
         )
 
     api_base, upstream_deployment = parse_upstream(

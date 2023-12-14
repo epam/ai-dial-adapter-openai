@@ -79,7 +79,7 @@ def get_user_prompt(data: Any):
 
 
 async def move_attachments_data_to_storage(
-    custom_content: Any, file_storage: FileStorage
+    custom_content: Any, file_storage: FileStorage, jwt: str
 ):
     for attachment in custom_content["custom_content"]["attachments"]:
         if (
@@ -90,7 +90,7 @@ async def move_attachments_data_to_storage(
             continue
 
         file_metadata = await upload_base64_file(
-            file_storage, attachment["data"], attachment["type"]
+            file_storage, attachment["data"], attachment["type"], jwt
         )
         image_url = file_metadata["path"] + "/" + file_metadata["name"]
 
@@ -104,6 +104,7 @@ async def text_to_image_chat_completion(
     api_key: str,
     is_stream: bool,
     file_storage: Optional[FileStorage],
+    jwt: str,
 ) -> Response:
     if data.get("n", 1) > 1:
         raise HTTPException(
@@ -128,7 +129,9 @@ async def text_to_image_chat_completion(
     custom_content = build_custom_content(base64_image, revised_prompt)
 
     if file_storage is not None:
-        await move_attachments_data_to_storage(custom_content, file_storage)
+        await move_attachments_data_to_storage(
+            custom_content, file_storage, jwt
+        )
 
     if not is_stream:
         return JSONResponse(

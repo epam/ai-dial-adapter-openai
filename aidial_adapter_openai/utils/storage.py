@@ -18,14 +18,12 @@ class FileMetadata(TypedDict):
 
 class FileStorage:
     base_url: str
-    api_key: str
 
-    def __init__(self, dial_url: str, base_dir: str, api_key: str):
+    def __init__(self, dial_url: str, base_dir: str):
         self.base_url = f"{dial_url}/v1/files/{base_dir}"
-        self.api_key = api_key
 
-    def auth_headers(self) -> dict[str, str]:
-        return {"api-key": self.api_key}
+    def auth_headers(self, jwt: str) -> dict[str, str]:
+        return {"authorization": jwt}
 
     @staticmethod
     def to_form_data(
@@ -41,14 +39,14 @@ class FileStorage:
         return data
 
     async def upload(
-        self, filename: str, content_type: str, content: bytes
+        self, filename: str, content_type: str, content: bytes, jwt: str
     ) -> FileMetadata:
         async with aiohttp.ClientSession() as session:
             data = FileStorage.to_form_data(filename, content_type, content)
             async with session.post(
                 self.base_url,
                 data=data,
-                headers=self.auth_headers(),
+                headers=self.auth_headers(jwt),
             ) as response:
                 response.raise_for_status()
                 meta = await response.json()
@@ -63,8 +61,8 @@ def _hash_digest(string: str) -> str:
 
 
 async def upload_base64_file(
-    storage: FileStorage, data: str, content_type: str
+    storage: FileStorage, data: str, content_type: str, jwt: str
 ) -> FileMetadata:
     filename = _hash_digest(data)
     content: bytes = base64.b64decode(data)
-    return await storage.upload(filename, content_type, content)
+    return await storage.upload(filename, content_type, content, jwt)

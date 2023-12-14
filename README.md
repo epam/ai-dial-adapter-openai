@@ -59,7 +59,6 @@ Copy `.env.example` to `.env` and customize it for your environment:
 |MODEL_ALIASES|{}|Mapping request's deployment_id to [model name of tiktoken](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py) for correct calculate of tokens. Example: `{"gpt-35-turbo":"gpt-3.5-turbo-0301"}`|
 |DIAL_USE_FILE_STORAGE|False|Save image model artifacts to DIAL File storage (DALL-E images are uploaded to the files storage and its base64 encodings are replaced with links to the storage)|
 |DIAL_URL||URL of the core DIAL server (required when DIAL_USE_FILE_STORAGE=True)|
-|DIAL_API_KEY||API Key for DIAL File storage (required when DIAL_USE_FILE_STORAGE=True)|
 
 ### Docker
 
