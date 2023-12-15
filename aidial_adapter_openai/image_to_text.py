@@ -32,6 +32,10 @@ class ImageSubmessage(TypedDict):
     image_url: ImageUrl
 
 
+def create_image_message(url: str) -> ImageSubmessage:
+    return {"type": "image_url", "image_url": {"url": url}}
+
+
 async def predict(api_url: str, api_key: str, request: Any) -> Any:
     async with aiohttp.ClientSession() as session:
         async with session.post(
@@ -62,7 +66,7 @@ async def generate_stream(
     yield END_CHUNK
 
 
-async def download_mage(
+async def download_file(
     jwt: str, attachment_link: AttachmentLink
 ) -> Optional[bytes]:
     url = attachment_link.absolute_url
@@ -85,7 +89,7 @@ def base64_to_image_url(type: str, base64_image: str) -> str:
 async def download_base64_image(
     jwt: str, type: str, attachment_link: AttachmentLink
 ) -> Optional[str]:
-    bytes = await download_mage(jwt, attachment_link)
+    bytes = await download_file(jwt, attachment_link)
     if bytes is None:
         return None
 
@@ -105,22 +109,19 @@ async def transform_attachment(
         return None
 
     if "data" in attachment:
-        url = base64_to_image_url(type, attachment["data"])
-        return {"type": "image_url", "image_url": {"url": url}}
+        url: str = base64_to_image_url(type, attachment["data"])
+        return create_image_message(url)
 
     if "url" in attachment:
-        url = attachment["url"]
+        url: str = attachment["url"]
+
         if not download_image:
-            return {"type": "image_url", "image_url": url}
+            create_image_message(url)
 
         link = AttachmentLink.from_url_or_path(DIAL_URL, url)
 
-        return {
-            "type": "image_url",
-            "image_url": {
-                "url": await download_base64_image(jwt, type, link) or url
-            },
-        }
+        image_url = await download_base64_image(jwt, type, link)
+        return create_image_message(image_url or url)
 
     return None
 
@@ -203,7 +204,7 @@ async def image_to_text_chat_completion(
     usage = response["usage"]
     content = response["choices"][0]["message"]["content"]
 
-    id = generate_id()
+    id = response["id"]
     created = response["created"]
 
     if not is_stream:
