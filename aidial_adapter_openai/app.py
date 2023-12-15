@@ -9,9 +9,11 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import ChatCompletion, Embedding, error
 from openai.openai_object import OpenAIObject
 
-from aidial_adapter_openai.images import text_to_image_chat_completion
+from aidial_adapter_openai.image_to_text import image_to_text_chat_completion
 from aidial_adapter_openai.openai_override import OpenAIException
+from aidial_adapter_openai.text_to_image import text_to_image_chat_completion
 from aidial_adapter_openai.utils.deployment_classifier import (
+    is_image_to_text_deployment,
     is_text_to_image_deployment,
 )
 from aidial_adapter_openai.utils.exceptions import HTTPException
@@ -76,6 +78,15 @@ async def chat_completion(deployment_id: str, request: Request):
     if is_text_to_image_deployment(deployment_id):
         return await text_to_image_chat_completion(
             data, upstream_endpoint, api_key, is_stream, file_storage
+        )
+    elif is_image_to_text_deployment(deployment_id):
+        jwt = request.headers.get("authorization")
+        if jwt is None:
+            raise HTTPException(
+                "Authorization header is missing", 401, "authentication"
+            )
+        return await image_to_text_chat_completion(
+            data, upstream_endpoint, api_key, jwt, is_stream
         )
 
     api_base, upstream_deployment = parse_upstream(
