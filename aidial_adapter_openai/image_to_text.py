@@ -22,9 +22,14 @@ if not DIAL_URL:
     )
 
 
-class ImageUrl(TypedDict):
+class ImageUrl(TypedDict, total=False):
+    url: str
+    detail: Optional[Literal["high", "low"]]
+
+
+class ImageSubmessage(TypedDict):
     type: Literal["image_url"]
-    image_url: str
+    image_url: ImageUrl
 
 
 async def predict(api_url: str, api_key: str, request: Any) -> Any:
@@ -73,29 +78,35 @@ async def download_mage(
             return await response.read()
 
 
+def base64_to_image_url(type: str, base64_image: str) -> str:
+    return f"data:{type};base64,{base64_image}"
+
+
 async def download_base64_image(
-    jwt: str, attachment_link: AttachmentLink
+    jwt: str, type: str, attachment_link: AttachmentLink
 ) -> Optional[str]:
     bytes = await download_mage(jwt, attachment_link)
     if bytes is None:
         return None
 
-    return base64.b64encode(bytes).decode("ascii")
+    text = base64.b64encode(bytes).decode("ascii")
+    return base64_to_image_url(type, text)
 
 
 async def transform_attachment(
     jwt: str, attachment: Any, download_image: bool
-) -> Optional[ImageUrl]:
+) -> Optional[ImageSubmessage]:
     if "type" not in attachment:
         return None
 
     type = attachment["type"]
 
-    if type != "image/png":
+    if not type.startswith("image/"):
         return None
 
     if "data" in attachment:
-        return {"type": "image_url", "image_url": attachment["data"]}
+        url = base64_to_image_url(type, attachment["data"])
+        return {"type": "image_url", "image_url": {"url": url}}
 
     if "url" in attachment:
         url = attachment["url"]
@@ -106,7 +117,9 @@ async def transform_attachment(
 
         return {
             "type": "image_url",
-            "image_url": await download_base64_image(jwt, link) or "",
+            "image_url": {
+                "url": await download_base64_image(jwt, type, link) or url
+            },
         }
 
     return None
