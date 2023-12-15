@@ -12,7 +12,6 @@ from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
     chunk_format,
-    generate_id,
 )
 
 DIAL_URL = os.getenv("DIAL_URL")
