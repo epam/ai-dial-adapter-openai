@@ -84,8 +84,8 @@ class FileStorage:
     ) -> FileMetadata:
         async with aiohttp.ClientSession() as session:
             data = FileStorage._to_form_data(filename, content_type, content)
-            async with session.post(
-                self.upload_url,
+            async with session.put(
+                f"{self.upload_url}/{filename}",
                 data=data,
                 headers=self.auth.headers,
             ) as response:
