@@ -9,3 +9,4 @@ __pycache__
 dist
 .vscode/launch.json
 .pytest_cache
+~*

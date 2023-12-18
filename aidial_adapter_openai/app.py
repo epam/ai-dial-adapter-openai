@@ -63,7 +63,7 @@ async def chat_completion(deployment_id: str, request: Request):
         return await dalle3_chat_completion(
             data, upstream_endpoint, api_key, is_stream, file_storage
         )
-    elif deployment_id.lower() == "gpt-4-vision-review":
+    elif deployment_id.lower() == "gpt-4-vision-preview":
         file_storage = await create_file_storage("gpt4-v", request.headers)
         return await gpt4_vision_chat_completion(
             data, upstream_endpoint, api_key, is_stream, file_storage
