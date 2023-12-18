@@ -3,19 +3,18 @@ import logging.config
 import os
 from typing import Dict
 
-import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import ChatCompletion, Embedding, error
 from openai.openai_object import OpenAIObject
 
-from aidial_adapter_openai.image_to_text import image_to_text_chat_completion
-from aidial_adapter_openai.openai_override import OpenAIException
-from aidial_adapter_openai.text_to_image import text_to_image_chat_completion
-from aidial_adapter_openai.utils.deployment_classifier import (
-    is_image_to_text_deployment,
-    is_text_to_image_deployment,
+from aidial_adapter_openai.dalle3 import (
+    chat_completion as dalle3_chat_completion,
 )
+from aidial_adapter_openai.gpt4_vision import (
+    chat_completion as gpt4_vision_chat_completion,
+)
+from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
@@ -26,7 +25,7 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.request_classifier import (
     does_request_use_functions_or_tools,
 )
-from aidial_adapter_openai.utils.storage import FileStorage
+from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.streaming import generate_stream
 from aidial_adapter_openai.utils.tokens import discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
@@ -35,22 +34,6 @@ logging.config.dictConfig(LogConfig().dict())
 app = FastAPI()
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
 azure_api_version = os.getenv("AZURE_API_VERSION", "2023-03-15-preview")
-
-dial_use_file_storage = (
-    os.getenv("DIAL_USE_FILE_STORAGE", "false").lower() == "true"
-)
-
-file_storage = None
-if dial_use_file_storage:
-    dial_url = os.getenv("DIAL_URL")
-    dial_api_key = os.getenv("DIAL_API_KEY")
-
-    if not dial_url or not dial_api_key:
-        raise ValueError(
-            "DIAL_URL and DIAL_API_KEY environment variables must be initialized if DIAL_USE_FILE_STORAGE is true"
-        )
-
-    file_storage = FileStorage(dial_url, "dalle", dial_api_key)
 
 
 async def handle_exceptions(call):
@@ -75,18 +58,15 @@ async def chat_completion(deployment_id: str, request: Request):
     api_key = request.headers["X-UPSTREAM-KEY"]
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
-    if is_text_to_image_deployment(deployment_id):
-        return await text_to_image_chat_completion(
+    if deployment_id.lower() == "dalle3":
+        file_storage = await create_file_storage("dalle", request.headers)
+        return await dalle3_chat_completion(
             data, upstream_endpoint, api_key, is_stream, file_storage
         )
-    elif is_image_to_text_deployment(deployment_id):
-        jwt = request.headers.get("authorization")
-        if jwt is None:
-            raise HTTPException(
-                "Authorization header is missing", 401, "authentication"
-            )
-        return await image_to_text_chat_completion(
-            data, upstream_endpoint, api_key, jwt, is_stream
+    elif deployment_id.lower() == "gpt-4-vision-review":
+        file_storage = await create_file_storage("gpt4-v", request.headers)
+        return await gpt4_vision_chat_completion(
+            data, upstream_endpoint, api_key, is_stream, file_storage
         )
 
     api_base, upstream_deployment = parse_upstream(
@@ -204,7 +184,3 @@ def exception_handler(request: Request, exc: HTTPException):
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-if __name__ == "__main__":
-    uvicorn.run(app, port=5000)

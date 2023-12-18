@@ -1,24 +1,16 @@
-import base64
-import os
 from typing import Any, AsyncGenerator, List, Literal, Optional, TypedDict
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from aidial_adapter_openai.utils.attachment_link import AttachmentLink
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
     chunk_format,
 )
-
-DIAL_URL = os.getenv("DIAL_URL")
-if not DIAL_URL:
-    raise ValueError(
-        "DIAL_URL environment variables must be initialized to use GPT-4 with Vision"
-    )
 
 
 class ImageUrl(TypedDict, total=False):
@@ -33,6 +25,10 @@ class ImageSubmessage(TypedDict):
 
 def create_image_message(url: str) -> ImageSubmessage:
     return {"type": "image_url", "image_url": {"url": url}}
+
+
+def base64_to_image_url(type: str, base64_image: str) -> str:
+    return f"data:{type};base64,{base64_image}"
 
 
 async def predict(api_url: str, api_key: str, request: Any) -> Any:
@@ -65,39 +61,8 @@ async def generate_stream(
     yield END_CHUNK
 
 
-async def download_file(
-    jwt: str, attachment_link: AttachmentLink
-) -> Optional[bytes]:
-    url = attachment_link.absolute_url
-    headers = {"authorization": jwt}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            if not response.ok:
-                logger.warning(
-                    f"Failed to load index from {url}: {response.status}, {response.reason}"
-                )
-                return None
-            return await response.read()
-
-
-def base64_to_image_url(type: str, base64_image: str) -> str:
-    return f"data:{type};base64,{base64_image}"
-
-
-async def download_base64_image(
-    jwt: str, type: str, attachment_link: AttachmentLink
-) -> Optional[str]:
-    bytes = await download_file(jwt, attachment_link)
-    if bytes is None:
-        return None
-
-    text = base64.b64encode(bytes).decode("ascii")
-    return base64_to_image_url(type, text)
-
-
 async def transform_attachment(
-    jwt: str, attachment: Any, download_image: bool
+    file_storage: Optional[FileStorage], attachment: Any, download_image: bool
 ) -> Optional[ImageSubmessage]:
     if "type" not in attachment:
         return None
@@ -115,18 +80,26 @@ async def transform_attachment(
         url: str = attachment["url"]
 
         if not download_image:
-            create_image_message(url)
+            return create_image_message(url)
 
-        link = AttachmentLink.from_url_or_path(DIAL_URL, url)
+        if file_storage is None:
+            logger.warning(
+                f"File storage is not initialized. Cannot download image from URL: {url}"
+            )
+            return create_image_message(url)
 
-        image_url = await download_base64_image(jwt, type, link)
-        return create_image_message(image_url or url)
+        absolute_url = file_storage.attachment_link_to_absolute_url(url)
+
+        base64_str = await file_storage.download_file_as_base64(absolute_url)
+        image_url = base64_to_image_url(type, base64_str)
+
+        return create_image_message(image_url)
 
     return None
 
 
 async def transform_message(
-    jwt: str, message: Any, download_image: bool
+    file_storage: Optional[FileStorage], message: Any, download_image: bool
 ) -> Any:
     if "content" not in message:
         return message
@@ -149,7 +122,7 @@ async def transform_message(
         return message
 
     sub_messages = [
-        await transform_attachment(jwt, attachment, download_image)
+        await transform_attachment(file_storage, attachment, download_image)
         for attachment in attachments
     ]
     sub_messages = [m for m in sub_messages if m is not None]
@@ -161,26 +134,30 @@ async def transform_message(
     return {**message, "content": new_content}
 
 
-async def transform_messages(jwt: str, messages: List[Any]) -> List[Any]:
+async def transform_messages(
+    messages: List[Any], file_storage: Optional[FileStorage]
+) -> List[Any]:
     ret: List[Any] = []
 
     for idx, message in enumerate(messages):
         is_last = idx == len(messages) - 1
         ret.append(
             await transform_message(
-                jwt=jwt, message=message, download_image=is_last
+                message=message,
+                download_image=is_last,
+                file_storage=file_storage,
             )
         )
 
     return ret
 
 
-async def image_to_text_chat_completion(
+async def chat_completion(
     request: Any,
     upstream_endpoint: str,
     api_key: str,
-    jwt: str,
     is_stream: bool,
+    file_storage: Optional[FileStorage],
 ) -> Response:
     if request.get("n", 1) > 1:
         raise HTTPException(
@@ -192,11 +169,10 @@ async def image_to_text_chat_completion(
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
     request = {
         **request,
-        "messages": await transform_messages(jwt, request["messages"]),
+        "messages": await transform_messages(request["messages"], file_storage),
     }
 
     response = await predict(api_url, api_key, request)
-
     if isinstance(response, JSONResponse):
         return response
 

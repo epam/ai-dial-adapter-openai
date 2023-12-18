@@ -4,7 +4,7 @@ import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
-from aidial_adapter_openai.utils.storage import FileStorage, upload_base64_file
+from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
@@ -89,8 +89,8 @@ async def move_attachments_data_to_storage(
         ):
             continue
 
-        file_metadata = await upload_base64_file(
-            file_storage, attachment["data"], attachment["type"]
+        file_metadata = await file_storage.upload_file_as_base64(
+            attachment["data"], attachment["type"]
         )
         image_url = file_metadata["path"] + "/" + file_metadata["name"]
 
@@ -98,7 +98,7 @@ async def move_attachments_data_to_storage(
         attachment["url"] = image_url
 
 
-async def text_to_image_chat_completion(
+async def chat_completion(
     data: Any,
     upstream_endpoint: str,
     api_key: str,
