@@ -92,10 +92,9 @@ async def move_attachments_data_to_storage(
         file_metadata = await file_storage.upload_file_as_base64(
             attachment["data"], attachment["type"]
         )
-        image_url = file_metadata["path"] + "/" + file_metadata["name"]
 
         del attachment["data"]
-        attachment["url"] = image_url
+        attachment["url"] = file_metadata["url"]
 
 
 async def chat_completion(

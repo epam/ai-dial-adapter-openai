@@ -2,7 +2,7 @@ import base64
 import hashlib
 import io
 import re
-from typing import Mapping, Optional, TypedDict
+from typing import List, Mapping, Optional, TypedDict
 
 import aiohttp
 
@@ -13,8 +13,11 @@ from aidial_adapter_openai.utils.log_config import logger
 
 class FileMetadata(TypedDict):
     name: str
+    parentPath: str
+    bucket: str
+    url: str
     type: str
-    path: str
+
     contentLength: int
     contentType: str
 
@@ -81,12 +84,16 @@ class FileStorage:
         return data
 
     async def upload(
-        self, filename: str, content_type: str, content: bytes
+        self,
+        directories: List[str],
+        filename: str,
+        content_type: str,
+        content: bytes,
     ) -> FileMetadata:
         async with aiohttp.ClientSession() as session:
             data = FileStorage._to_form_data(filename, content_type, content)
             async with session.put(
-                f"{self.upload_url}/{filename}",
+                url="/".join([self.upload_url, *directories, filename]),
                 data=data,
                 headers=self.auth.headers,
             ) as response:
@@ -110,20 +117,33 @@ class FileStorage:
     async def upload_file_as_base64(
         self, data: str, content_type: str
     ) -> FileMetadata:
+        path_segments = _compute_path_as_hash(data)
+        directories, filename = path_segments[:-1], path_segments[-1]
+
         ext = _get_extension(content_type)
-        hash = _hash_digest(data)
-        filename = f"{hash}.{ext}" if ext is not None else hash
+        filename = f"{filename}.{ext}" if ext is not None else filename
 
         content: bytes = base64.b64decode(data)
-        return await self.upload(filename, content_type, content)
+        return await self.upload(directories, filename, content_type, content)
 
     async def download_file_as_base64(self, url: str) -> str:
         bytes = await self.download(url)
         return base64.b64encode(bytes).decode("ascii")
 
 
-def _hash_digest(string: str) -> str:
-    return hashlib.sha256(string.encode()).hexdigest()
+def _compute_path_as_hash(file_content: str) -> List[str]:
+    hash = hashlib.sha256(file_content.encode()).hexdigest()
+    return _chunk_string([3, 3], hash)
+
+
+def _chunk_string(chunk_sizes: List[int], string: str) -> List[str]:
+    chunks = []
+    start = 0
+    for chunk_size in chunk_sizes:
+        chunks.append(string[start : start + chunk_size])
+        start += chunk_size
+    chunks.append(string[start:])
+    return [chunk for chunk in chunks if chunk != ""]
 
 
 def _get_extension(content_type: str) -> Optional[str]:
