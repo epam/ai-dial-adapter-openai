@@ -24,7 +24,6 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.request_classifier import (
     does_request_use_functions_or_tools,
 )
-from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import generate_stream
 from aidial_adapter_openai.utils.tokens import discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
@@ -33,22 +32,6 @@ logging.config.dictConfig(LogConfig().dict())
 app = FastAPI()
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
 azure_api_version = os.getenv("AZURE_API_VERSION", "2023-03-15-preview")
-
-dial_use_file_storage = (
-    os.getenv("DIAL_USE_FILE_STORAGE", "false").lower() == "true"
-)
-
-file_storage = None
-if dial_use_file_storage:
-    dial_url = os.getenv("DIAL_URL")
-    dial_api_key = os.getenv("DIAL_API_KEY")
-
-    if not dial_url or not dial_api_key:
-        raise ValueError(
-            "DIAL_URL and DIAL_API_KEY environment variables must be initialized if DIAL_USE_FILE_STORAGE is true"
-        )
-
-    file_storage = FileStorage(dial_url, "dalle", dial_api_key)
 
 
 async def handle_exceptions(call):
@@ -75,7 +58,11 @@ async def chat_completion(deployment_id: str, request: Request):
 
     if is_text_to_image_deployment(deployment_id):
         return await text_to_image_chat_completion(
-            data, upstream_endpoint, api_key, is_stream, file_storage
+            data,
+            upstream_endpoint,
+            api_key,
+            is_stream,
+            request.headers,
         )
 
     api_base, upstream_deployment = parse_upstream(
