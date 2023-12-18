@@ -1,32 +1,52 @@
 import base64
 import hashlib
 import io
-from typing import TypedDict
+from typing import Mapping, Optional, TypedDict
 
 import aiohttp
 
+from aidial_adapter_openai.utils.auth import Auth
+from aidial_adapter_openai.utils.env import get_env, get_env_bool
 from aidial_adapter_openai.utils.log_config import logger
 
 
 class FileMetadata(TypedDict):
     name: str
+    parentPath: str
+    bucket: str
+    url: str
     type: str
-    path: str
+
     contentLength: int
     contentType: str
 
 
 class FileStorage:
-    base_url: str
+    dial_url: str
+    upload_dir: str
+    auth: Auth
+    bucket: Optional[str]
 
-    def __init__(self, dial_url: str, base_dir: str):
-        self.base_url = f"{dial_url}/v1/files/{base_dir}"
+    def __init__(self, dial_url: str, upload_dir: str, auth: Auth):
+        self.dial_url = dial_url
+        self.upload_dir = upload_dir
+        self.auth = auth
+        self.bucket = None
 
-    def auth_headers(self, jwt: str) -> dict[str, str]:
-        return {"authorization": jwt}
+    async def _get_bucket(self, session: aiohttp.ClientSession) -> str:
+        if self.bucket is None:
+            async with session.get(
+                f"{self.dial_url}/v1/bucket",
+                headers=self.auth.headers,
+            ) as response:
+                response.raise_for_status()
+                body = await response.json()
+                self.bucket = body["bucket"]
+
+        return self.bucket
 
     @staticmethod
-    def to_form_data(
+    def _to_form_data(
         filename: str, content_type: str, content: bytes
     ) -> aiohttp.FormData:
         data = aiohttp.FormData()
@@ -39,30 +59,67 @@ class FileStorage:
         return data
 
     async def upload(
-        self, filename: str, content_type: str, content: bytes, jwt: str
+        self, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
         async with aiohttp.ClientSession() as session:
-            data = FileStorage.to_form_data(filename, content_type, content)
-            async with session.post(
-                self.base_url,
+            bucket = await self._get_bucket(session)
+            data = FileStorage._to_form_data(filename, content_type, content)
+            ext = _get_extension(content_type) or ""
+            url = f"{self.dial_url}/v1/files/{bucket}/{self.upload_dir}/{filename}{ext}"
+
+            async with session.put(
+                url=url,
                 data=data,
-                headers=self.auth_headers(jwt),
+                headers=self.auth.headers,
             ) as response:
                 response.raise_for_status()
                 meta = await response.json()
-                logger.debug(
-                    f"Uploaded file: path={self.base_url}, file={filename}, metadata={meta}"
-                )
+                logger.debug(f"Uploaded file: url={url}, metadata={meta}")
                 return meta
 
+    async def upload_file_as_base64(
+        self, data: str, content_type: str
+    ) -> FileMetadata:
+        filename = _compute_hash_digest(data)
 
-def _hash_digest(string: str) -> str:
-    return hashlib.sha256(string.encode()).hexdigest()
+        ext = _get_extension(content_type)
+        filename = f"{filename}.{ext}" if ext is not None else filename
+
+        content: bytes = base64.b64decode(data)
+        return await self.upload(filename, content_type, content)
 
 
-async def upload_base64_file(
-    storage: FileStorage, data: str, content_type: str, jwt: str
-) -> FileMetadata:
-    filename = _hash_digest(data)
-    content: bytes = base64.b64decode(data)
-    return await storage.upload(filename, content_type, content, jwt)
+def _compute_hash_digest(file_content: str) -> str:
+    return hashlib.sha256(file_content.encode()).hexdigest()
+
+
+def _get_extension(content_type: str) -> Optional[str]:
+    if content_type.startswith("image/"):
+        return content_type[len("image/") :]
+    return None
+
+
+DIAL_USE_FILE_STORAGE = get_env_bool("DIAL_USE_FILE_STORAGE", False)
+
+DIAL_URL: Optional[str] = None
+if DIAL_USE_FILE_STORAGE:
+    DIAL_URL = get_env(
+        "DIAL_URL", "DIAL_URL must be set to use the DIAL file storage"
+    )
+
+
+def create_file_storage(
+    base_dir: str, headers: Mapping[str, str]
+) -> Optional[FileStorage]:
+    if not DIAL_USE_FILE_STORAGE or DIAL_URL is None:
+        return None
+
+    auth = Auth.from_headers("authorization", headers)
+    if auth is None:
+        logger.debug(
+            "The request doesn't have required headers to use the DIAL file storage. "
+            "Fallback to base64 encoding of images."
+        )
+        return None
+
+    return FileStorage(dial_url=DIAL_URL, upload_dir=base_dir, auth=auth)

@@ -34,21 +34,6 @@ app = FastAPI()
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
 azure_api_version = os.getenv("AZURE_API_VERSION", "2023-03-15-preview")
 
-dial_use_file_storage = (
-    os.getenv("DIAL_USE_FILE_STORAGE", "false").lower() == "true"
-)
-
-file_storage = None
-if dial_use_file_storage:
-    dial_url = os.getenv("DIAL_URL")
-
-    if not dial_url:
-        raise ValueError(
-            "DIAL_URL environment variable must be initialized if DIAL_USE_FILE_STORAGE is true"
-        )
-
-    file_storage = FileStorage(dial_url, "images/dall-e")
-
 
 async def handle_exceptions(call):
     try:
@@ -78,8 +63,7 @@ async def chat_completion(deployment_id: str, request: Request):
             upstream_endpoint,
             api_key,
             is_stream,
-            file_storage,
-            request.headers["authorization"],
+            request.headers,
         )
 
     api_base, upstream_deployment = parse_upstream(

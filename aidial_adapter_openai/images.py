@@ -1,10 +1,10 @@
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Mapping, Optional
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
-from aidial_adapter_openai.utils.storage import FileStorage, upload_base64_file
+from aidial_adapter_openai.utils.storage import FileStorage, create_file_storage
 from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
@@ -79,7 +79,7 @@ def get_user_prompt(data: Any):
 
 
 async def move_attachments_data_to_storage(
-    custom_content: Any, file_storage: FileStorage, jwt: str
+    custom_content: Any, file_storage: FileStorage
 ):
     for attachment in custom_content["custom_content"]["attachments"]:
         if (
@@ -89,13 +89,12 @@ async def move_attachments_data_to_storage(
         ):
             continue
 
-        file_metadata = await upload_base64_file(
-            file_storage, attachment["data"], attachment["type"], jwt
+        file_metadata = await file_storage.upload_file_as_base64(
+            attachment["data"], attachment["type"]
         )
-        image_url = file_metadata["path"] + "/" + file_metadata["name"]
 
         del attachment["data"]
-        attachment["url"] = image_url
+        attachment["url"] = file_metadata["url"]
 
 
 async def text_to_image_chat_completion(
@@ -103,8 +102,7 @@ async def text_to_image_chat_completion(
     upstream_endpoint: str,
     api_key: str,
     is_stream: bool,
-    file_storage: Optional[FileStorage],
-    jwt: str,
+    headers: Mapping[str, str],
 ) -> Response:
     if data.get("n", 1) > 1:
         raise HTTPException(
@@ -112,6 +110,10 @@ async def text_to_image_chat_completion(
             message="The deployment doesn't support n > 1",
             type="invalid_request_error",
         )
+
+    file_storage: Optional[FileStorage] = create_file_storage(
+        "images/dall-e", headers
+    )
 
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
     user_prompt = get_user_prompt(data)
@@ -129,9 +131,7 @@ async def text_to_image_chat_completion(
     custom_content = build_custom_content(base64_image, revised_prompt)
 
     if file_storage is not None:
-        await move_attachments_data_to_storage(
-            custom_content, file_storage, jwt
-        )
+        await move_attachments_data_to_storage(custom_content, file_storage)
 
     if not is_stream:
         return JSONResponse(
