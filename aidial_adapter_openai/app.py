@@ -24,7 +24,6 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.request_classifier import (
     does_request_use_functions_or_tools,
 )
-from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import generate_stream
 from aidial_adapter_openai.utils.tokens import discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
