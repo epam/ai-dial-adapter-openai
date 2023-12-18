@@ -63,7 +63,8 @@ class FileStorage:
                 f"{dial_url}/v1/bucket", headers=auth.headers
             ) as response:
                 response.raise_for_status()
-                return await response.text()
+                body = await response.json()
+                return body["bucket"]
 
     @staticmethod
     def _to_form_data(
