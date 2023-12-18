@@ -82,9 +82,6 @@ class FileStorage:
     ) -> FileMetadata:
         filename = _compute_hash_digest(data)
 
-        ext = _get_extension(content_type)
-        filename = f"{filename}.{ext}" if ext is not None else filename
-
         content: bytes = base64.b64decode(data)
         return await self.upload(filename, content_type, content)
 
