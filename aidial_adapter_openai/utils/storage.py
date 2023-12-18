@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import io
+import re
 from typing import Mapping, Optional, TypedDict
 
 import aiohttp
@@ -109,7 +110,10 @@ class FileStorage:
     async def upload_file_as_base64(
         self, data: str, content_type: str
     ) -> FileMetadata:
-        filename = _hash_digest(data)
+        ext = _get_extension(content_type)
+        hash = _hash_digest(data)
+        filename = f"{hash}.{ext}" if ext is not None else hash
+
         content: bytes = base64.b64decode(data)
         return await self.upload(filename, content_type, content)
 
@@ -120,6 +124,12 @@ class FileStorage:
 
 def _hash_digest(string: str) -> str:
     return hashlib.sha256(string.encode()).hexdigest()
+
+
+def _get_extension(content_type: str) -> Optional[str]:
+    pattern = r"^image\/(jpeg|jpg|png|bmp)$"
+    match = re.match(pattern, content_type)
+    return match.group(1) if match is not None else None
 
 
 DIAL_USE_FILE_STORAGE = get_env_bool("DIAL_USE_FILE_STORAGE", False)
