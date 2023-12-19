@@ -34,7 +34,7 @@ async def parse_sse_stream(stream: AsyncIterator[bytes]) -> AsyncIterator[dict]:
             payload = line.decode("utf-8-sig").lstrip()  # type: ignore
         except Exception:
             yield create_error(
-                message="Can't decode streaming chunk", type="runtime_error"
+                message="Can't decode chunk to a string", type="runtime_error"
             )
             return
 
@@ -56,11 +56,10 @@ async def parse_sse_stream(stream: AsyncIterator[bytes]) -> AsyncIterator[dict]:
             chunk = json.loads(payload)
         except json.JSONDecodeError:
             yield create_error(
-                message="Can't parse JSON chunk", type="runtime_error"
+                message="Can't parse chunk to JSON", type="runtime_error"
             )
             return
 
-        logger.debug(f"incoming chunk: {chunk}")
         yield chunk
 
 

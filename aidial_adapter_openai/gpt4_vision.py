@@ -1,12 +1,10 @@
+import json
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional, TypedDict
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from aidial_adapter_openai.utils.exceptions import (
-    HTTPException,
-    PassthroughException,
-)
+from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
@@ -42,13 +40,7 @@ async def predict_stream(
         async with session.post(
             api_url, json=request, headers=headers
         ) as response:
-            code = response.status
-
-            if code != 200:
-                raise PassthroughException(
-                    status_code=code, content=await response.json()
-                )
-
+            response.raise_for_status()
             async for line in response.content:
                 yield line
 
@@ -60,13 +52,7 @@ async def predict_non_stream(
         async with session.post(
             api_url, json=request, headers=headers
         ) as response:
-            code = response.status
-
-            if code != 200:
-                raise PassthroughException(
-                    status_code=code, content=await response.json()
-                )
-
+            response.raise_for_status()
             return await response.json()
 
 
@@ -75,12 +61,15 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
 
     id = ""
     created = ""
+    finish_reason = "stop"
 
     yield chunk_format(
         build_chunk(id, None, {"role": "assistant"}, created, is_stream)
     )
 
     async for chunk in stream:
+        logger.debug(f"chunk: {json.dumps(chunk)}")
+
         if "error" in chunk:
             yield chunk
             yield END_CHUNK
@@ -92,11 +81,22 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
         if "created" in chunk:
             created = chunk["created"]
 
-        logger.info(f"INCOMING: {chunk}")
+        choice: dict = (chunk.get("choices") or [{}])[0]
 
-        content = (
-            (chunk.get("choices") or [{}])[0].get("delta", {}).get("content")
-        )
+        finish_type = (choice.get("finish_details") or {}).get("type")
+        match finish_type:
+            case None:
+                pass
+            case "stop":
+                finish_reason = "stop"
+            case "max_tokens":
+                finish_reason = "length"
+            case _:
+                logger.warning(
+                    f"Unknown finish type: {finish_type}. Defaulting to stop"
+                )
+
+        content = choice.get("delta", {}).get("content")
 
         if content is None:
             continue
@@ -105,7 +105,7 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
             build_chunk(id, None, {"content": content}, created, is_stream)
         )
 
-    yield chunk_format(build_chunk(id, "stop", {}, created, is_stream))
+    yield chunk_format(build_chunk(id, finish_reason, {}, created, is_stream))
     yield END_CHUNK
 
 
@@ -206,50 +206,42 @@ async def chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
 ) -> Response:
-    try:
-        if request.get("n", 1) > 1:
-            raise HTTPException(
-                status_code=422,
-                message="The deployment doesn't support n > 1",
-                type="invalid_request_error",
+    if request.get("n", 1) > 1:
+        raise HTTPException(
+            status_code=422,
+            message="The deployment doesn't support n > 1",
+            type="invalid_request_error",
+        )
+
+    api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
+    request = {
+        **request,
+        "messages": await transform_messages(request["messages"], file_storage),
+    }
+
+    headers = {"api-key": api_key}
+
+    if is_stream:
+        chunk_stream = predict_stream(api_url, headers, request)
+        return StreamingResponse(
+            generate_stream(parse_sse_stream(chunk_stream)),
+            media_type="text/event-stream",
+        )
+    else:
+        response = await predict_non_stream(api_url, headers, request)
+
+        id = response["id"]
+        created = response["created"]
+        content = response["choices"][0]["message"].get("content") or ""
+        usage = response["usage"]
+
+        return JSONResponse(
+            content=build_chunk(
+                id,
+                "stop",
+                {"role": "assistant", "content": content},
+                created,
+                False,
+                usage=usage,
             )
-
-        api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
-        request = {
-            **request,
-            "messages": await transform_messages(
-                request["messages"], file_storage
-            ),
-        }
-
-        headers = {"api-key": api_key}
-
-        # TODO: Pass through the finish reason
-
-        if is_stream:
-            chunk_stream = predict_stream(api_url, headers, request)
-            return StreamingResponse(
-                generate_stream(parse_sse_stream(chunk_stream)),
-                media_type="text/event-stream",
-            )
-        else:
-            response = await predict_non_stream(api_url, headers, request)
-
-            id = response["id"]
-            created = response["created"]
-
-            content = response["choices"][0]["message"]["content"]
-            usage = response["usage"]
-
-            return JSONResponse(
-                content=build_chunk(
-                    id,
-                    "stop",
-                    {"role": "assistant", "content": content},
-                    created,
-                    False,
-                    usage=usage,
-                )
-            )
-    except PassthroughException as e:
-        return JSONResponse(status_code=e.status_code, content=e.content)
+        )

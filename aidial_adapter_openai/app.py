@@ -15,7 +15,6 @@ from aidial_adapter_openai.gpt4_vision import (
     chat_completion as gpt4_vision_chat_completion,
 )
 from aidial_adapter_openai.openai_override import OpenAIException
-from aidial_adapter_openai.utils.env import get_env
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
@@ -57,13 +56,8 @@ async def chat_completion(deployment_id: str, request: Request):
     is_stream = data.get("stream", False)
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
 
-    # FIXME
-    if True:
-        api_key = get_env("API_KEY")
-        upstream_endpoint = get_env("ENDPOINT")
-    else:
-        api_key = request.headers["X-UPSTREAM-KEY"]
-        upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+    api_key = request.headers["X-UPSTREAM-KEY"]
+    upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     if deployment_id.lower() == "dalle3":
         storage = create_file_storage("dalle", request.headers)
