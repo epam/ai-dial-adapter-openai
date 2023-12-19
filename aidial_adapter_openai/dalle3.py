@@ -1,10 +1,10 @@
-from typing import Any, AsyncGenerator, Mapping, Optional
+from typing import Any, AsyncGenerator, Optional
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
-from aidial_adapter_openai.utils.storage import FileStorage, create_file_storage
+from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
@@ -97,12 +97,12 @@ async def move_attachments_data_to_storage(
         attachment["url"] = file_metadata["url"]
 
 
-async def text_to_image_chat_completion(
+async def chat_completion(
     data: Any,
     upstream_endpoint: str,
     api_key: str,
     is_stream: bool,
-    headers: Mapping[str, str],
+    file_storage: Optional[FileStorage],
 ) -> Response:
     if data.get("n", 1) > 1:
         raise HTTPException(
@@ -110,10 +110,6 @@ async def text_to_image_chat_completion(
             message="The deployment doesn't support n > 1",
             type="invalid_request_error",
         )
-
-    file_storage: Optional[FileStorage] = create_file_storage(
-        "images/dall-e", headers
-    )
 
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
     user_prompt = get_user_prompt(data)
@@ -138,7 +134,7 @@ async def text_to_image_chat_completion(
             content=build_chunk(
                 id,
                 "stop",
-                {**custom_content, "role": "assistant"},
+                {"role": "assistant", "content": "", **custom_content},
                 created,
                 False,
                 usage=IMG_USAGE,

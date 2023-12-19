@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 
 class HTTPException(Exception):
@@ -25,3 +25,14 @@ class HTTPException(Exception):
             self.param,
             self.code,
         )
+
+
+def create_error(message: str, type: str, param: Any = None, code: Any = None):
+    return {
+        "error": {
+            "message": message,
+            "type": type,
+            "param": param,
+            "code": code,
+        }
+    }

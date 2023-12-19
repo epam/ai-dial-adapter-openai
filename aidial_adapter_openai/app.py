@@ -3,17 +3,18 @@ import logging.config
 import os
 from typing import Dict
 
-import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import ChatCompletion, Embedding, error
 from openai.openai_object import OpenAIObject
 
-from aidial_adapter_openai.images import text_to_image_chat_completion
-from aidial_adapter_openai.openai_override import OpenAIException
-from aidial_adapter_openai.utils.deployment_classifier import (
-    is_text_to_image_deployment,
+from aidial_adapter_openai.dalle3 import (
+    chat_completion as dalle3_chat_completion,
 )
+from aidial_adapter_openai.gpt4_vision import (
+    chat_completion as gpt4_vision_chat_completion,
+)
+from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
@@ -24,6 +25,7 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.request_classifier import (
     does_request_use_functions_or_tools,
 )
+from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.streaming import generate_stream
 from aidial_adapter_openai.utils.tokens import discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
@@ -53,16 +55,19 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
+
     api_key = request.headers["X-UPSTREAM-KEY"]
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
-    if is_text_to_image_deployment(deployment_id):
-        return await text_to_image_chat_completion(
-            data,
-            upstream_endpoint,
-            api_key,
-            is_stream,
-            request.headers,
+    if deployment_id.lower() == "dalle3":
+        storage = create_file_storage("images/dall-e", request.headers)
+        return await dalle3_chat_completion(
+            data, upstream_endpoint, api_key, is_stream, storage
+        )
+    elif deployment_id.lower() == "gpt-4-vision-preview":
+        storage = create_file_storage("images/gpt4-v", request.headers)
+        return await gpt4_vision_chat_completion(
+            data, upstream_endpoint, api_key, is_stream, storage
         )
 
     api_base, upstream_deployment = parse_upstream(
@@ -180,7 +185,3 @@ def exception_handler(request: Request, exc: HTTPException):
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-if __name__ == "__main__":
-    uvicorn.run(app, port=5000)

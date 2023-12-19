@@ -9,12 +9,18 @@ from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.tokens import calculate_prompt_tokens
 
+END_MARKER = "[DONE]"
+CHUNK_PREFIX = "data: "
 
-def chunk_format(data: str | Mapping[str, Any]):
+
+def chunk_format(data: str | Mapping[str, Any]) -> str:
     if type(data) == str:
-        return "data: " + data.strip() + "\n\n"
+        return CHUNK_PREFIX + data.strip() + "\n\n"
     else:
-        return "data: " + json.dumps(data, separators=(",", ":")) + "\n\n"
+        return CHUNK_PREFIX + json.dumps(data, separators=(",", ":")) + "\n\n"
+
+
+END_CHUNK = chunk_format(END_MARKER)
 
 
 def generate_id():
@@ -27,8 +33,10 @@ def build_chunk(
     delta: Any,
     created: str,
     is_stream,
-    **extra
+    **extra,
 ):
+    choice_content_key = "delta" if is_stream else "message"
+
     return {
         "id": id,
         "object": "chat.completion.chunk" if is_stream else "chat.completion",
@@ -37,14 +45,11 @@ def build_chunk(
             {
                 "index": 0,
                 "finish_reason": finish_reason,
-                "delta": delta,
+                choice_content_key: delta,
             }
         ],
         **extra,
     }
-
-
-END_CHUNK = chunk_format("[DONE]")
 
 
 async def generate_stream(
@@ -94,7 +99,7 @@ async def generate_stream(
         completion_tokens = len(encoding.encode(total_content))
 
         if last_chunk is not None:
-            logger.warning("Don't received chunk with the finish reason")
+            logger.warning("Didn't receive chunk with the finish reason")
 
             last_chunk["usage"] = {
                 "completion_tokens": completion_tokens,
