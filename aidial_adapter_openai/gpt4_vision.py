@@ -7,7 +7,6 @@ from typing import (
     List,
     Literal,
     Optional,
-    Tuple,
     TypedDict,
     cast,
 )
