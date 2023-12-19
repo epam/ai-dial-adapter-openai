@@ -15,6 +15,7 @@ from aidial_adapter_openai.gpt4_vision import (
     chat_completion as gpt4_vision_chat_completion,
 )
 from aidial_adapter_openai.openai_override import OpenAIException
+from aidial_adapter_openai.utils.env import get_env
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
@@ -55,18 +56,24 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
-    api_key = request.headers["X-UPSTREAM-KEY"]
-    upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+
+    # FIXME
+    if True:
+        api_key = get_env("API_KEY")
+        upstream_endpoint = get_env("ENDPOINT")
+    else:
+        api_key = request.headers["X-UPSTREAM-KEY"]
+        upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     if deployment_id.lower() == "dalle3":
-        file_storage = await create_file_storage("dalle", request.headers)
+        storage = create_file_storage("dalle", request.headers)
         return await dalle3_chat_completion(
-            data, upstream_endpoint, api_key, is_stream, file_storage
+            data, upstream_endpoint, api_key, is_stream, storage
         )
     elif deployment_id.lower() == "gpt-4-vision-preview":
-        file_storage = await create_file_storage("gpt4-v", request.headers)
+        storage = create_file_storage("gpt4-v", request.headers)
         return await gpt4_vision_chat_completion(
-            data, upstream_endpoint, api_key, is_stream, file_storage
+            data, upstream_endpoint, api_key, is_stream, storage
         )
 
     api_base, upstream_deployment = parse_upstream(

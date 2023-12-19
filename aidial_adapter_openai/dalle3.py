@@ -134,7 +134,7 @@ async def chat_completion(
             content=build_chunk(
                 id,
                 "stop",
-                {**custom_content, "role": "assistant"},
+                {"role": "assistant", "content": "", **custom_content},
                 created,
                 False,
                 usage=IMG_USAGE,

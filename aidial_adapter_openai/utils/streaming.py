@@ -1,24 +1,67 @@
 import json
 from time import time
-from typing import Any, Mapping, Optional
+from typing import Any, AsyncIterator, Mapping, Optional
 from uuid import uuid4
 
 import tiktoken
 
 from aidial_adapter_openai.openai_override import OpenAIException
+from aidial_adapter_openai.utils.exceptions import create_error
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.tokens import calculate_prompt_tokens
+
+END_MARKER = "[DONE]"
+CHUNK_PREFIX = "data: "
 
 
 def chunk_format(data: str | Mapping[str, Any]):
     if type(data) == str:
-        return "data: " + data.strip() + "\n\n"
+        return CHUNK_PREFIX + data.strip() + "\n\n"
     else:
-        return "data: " + json.dumps(data, separators=(",", ":")) + "\n\n"
+        return CHUNK_PREFIX + json.dumps(data, separators=(",", ":")) + "\n\n"
+
+
+END_CHUNK = chunk_format(END_MARKER)
 
 
 def generate_id():
     return "chatcmpl-" + str(uuid4())
+
+
+async def parse_sse_stream(stream: AsyncIterator[bytes]) -> AsyncIterator[dict]:
+    async for line in stream:
+        try:
+            payload = line.decode("utf-8-sig").lstrip()  # type: ignore
+        except Exception:
+            yield create_error(
+                message="Can't decode streaming chunk", type="runtime_error"
+            )
+            return
+
+        if payload.strip() == "":
+            continue
+
+        if not payload.startswith(CHUNK_PREFIX):
+            yield create_error(
+                message="Invalid chunk format", type="runtime_error"
+            )
+            return
+
+        payload = payload[len(CHUNK_PREFIX) :]
+
+        if payload.strip() == END_MARKER:
+            break
+
+        try:
+            chunk = json.loads(payload)
+        except json.JSONDecodeError:
+            yield create_error(
+                message="Can't parse JSON chunk", type="runtime_error"
+            )
+            return
+
+        logger.debug(f"incoming chunk: {chunk}")
+        yield chunk
 
 
 def build_chunk(
@@ -27,8 +70,10 @@ def build_chunk(
     delta: Any,
     created: str,
     is_stream,
-    **extra
+    **extra,
 ):
+    choice_content_key = "delta" if is_stream else "message"
+
     return {
         "id": id,
         "object": "chat.completion.chunk" if is_stream else "chat.completion",
@@ -37,14 +82,11 @@ def build_chunk(
             {
                 "index": 0,
                 "finish_reason": finish_reason,
-                "delta": delta,
+                choice_content_key: delta,
             }
         ],
         **extra,
     }
-
-
-END_CHUNK = chunk_format("[DONE]")
 
 
 async def generate_stream(
@@ -94,7 +136,7 @@ async def generate_stream(
         completion_tokens = len(encoding.encode(total_content))
 
         if last_chunk is not None:
-            logger.warning("Don't received chunk with the finish reason")
+            logger.warning("Didn't receive chunk with the finish reason")
 
             last_chunk["usage"] = {
                 "completion_tokens": completion_tokens,
