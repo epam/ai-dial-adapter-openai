@@ -1,4 +1,5 @@
 import json
+import re
 from time import time
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional, TypedDict
 
@@ -42,7 +43,7 @@ Examples of queries:
 
 class ImageUrl(TypedDict, total=False):
     url: str
-    detail: Optional[Literal["high", "low"]]
+    detail: Optional[Literal["high", "low", "auto"]]
 
 
 class ImageSubmessage(TypedDict):
@@ -56,6 +57,14 @@ def create_image_message(url: str) -> ImageSubmessage:
 
 def base64_to_image_url(type: str, base64_image: str) -> str:
     return f"data:{type};base64,{base64_image}"
+
+
+def get_url_image_type(url: str) -> Optional[str]:
+    pattern = r"^data:image\/([^;]+);base64,"
+    match = re.match(pattern, url)
+    if match is None:
+        return None
+    return match.group(1)
 
 
 async def predict_non_stream(
@@ -179,6 +188,13 @@ async def download_image_attachment(
     if "url" in attachment:
         attachment_link: str = attachment["url"]
 
+        image_url_type = get_url_image_type(attachment_link)
+        if image_url_type is not None:
+            if image_url_type in SUPPORTED_IMAGE_TYPES:
+                return create_image_message(attachment_link)
+            else:
+                return None
+
         try:
             if file_storage is not None:
                 url = file_storage.attachment_link_to_url(attachment_link)
@@ -189,9 +205,7 @@ async def download_image_attachment(
             image_url = base64_to_image_url(type, base64_str)
             return create_image_message(image_url)
         except Exception:
-            logger.warning(
-                f"Failed to download image from URL: {attachment_link}"
-            )
+            logger.warning("Failed to download image from URL")
             return create_image_message(attachment_link)
 
     return None
@@ -200,7 +214,7 @@ async def download_image_attachment(
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict
 ) -> dict | str:
-    content = message.get("content", "")
+    content = message.get("content") or ""
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
 
