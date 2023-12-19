@@ -24,6 +24,10 @@ from aidial_adapter_openai.utils.streaming import (
     prepend_to_async_iterator,
 )
 
+# The built-in default max_tokens is 16 tokens,
+# which is too small for most image-to-text use cases.
+DEFAULT_MAX_TOKENS = 128
+
 
 class ImageUrl(TypedDict, total=False):
     url: str
@@ -119,7 +123,10 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
 
         choice: dict = (chunk.get("choices") or [{}])[0]
 
-        finish_type = (choice.get("finish_details") or {}).get("type")
+        finish_type: Optional[str] = (choice.get("finish_details") or {}).get(
+            "type"
+        )
+
         match finish_type:
             case None:
                 pass
@@ -127,6 +134,8 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
                 finish_reason = "stop"
             case "max_tokens":
                 finish_reason = "length"
+            case "content_filter":
+                finish_reason = "content_filter"
             case _:
                 logger.warning(
                     f"Unknown finish type: {finish_type}. Defaulting to stop"
@@ -250,8 +259,12 @@ async def chat_completion(
         )
 
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
+
+    max_tokens = request.get("max_tokens", DEFAULT_MAX_TOKENS)
+
     request = {
         **request,
+        "max_tokens": max_tokens,
         "messages": await transform_messages(request["messages"], file_storage),
     }
 
