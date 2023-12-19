@@ -215,17 +215,9 @@ async def to_image_attachment(
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict
 ) -> dict | str:
-    content = message.get("content")
-    custom_content = message.get("custom_content")
-
-    if content is None or custom_content is None:
-        return message
-
-    message = {k: v for k, v in message.items() if k != "custom_content"}
-
-    attachments = custom_content.get("attachments")
-    if attachments is None or not isinstance(attachments, list):
-        return message
+    content = message.get("content", "")
+    custom_content = message.get("custom_content", {})
+    attachments = custom_content.get("attachments", [])
 
     logger.debug(f"original attachments: {attachments}")
 
@@ -237,6 +229,7 @@ async def transform_message(
     image_attachments: List[ImageSubmessage] = [
         m for m in conversion_results if not isinstance(m, str)
     ]
+
     conversion_errors: List[Tuple[int, str]] = [
         (idx, m)
         for idx, m in enumerate(conversion_results, start=1)
@@ -261,6 +254,7 @@ async def transform_message(
 
     new_content = [{"type": "text", "text": content}] + image_attachments
 
+    message = {k: v for k, v in message.items() if k != "custom_content"}
     return {**message, "content": new_content}
 
 
