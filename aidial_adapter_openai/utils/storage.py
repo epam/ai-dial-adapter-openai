@@ -8,7 +8,7 @@ import aiohttp
 
 from aidial_adapter_openai.utils.auth import Auth
 from aidial_adapter_openai.utils.env import get_env, get_env_bool
-from aidial_adapter_openai.utils.log_config import logger as log
+from aidial_adapter_openai.utils.log_config import logger
 
 
 class FileMetadata(TypedDict):
@@ -75,7 +75,7 @@ class FileStorage:
             ) as response:
                 response.raise_for_status()
                 meta = await response.json()
-                log.debug(f"Uploaded file: url={url}, metadata={meta}")
+                logger.debug(f"Uploaded file: url={url}, metadata={meta}")
                 return meta
 
     async def upload_file_as_base64(
@@ -91,7 +91,6 @@ class FileStorage:
 
     async def download_file_as_base64(self, url: str) -> str:
         headers: Mapping[str, str] = {}
-
         if url.startswith(self.dial_url):
             headers = self.auth.headers
 
@@ -139,7 +138,7 @@ def create_file_storage(
 
     auth = Auth.from_headers("authorization", headers)
     if auth is None:
-        log.debug(
+        logger.debug(
             "The request doesn't have required headers to use the DIAL file storage. "
             "Fallback to base64 encoding of images."
         )

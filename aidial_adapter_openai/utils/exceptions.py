@@ -27,22 +27,6 @@ class HTTPException(Exception):
         )
 
 
-class PassthroughException(Exception):
-    status_code: int
-    content: Any
-
-    def __init__(self, status_code: int, content: Any) -> None:
-        self.status_code = status_code
-        self.content = content
-
-    def __repr__(self):
-        return "%s(status_code=%r, content=%r)" % (
-            self.__class__.__name__,
-            self.status_code,
-            self.content,
-        )
-
-
 def create_error(message: str, type: str, param: Any = None, code: Any = None):
     return {
         "error": {

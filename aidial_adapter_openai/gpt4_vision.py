@@ -209,8 +209,8 @@ async def download_image_attachment(
         return None
 
     if "data" in attachment:
-        attachment_link: str = base64_to_image_url(type, attachment["data"])
-        return create_image_message(attachment_link)
+        url = base64_to_image_url(type, attachment["data"])
+        return create_image_message(url)
 
     if "url" in attachment:
         attachment_link: str = attachment["url"]
