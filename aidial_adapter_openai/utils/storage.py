@@ -92,7 +92,7 @@ def _compute_hash_digest(file_content: str) -> str:
 
 def _get_extension(content_type: str) -> Optional[str]:
     if content_type.startswith("image/"):
-        return content_type[len("image/") :]
+        return "." + content_type[len("image/") :]
     return None
 
 
