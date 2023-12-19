@@ -1,15 +1,6 @@
 import json
 from time import time
-from typing import (
-    Any,
-    AsyncIterator,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    TypedDict,
-    cast,
-)
+from typing import Any, AsyncIterator, Dict, List, Literal, Optional, TypedDict
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -25,8 +16,6 @@ from aidial_adapter_openai.utils.streaming import (
     build_chunk,
     chunk_format,
     generate_id,
-    parse_sse_stream,
-    prepend_to_async_iterator,
 )
 
 # The built-in default max_tokens is 16 tokens,
@@ -69,41 +58,6 @@ def base64_to_image_url(type: str, base64_image: str) -> str:
     return f"data:{type};base64,{base64_image}"
 
 
-async def transpose_stream(
-    stream: AsyncIterator[bytes | JSONResponse],
-) -> AsyncIterator[bytes] | JSONResponse:
-    first_chunk: Optional[bytes] = None
-    async for chunk in stream:
-        if isinstance(chunk, Response):
-            return chunk
-        else:
-            first_chunk = chunk
-            break
-
-    stream = cast(AsyncIterator[bytes], stream)
-    if first_chunk is not None:
-        stream = prepend_to_async_iterator(first_chunk, stream)
-
-    return stream
-
-
-async def predict_stream(
-    api_url: str, headers: Dict[str, str], request: Any
-) -> AsyncIterator[bytes | JSONResponse]:
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            api_url, json=request, headers=headers
-        ) as response:
-            if response.status != 200:
-                yield JSONResponse(
-                    status_code=response.status, content=await response.json()
-                )
-                return
-
-            async for line in response.content:
-                yield line
-
-
 async def predict_non_stream(
     api_url: str, headers: Dict[str, str], request: Any
 ) -> dict | JSONResponse:
@@ -118,12 +72,34 @@ async def predict_non_stream(
             return await response.json()
 
 
+def get_finish_reason(response: dict) -> Optional[str]:
+    choice: dict = (response.get("choices") or [{}])[0]
+
+    finish_type: Optional[str] = (choice.get("finish_details") or {}).get(
+        "type"
+    )
+
+    match finish_type:
+        case None:
+            return None
+        case "stop":
+            return "stop"
+        case "max_tokens":
+            return "length"
+        case "content_filter":
+            return "content_filter"
+        case _:
+            logger.warning(f"Unknown finish type: {finish_type}.")
+            return None
+
+
 async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
     is_stream = True
 
     id = ""
     created = ""
     finish_reason = "stop"
+    usage = None
 
     yield chunk_format(
         build_chunk(id, None, {"role": "assistant"}, created, is_stream)
@@ -137,32 +113,18 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
             yield END_CHUNK
             return
 
+        if "usage" in chunk:
+            usage = chunk["usage"]
+
         if "id" in chunk:
             id = chunk["id"]
 
         if "created" in chunk:
             created = chunk["created"]
 
+        finish_reason = get_finish_reason(chunk) or finish_reason
+
         choice: dict = (chunk.get("choices") or [{}])[0]
-
-        finish_type: Optional[str] = (choice.get("finish_details") or {}).get(
-            "type"
-        )
-
-        match finish_type:
-            case None:
-                pass
-            case "stop":
-                finish_reason = "stop"
-            case "max_tokens":
-                finish_reason = "length"
-            case "content_filter":
-                finish_reason = "content_filter"
-            case _:
-                logger.warning(
-                    f"Unknown finish type: {finish_type}. Defaulting to stop"
-                )
-
         content = choice.get("delta", {}).get("content")
 
         if content is None:
@@ -172,7 +134,9 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
             build_chunk(id, None, {"content": content}, created, is_stream)
         )
 
-    yield chunk_format(build_chunk(id, finish_reason, {}, created, is_stream))
+    yield chunk_format(
+        build_chunk(id, finish_reason, {}, created, is_stream, usage=usage)
+    )
     yield END_CHUNK
 
 
@@ -303,11 +267,11 @@ def get_predefined_chunk(content: str, stream: bool) -> dict:
 def get_predefined_response(content: str, stream: bool) -> Response:
     if stream:
 
-        async def generate() -> AsyncIterator[Any]:
+        async def generator() -> AsyncIterator[Any]:
             yield chunk_format(get_predefined_chunk(content, stream))
             yield END_CHUNK
 
-        return StreamingResponse(generate(), media_type="text/event-stream")
+        return StreamingResponse(generator(), media_type="text/event-stream")
     else:
         return JSONResponse(content=get_predefined_chunk(content, stream))
 
@@ -348,35 +312,41 @@ async def chat_completion(
         **request,
         "max_tokens": max_tokens,
         "messages": [new_message],
+        "stream": False,
     }
 
     headers = {"api-key": api_key}
 
+    # GPT4-V doesn't return usage in streaming mode and it's not clear how to
+    # compute it. So we run a non-streaming request to get the usage.
+    response = await predict_non_stream(api_url, headers, request)
+    if isinstance(response, Response):
+        return response
+
     if is_stream:
-        response = await transpose_stream(
-            predict_stream(api_url, headers, request)
-        )
-        if isinstance(response, Response):
-            return response
+        choice = response["choices"][0]
+        message = choice["message"]
+        del choice["message"]
+        choice["delta"] = message
+
+        async def generator() -> AsyncIterator[dict]:
+            yield response
 
         return StreamingResponse(
-            generate_stream(parse_sse_stream(response)),
+            generate_stream(generator()),
             media_type="text/event-stream",
         )
     else:
-        response = await predict_non_stream(api_url, headers, request)
-        if isinstance(response, Response):
-            return response
-
         id = response["id"]
         created = response["created"]
         content = response["choices"][0]["message"].get("content") or ""
         usage = response["usage"]
+        finish_reason = get_finish_reason(response) or "stop"
 
         return JSONResponse(
             content=build_chunk(
                 id,
-                "stop",
+                finish_reason,
                 {"role": "assistant", "content": content},
                 created,
                 False,

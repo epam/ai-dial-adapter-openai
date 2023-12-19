@@ -1,12 +1,11 @@
 import json
 from time import time
-from typing import Any, AsyncIterator, Mapping, Optional, TypeVar
+from typing import Any, Mapping, Optional
 from uuid import uuid4
 
 import tiktoken
 
 from aidial_adapter_openai.openai_override import OpenAIException
-from aidial_adapter_openai.utils.exceptions import create_error
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.tokens import calculate_prompt_tokens
 
@@ -14,7 +13,7 @@ END_MARKER = "[DONE]"
 CHUNK_PREFIX = "data: "
 
 
-def chunk_format(data: str | Mapping[str, Any]):
+def chunk_format(data: str | Mapping[str, Any]) -> str:
     if type(data) == str:
         return CHUNK_PREFIX + data.strip() + "\n\n"
     else:
@@ -26,41 +25,6 @@ END_CHUNK = chunk_format(END_MARKER)
 
 def generate_id():
     return "chatcmpl-" + str(uuid4())
-
-
-async def parse_sse_stream(stream: AsyncIterator[bytes]) -> AsyncIterator[dict]:
-    async for line in stream:
-        try:
-            payload = line.decode("utf-8-sig").lstrip()  # type: ignore
-        except Exception:
-            yield create_error(
-                message="Can't decode chunk to a string", type="runtime_error"
-            )
-            return
-
-        if payload.strip() == "":
-            continue
-
-        if not payload.startswith(CHUNK_PREFIX):
-            yield create_error(
-                message="Invalid chunk format", type="runtime_error"
-            )
-            return
-
-        payload = payload[len(CHUNK_PREFIX) :]
-
-        if payload.strip() == END_MARKER:
-            break
-
-        try:
-            chunk = json.loads(payload)
-        except json.JSONDecodeError:
-            yield create_error(
-                message="Can't parse chunk to JSON", type="runtime_error"
-            )
-            return
-
-        yield chunk
 
 
 def build_chunk(
@@ -167,14 +131,3 @@ async def generate_stream(
             )
 
     yield END_CHUNK
-
-
-T = TypeVar("T")
-
-
-async def prepend_to_async_iterator(
-    value: T, iterator: AsyncIterator[T]
-) -> AsyncIterator[T]:
-    yield value
-    async for item in iterator:
-        yield item
