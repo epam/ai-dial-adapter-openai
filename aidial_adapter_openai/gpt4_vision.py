@@ -1,21 +1,16 @@
 import json
-from typing import (
-    Any,
-    AsyncIterator,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    TypedDict,
-    cast,
-)
+from typing import Any, AsyncIterator, Dict, Literal, Optional, TypedDict, cast
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.storage import FileStorage
+from aidial_adapter_openai.utils.storage import (
+    FileStorage,
+    attachment_link_to_absolute_url,
+    download_file_as_base64,
+)
 from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
@@ -155,93 +150,61 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
 
 
 async def transform_attachment(
-    file_storage: Optional[FileStorage], attachment: Any, download_image: bool
+    file_storage: Optional[FileStorage], attachment: Any
 ) -> Optional[ImageSubmessage]:
-    if "type" not in attachment:
-        return None
-
-    type = attachment["type"]
-
-    if not type.startswith("image/"):
+    type = attachment.get("type")
+    if type is None or not type.startswith("image/"):
         return None
 
     if "data" in attachment:
-        url: str = base64_to_image_url(type, attachment["data"])
-        return create_image_message(url)
+        attachment_link: str = base64_to_image_url(type, attachment["data"])
+        return create_image_message(attachment_link)
 
     if "url" in attachment:
-        url: str = attachment["url"]
+        attachment_link: str = attachment["url"]
 
-        if not download_image:
-            return create_image_message(url)
-
-        if file_storage is None:
+        try:
+            url = attachment_link_to_absolute_url(file_storage, attachment_link)
+            base64_str = await download_file_as_base64(file_storage, url)
+            image_url = base64_to_image_url(type, base64_str)
+            return create_image_message(image_url)
+        except Exception:
             logger.warning(
-                f"File storage is not initialized. Cannot download image from URL: {url}"
+                f"Failed to download image from URL: {attachment_link}"
             )
-            return create_image_message(url)
-
-        absolute_url = file_storage.attachment_link_to_absolute_url(url)
-        base64_str = await file_storage.download_file_as_base64(absolute_url)
-        image_url = base64_to_image_url(type, base64_str)
-
-        return create_image_message(image_url)
+            return create_image_message(attachment_link)
 
     return None
 
 
 async def transform_message(
-    file_storage: Optional[FileStorage], message: Any, download_image: bool
+    file_storage: Optional[FileStorage], message: Any
 ) -> Any:
-    if "content" not in message:
+    content = message.get("content")
+    custom_content = message.get("custom_content")
+
+    if content is None or custom_content is None:
         return message
-
-    content = message["content"]
-
-    if "custom_content" not in message:
-        return message
-
-    custom_content = message["custom_content"]
 
     message = {k: v for k, v in message.items() if k != "custom_content"}
 
-    if "attachments" not in custom_content:
+    attachments = custom_content.get("attachments")
+    if attachments is None or not isinstance(attachments, list):
         return message
 
-    attachments = custom_content["attachments"]
+    logger.debug(f"original attachments: {attachments}")
 
-    if not isinstance(attachments, list):
-        return message
-
-    sub_messages = [
-        await transform_attachment(file_storage, attachment, download_image)
+    new_attachments = [
+        await transform_attachment(file_storage, attachment)
         for attachment in attachments
     ]
-    sub_messages = [m for m in sub_messages if m is not None]
+    new_attachments = [m for m in new_attachments if m is not None]
 
-    if len(sub_messages) == 0:
-        return message
+    logger.debug(f"transformed attachments: {str(new_attachments)[:100]}")
 
-    new_content = [{"type": "text", "text": content}] + sub_messages
+    new_content = [{"type": "text", "text": content}] + new_attachments
+
     return {**message, "content": new_content}
-
-
-async def transform_messages(
-    messages: List[Any], file_storage: Optional[FileStorage]
-) -> List[Any]:
-    ret: List[Any] = []
-
-    for idx, message in enumerate(messages):
-        is_last = idx == len(messages) - 1
-        ret.append(
-            await transform_message(
-                message=message,
-                download_image=is_last,
-                file_storage=file_storage,
-            )
-        )
-
-    return ret
 
 
 async def chat_completion(
@@ -262,10 +225,15 @@ async def chat_completion(
 
     max_tokens = request.get("max_tokens", DEFAULT_MAX_TOKENS)
 
+    new_messages = [
+        await transform_message(file_storage, message)
+        for message in request["messages"][-1:]
+    ]
+
     request = {
         **request,
         "max_tokens": max_tokens,
-        "messages": await transform_messages(request["messages"], file_storage),
+        "messages": new_messages,
     }
 
     headers = {"api-key": api_key}

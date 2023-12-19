@@ -59,20 +59,6 @@ class FileStorage:
         )
         return data
 
-    def attachment_link_to_absolute_url(self, link: str) -> str:
-        base_url = f"{self.dial_url}/v1/files/"
-        return urljoin(base_url, link)
-
-    async def download(self, url: str) -> bytes:
-        headers: Mapping[str, str] = {}
-        if url.startswith(self.dial_url):
-            headers = self.auth.headers
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                response.raise_for_status()
-                return await response.read()
-
     async def upload(
         self, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
@@ -99,9 +85,34 @@ class FileStorage:
         content: bytes = base64.b64decode(data)
         return await self.upload(filename, content_type, content)
 
-    async def download_file_as_base64(self, url: str) -> str:
-        bytes = await self.download(url)
-        return base64.b64encode(bytes).decode("ascii")
+
+def attachment_link_to_absolute_url(
+    storage: Optional[FileStorage], link: str
+) -> str:
+    if storage is None:
+        return link
+
+    base_url = f"{storage.dial_url}/v1/files/"
+    return urljoin(base_url, link)
+
+
+async def _download(storage: Optional[FileStorage], url: str) -> bytes:
+    headers: Mapping[str, str] = {}
+
+    if storage is not None and url.startswith(storage.dial_url):
+        headers = storage.auth.headers
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            response.raise_for_status()
+            return await response.read()
+
+
+async def download_file_as_base64(
+    storage: Optional[FileStorage], url: str
+) -> str:
+    bytes = await _download(storage, url)
+    return base64.b64encode(bytes).decode("ascii")
 
 
 def _compute_hash_digest(file_content: str) -> str:
