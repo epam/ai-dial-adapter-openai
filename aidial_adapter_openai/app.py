@@ -60,12 +60,12 @@ async def chat_completion(deployment_id: str, request: Request):
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     if deployment_id.lower() == "dalle3":
-        storage = create_file_storage("dalle", request.headers)
+        storage = create_file_storage("images/dall-e", request.headers)
         return await dalle3_chat_completion(
             data, upstream_endpoint, api_key, is_stream, storage
         )
     elif deployment_id.lower() == "gpt-4-vision-preview":
-        storage = create_file_storage("gpt4-v", request.headers)
+        storage = create_file_storage("images/gpt4-v", request.headers)
         return await gpt4_vision_chat_completion(
             data, upstream_endpoint, api_key, is_stream, storage
         )
