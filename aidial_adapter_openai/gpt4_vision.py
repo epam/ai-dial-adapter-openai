@@ -47,7 +47,7 @@ Supported image types: {', '.join(SUPPORTED_IMAGE_TYPES)}.
 
 Examples of queries:
 - "Describe this picture" for one image,
-- "What are in these images? Is there any difference between them?" for two images.
+- "What are in these images? Is there any difference between them?" for multiple images.
 """.strip()
 
 
