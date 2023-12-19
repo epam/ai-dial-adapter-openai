@@ -1,6 +1,6 @@
 import json
 from time import time
-from typing import Any, AsyncIterator, Mapping, Optional
+from typing import Any, AsyncIterator, Mapping, Optional, TypeVar
 from uuid import uuid4
 
 import tiktoken
@@ -167,3 +167,14 @@ async def generate_stream(
             )
 
     yield END_CHUNK
+
+
+T = TypeVar("T")
+
+
+async def prepend_to_async_iterator(
+    value: T, iterator: AsyncIterator[T]
+) -> AsyncIterator[T]:
+    yield value
+    async for item in iterator:
+        yield item

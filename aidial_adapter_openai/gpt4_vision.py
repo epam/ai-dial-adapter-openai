@@ -1,5 +1,14 @@
 import json
-from typing import Any, AsyncIterator, Dict, List, Literal, Optional, TypedDict
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    TypedDict,
+    cast,
+)
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -12,6 +21,7 @@ from aidial_adapter_openai.utils.streaming import (
     build_chunk,
     chunk_format,
     parse_sse_stream,
+    prepend_to_async_iterator,
 )
 
 
@@ -33,26 +43,52 @@ def base64_to_image_url(type: str, base64_image: str) -> str:
     return f"data:{type};base64,{base64_image}"
 
 
+async def transpose_stream(
+    stream: AsyncIterator[bytes | JSONResponse],
+) -> AsyncIterator[bytes] | JSONResponse:
+    first_chunk: Optional[bytes] = None
+    async for chunk in stream:
+        if isinstance(chunk, Response):
+            return chunk
+        else:
+            first_chunk = chunk
+            break
+
+    stream = cast(AsyncIterator[bytes], stream)
+    if first_chunk is not None:
+        stream = prepend_to_async_iterator(first_chunk, stream)
+
+    return stream
+
+
 async def predict_stream(
     api_url: str, headers: Dict[str, str], request: Any
-) -> AsyncIterator[bytes]:
+) -> AsyncIterator[bytes | JSONResponse]:
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url, json=request, headers=headers
         ) as response:
-            response.raise_for_status()
+            if response.status != 200:
+                yield JSONResponse(
+                    status_code=response.status, content=await response.json()
+                )
+                return
+
             async for line in response.content:
                 yield line
 
 
 async def predict_non_stream(
     api_url: str, headers: Dict[str, str], request: Any
-) -> dict:
+) -> dict | JSONResponse:
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url, json=request, headers=headers
         ) as response:
-            response.raise_for_status()
+            if response.status != 200:
+                return JSONResponse(
+                    status_code=response.status, content=await response.json()
+                )
             return await response.json()
 
 
@@ -222,13 +258,20 @@ async def chat_completion(
     headers = {"api-key": api_key}
 
     if is_stream:
-        chunk_stream = predict_stream(api_url, headers, request)
+        response = await transpose_stream(
+            predict_stream(api_url, headers, request)
+        )
+        if isinstance(response, Response):
+            return response
+
         return StreamingResponse(
-            generate_stream(parse_sse_stream(chunk_stream)),
+            generate_stream(parse_sse_stream(response)),
             media_type="text/event-stream",
         )
     else:
         response = await predict_non_stream(api_url, headers, request)
+        if isinstance(response, Response):
+            return response
 
         id = response["id"]
         created = response["created"]
