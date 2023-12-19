@@ -34,6 +34,23 @@ from aidial_adapter_openai.utils.streaming import (
 # which is too small for most image-to-text use cases.
 DEFAULT_MAX_TOKENS = 128
 
+# Officially supported image types by GPT-4 Vision
+SUPPORTED_IMAGE_TYPES = ["jpg", "jpeg", "png", "webp", "gif"]
+
+USAGE = f"""
+### Usage
+
+The application answers queries about attached images.
+Attach images and ask questions about them in the same message.
+Only the last message in dialogue is taken into account.
+
+Supported image types: {', '.join(SUPPORTED_IMAGE_TYPES)}.
+
+Examples of queries:
+- "Describe this picture" for one image,
+- "What are in these images? Is there any difference between them?" for two images.
+""".strip()
+
 
 class ImageUrl(TypedDict, total=False):
     url: str
@@ -165,18 +182,21 @@ def derive_image_content_type(attachment: Any) -> Optional[str]:
     if type is None:
         return None
 
-    if type.startswith("image/"):
+    if (
+        type.startswith("image/")
+        and type[len("image/") :] in SUPPORTED_IMAGE_TYPES
+    ):
         return type
 
     if "octet-stream" in type:
         # It's an arbitrary binary file. Trying to guess the type from the URL.
-
         url = attachment.get("url")
         if url is None:
             return None
 
         file_ext = url.split(".")[-1]
-        if file_ext in ["jpg", "jpeg", "png"]:
+
+        if file_ext in SUPPORTED_IMAGE_TYPES:
             return f"image/{file_ext}"
 
     return None
@@ -184,10 +204,10 @@ def derive_image_content_type(attachment: Any) -> Optional[str]:
 
 async def download_image_attachment(
     file_storage: Optional[FileStorage], attachment: Any
-) -> ImageSubmessage | str:
+) -> Optional[ImageSubmessage]:
     type = derive_image_content_type(attachment)
     if type is None:
-        return "not an image attachment"
+        return None
 
     if "data" in attachment:
         attachment_link: str = base64_to_image_url(type, attachment["data"])
@@ -211,20 +231,7 @@ async def download_image_attachment(
             )
             return create_image_message(attachment_link)
 
-    return "invalid attachment"
-
-
-USAGE = """
-### Usage
-
-The application answers queries about attached images.
-Attach images and ask questions about them in the same message.
-Only the last message in dialogue is taken into account.
-
-Examples of queries:
-- "Describe this picture" for one image,
-- "What are in these images? Is there any difference between them?" for two images.
-""".strip()
+    return None
 
 
 async def transform_message(
@@ -236,19 +243,17 @@ async def transform_message(
 
     logger.debug(f"original attachments: {attachments}")
 
-    conversion_results: List[ImageSubmessage | str] = [
+    conversion_results: List[Optional[ImageSubmessage]] = [
         await download_image_attachment(file_storage, attachment)
         for attachment in attachments
     ]
 
     image_attachments: List[ImageSubmessage] = [
-        m for m in conversion_results if not isinstance(m, str)
+        m for m in conversion_results if m is not None
     ]
 
-    conversion_errors: List[Tuple[int, str]] = [
-        (idx, m)
-        for idx, m in enumerate(conversion_results, start=1)
-        if isinstance(m, str)
+    conversion_errors: List[int] = [
+        idx for idx, m in enumerate(conversion_results) if m is None
     ]
 
     logger.debug(f"image attachments: {str(image_attachments)[:100]}")
@@ -257,7 +262,10 @@ async def transform_message(
     if len(image_attachments) == 0:
         conversion_fails_msg = ""
         if len(conversion_errors) > 0:
-            conversion_fails_msg = " All attachments were filtered out because they are not image attachments."
+            conversion_fails_msg = (
+                " All attachments were filtered out because "
+                "they are not supported image attachments."
+            )
 
         return (
             "No image attachments were found."
