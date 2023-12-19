@@ -1,4 +1,5 @@
 import json
+from time import time
 from typing import (
     Any,
     AsyncIterator,
@@ -24,6 +25,7 @@ from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
     chunk_format,
+    generate_id,
     parse_sse_stream,
     prepend_to_async_iterator,
 )
@@ -180,12 +182,12 @@ def derive_image_content_type(attachment: Any) -> Optional[str]:
     return None
 
 
-async def to_image_attachment(
+async def download_image_attachment(
     file_storage: Optional[FileStorage], attachment: Any
 ) -> ImageSubmessage | str:
     type = derive_image_content_type(attachment)
     if type is None:
-        return "Attachment isn't an image"
+        return "not an image attachment"
 
     if "data" in attachment:
         attachment_link: str = base64_to_image_url(type, attachment["data"])
@@ -209,7 +211,20 @@ async def to_image_attachment(
             )
             return create_image_message(attachment_link)
 
-    return "Invalid attachment"
+    return "invalid attachment"
+
+
+USAGE = """
+### Usage
+
+The application answers queries about attached images.
+Attach images and ask questions about them in the same message.
+Only the last message in dialogue is taken into account.
+
+Examples of queries:
+- "Describe this picture" for one image,
+- "What are in these images? Is there any difference between them?" for two images.
+""".strip()
 
 
 async def transform_message(
@@ -222,7 +237,7 @@ async def transform_message(
     logger.debug(f"original attachments: {attachments}")
 
     conversion_results: List[ImageSubmessage | str] = [
-        await to_image_attachment(file_storage, attachment)
+        await download_image_attachment(file_storage, attachment)
         for attachment in attachments
     ]
 
@@ -242,20 +257,52 @@ async def transform_message(
     if len(image_attachments) == 0:
         conversion_fails_msg = ""
         if len(conversion_errors) > 0:
-            conversion_fails_msg = (
-                "\n\n"
-                + "Certain attachments were filtered out as non-image attachments:"
-                + "\n\n"
-                + "\n".join([f"{idx}. {m}" for idx, m in conversion_errors])
-            )
+            conversion_fails_msg = " All attachments were filtered out because they are not image attachments."
 
-        msg = "No image attachments were found." + conversion_fails_msg
-        logger.debug(msg)
+        return (
+            "No image attachments were found."
+            + conversion_fails_msg
+            + "\n\n"
+            + USAGE
+        )
 
     new_content = [{"type": "text", "text": content}] + image_attachments
 
     message = {k: v for k, v in message.items() if k != "custom_content"}
     return {**message, "content": new_content}
+
+
+NO_USAGE = {
+    "completion_tokens": 0,
+    "prompt_tokens": 0,
+    "total_tokens": 0,
+}
+
+
+def get_predefined_chunk(content: str, stream: bool) -> dict:
+    id = generate_id()
+    created = str(int(time()))
+
+    return build_chunk(
+        id,
+        "stop",
+        {"role": "assistant", "content": content},
+        created,
+        stream,
+        usage=NO_USAGE,
+    )
+
+
+def get_predefined_response(content: str, stream: bool) -> Response:
+    if stream:
+
+        async def generate() -> AsyncIterator[Any]:
+            yield chunk_format(get_predefined_chunk(content, stream))
+            yield END_CHUNK
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
+    else:
+        return JSONResponse(content=get_predefined_chunk(content, stream))
 
 
 async def chat_completion(
@@ -284,6 +331,9 @@ async def chat_completion(
 
     last_message = messages[-1]
     new_message = await transform_message(file_storage, last_message)
+
+    if isinstance(new_message, str):
+        return get_predefined_response(new_message, is_stream)
 
     max_tokens = request.get("max_tokens", DEFAULT_MAX_TOKENS)
 
