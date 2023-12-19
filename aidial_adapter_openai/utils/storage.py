@@ -85,23 +85,20 @@ class FileStorage:
         content: bytes = base64.b64decode(data)
         return await self.upload(filename, content_type, content)
 
+    def attachment_link_to_url(self, link: str) -> str:
+        base_url = f"{self.dial_url}/v1/files/"
+        return urljoin(base_url, link)
 
-def attachment_link_to_absolute_url(
-    storage: Optional[FileStorage], link: str
-) -> str:
-    if storage is None:
-        return link
+    async def download_file_as_base64(self, url: str) -> str:
+        headers: Mapping[str, str] = {}
 
-    base_url = f"{storage.dial_url}/v1/files/"
-    return urljoin(base_url, link)
+        if url.startswith(self.dial_url):
+            headers = self.auth.headers
+
+        return await download_file_as_base64(url, headers)
 
 
-async def _download(storage: Optional[FileStorage], url: str) -> bytes:
-    headers: Mapping[str, str] = {}
-
-    if storage is not None and url.startswith(storage.dial_url):
-        headers = storage.auth.headers
-
+async def _download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             response.raise_for_status()
@@ -109,9 +106,9 @@ async def _download(storage: Optional[FileStorage], url: str) -> bytes:
 
 
 async def download_file_as_base64(
-    storage: Optional[FileStorage], url: str
+    url: str, headers: Mapping[str, str] = {}
 ) -> str:
-    bytes = await _download(storage, url)
+    bytes = await _download_file(url, headers)
     return base64.b64encode(bytes).decode("ascii")
 
 
