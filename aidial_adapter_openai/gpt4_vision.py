@@ -1,4 +1,5 @@
 import json
+import re
 from time import time
 from typing import (
     Any,
@@ -53,7 +54,7 @@ Examples of queries:
 
 class ImageUrl(TypedDict, total=False):
     url: str
-    detail: Optional[Literal["high", "low"]]
+    detail: Optional[Literal["high", "low", "auto"]]
 
 
 class ImageSubmessage(TypedDict):
@@ -104,6 +105,14 @@ async def predict_stream(
                 yield line
 
 
+def get_url_image_type(url: str) -> Optional[str]:
+    pattern = r"^data:image\/([^;]+);base64,"
+    match = re.match(pattern, url)
+    if match is None:
+        return None
+    return match.group(1)
+
+
 async def predict_non_stream(
     api_url: str, headers: Dict[str, str], request: Any
 ) -> dict | JSONResponse:
@@ -118,12 +127,34 @@ async def predict_non_stream(
             return await response.json()
 
 
+def get_finish_reason(response: dict) -> Optional[str]:
+    choice: dict = (response.get("choices") or [{}])[0]
+
+    finish_type: Optional[str] = (choice.get("finish_details") or {}).get(
+        "type"
+    )
+
+    match finish_type:
+        case None:
+            return None
+        case "stop":
+            return "stop"
+        case "max_tokens":
+            return "length"
+        case "content_filter":
+            return "content_filter"
+        case _:
+            logger.warning(f"Unknown finish type: {finish_type}.")
+            return None
+
+
 async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
     is_stream = True
 
     id = ""
     created = ""
     finish_reason = "stop"
+    usage = None
 
     yield chunk_format(
         build_chunk(id, None, {"role": "assistant"}, created, is_stream)
@@ -137,32 +168,18 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
             yield END_CHUNK
             return
 
+        if "usage" in chunk:
+            usage = chunk["usage"]
+
         if "id" in chunk:
             id = chunk["id"]
 
         if "created" in chunk:
             created = chunk["created"]
 
+        finish_reason = get_finish_reason(chunk) or finish_reason
+
         choice: dict = (chunk.get("choices") or [{}])[0]
-
-        finish_type: Optional[str] = (choice.get("finish_details") or {}).get(
-            "type"
-        )
-
-        match finish_type:
-            case None:
-                pass
-            case "stop":
-                finish_reason = "stop"
-            case "max_tokens":
-                finish_reason = "length"
-            case "content_filter":
-                finish_reason = "content_filter"
-            case _:
-                logger.warning(
-                    f"Unknown finish type: {finish_type}. Defaulting to stop"
-                )
-
         content = choice.get("delta", {}).get("content")
 
         if content is None:
@@ -172,7 +189,9 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
             build_chunk(id, None, {"content": content}, created, is_stream)
         )
 
-    yield chunk_format(build_chunk(id, finish_reason, {}, created, is_stream))
+    yield chunk_format(
+        build_chunk(id, finish_reason, {}, created, is_stream, usage=usage)
+    )
     yield END_CHUNK
 
 
@@ -215,6 +234,13 @@ async def download_image_attachment(
     if "url" in attachment:
         attachment_link: str = attachment["url"]
 
+        image_url_type = get_url_image_type(attachment_link)
+        if image_url_type is not None:
+            if image_url_type in SUPPORTED_IMAGE_TYPES:
+                return create_image_message(attachment_link)
+            else:
+                return None
+
         try:
             if file_storage is not None:
                 url = file_storage.attachment_link_to_url(attachment_link)
@@ -225,9 +251,7 @@ async def download_image_attachment(
             image_url = base64_to_image_url(type, base64_str)
             return create_image_message(image_url)
         except Exception:
-            logger.warning(
-                f"Failed to download image from URL: {attachment_link}"
-            )
+            logger.warning("Failed to download image from URL")
             return create_image_message(attachment_link)
 
     return None
@@ -236,7 +260,7 @@ async def download_image_attachment(
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict
 ) -> dict | str:
-    content = message.get("content", "")
+    content = message.get("content") or ""
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
 
@@ -303,11 +327,11 @@ def get_predefined_chunk(content: str, stream: bool) -> dict:
 def get_predefined_response(content: str, stream: bool) -> Response:
     if stream:
 
-        async def generate() -> AsyncIterator[Any]:
+        async def generator() -> AsyncIterator[Any]:
             yield chunk_format(get_predefined_chunk(content, stream))
             yield END_CHUNK
 
-        return StreamingResponse(generate(), media_type="text/event-stream")
+        return StreamingResponse(generator(), media_type="text/event-stream")
     else:
         return JSONResponse(content=get_predefined_chunk(content, stream))
 
@@ -372,11 +396,12 @@ async def chat_completion(
         created = response["created"]
         content = response["choices"][0]["message"].get("content") or ""
         usage = response["usage"]
+        finish_reason = get_finish_reason(response) or "stop"
 
         return JSONResponse(
             content=build_chunk(
                 id,
-                "stop",
+                finish_reason,
                 {"role": "assistant", "content": content},
                 created,
                 False,

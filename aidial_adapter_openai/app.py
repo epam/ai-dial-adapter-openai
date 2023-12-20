@@ -20,6 +20,7 @@ from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
     ApiType,
     parse_body,
+    parse_deployment_list,
     parse_upstream,
 )
 from aidial_adapter_openai.utils.request_classifier import (
@@ -34,6 +35,12 @@ logging.config.dictConfig(LogConfig().dict())
 app = FastAPI()
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
 azure_api_version = os.getenv("AZURE_API_VERSION", "2023-03-15-preview")
+dalle3_deployments = parse_deployment_list(
+    os.getenv("DALLE3_DEPLOYMENTS") or ""
+)
+gpt4_vision_deployments = parse_deployment_list(
+    os.getenv("GPT4_VISION_DEPLOYMENTS") or ""
+)
 
 
 async def handle_exceptions(call):
@@ -59,12 +66,12 @@ async def chat_completion(deployment_id: str, request: Request):
     api_key = request.headers["X-UPSTREAM-KEY"]
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
-    if deployment_id.lower() == "dalle3":
+    if deployment_id in dalle3_deployments:
         storage = create_file_storage("images/dall-e", request.headers)
         return await dalle3_chat_completion(
             data, upstream_endpoint, api_key, is_stream, storage
         )
-    elif deployment_id.lower() == "gpt-4-vision-preview":
+    elif deployment_id in gpt4_vision_deployments:
         storage = create_file_storage("images/gpt4-v", request.headers)
         return await gpt4_vision_chat_completion(
             data, upstream_endpoint, api_key, is_stream, storage

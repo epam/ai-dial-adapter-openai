@@ -1,7 +1,7 @@
 import re
 from enum import Enum
 from json import JSONDecodeError
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import Request
 
@@ -48,3 +48,10 @@ async def parse_body(
         )
 
     return data
+
+
+def parse_deployment_list(deployments: str) -> List[str]:
+    if deployments is None:
+        return []
+
+    return list(map(str.strip, deployments.split(",")))

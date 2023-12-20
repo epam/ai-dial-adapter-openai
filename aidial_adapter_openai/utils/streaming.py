@@ -14,7 +14,7 @@ END_MARKER = "[DONE]"
 CHUNK_PREFIX = "data: "
 
 
-def chunk_format(data: str | Mapping[str, Any]):
+def chunk_format(data: str | Mapping[str, Any]) -> str:
     if type(data) == str:
         return CHUNK_PREFIX + data.strip() + "\n\n"
     else:
