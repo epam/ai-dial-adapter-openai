@@ -59,8 +59,8 @@ Copy `.env.example` to `.env` and customize it for your environment:
 |MODEL_ALIASES|{}|Mapping request's deployment_id to [model name of tiktoken](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py) for correct calculate of tokens. Example: `{"gpt-35-turbo":"gpt-3.5-turbo-0301"}`|
 |DIAL_USE_FILE_STORAGE|False|Save image model artifacts to DIAL File storage (DALL-E images are uploaded to the files storage and its base64 encodings are replaced with links to the storage)|
 |DIAL_URL||URL of the core DIAL server (required when DIAL_USE_FILE_STORAGE=True)|
-|DALLE3_DEPLOYMENTS|``|List of deployment_id names with DALL-E-3 API. Example: `dall-e-3,dalle3,dall-e`|
-|GPT4_VISION_DEPLOYMENTS|``|List of deployment_id names with GPT-4-VISION API. Example: `gpt-4-vision-preview,gpt-4-vision`|
+|DALLE3_DEPLOYMENTS|``|Comma-separated list of deployments that support DALL-E 3 API. Example: `dall-e-3,dalle3,dall-e`|
+|GPT4_VISION_DEPLOYMENTS|``|Comma-separated list of deployments that support GPT-4V API. Example: `gpt-4-vision-preview,gpt-4-vision`|
 
 ### Docker
 
