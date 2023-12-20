@@ -51,7 +51,7 @@ async def parse_body(
 
 
 def parse_deployment_list(deployments: str) -> List[str]:
-    if deployments == None:
+    if deployments is None:
         return []
 
     return list(map(str.strip, deployments.split(",")))
