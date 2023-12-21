@@ -36,7 +36,7 @@ async def generate_image(api_url: str, api_key: str, user_prompt: str) -> Any:
                 if "error" in data:
                     error = data["error"]
 
-                    if error["code"] == "contentFilter":
+                    if error.get("code") == "contentFilter":
                         error["code"] = "content_filter"
 
                     return JSONResponse(
