@@ -33,7 +33,18 @@ async def generate_image(api_url: str, api_key: str, user_prompt: str) -> Any:
             if status_code == 200:
                 return data
             else:
-                return JSONResponse(content=data, status_code=status_code)
+                if "error" in data:
+                    error = data["error"]
+
+                    if error["code"] == "contentFilter":
+                        error["code"] = "content_filter"
+
+                    return JSONResponse(
+                        content={"error": error},
+                        status_code=status_code,
+                    )
+                else:
+                    return JSONResponse(content=data, status_code=status_code)
 
 
 def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
