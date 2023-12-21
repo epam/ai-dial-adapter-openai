@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aidial-adapter-openai"
-version = "0.5.0"
+version = "0.5.1"
 description = "DIAL adapter for OpenAI"
 authors = ["EPAM RAIL <SpecialEPM-DIALDevTeam@epam.com>"]
 homepage = "https://epam-rail.com"
