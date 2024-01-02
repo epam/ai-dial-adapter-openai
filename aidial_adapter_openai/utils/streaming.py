@@ -1,67 +1,23 @@
-import json
 from time import time
-from typing import Any, AsyncIterator, Mapping, Optional, TypeVar
+from typing import Any, AsyncIterator, Optional, TypeVar
 from uuid import uuid4
 
 import tiktoken
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.openai_override import OpenAIException
-from aidial_adapter_openai.utils.exceptions import create_error
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.sse_stream import (
+    OPENAI_END_MARKER,
+    format_chunk,
+)
 from aidial_adapter_openai.utils.tokens import calculate_prompt_tokens
 
-END_MARKER = "[DONE]"
-CHUNK_PREFIX = "data: "
-
-
-def chunk_format(data: str | Mapping[str, Any]) -> str:
-    if isinstance(data, str):
-        return CHUNK_PREFIX + data.strip() + "\n\n"
-    else:
-        return CHUNK_PREFIX + json.dumps(data, separators=(",", ":")) + "\n\n"
-
-
-END_CHUNK = chunk_format(END_MARKER)
+END_CHUNK = format_chunk(OPENAI_END_MARKER)
 
 
 def generate_id():
     return "chatcmpl-" + str(uuid4())
-
-
-async def parse_sse_stream(stream: AsyncIterator[bytes]) -> AsyncIterator[dict]:
-    async for line in stream:
-        try:
-            payload = line.decode("utf-8-sig").lstrip()  # type: ignore
-        except Exception:
-            yield create_error(
-                message="Can't decode chunk to a string", type="runtime_error"
-            )
-            return
-
-        if payload.strip() == "":
-            continue
-
-        if not payload.startswith(CHUNK_PREFIX):
-            yield create_error(
-                message="Invalid chunk format", type="runtime_error"
-            )
-            return
-
-        payload = payload[len(CHUNK_PREFIX) :]
-
-        if payload.strip() == END_MARKER:
-            break
-
-        try:
-            chunk = json.loads(payload)
-        except json.JSONDecodeError:
-            yield create_error(
-                message="Can't parse chunk to JSON", type="runtime_error"
-            )
-            return
-
-        yield chunk
 
 
 def build_chunk(
@@ -81,8 +37,8 @@ def build_chunk(
         "choices": [
             {
                 "index": 0,
-                "finish_reason": finish_reason,
                 choice_content_key: delta,
+                "finish_reason": finish_reason,
             }
         ],
         **extra,
@@ -125,9 +81,9 @@ async def generate_stream(
                 total_content += content
 
             last_chunk = chunk_dict
-            yield chunk_format(chunk_dict)
+            yield format_chunk(chunk_dict)
     except OpenAIException as e:
-        yield chunk_format(e.body)
+        yield format_chunk(e.body)
         yield END_CHUNK
 
         return
@@ -146,11 +102,11 @@ async def generate_stream(
             last_chunk["choices"][0]["delta"]["content"] = ""
             last_chunk["choices"][0]["delta"]["finish_reason"] = "length"
 
-            yield chunk_format(last_chunk)
+            yield format_chunk(last_chunk)
         else:
             logger.warning("Received 0 chunks")
 
-            yield chunk_format(
+            yield format_chunk(
                 {
                     "id": generate_id(),
                     "object": "chat.completion.chunk",
@@ -205,7 +161,7 @@ def create_predefined_response(content: str, stream: bool) -> Response:
         return JSONResponse(content=chunk)
 
     async def generator() -> AsyncIterator[Any]:
-        yield chunk_format(chunk)
+        yield format_chunk(chunk)
         yield END_CHUNK
 
     return StreamingResponse(generator(), media_type="text/event-stream")

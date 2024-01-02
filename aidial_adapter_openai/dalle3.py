@@ -8,7 +8,7 @@ from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
-    chunk_format,
+    format_chunk,
     generate_id,
 )
 
@@ -62,13 +62,13 @@ def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
 async def generate_stream(
     id: str, created: str, custom_content: Any
 ) -> AsyncGenerator[Any, Any]:
-    yield chunk_format(
+    yield format_chunk(
         build_chunk(id, None, {"role": "assistant"}, created, True)
     )
 
-    yield chunk_format(build_chunk(id, None, custom_content, created, True))
+    yield format_chunk(build_chunk(id, None, custom_content, created, True))
 
-    yield chunk_format(
+    yield format_chunk(
         build_chunk(id, "stop", {}, created, True, usage=IMG_USAGE)
     )
 

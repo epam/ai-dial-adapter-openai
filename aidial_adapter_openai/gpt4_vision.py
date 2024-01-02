@@ -16,6 +16,10 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.sse_stream import (
+    format_chunk,
+    parse_openai_sse_stream,
+)
 from aidial_adapter_openai.utils.storage import (
     FileStorage,
     download_file_as_base64,
@@ -23,9 +27,7 @@ from aidial_adapter_openai.utils.storage import (
 from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
-    chunk_format,
     create_predefined_response,
-    parse_sse_stream,
     prepend_to_async_iterator,
 )
 
@@ -165,7 +167,7 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
     finish_reason = "stop"
     usage = None
 
-    yield chunk_format(
+    yield format_chunk(
         build_chunk(id, None, {"role": "assistant"}, created, is_stream)
     )
 
@@ -189,11 +191,11 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
         if content is None:
             continue
 
-        yield chunk_format(
+        yield format_chunk(
             build_chunk(id, None, {"content": content}, created, is_stream)
         )
 
-    yield chunk_format(
+    yield format_chunk(
         build_chunk(id, finish_reason, {}, created, is_stream, usage=usage)
     )
     yield END_CHUNK
@@ -354,7 +356,7 @@ async def chat_completion(
             return response
 
         return StreamingResponse(
-            generate_stream(parse_sse_stream(response)),
+            generate_stream(parse_openai_sse_stream(response)),
             media_type="text/event-stream",
         )
     else:
