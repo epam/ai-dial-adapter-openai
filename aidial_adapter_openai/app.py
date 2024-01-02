@@ -11,7 +11,7 @@ from openai.openai_object import OpenAIObject
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
 )
-from aidial_adapter_openai.gpt4_vision import (
+from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
 from aidial_adapter_openai.openai_override import OpenAIException

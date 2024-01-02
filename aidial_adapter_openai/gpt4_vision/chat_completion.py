@@ -1,5 +1,5 @@
 import json
-import re
+import mimetypes
 from typing import (
     Any,
     AsyncIterator,
@@ -36,7 +36,8 @@ from aidial_adapter_openai.utils.streaming import (
 DEFAULT_MAX_TOKENS = 128
 
 # Officially supported image types by GPT-4 Vision
-SUPPORTED_IMAGE_TYPES = ["jpg", "jpeg", "png", "webp", "gif"]
+SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
 
 USAGE = f"""
 ### Usage
@@ -45,7 +46,7 @@ The application answers queries about attached images.
 Attach images and ask questions about them in the same message.
 Only the last message in dialogue is taken into account.
 
-Supported image types: {', '.join(SUPPORTED_IMAGE_TYPES)}.
+Supported image types: {', '.join(SUPPORTED_FILE_EXTS)}.
 
 Examples of queries:
 - "Describe this picture" for one image,
@@ -81,14 +82,6 @@ def create_text_message(text: str) -> TextSubmessage:
 
 def base64_to_image_url(type: str, base64_image: str) -> str:
     return f"data:{type};base64,{base64_image}"
-
-
-def get_url_image_type(url: str) -> Optional[str]:
-    pattern = r"^data:image\/([^;]+);base64,"
-    match = re.match(pattern, url)
-    if match is None:
-        return None
-    return match.group(1)
 
 
 async def transpose_stream(
@@ -206,10 +199,7 @@ def derive_image_content_type(attachment: Any) -> Optional[str]:
     if type is None:
         return None
 
-    if (
-        type.startswith("image/")
-        and type[len("image/") :] in SUPPORTED_IMAGE_TYPES
-    ):
+    if type in SUPPORTED_IMAGE_TYPES:
         return type
 
     if "octet-stream" in type:
@@ -218,10 +208,10 @@ def derive_image_content_type(attachment: Any) -> Optional[str]:
         if url is None:
             return None
 
-        file_ext = url.split(".")[-1]
+        file_type = mimetypes.guess_type(url)[0]
 
-        if file_ext in SUPPORTED_IMAGE_TYPES:
-            return f"image/{file_ext}"
+        if file_type in SUPPORTED_IMAGE_TYPES:
+            return file_type
 
     return None
 
@@ -240,9 +230,9 @@ async def download_image_attachment(
     if "url" in attachment:
         attachment_link: str = attachment["url"]
 
-        image_url_type = get_url_image_type(attachment_link)
-        if image_url_type is not None:
-            if image_url_type in SUPPORTED_IMAGE_TYPES:
+        file_type = mimetypes.guess_type(attachment_link)[0]
+        if file_type is not None:
+            if file_type in SUPPORTED_IMAGE_TYPES:
                 return create_image_message(attachment_link)
             else:
                 return None
