@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import tiktoken
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.log_config import logger
@@ -47,7 +48,7 @@ def build_chunk(
 
 async def generate_stream(
     messages: list[Any],
-    response,
+    response: AsyncIterator[OpenAIObject],
     model: str,
     deployment: str,
     discarded_messages: Optional[int],
@@ -62,8 +63,9 @@ async def generate_stream(
         total_content = ""
         async for chunk in response:
             chunk_dict = chunk.to_dict_recursive()
+            choice = chunk_dict["choices"][0]
 
-            if chunk_dict["choices"][0]["finish_reason"] is not None:
+            if choice["finish_reason"] is not None:
                 stream_finished = True
                 completion_tokens = len(encoding.encode(total_content))
                 chunk_dict["usage"] = {
@@ -76,8 +78,7 @@ async def generate_stream(
                         "discarded_messages": discarded_messages
                     }
             else:
-                content = chunk_dict["choices"][0]["delta"].get("content") or ""
-
+                content = choice["delta"].get("content", "")
                 total_content += content
 
             last_chunk = chunk_dict
@@ -106,42 +107,26 @@ async def generate_stream(
         else:
             logger.warning("Received 0 chunks")
 
+            id = generate_id()
+            created = str(int(time()))
+
             yield format_chunk(
-                {
-                    "id": generate_id(),
-                    "object": "chat.completion.chunk",
-                    "created": str(int(time())),
-                    "model": deployment,
-                    "choices": [
-                        {"index": 0, "finish_reason": "length", "delta": {}}
-                    ],
-                    "usage": {
+                build_chunk(
+                    id,
+                    "length",
+                    {},
+                    created,
+                    True,
+                    model=deployment,
+                    usage={
                         "completion_tokens": 0,
                         "prompt_tokens": prompt_tokens,
                         "total_tokens": prompt_tokens,
                     },
-                }
+                )
             )
 
     yield END_CHUNK
-
-
-T = TypeVar("T")
-
-
-async def prepend_to_async_iterator(
-    value: T, iterator: AsyncIterator[T]
-) -> AsyncIterator[T]:
-    yield value
-    async for item in iterator:
-        yield item
-
-
-NO_USAGE = {
-    "completion_tokens": 0,
-    "prompt_tokens": 0,
-    "total_tokens": 0,
-}
 
 
 def create_predefined_response(content: str, stream: bool) -> Response:
@@ -154,7 +139,11 @@ def create_predefined_response(content: str, stream: bool) -> Response:
         {"role": "assistant", "content": content},
         created,
         stream,
-        usage=NO_USAGE,
+        usage={
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+            "total_tokens": 0,
+        },
     )
 
     if not stream:
@@ -165,3 +154,14 @@ def create_predefined_response(content: str, stream: bool) -> Response:
         yield END_CHUNK
 
     return StreamingResponse(generator(), media_type="text/event-stream")
+
+
+T = TypeVar("T")
+
+
+async def prepend_to_async_iterator(
+    value: T, iterator: AsyncIterator[T]
+) -> AsyncIterator[T]:
+    yield value
+    async for item in iterator:
+        yield item
