@@ -1,6 +1,5 @@
 import json
 import re
-from time import time
 from typing import (
     Any,
     AsyncIterator,
@@ -25,7 +24,7 @@ from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
     chunk_format,
-    generate_id,
+    create_predefined_response,
     parse_sse_stream,
     prepend_to_async_iterator,
 )
@@ -62,17 +61,37 @@ class ImageSubmessage(TypedDict):
     image_url: ImageUrl
 
 
+class TextSubmessage(TypedDict):
+    type: Literal["text"]
+    text: str
+
+
+VisionContent = List[ImageSubmessage | TextSubmessage]
+
+
 def create_image_message(url: str) -> ImageSubmessage:
     return {"type": "image_url", "image_url": {"url": url}}
+
+
+def create_text_message(text: str) -> TextSubmessage:
+    return {"type": "text", "text": text}
 
 
 def base64_to_image_url(type: str, base64_image: str) -> str:
     return f"data:{type};base64,{base64_image}"
 
 
+def get_url_image_type(url: str) -> Optional[str]:
+    pattern = r"^data:image\/([^;]+);base64,"
+    match = re.match(pattern, url)
+    if match is None:
+        return None
+    return match.group(1)
+
+
 async def transpose_stream(
-    stream: AsyncIterator[bytes | JSONResponse],
-) -> AsyncIterator[bytes] | JSONResponse:
+    stream: AsyncIterator[bytes | Response],
+) -> AsyncIterator[bytes] | Response:
     first_chunk: Optional[bytes] = None
     async for chunk in stream:
         if isinstance(chunk, Response):
@@ -105,14 +124,6 @@ async def predict_stream(
                 yield line
 
 
-def get_url_image_type(url: str) -> Optional[str]:
-    pattern = r"^data:image\/([^;]+);base64,"
-    match = re.match(pattern, url)
-    if match is None:
-        return None
-    return match.group(1)
-
-
 async def predict_non_stream(
     api_url: str, headers: Dict[str, str], request: Any
 ) -> dict | JSONResponse:
@@ -127,12 +138,10 @@ async def predict_non_stream(
             return await response.json()
 
 
-def get_finish_reason(response: dict) -> Optional[str]:
-    choice: dict = (response.get("choices") or [{}])[0]
+def get_finish_reason(choice: dict) -> Optional[str]:
+    """Convert GPT4 Vision finish reason to the vanilla GPT4 finish reason"""
 
-    finish_type: Optional[str] = (choice.get("finish_details") or {}).get(
-        "type"
-    )
+    finish_type: Optional[str] = choice.get("finish_details", {}).get("type")
 
     match finish_type:
         case None:
@@ -168,18 +177,13 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
             yield END_CHUNK
             return
 
-        if "usage" in chunk:
-            usage = chunk["usage"]
+        id = chunk.get("id", id)
+        usage = chunk.get("usage", usage)
+        created = chunk.get("created", created)
 
-        if "id" in chunk:
-            id = chunk["id"]
+        choice: dict = chunk.get("choices", [{}])[0]
 
-        if "created" in chunk:
-            created = chunk["created"]
-
-        finish_reason = get_finish_reason(chunk) or finish_reason
-
-        choice: dict = (chunk.get("choices") or [{}])[0]
+        finish_reason = get_finish_reason(choice) or finish_reason
         content = choice.get("delta", {}).get("content")
 
         if content is None:
@@ -260,7 +264,7 @@ async def download_image_attachment(
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict
 ) -> dict | str:
-    content = message.get("content") or ""
+    content = message.get("content", "")
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
 
@@ -285,10 +289,7 @@ async def transform_message(
     if len(image_attachments) == 0:
         conversion_fails_msg = ""
         if len(conversion_errors) > 0:
-            conversion_fails_msg = (
-                " All attachments were filtered out because "
-                "they are not supported image attachments."
-            )
+            conversion_fails_msg = " None of the provided attachments is a supported image attachment."
 
         return (
             "No image attachments were found."
@@ -297,43 +298,12 @@ async def transform_message(
             + USAGE
         )
 
-    new_content = [{"type": "text", "text": content}] + image_attachments
+    new_content: VisionContent = [
+        create_text_message(content)
+    ] + image_attachments
 
     message = {k: v for k, v in message.items() if k != "custom_content"}
     return {**message, "content": new_content}
-
-
-NO_USAGE = {
-    "completion_tokens": 0,
-    "prompt_tokens": 0,
-    "total_tokens": 0,
-}
-
-
-def get_predefined_chunk(content: str, stream: bool) -> dict:
-    id = generate_id()
-    created = str(int(time()))
-
-    return build_chunk(
-        id,
-        "stop",
-        {"role": "assistant", "content": content},
-        created,
-        stream,
-        usage=NO_USAGE,
-    )
-
-
-def get_predefined_response(content: str, stream: bool) -> Response:
-    if stream:
-
-        async def generator() -> AsyncIterator[Any]:
-            yield chunk_format(get_predefined_chunk(content, stream))
-            yield END_CHUNK
-
-        return StreamingResponse(generator(), media_type="text/event-stream")
-    else:
-        return JSONResponse(content=get_predefined_chunk(content, stream))
 
 
 async def chat_completion(
@@ -364,7 +334,7 @@ async def chat_completion(
     new_message = await transform_message(file_storage, last_message)
 
     if isinstance(new_message, str):
-        return get_predefined_response(new_message, is_stream)
+        return create_predefined_response(new_message, is_stream)
 
     max_tokens = request.get("max_tokens", DEFAULT_MAX_TOKENS)
 
@@ -394,7 +364,7 @@ async def chat_completion(
 
         id = response["id"]
         created = response["created"]
-        content = response["choices"][0]["message"].get("content") or ""
+        content = response["choices"][0]["message"].get("content", "")
         usage = response["usage"]
         finish_reason = get_finish_reason(response) or "stop"
 
@@ -404,7 +374,7 @@ async def chat_completion(
                 finish_reason,
                 {"role": "assistant", "content": content},
                 created,
-                False,
+                is_stream,
                 usage=usage,
             )
         )

@@ -4,6 +4,7 @@ from typing import Any, AsyncIterator, Mapping, Optional, TypeVar
 from uuid import uuid4
 
 import tiktoken
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.exceptions import create_error
@@ -15,7 +16,7 @@ CHUNK_PREFIX = "data: "
 
 
 def chunk_format(data: str | Mapping[str, Any]) -> str:
-    if type(data) == str:
+    if isinstance(data, str):
         return CHUNK_PREFIX + data.strip() + "\n\n"
     else:
         return CHUNK_PREFIX + json.dumps(data, separators=(",", ":")) + "\n\n"
@@ -178,3 +179,33 @@ async def prepend_to_async_iterator(
     yield value
     async for item in iterator:
         yield item
+
+
+NO_USAGE = {
+    "completion_tokens": 0,
+    "prompt_tokens": 0,
+    "total_tokens": 0,
+}
+
+
+def create_predefined_response(content: str, stream: bool) -> Response:
+    id = generate_id()
+    created = str(int(time()))
+
+    chunk = build_chunk(
+        id,
+        "stop",
+        {"role": "assistant", "content": content},
+        created,
+        stream,
+        usage=NO_USAGE,
+    )
+
+    if not stream:
+        return JSONResponse(content=chunk)
+
+    async def generator() -> AsyncIterator[Any]:
+        yield chunk_format(chunk)
+        yield END_CHUNK
+
+    return StreamingResponse(generator(), media_type="text/event-stream")
