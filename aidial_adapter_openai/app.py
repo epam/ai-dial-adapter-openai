@@ -95,7 +95,7 @@ async def chat_completion(deployment_id: str, request: Request):
     discarded_messages = None
     if "max_prompt_tokens" in data:
         max_prompt_tokens = data["max_prompt_tokens"]
-        if type(max_prompt_tokens) != int:
+        if isinstance(max_prompt_tokens, int):
             raise HTTPException(
                 f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
                 400,

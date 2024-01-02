@@ -33,7 +33,7 @@ def calculate_tokens_per_message(
 
     prompt_tokens = tokens_per_message
     for key, value in message.items():
-        if type(value) == str:
+        if isinstance(value, str):
             prompt_tokens += len(encoding.encode(value))
         if key == "name":
             prompt_tokens += tokens_per_name

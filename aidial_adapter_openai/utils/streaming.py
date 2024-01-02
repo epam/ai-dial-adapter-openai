@@ -54,7 +54,6 @@ async def generate_stream(
     discarded_messages: Optional[int],
 ):
     encoding = tiktoken.encoding_for_model(model)
-
     prompt_tokens = calculate_prompt_tokens(messages, model, encoding)
 
     last_chunk = None

@@ -1,20 +1,19 @@
 import json
 import mimetypes
-from typing import (
-    Any,
-    AsyncIterator,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    TypedDict,
-    cast,
-)
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, cast
 
 import aiohttp
+import tiktoken
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from aidial_adapter_openai.gpt4_vision.messages import (
+    ImageDetail,
+    create_image_message,
+    create_text_message,
+)
+from aidial_adapter_openai.gpt4_vision.tokenization import tokenize_image
 from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import (
     format_chunk,
@@ -30,6 +29,7 @@ from aidial_adapter_openai.utils.streaming import (
     create_predefined_response,
     prepend_to_async_iterator,
 )
+from aidial_adapter_openai.utils.tokens import calculate_prompt_tokens
 
 # The built-in default max_tokens is 16 tokens,
 # which is too small for most image-to-text use cases.
@@ -54,36 +54,6 @@ Examples of queries:
 """.strip()
 
 
-class ImageUrl(TypedDict, total=False):
-    url: str
-    detail: Optional[Literal["high", "low", "auto"]]
-
-
-class ImageSubmessage(TypedDict):
-    type: Literal["image_url"]
-    image_url: ImageUrl
-
-
-class TextSubmessage(TypedDict):
-    type: Literal["text"]
-    text: str
-
-
-VisionContent = List[ImageSubmessage | TextSubmessage]
-
-
-def create_image_message(url: str) -> ImageSubmessage:
-    return {"type": "image_url", "image_url": {"url": url}}
-
-
-def create_text_message(text: str) -> TextSubmessage:
-    return {"type": "text", "text": text}
-
-
-def base64_to_image_url(type: str, base64_image: str) -> str:
-    return f"data:{type};base64,{base64_image}"
-
-
 async def transpose_stream(
     stream: AsyncIterator[bytes | Response],
 ) -> AsyncIterator[bytes] | Response:
@@ -104,7 +74,13 @@ async def transpose_stream(
 
 async def predict_stream(
     api_url: str, headers: Dict[str, str], request: Any
-) -> AsyncIterator[bytes | JSONResponse]:
+) -> AsyncIterator[bytes] | Response:
+    return await transpose_stream(predict_stream_raw(api_url, headers, request))
+
+
+async def predict_stream_raw(
+    api_url: str, headers: Dict[str, str], request: Any
+) -> AsyncIterator[bytes | Response]:
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url, json=request, headers=headers
@@ -173,8 +149,8 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
             return
 
         id = chunk.get("id", id)
-        usage = chunk.get("usage", usage)
         created = chunk.get("created", created)
+        usage = chunk.get("usage", usage)
 
         choice: dict = chunk.get("choices", [{}])[0]
 
@@ -184,6 +160,7 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
         if content is None:
             continue
 
+        # TODO: Accumulate content and then compute usage
         yield format_chunk(
             build_chunk(id, None, {"content": content}, created, is_stream)
         )
@@ -194,7 +171,7 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
     yield END_CHUNK
 
 
-def derive_image_content_type(attachment: Any) -> Optional[str]:
+def guess_image_type(attachment: Any) -> Optional[str]:
     type = attachment.get("type")
     if type is None:
         return None
@@ -216,86 +193,101 @@ def derive_image_content_type(attachment: Any) -> Optional[str]:
     return None
 
 
-async def download_image_attachment(
+async def download_image(
     file_storage: Optional[FileStorage], attachment: Any
-) -> Optional[ImageSubmessage]:
-    type = derive_image_content_type(attachment)
+) -> Optional[ImageDataURL]:
+    type = guess_image_type(attachment)
     if type is None:
         return None
 
     if "data" in attachment:
-        url = base64_to_image_url(type, attachment["data"])
-        return create_image_message(url)
+        return ImageDataURL(type=type, data=attachment["data"])
 
     if "url" in attachment:
         attachment_link: str = attachment["url"]
 
-        file_type = mimetypes.guess_type(attachment_link)[0]
-        if file_type is not None:
-            if file_type in SUPPORTED_IMAGE_TYPES:
-                return create_image_message(attachment_link)
+        image_url = ImageDataURL.from_data_url(attachment_link)
+        if image_url is not None:
+            if image_url.type in SUPPORTED_IMAGE_TYPES:
+                return image_url
             else:
                 return None
 
         try:
             if file_storage is not None:
                 url = file_storage.attachment_link_to_url(attachment_link)
-                base64_str = await file_storage.download_file_as_base64(url)
+                data = await file_storage.download_file_as_base64(url)
             else:
-                base64_str = await download_file_as_base64(attachment_link)
+                data = await download_file_as_base64(attachment_link)
 
-            image_url = base64_to_image_url(type, base64_str)
-            return create_image_message(image_url)
+            return ImageDataURL(type=type, data=data)
         except Exception:
             logger.warning("Failed to download image from URL")
-            return create_image_message(attachment_link)
+            return None
 
     return None
 
 
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict
-) -> dict | str:
+) -> Tuple[dict, int] | str:
     content = message.get("content", "")
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
 
+    message = {k: v for k, v in message.items() if k != "custom_content"}
+
+    if len(attachments) == 0:
+        return message, 0
+
     logger.debug(f"original attachments: {attachments}")
 
-    conversion_results: List[Optional[ImageSubmessage]] = [
-        await download_image_attachment(file_storage, attachment)
+    download_results: List[Optional[ImageDataURL]] = [
+        await download_image(file_storage, attachment)
         for attachment in attachments
     ]
 
-    image_attachments: List[ImageSubmessage] = [
-        m for m in conversion_results if m is not None
+    logger.debug(f"download results: {download_results}")
+
+    image_urls: List[ImageDataURL] = [
+        im for im in download_results if im is not None
     ]
 
-    conversion_errors: List[int] = [
-        idx for idx, m in enumerate(conversion_results) if m is None
+    detail: ImageDetail = "auto"
+
+    image_messages: List[dict] = [
+        create_image_message(image, detail) for image in image_urls
     ]
 
-    logger.debug(f"image attachments: {str(image_attachments)[:100]}")
-    logger.debug(f"conversion errors: {conversion_errors}")
+    image_tokens: List[int] = [tokenize_image(im, detail) for im in image_urls]
+    total_image_tokens = sum(image_tokens)
 
-    if len(image_attachments) == 0:
-        conversion_fails_msg = ""
-        if len(conversion_errors) > 0:
-            conversion_fails_msg = " None of the provided attachments is a supported image attachment."
+    logger.debug(f"image tokens: {image_tokens}")
 
+    if len(image_urls) < len(attachments):
         return (
-            "No image attachments were found."
-            + conversion_fails_msg
+            "Some of the attachments are either invalid or failed to download."
             + "\n\n"
             + USAGE
         )
 
-    new_content: VisionContent = [
-        create_text_message(content)
-    ] + image_attachments
+    sub_messages: List[dict] = [create_text_message(content)] + image_messages
 
-    message = {k: v for k, v in message.items() if k != "custom_content"}
-    return {**message, "content": new_content}
+    return {**message, "content": sub_messages}, total_image_tokens
+
+
+async def transform_messages(
+    file_storage: Optional[FileStorage], messages: List[dict]
+) -> Tuple[List[dict], int] | str:
+    last_message = messages[-1]
+    result = await transform_message(file_storage, last_message)
+
+    if isinstance(result, str):
+        return result
+
+    new_message, total_image_tokens = result
+
+    return [new_message], total_image_tokens
 
 
 async def chat_completion(
@@ -322,26 +314,30 @@ async def chat_completion(
 
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
 
-    last_message = messages[-1]
-    new_message = await transform_message(file_storage, last_message)
+    result = await transform_messages(file_storage, messages)
 
-    if isinstance(new_message, str):
-        return create_predefined_response(new_message, is_stream)
+    if isinstance(result, str):
+        return create_predefined_response(result, is_stream)
+
+    new_messages, prompt_image_tokens = result
+
+    model = "gpt-4"
+    encoding = tiktoken.encoding_for_model(model)
+    prompt_text_tokens = calculate_prompt_tokens(messages, model, encoding)
+    prompt_tokens = prompt_text_tokens + prompt_image_tokens
 
     max_tokens = request.get("max_tokens", DEFAULT_MAX_TOKENS)
 
     request = {
         **request,
         "max_tokens": max_tokens,
-        "messages": [new_message],
+        "messages": new_messages,
     }
 
     headers = {"api-key": api_key}
 
     if is_stream:
-        response = await transpose_stream(
-            predict_stream(api_url, headers, request)
-        )
+        response = await predict_stream(api_url, headers, request)
         if isinstance(response, Response):
             return response
 
@@ -358,6 +354,13 @@ async def chat_completion(
         created = response["created"]
         content = response["choices"][0]["message"].get("content", "")
         usage = response["usage"]
+
+        actual_prompt_tokens = usage["prompt_tokens"]
+        if actual_prompt_tokens != prompt_tokens:
+            logger.debug(
+                f"Estimated prompt tokens ({prompt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
+            )
+
         finish_reason = get_finish_reason(response) or "stop"
 
         return JSONResponse(
