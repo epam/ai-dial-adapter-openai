@@ -2,7 +2,6 @@ from time import time
 from typing import Any, AsyncIterator, Optional, TypeVar
 from uuid import uuid4
 
-import tiktoken
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai.openai_object import OpenAIObject
 
@@ -12,7 +11,7 @@ from aidial_adapter_openai.utils.sse_stream import (
     OPENAI_END_MARKER,
     format_chunk,
 )
-from aidial_adapter_openai.utils.tokens import calculate_prompt_tokens
+from aidial_adapter_openai.utils.tokens import Tokenizer
 
 END_CHUNK = format_chunk(OPENAI_END_MARKER)
 
@@ -49,12 +48,11 @@ def build_chunk(
 async def generate_stream(
     messages: list[Any],
     response: AsyncIterator[OpenAIObject],
-    model: str,
+    tokenizer: Tokenizer,
     deployment: str,
     discarded_messages: Optional[int],
 ):
-    encoding = tiktoken.encoding_for_model(model)
-    prompt_tokens = calculate_prompt_tokens(messages, model, encoding)
+    prompt_tokens = tokenizer.calculate_prompt_tokens(messages)
 
     last_chunk = None
     stream_finished = False
@@ -66,7 +64,7 @@ async def generate_stream(
 
             if choice["finish_reason"] is not None:
                 stream_finished = True
-                completion_tokens = len(encoding.encode(total_content))
+                completion_tokens = tokenizer.calculate_tokens(total_content)
                 chunk_dict["usage"] = {
                     "completion_tokens": completion_tokens,
                     "prompt_tokens": prompt_tokens,
@@ -89,7 +87,7 @@ async def generate_stream(
         return
 
     if not stream_finished:
-        completion_tokens = len(encoding.encode(total_content))
+        completion_tokens = tokenizer.calculate_tokens(total_content)
 
         if last_chunk is not None:
             logger.warning("Didn't receive chunk with the finish reason")

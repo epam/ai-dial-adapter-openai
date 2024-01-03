@@ -8,46 +8,43 @@ from tiktoken import Encoding, encoding_for_model
 from aidial_adapter_openai.utils.exceptions import HTTPException
 
 
-def calculate_prompt_tokens(
-    messages: List[Any], model: str, encoding: Encoding
-) -> int:
-    prompt_tokens = 3
+class Tokenizer:
+    model: str
+    encoding: Encoding
 
-    for message in messages:
-        prompt_tokens += calculate_tokens_per_message(message, encoding, model)
+    def __init__(self, model: str) -> None:
+        self.model = model
+        self.encoding = encoding_for_model(model)
 
-    return prompt_tokens
+    def calculate_tokens(self, string: str) -> int:
+        return len(self.encoding.encode(string))
 
+    def calculate_prompt_tokens(self, messages: List[Any]) -> int:
+        return 3 + sum(map(self.calculate_tokens_per_message, messages))
 
-def calculate_tokens_per_message(
-    message: Any,
-    encoding: Encoding,
-    model: str,
-) -> int:
-    if model == "gpt-3.5-turbo-0301":
-        tokens_per_message = 4
-        tokens_per_name = -1
-    else:
-        tokens_per_message = 3
-        tokens_per_name = 1
+    def calculate_tokens_per_message(self, message: Any) -> int:
+        if self.model == "gpt-3.5-turbo-0301":
+            tokens_per_message = 4
+            tokens_per_name = -1
+        else:
+            tokens_per_message = 3
+            tokens_per_name = 1
 
-    prompt_tokens = tokens_per_message
-    for key, value in message.items():
-        if isinstance(value, str):
-            prompt_tokens += len(encoding.encode(value))
-        if key == "name":
-            prompt_tokens += tokens_per_name
+        tokens = tokens_per_message
+        for key, value in message.items():
+            if isinstance(value, str):
+                tokens += self.calculate_tokens(value)
+            if key == "name":
+                tokens += tokens_per_name
 
-    return prompt_tokens
+        return tokens
 
 
 def discard_messages(
-    messages: List[Any], model: str, max_prompt_tokens: int
+    tokenizer: Tokenizer, messages: List[Any], max_prompt_tokens: int
 ) -> tuple[List[Any], int]:
     if len(messages) == 0:
         return messages, 0  # will be rejected by the upstream
-
-    encoding = encoding_for_model(model)
 
     prompt_tokens = 3
 
@@ -57,7 +54,7 @@ def discard_messages(
             non_system_messages_count += 1
             continue
 
-        prompt_tokens += calculate_tokens_per_message(message, encoding, model)
+        prompt_tokens += tokenizer.calculate_tokens_per_message(message)
 
     if max_prompt_tokens < prompt_tokens:
         raise HTTPException(
@@ -69,7 +66,7 @@ def discard_messages(
         if message["role"] == "system":
             continue
 
-        prompt_tokens += calculate_tokens_per_message(message, encoding, model)
+        prompt_tokens += tokenizer.calculate_tokens_per_message(message)
 
         if max_prompt_tokens < prompt_tokens:
             break

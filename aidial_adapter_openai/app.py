@@ -28,7 +28,7 @@ from aidial_adapter_openai.utils.request_classifier import (
 )
 from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.streaming import generate_stream
-from aidial_adapter_openai.utils.tokens import discard_messages
+from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
 
 logging.config.dictConfig(LogConfig().dict())
@@ -62,6 +62,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
+    tokenizer = Tokenizer(model=openai_model_name)
 
     api_key = request.headers["X-UPSTREAM-KEY"]
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
@@ -110,7 +111,7 @@ async def chat_completion(deployment_id: str, request: Request):
         del data["max_prompt_tokens"]
 
         data["messages"], discarded_messages = discard_messages(
-            data["messages"], openai_model_name, max_prompt_tokens
+            tokenizer, data["messages"], max_prompt_tokens
         )
 
     response = await handle_exceptions(
@@ -133,7 +134,7 @@ async def chat_completion(deployment_id: str, request: Request):
             generate_stream(
                 data["messages"],
                 response,
-                openai_model_name,
+                tokenizer,
                 deployment_id,
                 discarded_messages,
             ),

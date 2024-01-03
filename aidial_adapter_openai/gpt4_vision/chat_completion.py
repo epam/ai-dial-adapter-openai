@@ -3,7 +3,6 @@ import mimetypes
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, cast
 
 import aiohttp
-import tiktoken
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.gpt4_vision.messages import (
@@ -29,7 +28,7 @@ from aidial_adapter_openai.utils.streaming import (
     create_predefined_response,
     prepend_to_async_iterator,
 )
-from aidial_adapter_openai.utils.tokens import calculate_prompt_tokens
+from aidial_adapter_openai.utils.tokens import Tokenizer
 
 # The built-in default max_tokens is 16 tokens,
 # which is too small for most image-to-text use cases.
@@ -129,7 +128,7 @@ def get_finish_reason(choice: dict) -> Optional[str]:
 
 
 async def generate_stream(
-    stream: AsyncIterator[dict], prompt_tokens: int, encoding: tiktoken.Encoding
+    stream: AsyncIterator[dict], prompt_tokens: int, tokenizer: Tokenizer
 ) -> AsyncIterator[Any]:
     is_stream = True
 
@@ -166,7 +165,7 @@ async def generate_stream(
             build_chunk(id, None, {"content": content}, created, is_stream)
         )
 
-    completion_tokens = len(encoding.encode(completion))
+    completion_tokens = tokenizer.calculate_tokens(completion)
 
     usage = {
         "completion_tokens": completion_tokens,
@@ -330,9 +329,8 @@ async def chat_completion(
 
     new_messages, prompt_image_tokens = result
 
-    model = "gpt-4"
-    encoding = tiktoken.encoding_for_model(model)
-    prompt_text_tokens = calculate_prompt_tokens(messages, model, encoding)
+    tokenizer = Tokenizer(model="gpt-4")
+    prompt_text_tokens = tokenizer.calculate_prompt_tokens(messages)
     estimated_prompt_tokens = prompt_text_tokens + prompt_image_tokens
 
     max_tokens = request.get("max_tokens", DEFAULT_MAX_TOKENS)
@@ -354,7 +352,7 @@ async def chat_completion(
             generate_stream(
                 parse_openai_sse_stream(response),
                 estimated_prompt_tokens,
-                encoding,
+                tokenizer,
             ),
             media_type="text/event-stream",
         )
@@ -376,7 +374,7 @@ async def chat_completion(
             )
 
         actual_completion_tokens = usage["completion_tokens"]
-        estimated_completion_tokens = len(encoding.encode(content))
+        estimated_completion_tokens = tokenizer.calculate_tokens(content)
         if actual_completion_tokens != estimated_completion_tokens:
             logger.warning(
                 f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
