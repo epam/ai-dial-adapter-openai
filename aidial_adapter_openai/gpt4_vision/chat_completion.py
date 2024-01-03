@@ -25,9 +25,10 @@ from aidial_adapter_openai.utils.storage import (
 from aidial_adapter_openai.utils.streaming import (
     END_CHUNK,
     build_chunk,
-    create_predefined_response,
+    create_error_response,
     prepend_to_async_iterator,
 )
+from aidial_adapter_openai.utils.text import format_ordinal
 from aidial_adapter_openai.utils.tokens import Tokenizer
 
 # The built-in default max_tokens is 16 tokens,
@@ -203,10 +204,10 @@ def guess_image_type(attachment: Any) -> Optional[str]:
 
 async def download_image(
     file_storage: Optional[FileStorage], attachment: Any
-) -> Optional[ImageDataURL]:
+) -> ImageDataURL | str:
     type = guess_image_type(attachment)
     if type is None:
-        return None
+        return "The attachment isn't an image"
 
     if "data" in attachment:
         return ImageDataURL(type=type, data=attachment["data"])
@@ -219,7 +220,7 @@ async def download_image(
             if image_url.type in SUPPORTED_IMAGE_TYPES:
                 return image_url
             else:
-                return None
+                return "The image attachment isn't one of the supported types"
 
         try:
             if file_storage is not None:
@@ -231,14 +232,14 @@ async def download_image(
             return ImageDataURL(type=type, data=data)
         except Exception:
             logger.warning("Failed to download image from URL")
-            return None
+            return f"Failed to download image from URL: {attachment_link}"
 
-    return None
+    return "Invalid attachment"
 
 
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict
-) -> Tuple[dict, int] | str:
+) -> Tuple[dict, int] | List[Tuple[int, str]]:
     content = message.get("content", "")
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
@@ -250,16 +251,25 @@ async def transform_message(
 
     logger.debug(f"original attachments: {attachments}")
 
-    download_results: List[Optional[ImageDataURL]] = [
+    download_results: List[ImageDataURL | str] = [
         await download_image(file_storage, attachment)
         for attachment in attachments
     ]
 
     logger.debug(f"download results: {download_results}")
 
-    image_urls: List[ImageDataURL] = [
-        im for im in download_results if im is not None
+    errors: List[Tuple[int, str]] = [
+        (i, result)
+        for i, result in enumerate(download_results)
+        if isinstance(result, str)
     ]
+
+    logger.debug(f"download errors: {errors}")
+
+    if len(errors) > 0:
+        return errors
+
+    image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
 
     detail: ImageDetail = "auto"
 
@@ -272,13 +282,6 @@ async def transform_message(
 
     logger.debug(f"image tokens: {image_tokens}")
 
-    if len(image_urls) < len(attachments):
-        return (
-            "Some of the attachments are either invalid or failed to download."
-            + "\n\n"
-            + USAGE
-        )
-
     sub_messages: List[dict] = [create_text_message(content)] + image_messages
 
     return {**message, "content": sub_messages}, total_image_tokens
@@ -287,15 +290,31 @@ async def transform_message(
 async def transform_messages(
     file_storage: Optional[FileStorage], messages: List[dict]
 ) -> Tuple[List[dict], int] | str:
-    last_message = messages[-1]
-    result = await transform_message(file_storage, last_message)
+    new_messages: List[dict] = []
+    image_tokens = 0
 
-    if isinstance(result, str):
-        return result
+    errors: Dict[int, List[Tuple[int, str]]] = {}
 
-    new_message, total_image_tokens = result
+    n = len(messages)
+    for idx, message in enumerate(messages):
+        result = await transform_message(file_storage, message)
+        if isinstance(result, list):
+            errors[n - idx] = result
+        else:
+            new_message, tokens = result
+            new_messages.append(new_message)
+            image_tokens += tokens
 
-    return [new_message], total_image_tokens
+    if errors:
+        msg = "Some of the image attachments failed to download:"
+        for i, error in errors.items():
+            msg += f"\n- {format_ordinal(i)} message from end:"
+            for j, err in error:
+                msg += f"\n  - {format_ordinal(j + 1)} attachment: {err}"
+        msg += f"\n\n{USAGE}"
+        return msg
+
+    return new_messages, image_tokens
 
 
 async def chat_completion(
@@ -322,10 +341,13 @@ async def chat_completion(
 
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
 
+    # NOTE: Considering only the last message. Debatable.
+    messages = messages[-1:]
+
     result = await transform_messages(file_storage, messages)
 
     if isinstance(result, str):
-        return create_predefined_response(result, is_stream)
+        return create_error_response(result, is_stream)
 
     new_messages, prompt_image_tokens = result
 

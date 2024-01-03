@@ -106,6 +106,7 @@ async def generate_stream(
 
             id = generate_id()
             created = str(int(time()))
+            stream = True
 
             yield format_chunk(
                 build_chunk(
@@ -113,7 +114,7 @@ async def generate_stream(
                     "length",
                     {},
                     created,
-                    True,
+                    stream,
                     model=deployment,
                     usage={
                         "completion_tokens": 0,
@@ -143,6 +144,39 @@ def create_predefined_response(content: str, stream: bool) -> Response:
         },
     )
 
+    return create_response_from_chunk(chunk, stream)
+
+
+def create_error_response(error_message: str, stream: bool) -> Response:
+    id = generate_id()
+    created = str(int(time()))
+
+    error_stage = {
+        "index": 0,
+        "name": "Error",
+        "content": error_message,
+        "status": "failed",
+    }
+
+    custom_content = {"stages": [error_stage]}
+
+    chunk = build_chunk(
+        id,
+        "stop",
+        {"role": "assistant", "content": "", "custom_content": custom_content},
+        created,
+        stream,
+        usage={
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+            "total_tokens": 0,
+        },
+    )
+
+    return create_response_from_chunk(chunk, stream)
+
+
+def create_response_from_chunk(chunk: dict, stream: bool) -> Response:
     if not stream:
         return JSONResponse(content=chunk)
 
