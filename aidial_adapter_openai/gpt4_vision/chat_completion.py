@@ -18,7 +18,6 @@ from aidial_adapter_openai.gpt4_vision.gpt4_conversion import (
 )
 from aidial_adapter_openai.gpt4_vision.image_tokenizer import tokenize_image
 from aidial_adapter_openai.gpt4_vision.messages import (
-    ImageDetail,
     create_image_message,
     create_text_message,
 )
@@ -209,13 +208,14 @@ async def transform_message(
 
     image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
 
-    detail: ImageDetail = "auto"
+    image_tokens: List[int] = []
+    image_messages: List[dict] = []
 
-    image_messages: List[dict] = [
-        create_image_message(image, detail) for image in image_urls
-    ]
+    for image_url in image_urls:
+        tokens, detail = tokenize_image(image_url, "auto")
+        image_tokens.append(tokens)
+        image_messages.append(create_image_message(image_url, detail))
 
-    image_tokens: List[int] = [tokenize_image(im, detail) for im in image_urls]
     total_image_tokens = sum(image_tokens)
 
     logger.debug(f"image tokens: {image_tokens}")
@@ -313,27 +313,17 @@ async def chat_completion(
         if isinstance(response, Response):
             return response
 
-        def debug_print(title: str, chunk: T) -> T:
-            # logger.debug(f"chunk ({title}): {chunk}")
-            return chunk
-
-        def print_usage(chunk: dict) -> dict:
-            if "usage" in chunk:
-                logger.debug(f"chunk usage: {chunk['usage']}")
+        def debug_print(chunk: T) -> T:
+            logger.debug(f"chunk: {chunk}")
             return chunk
 
         return StreamingResponse(
             to_openai_sse_stream(
                 map_stream(
-                    print_usage,
+                    debug_print,
                     generate_stream(
                         stream=map_stream(
-                            lambda chunk: debug_print(
-                                "gpt4",
-                                convert_gpt4v_to_gpt4_chunk(
-                                    debug_print("gpt4v", chunk)
-                                ),
-                            ),
+                            convert_gpt4v_to_gpt4_chunk,
                             parse_openai_sse_stream(response),
                         ),
                         prompt_tokens=estimated_prompt_tokens,

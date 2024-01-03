@@ -6,26 +6,50 @@ Tokenization of images as specified at
 import base64
 import math
 from io import BytesIO
+from typing import Tuple, assert_never
 
 from PIL import Image
 
-from aidial_adapter_openai.gpt4_vision.messages import ImageDetail
+from aidial_adapter_openai.gpt4_vision.messages import (
+    ConcreteImageDetail,
+    ImageDetail,
+)
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 
 
-def tokenize_image(image: ImageDataURL, detail: ImageDetail) -> int:
+def tokenize_image(
+    image: ImageDataURL, detail: ImageDetail
+) -> Tuple[int, ConcreteImageDetail]:
     image_data = base64.b64decode(image.data)
     with Image.open(BytesIO(image_data)) as img:
         width, height = img.size
         return tokenize_image_by_size(width, height, detail)
 
 
-def tokenize_image_by_size(width: int, height: int, detail: ImageDetail) -> int:
-    is_low_detail = detail == "low" or (
-        detail == "auto" and width <= 512 and height <= 512
-    )
+def resolve_detail_level(
+    width: int, height: int, detail: ImageDetail
+) -> ConcreteImageDetail:
+    match detail:
+        case "auto":
+            is_low = width <= 512 and height <= 512
+            return "low" if is_low else "high"
+        case "low":
+            return "low"
+        case "high":
+            return "high"
 
-    return 85 if is_low_detail else compute_high_detail_tokens(width, height)
+
+def tokenize_image_by_size(
+    width: int, height: int, detail: ImageDetail
+) -> Tuple[int, ConcreteImageDetail]:
+    concrete_detail = resolve_detail_level(width, height, detail)
+    match concrete_detail:
+        case "low":
+            return 85, concrete_detail
+        case "high":
+            return compute_high_detail_tokens(width, height), concrete_detail
+        case _:
+            assert_never(concrete_detail)
 
 
 def fit_longest(width: int, height: int, size: int) -> tuple[int, int]:

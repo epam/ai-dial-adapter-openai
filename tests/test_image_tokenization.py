@@ -1,10 +1,13 @@
+from typing import List, Tuple
+
 import pytest
 
 from aidial_adapter_openai.gpt4_vision.image_tokenizer import (
     tokenize_image_by_size,
 )
+from aidial_adapter_openai.gpt4_vision.messages import ImageDetail
 
-test_cases = [
+test_cases: List[Tuple[int, int, ImageDetail, int]] = [
     (1, 1, "auto", 85),
     (1, 1, "high", 170 * 1 + 85),
     (100, 100, "low", 85),
@@ -22,7 +25,15 @@ test_cases = [
 ]
 
 
-@pytest.mark.parametrize("width, height, detail, expected", test_cases)
-def test_tokenize(width, height, detail, expected):
-    assert tokenize_image_by_size(width, height, detail) == expected
-    assert tokenize_image_by_size(height, width, detail) == expected
+@pytest.mark.parametrize("width, height, detail, expected_tokens", test_cases)
+def test_tokenize(width, height, detail, expected_tokens):
+    tokens1, detail1 = tokenize_image_by_size(width, height, detail)
+    tokens2, detail2 = tokenize_image_by_size(height, width, detail)
+
+    assert tokens1 == expected_tokens
+    assert tokens2 == expected_tokens
+
+    expected_detail = "low" if expected_tokens == 85 else "high"
+
+    assert detail1 == expected_detail
+    assert detail2 == expected_detail
