@@ -141,7 +141,7 @@ async def download_image(
     try:
         type = guess_attachment_type(attachment)
         if type is None:
-            return "Can't derive the media type of the attachment"
+            return "Can't derive media type of the attachment"
         elif type not in SUPPORTED_IMAGE_TYPES:
             return f"The attachment isn't one of the supported types: {type}"
 
