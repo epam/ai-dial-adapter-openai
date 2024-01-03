@@ -1,5 +1,5 @@
 """
-Tokenization of images as per
+Tokenization of images as specified at
     https://learn.microsoft.com/en-us/azure/ai-services/openai/overview#image-tokens-gpt-4-turbo-with-vision
 """
 

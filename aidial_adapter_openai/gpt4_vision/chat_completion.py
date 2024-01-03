@@ -128,13 +128,15 @@ def get_finish_reason(choice: dict) -> Optional[str]:
             return None
 
 
-async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
+async def generate_stream(
+    stream: AsyncIterator[dict], prompt_tokens: int, encoding: tiktoken.Encoding
+) -> AsyncIterator[Any]:
     is_stream = True
 
     id = ""
     created = ""
     finish_reason = "stop"
-    usage = None
+    completion = ""
 
     yield format_chunk(
         build_chunk(id, None, {"role": "assistant"}, created, is_stream)
@@ -150,8 +152,6 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
 
         id = chunk.get("id", id)
         created = chunk.get("created", created)
-        usage = chunk.get("usage", usage)
-
         choice: dict = chunk.get("choices", [{}])[0]
 
         finish_reason = get_finish_reason(choice) or finish_reason
@@ -160,10 +160,19 @@ async def generate_stream(stream: AsyncIterator[dict]) -> AsyncIterator[Any]:
         if content is None:
             continue
 
-        # TODO: Accumulate content and then compute usage
+        completion += content
+
         yield format_chunk(
             build_chunk(id, None, {"content": content}, created, is_stream)
         )
+
+    completion_tokens = len(encoding.encode(completion))
+
+    usage = {
+        "completion_tokens": completion_tokens,
+        "prompt_tokens": prompt_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
 
     yield format_chunk(
         build_chunk(id, finish_reason, {}, created, is_stream, usage=usage)
@@ -324,7 +333,7 @@ async def chat_completion(
     model = "gpt-4"
     encoding = tiktoken.encoding_for_model(model)
     prompt_text_tokens = calculate_prompt_tokens(messages, model, encoding)
-    prompt_tokens = prompt_text_tokens + prompt_image_tokens
+    estimated_prompt_tokens = prompt_text_tokens + prompt_image_tokens
 
     max_tokens = request.get("max_tokens", DEFAULT_MAX_TOKENS)
 
@@ -342,7 +351,11 @@ async def chat_completion(
             return response
 
         return StreamingResponse(
-            generate_stream(parse_openai_sse_stream(response)),
+            generate_stream(
+                parse_openai_sse_stream(response),
+                estimated_prompt_tokens,
+                encoding,
+            ),
             media_type="text/event-stream",
         )
     else:
@@ -354,14 +367,20 @@ async def chat_completion(
         created = response["created"]
         content = response["choices"][0]["message"].get("content", "")
         usage = response["usage"]
+        finish_reason = get_finish_reason(response) or "stop"
 
         actual_prompt_tokens = usage["prompt_tokens"]
-        if actual_prompt_tokens != prompt_tokens:
-            logger.debug(
-                f"Estimated prompt tokens ({prompt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
+        if actual_prompt_tokens != estimated_prompt_tokens:
+            logger.warning(
+                f"Estimated prompt tokens ({estimated_prompt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
             )
 
-        finish_reason = get_finish_reason(response) or "stop"
+        actual_completion_tokens = usage["completion_tokens"]
+        estimated_completion_tokens = len(encoding.encode(content))
+        if actual_completion_tokens != estimated_completion_tokens:
+            logger.warning(
+                f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
+            )
 
         return JSONResponse(
             content=build_chunk(
