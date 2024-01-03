@@ -27,7 +27,10 @@ from aidial_adapter_openai.utils.request_classifier import (
     does_request_use_functions_or_tools,
 )
 from aidial_adapter_openai.utils.storage import create_file_storage
-from aidial_adapter_openai.utils.streaming import generate_stream
+from aidial_adapter_openai.utils.streaming import (
+    generate_stream,
+    map_async_iterator,
+)
 from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
 
@@ -75,7 +78,7 @@ async def chat_completion(deployment_id: str, request: Request):
     elif deployment_id in gpt4_vision_deployments:
         storage = create_file_storage("images/gpt4-v", request.headers)
         return await gpt4_vision_chat_completion(
-            data, upstream_endpoint, api_key, is_stream, storage
+            data, deployment_id, upstream_endpoint, api_key, is_stream, storage
         )
 
     api_base, upstream_deployment = parse_upstream(
@@ -130,10 +133,14 @@ async def chat_completion(deployment_id: str, request: Request):
         if isinstance(response, Response):
             return response
 
+        prompt_tokens = tokenizer.calculate_prompt_tokens(data["messages"])
+        chunk_stream = map_async_iterator(
+            lambda obj: obj.to_dict_recursive(), response
+        )
         return StreamingResponse(
             generate_stream(
-                data["messages"],
-                response,
+                prompt_tokens,
+                chunk_stream,
                 tokenizer,
                 deployment_id,
                 discarded_messages,

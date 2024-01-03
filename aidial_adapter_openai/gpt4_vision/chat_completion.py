@@ -1,4 +1,3 @@
-import json
 import mimetypes
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, cast
 
@@ -14,18 +13,15 @@ from aidial_adapter_openai.gpt4_vision.tokenization import tokenize_image
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import (
-    format_chunk,
-    parse_openai_sse_stream,
-)
+from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
 from aidial_adapter_openai.utils.storage import (
     FileStorage,
     download_file_as_base64,
 )
 from aidial_adapter_openai.utils.streaming import (
-    END_CHUNK,
-    build_chunk,
     create_error_response,
+    generate_stream,
+    map_async_iterator,
     prepend_to_async_iterator,
 )
 from aidial_adapter_openai.utils.text import format_ordinal
@@ -109,11 +105,7 @@ async def predict_non_stream(
             return await response.json()
 
 
-def get_finish_reason(choice: dict) -> Optional[str]:
-    """Convert GPT4 Vision finish reason to the vanilla GPT4 finish reason"""
-
-    finish_type: Optional[str] = choice.get("finish_details", {}).get("type")
-
+def convert_finish_reason(finish_type: Optional[str]) -> Optional[str]:
     match finish_type:
         case None:
             return None
@@ -124,60 +116,36 @@ def get_finish_reason(choice: dict) -> Optional[str]:
         case "content_filter":
             return "content_filter"
         case _:
-            logger.warning(f"Unknown finish type: {finish_type}.")
+            logger.warning(f"Unknown finish type: {finish_type}")
             return None
 
 
-async def generate_stream(
-    stream: AsyncIterator[dict], prompt_tokens: int, tokenizer: Tokenizer
-) -> AsyncIterator[Any]:
-    is_stream = True
+def convert_gpt4v_to_gpt4_chunk(obj: dict) -> dict:
+    ret = obj.copy()
+    ret["choices"] = [
+        convert_gpt4v_to_gpt4_choice(choice) for choice in obj["choices"]
+    ]
+    return ret
 
-    id = ""
-    created = ""
-    finish_reason = "stop"
-    completion = ""
 
-    yield format_chunk(
-        build_chunk(id, None, {"role": "assistant"}, created, is_stream)
+def convert_gpt4v_to_gpt4_choice(choice: dict) -> dict:
+    """GPT4 Vision choice is slightly different from the vanilla GPT4 choice
+    in how it reports finish reason."""
+
+    gpt4v_finish_type: Optional[str] = choice.get("finish_details", {}).get(
+        "type"
     )
+    gpt4_finish_reason: Optional[str] = convert_finish_reason(gpt4v_finish_type)
 
-    async for chunk in stream:
-        logger.debug(f"chunk: {json.dumps(chunk)}")
+    ret = choice.copy()
 
-        if "error" in chunk:
-            yield chunk
-            yield END_CHUNK
-            return
+    if "finish_details" in ret:
+        del ret["finish_details"]
 
-        id = chunk.get("id", id)
-        created = chunk.get("created", created)
-        choice: dict = chunk.get("choices", [{}])[0]
+    if gpt4_finish_reason is not None:
+        ret["finish_reason"] = gpt4_finish_reason
 
-        finish_reason = get_finish_reason(choice) or finish_reason
-        content = choice.get("delta", {}).get("content")
-
-        if content is None:
-            continue
-
-        completion += content
-
-        yield format_chunk(
-            build_chunk(id, None, {"content": content}, created, is_stream)
-        )
-
-    completion_tokens = tokenizer.calculate_tokens(completion)
-
-    usage = {
-        "completion_tokens": completion_tokens,
-        "prompt_tokens": prompt_tokens,
-        "total_tokens": prompt_tokens + completion_tokens,
-    }
-
-    yield format_chunk(
-        build_chunk(id, finish_reason, {}, created, is_stream, usage=usage)
-    )
-    yield END_CHUNK
+    return ret
 
 
 def guess_image_type(attachment: Any) -> Optional[str]:
@@ -319,6 +287,7 @@ async def transform_messages(
 
 async def chat_completion(
     request: Any,
+    deployment: str,
     upstream_endpoint: str,
     api_key: str,
     is_stream: bool,
@@ -372,9 +341,14 @@ async def chat_completion(
 
         return StreamingResponse(
             generate_stream(
-                parse_openai_sse_stream(response),
-                estimated_prompt_tokens,
-                tokenizer,
+                prompt_tokens=estimated_prompt_tokens,
+                stream=map_async_iterator(
+                    convert_gpt4v_to_gpt4_chunk,
+                    parse_openai_sse_stream(response),
+                ),
+                tokenizer=tokenizer,
+                deployment=deployment,
+                discarded_messages=None,
             ),
             media_type="text/event-stream",
         )
@@ -383,11 +357,10 @@ async def chat_completion(
         if isinstance(response, Response):
             return response
 
-        id = response["id"]
-        created = response["created"]
+        response = convert_gpt4v_to_gpt4_chunk(response)
+
         content = response["choices"][0]["message"].get("content", "")
         usage = response["usage"]
-        finish_reason = get_finish_reason(response) or "stop"
 
         actual_prompt_tokens = usage["prompt_tokens"]
         if actual_prompt_tokens != estimated_prompt_tokens:
@@ -402,13 +375,4 @@ async def chat_completion(
                 f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
             )
 
-        return JSONResponse(
-            content=build_chunk(
-                id,
-                finish_reason,
-                {"role": "assistant", "content": content},
-                created,
-                is_stream,
-                usage=usage,
-            )
-        )
+        return JSONResponse(content=response)

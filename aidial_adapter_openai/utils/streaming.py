@@ -1,9 +1,8 @@
 from time import time
-from typing import Any, AsyncIterator, Optional, TypeVar
+from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
 
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.log_config import logger
@@ -46,40 +45,37 @@ def build_chunk(
 
 
 async def generate_stream(
-    messages: list[Any],
-    response: AsyncIterator[OpenAIObject],
+    prompt_tokens: int,
+    stream: AsyncIterator[dict],
     tokenizer: Tokenizer,
     deployment: str,
     discarded_messages: Optional[int],
 ):
-    prompt_tokens = tokenizer.calculate_prompt_tokens(messages)
-
     last_chunk = None
     stream_finished = False
     try:
         total_content = ""
-        async for chunk in response:
-            chunk_dict = chunk.to_dict_recursive()
-            choice = chunk_dict["choices"][0]
+        async for chunk in stream:
+            choice = chunk["choices"][0]
 
             if choice["finish_reason"] is not None:
                 stream_finished = True
                 completion_tokens = tokenizer.calculate_tokens(total_content)
-                chunk_dict["usage"] = {
+                chunk["usage"] = {
                     "completion_tokens": completion_tokens,
                     "prompt_tokens": prompt_tokens,
                     "total_tokens": prompt_tokens + completion_tokens,
                 }
                 if discarded_messages is not None:
-                    chunk_dict["statistics"] = {
+                    chunk["statistics"] = {
                         "discarded_messages": discarded_messages
                     }
             else:
                 content = choice["delta"].get("content", "")
                 total_content += content
 
-            last_chunk = chunk_dict
-            yield format_chunk(chunk_dict)
+            last_chunk = chunk
+            yield format_chunk(chunk)
     except OpenAIException as e:
         yield format_chunk(e.body)
         yield END_CHUNK
@@ -106,7 +102,7 @@ async def generate_stream(
 
             id = generate_id()
             created = str(int(time()))
-            stream = True
+            is_stream = True
 
             yield format_chunk(
                 build_chunk(
@@ -114,7 +110,7 @@ async def generate_stream(
                     "length",
                     {},
                     created,
-                    stream,
+                    is_stream,
                     model=deployment,
                     usage={
                         "completion_tokens": 0,
@@ -125,26 +121,6 @@ async def generate_stream(
             )
 
     yield END_CHUNK
-
-
-def create_predefined_response(content: str, stream: bool) -> Response:
-    id = generate_id()
-    created = str(int(time()))
-
-    chunk = build_chunk(
-        id,
-        "stop",
-        {"role": "assistant", "content": content},
-        created,
-        stream,
-        usage={
-            "completion_tokens": 0,
-            "prompt_tokens": 0,
-            "total_tokens": 0,
-        },
-    )
-
-    return create_response_from_chunk(chunk, stream)
 
 
 def create_error_response(error_message: str, stream: bool) -> Response:
@@ -188,6 +164,7 @@ def create_response_from_chunk(chunk: dict, stream: bool) -> Response:
 
 
 T = TypeVar("T")
+V = TypeVar("V")
 
 
 async def prepend_to_async_iterator(
@@ -196,3 +173,10 @@ async def prepend_to_async_iterator(
     yield value
     async for item in iterator:
         yield item
+
+
+async def map_async_iterator(
+    func: Callable[[T], V], iterator: AsyncIterator[T]
+) -> AsyncIterator[V]:
+    async for item in iterator:
+        yield func(item)
