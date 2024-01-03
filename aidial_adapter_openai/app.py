@@ -26,11 +26,9 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.request_classifier import (
     does_request_use_functions_or_tools,
 )
+from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.storage import create_file_storage
-from aidial_adapter_openai.utils.streaming import (
-    generate_stream,
-    map_async_iterator,
-)
+from aidial_adapter_openai.utils.streaming import generate_stream, map_stream
 from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
 
@@ -134,16 +132,16 @@ async def chat_completion(deployment_id: str, request: Request):
             return response
 
         prompt_tokens = tokenizer.calculate_prompt_tokens(data["messages"])
-        chunk_stream = map_async_iterator(
-            lambda obj: obj.to_dict_recursive(), response
-        )
+        chunk_stream = map_stream(lambda obj: obj.to_dict_recursive(), response)
         return StreamingResponse(
-            generate_stream(
-                prompt_tokens,
-                chunk_stream,
-                tokenizer,
-                deployment_id,
-                discarded_messages,
+            to_openai_sse_stream(
+                generate_stream(
+                    prompt_tokens,
+                    chunk_stream,
+                    tokenizer,
+                    deployment_id,
+                    discarded_messages,
+                )
             ),
             media_type="text/event-stream",
         )

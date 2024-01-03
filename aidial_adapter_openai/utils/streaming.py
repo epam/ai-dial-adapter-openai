@@ -6,13 +6,8 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import (
-    OPENAI_END_MARKER,
-    format_chunk,
-)
+from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
 from aidial_adapter_openai.utils.tokens import Tokenizer
-
-END_CHUNK = format_chunk(OPENAI_END_MARKER)
 
 
 def generate_id():
@@ -50,7 +45,7 @@ async def generate_stream(
     tokenizer: Tokenizer,
     deployment: str,
     discarded_messages: Optional[int],
-):
+) -> AsyncIterator[dict]:
     last_chunk = None
     stream_finished = False
     try:
@@ -71,23 +66,20 @@ async def generate_stream(
                         "discarded_messages": discarded_messages
                     }
             else:
-                content = choice["delta"].get("content", "")
+                content = choice["delta"].get("content") or ""
                 total_content += content
 
             last_chunk = chunk
-            yield format_chunk(chunk)
+            yield chunk
     except OpenAIException as e:
-        yield format_chunk(e.body)
-        yield END_CHUNK
-
+        yield e.body
         return
 
     if not stream_finished:
-        completion_tokens = tokenizer.calculate_tokens(total_content)
-
         if last_chunk is not None:
             logger.warning("Didn't receive chunk with the finish reason")
 
+            completion_tokens = tokenizer.calculate_tokens(total_content)
             last_chunk["usage"] = {
                 "completion_tokens": completion_tokens,
                 "prompt_tokens": prompt_tokens,
@@ -96,7 +88,7 @@ async def generate_stream(
             last_chunk["choices"][0]["delta"]["content"] = ""
             last_chunk["choices"][0]["delta"]["finish_reason"] = "length"
 
-            yield format_chunk(last_chunk)
+            yield last_chunk
         else:
             logger.warning("Received 0 chunks")
 
@@ -104,23 +96,19 @@ async def generate_stream(
             created = str(int(time()))
             is_stream = True
 
-            yield format_chunk(
-                build_chunk(
-                    id,
-                    "length",
-                    {},
-                    created,
-                    is_stream,
-                    model=deployment,
-                    usage={
-                        "completion_tokens": 0,
-                        "prompt_tokens": prompt_tokens,
-                        "total_tokens": prompt_tokens,
-                    },
-                )
+            yield build_chunk(
+                id,
+                "length",
+                {},
+                created,
+                is_stream,
+                model=deployment,
+                usage={
+                    "completion_tokens": 0,
+                    "prompt_tokens": prompt_tokens,
+                    "total_tokens": prompt_tokens,
+                },
             )
-
-    yield END_CHUNK
 
 
 def create_error_response(error_message: str, stream: bool) -> Response:
@@ -167,7 +155,7 @@ T = TypeVar("T")
 V = TypeVar("V")
 
 
-async def prepend_to_async_iterator(
+async def prepend_to_stream(
     value: T, iterator: AsyncIterator[T]
 ) -> AsyncIterator[T]:
     yield value
@@ -175,8 +163,10 @@ async def prepend_to_async_iterator(
         yield item
 
 
-async def map_async_iterator(
-    func: Callable[[T], V], iterator: AsyncIterator[T]
+async def map_stream(
+    func: Callable[[T], Optional[V]], iterator: AsyncIterator[T]
 ) -> AsyncIterator[V]:
     async for item in iterator:
-        yield func(item)
+        new_item = func(item)
+        if new_item is not None:
+            yield new_item

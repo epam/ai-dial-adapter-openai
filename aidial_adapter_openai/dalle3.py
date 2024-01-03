@@ -4,9 +4,9 @@ import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_adapter_openai.utils.sse_stream import END_CHUNK
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
-    END_CHUNK,
     build_chunk,
     format_chunk,
     generate_id,

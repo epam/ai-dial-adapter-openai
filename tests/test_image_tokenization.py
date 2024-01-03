@@ -1,6 +1,6 @@
 import pytest
 
-from aidial_adapter_openai.gpt4_vision.tokenization import (
+from aidial_adapter_openai.gpt4_vision.image_tokenizer import (
     tokenize_image_by_size,
 )
 

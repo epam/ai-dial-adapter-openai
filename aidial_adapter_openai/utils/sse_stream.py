@@ -14,6 +14,9 @@ def format_chunk(data: str | Mapping[str, Any]) -> str:
         return DATA_PREFIX + json.dumps(data, separators=(",", ":")) + "\n\n"
 
 
+END_CHUNK = format_chunk(OPENAI_END_MARKER)
+
+
 async def parse_openai_sse_stream(
     stream: AsyncIterator[bytes],
 ) -> AsyncIterator[dict]:
@@ -49,3 +52,11 @@ async def parse_openai_sse_stream(
             return
 
         yield chunk
+
+
+async def to_openai_sse_stream(
+    stream: AsyncIterator[dict],
+) -> AsyncIterator[str]:
+    async for chunk in stream:
+        yield format_chunk(chunk)
+    yield END_CHUNK

@@ -1,19 +1,34 @@
 import mimetypes
-from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    cast,
+)
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from aidial_adapter_openai.gpt4_vision.gpt4_conversion import (
+    convert_gpt4v_to_gpt4_chunk,
+)
+from aidial_adapter_openai.gpt4_vision.image_tokenizer import tokenize_image
 from aidial_adapter_openai.gpt4_vision.messages import (
     ImageDetail,
     create_image_message,
     create_text_message,
 )
-from aidial_adapter_openai.gpt4_vision.tokenization import tokenize_image
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
+from aidial_adapter_openai.utils.sse_stream import (
+    parse_openai_sse_stream,
+    to_openai_sse_stream,
+)
 from aidial_adapter_openai.utils.storage import (
     FileStorage,
     download_file_as_base64,
@@ -21,8 +36,8 @@ from aidial_adapter_openai.utils.storage import (
 from aidial_adapter_openai.utils.streaming import (
     create_error_response,
     generate_stream,
-    map_async_iterator,
-    prepend_to_async_iterator,
+    map_stream,
+    prepend_to_stream,
 )
 from aidial_adapter_openai.utils.text import format_ordinal
 from aidial_adapter_openai.utils.tokens import Tokenizer
@@ -63,7 +78,7 @@ async def transpose_stream(
 
     stream = cast(AsyncIterator[bytes], stream)
     if first_chunk is not None:
-        stream = prepend_to_async_iterator(first_chunk, stream)
+        stream = prepend_to_stream(first_chunk, stream)
 
     return stream
 
@@ -105,92 +120,47 @@ async def predict_non_stream(
             return await response.json()
 
 
-def convert_finish_reason(finish_type: Optional[str]) -> Optional[str]:
-    match finish_type:
-        case None:
-            return None
-        case "stop":
-            return "stop"
-        case "max_tokens":
-            return "length"
-        case "content_filter":
-            return "content_filter"
-        case _:
-            logger.warning(f"Unknown finish type: {finish_type}")
-            return None
-
-
-def convert_gpt4v_to_gpt4_chunk(obj: dict) -> dict:
-    ret = obj.copy()
-    ret["choices"] = [
-        convert_gpt4v_to_gpt4_choice(choice) for choice in obj["choices"]
-    ]
-    return ret
-
-
-def convert_gpt4v_to_gpt4_choice(choice: dict) -> dict:
-    """GPT4 Vision choice is slightly different from the vanilla GPT4 choice
-    in how it reports finish reason."""
-
-    gpt4v_finish_type: Optional[str] = choice.get("finish_details", {}).get(
-        "type"
-    )
-    gpt4_finish_reason: Optional[str] = convert_finish_reason(gpt4v_finish_type)
-
-    ret = choice.copy()
-
-    if "finish_details" in ret:
-        del ret["finish_details"]
-
-    if gpt4_finish_reason is not None:
-        ret["finish_reason"] = gpt4_finish_reason
-
-    return ret
-
-
-def guess_image_type(attachment: Any) -> Optional[str]:
+def guess_attachment_type(attachment: Any) -> Optional[str]:
     type = attachment.get("type")
     if type is None:
         return None
 
-    if type in SUPPORTED_IMAGE_TYPES:
-        return type
-
     if "octet-stream" in type:
         # It's an arbitrary binary file. Trying to guess the type from the URL.
         url = attachment.get("url")
-        if url is None:
-            return None
+        if url is not None:
+            url_type = mimetypes.guess_type(url)[0]
+            if url_type is not None:
+                return url_type
 
-        file_type = mimetypes.guess_type(url)[0]
-
-        if file_type in SUPPORTED_IMAGE_TYPES:
-            return file_type
-
-    return None
+    return type
 
 
 async def download_image(
     file_storage: Optional[FileStorage], attachment: Any
 ) -> ImageDataURL | str:
-    type = guess_image_type(attachment)
-    if type is None:
-        return "The attachment isn't an image"
+    try:
+        type = guess_attachment_type(attachment)
+        if type is None:
+            return "Can't derive the media type of the attachment"
+        elif type not in SUPPORTED_IMAGE_TYPES:
+            return f"The attachment isn't one of the supported types: {type}"
 
-    if "data" in attachment:
-        return ImageDataURL(type=type, data=attachment["data"])
+        if "data" in attachment:
+            return ImageDataURL(type=type, data=attachment["data"])
 
-    if "url" in attachment:
-        attachment_link: str = attachment["url"]
+        if "url" in attachment:
+            attachment_link: str = attachment["url"]
 
-        image_url = ImageDataURL.from_data_url(attachment_link)
-        if image_url is not None:
-            if image_url.type in SUPPORTED_IMAGE_TYPES:
-                return image_url
-            else:
-                return "The image attachment isn't one of the supported types"
+            image_url = ImageDataURL.from_data_url(attachment_link)
+            if image_url is not None:
+                if image_url.type in SUPPORTED_IMAGE_TYPES:
+                    return image_url
+                else:
+                    return (
+                        "The image attachment isn't one of the supported types"
+                    )
 
-        try:
             if file_storage is not None:
                 url = file_storage.attachment_link_to_url(attachment_link)
                 data = await file_storage.download_file_as_base64(url)
@@ -198,11 +168,12 @@ async def download_image(
                 data = await download_file_as_base64(attachment_link)
 
             return ImageDataURL(type=type, data=data)
-        except Exception:
-            logger.warning("Failed to download image from URL")
-            return f"Failed to download image from URL: {attachment_link}"
 
-    return "Invalid attachment"
+        return "Invalid attachment"
+
+    except Exception as e:
+        logger.debug(f"Failed to download image: {e}")
+        return "Failed to download image"
 
 
 async def transform_message(
@@ -227,14 +198,13 @@ async def transform_message(
     logger.debug(f"download results: {download_results}")
 
     errors: List[Tuple[int, str]] = [
-        (i, result)
-        for i, result in enumerate(download_results)
+        (idx, result)
+        for idx, result in enumerate(download_results)
         if isinstance(result, str)
     ]
 
-    logger.debug(f"download errors: {errors}")
-
     if len(errors) > 0:
+        logger.debug(f"download errors: {errors}")
         return errors
 
     image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
@@ -285,6 +255,9 @@ async def transform_messages(
     return new_messages, image_tokens
 
 
+T = TypeVar("T")
+
+
 async def chat_completion(
     request: Any,
     deployment: str,
@@ -316,6 +289,7 @@ async def chat_completion(
     result = await transform_messages(file_storage, messages)
 
     if isinstance(result, str):
+        logger.debug(f"Failed request. Reported error in stage: {result}")
         return create_error_response(result, is_stream)
 
     new_messages, prompt_image_tokens = result
@@ -339,16 +313,35 @@ async def chat_completion(
         if isinstance(response, Response):
             return response
 
+        def debug_print(title: str, chunk: T) -> T:
+            # logger.debug(f"chunk ({title}): {chunk}")
+            return chunk
+
+        def print_usage(chunk: dict) -> dict:
+            if "usage" in chunk:
+                logger.debug(f"chunk usage: {chunk['usage']}")
+            return chunk
+
         return StreamingResponse(
-            generate_stream(
-                prompt_tokens=estimated_prompt_tokens,
-                stream=map_async_iterator(
-                    convert_gpt4v_to_gpt4_chunk,
-                    parse_openai_sse_stream(response),
-                ),
-                tokenizer=tokenizer,
-                deployment=deployment,
-                discarded_messages=None,
+            to_openai_sse_stream(
+                map_stream(
+                    print_usage,
+                    generate_stream(
+                        stream=map_stream(
+                            lambda chunk: debug_print(
+                                "gpt4",
+                                convert_gpt4v_to_gpt4_chunk(
+                                    debug_print("gpt4v", chunk)
+                                ),
+                            ),
+                            parse_openai_sse_stream(response),
+                        ),
+                        prompt_tokens=estimated_prompt_tokens,
+                        tokenizer=tokenizer,
+                        deployment=deployment,
+                        discarded_messages=None,
+                    ),
+                )
             ),
             media_type="text/event-stream",
         )
@@ -358,6 +351,12 @@ async def chat_completion(
             return response
 
         response = convert_gpt4v_to_gpt4_chunk(response)
+        if response is None:
+            raise HTTPException(
+                status_code=500,
+                message="The origin returned invalid response",
+                type="invalid_response_error",
+            )
 
         content = response["choices"][0]["message"].get("content", "")
         usage = response["usage"]
