@@ -53,8 +53,7 @@ USAGE = f"""
 ### Usage
 
 The application answers queries about attached images.
-Attach images and ask questions about them in the same message.
-Only the last message in dialogue is taken into account.
+Attach images and ask questions about them.
 
 Supported image types: {', '.join(SUPPORTED_FILE_EXTS)}.
 
@@ -131,6 +130,7 @@ def guess_attachment_type(attachment: Any) -> Optional[str]:
             url_type = mimetypes.guess_type(url)[0]
             if url_type is not None:
                 return url_type
+        return None
 
     return type
 
@@ -249,7 +249,6 @@ async def transform_messages(
             msg += f"\n- {format_ordinal(i)} message from end:"
             for j, err in error:
                 msg += f"\n  - {format_ordinal(j + 1)} attachment: {err}"
-        msg += f"\n\n{USAGE}"
         return msg
 
     return new_messages, image_tokens
@@ -283,14 +282,22 @@ async def chat_completion(
 
     api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
 
-    # NOTE: Considering only the last message. Debatable.
-    messages = messages[-1:]
-
     result = await transform_messages(file_storage, messages)
 
     if isinstance(result, str):
-        logger.debug(f"Failed request. Reported error in stage: {result}")
-        return create_error_response(result, is_stream)
+        logger.debug(f"Failed to prepare request for GPT4V: {result}")
+
+        if file_storage is not None:
+            # Report usage-level error if the request came from the chat
+            error_message = result + "\n\n" + USAGE
+            return create_error_response(error_message, is_stream)
+        else:
+            # Throw an error if the request came from the API
+            raise HTTPException(
+                status_code=400,
+                message=result,
+                type="invalid_request_error",
+            )
 
     new_messages, prompt_image_tokens = result
 
