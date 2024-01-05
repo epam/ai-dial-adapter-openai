@@ -11,7 +11,7 @@ from openai.openai_object import OpenAIObject
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
 )
-from aidial_adapter_openai.gpt4_vision import (
+from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
 from aidial_adapter_openai.openai_override import OpenAIException
@@ -26,9 +26,10 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.request_classifier import (
     does_request_use_functions_or_tools,
 )
+from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.storage import create_file_storage
-from aidial_adapter_openai.utils.streaming import generate_stream
-from aidial_adapter_openai.utils.tokens import discard_messages
+from aidial_adapter_openai.utils.streaming import generate_stream, map_stream
+from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 from aidial_adapter_openai.utils.versions import compare_versions
 
 logging.config.dictConfig(LogConfig().dict())
@@ -62,6 +63,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
+    tokenizer = Tokenizer(model=openai_model_name)
 
     api_key = request.headers["X-UPSTREAM-KEY"]
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
@@ -74,7 +76,7 @@ async def chat_completion(deployment_id: str, request: Request):
     elif deployment_id in gpt4_vision_deployments:
         storage = create_file_storage("images/gpt4-v", request.headers)
         return await gpt4_vision_chat_completion(
-            data, upstream_endpoint, api_key, is_stream, storage
+            data, deployment_id, upstream_endpoint, api_key, is_stream, storage
         )
 
     api_base, upstream_deployment = parse_upstream(
@@ -95,7 +97,7 @@ async def chat_completion(deployment_id: str, request: Request):
     discarded_messages = None
     if "max_prompt_tokens" in data:
         max_prompt_tokens = data["max_prompt_tokens"]
-        if type(max_prompt_tokens) != int:
+        if isinstance(max_prompt_tokens, int):
             raise HTTPException(
                 f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
                 400,
@@ -110,7 +112,7 @@ async def chat_completion(deployment_id: str, request: Request):
         del data["max_prompt_tokens"]
 
         data["messages"], discarded_messages = discard_messages(
-            data["messages"], openai_model_name, max_prompt_tokens
+            tokenizer, data["messages"], max_prompt_tokens
         )
 
     response = await handle_exceptions(
@@ -129,13 +131,17 @@ async def chat_completion(deployment_id: str, request: Request):
         if isinstance(response, Response):
             return response
 
+        prompt_tokens = tokenizer.calculate_prompt_tokens(data["messages"])
+        chunk_stream = map_stream(lambda obj: obj.to_dict_recursive(), response)
         return StreamingResponse(
-            generate_stream(
-                data["messages"],
-                response,
-                openai_model_name,
-                deployment_id,
-                discarded_messages,
+            to_openai_sse_stream(
+                generate_stream(
+                    prompt_tokens,
+                    chunk_stream,
+                    tokenizer,
+                    deployment_id,
+                    discarded_messages,
+                )
             ),
             media_type="text/event-stream",
         )

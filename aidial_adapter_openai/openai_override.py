@@ -40,7 +40,7 @@ def interpret_response_line_wrapper(wrapped, self: APIRequestor, args, kwargs):
         return OpenAIResponse(None, rheaders)
 
     if rcode == 503:
-        raise self.handle_error_response(  # overrided
+        raise self.handle_error_response(  # overridden
             rbody, rcode, None, rheaders, stream_error=False
         )
     try:
@@ -49,7 +49,7 @@ def interpret_response_line_wrapper(wrapped, self: APIRequestor, args, kwargs):
         else:
             data = json.loads(rbody)
     except (JSONDecodeError, UnicodeDecodeError):
-        raise self.handle_error_response(  # overrided
+        raise self.handle_error_response(  # overridden
             rbody,
             rcode,
             None,
