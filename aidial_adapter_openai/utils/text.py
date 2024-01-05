@@ -1,5 +1,5 @@
 def get_ordinal_suffix(idx: int) -> str:
-    match idx:
+    match idx % 10:
         case 1:
             return "st"
         case 2:

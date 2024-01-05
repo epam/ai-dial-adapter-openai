@@ -118,7 +118,7 @@ async def predict_non_stream(
             return await response.json()
 
 
-def guess_attachment_type(attachment: Any) -> Optional[str]:
+def guess_attachment_type(attachment: dict) -> Optional[str]:
     type = attachment.get("type")
     if type is None:
         return None
@@ -136,7 +136,7 @@ def guess_attachment_type(attachment: Any) -> Optional[str]:
 
 
 async def download_image(
-    file_storage: Optional[FileStorage], attachment: Any
+    file_storage: Optional[FileStorage], attachment: dict
 ) -> ImageDataURL | str:
     try:
         type = guess_attachment_type(attachment)
@@ -288,7 +288,7 @@ async def chat_completion(
         logger.debug(f"Failed to prepare request for GPT4V: {result}")
 
         if file_storage is not None:
-            # Report usage-level error if the request came from the chat
+            # Report user-level error if the request came from the chat
             error_message = result + "\n\n" + USAGE
             return create_error_response(error_message, is_stream)
         else:

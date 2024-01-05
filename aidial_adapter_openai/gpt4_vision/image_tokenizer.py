@@ -10,16 +10,13 @@ from typing import Tuple, assert_never
 
 from PIL import Image
 
-from aidial_adapter_openai.gpt4_vision.messages import (
-    ConcreteImageDetail,
-    ImageDetail,
-)
+from aidial_adapter_openai.gpt4_vision.messages import DetailLevel, ImageDetail
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 
 
 def tokenize_image(
     image: ImageDataURL, detail: ImageDetail
-) -> Tuple[int, ConcreteImageDetail]:
+) -> Tuple[int, DetailLevel]:
     image_data = base64.b64decode(image.data)
     with Image.open(BytesIO(image_data)) as img:
         width, height = img.size
@@ -28,7 +25,7 @@ def tokenize_image(
 
 def resolve_detail_level(
     width: int, height: int, detail: ImageDetail
-) -> ConcreteImageDetail:
+) -> DetailLevel:
     match detail:
         case "auto":
             is_low = width <= 512 and height <= 512
@@ -41,7 +38,7 @@ def resolve_detail_level(
 
 def tokenize_image_by_size(
     width: int, height: int, detail: ImageDetail
-) -> Tuple[int, ConcreteImageDetail]:
+) -> Tuple[int, DetailLevel]:
     concrete_detail = resolve_detail_level(width, height, detail)
     match concrete_detail:
         case "low":

@@ -2,13 +2,11 @@ from typing import Literal
 
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 
-ConcreteImageDetail = Literal["low", "high"]
-ImageDetail = ConcreteImageDetail | Literal["auto"]
+DetailLevel = Literal["low", "high"]
+ImageDetail = DetailLevel | Literal["auto"]
 
 
-def create_image_message(
-    image: ImageDataURL, detail: ConcreteImageDetail
-) -> dict:
+def create_image_message(image: ImageDataURL, detail: DetailLevel) -> dict:
     return {
         "type": "image_url",
         "image_url": {
