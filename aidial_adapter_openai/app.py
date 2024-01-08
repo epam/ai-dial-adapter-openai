@@ -62,8 +62,6 @@ async def chat_completion(deployment_id: str, request: Request):
     data = await parse_body(request)
 
     is_stream = data.get("stream", False)
-    openai_model_name = model_aliases.get(deployment_id, deployment_id)
-    tokenizer = Tokenizer(model=openai_model_name)
 
     api_key = request.headers["X-UPSTREAM-KEY"]
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
@@ -78,6 +76,9 @@ async def chat_completion(deployment_id: str, request: Request):
         return await gpt4_vision_chat_completion(
             data, deployment_id, upstream_endpoint, api_key, is_stream, storage
         )
+
+    openai_model_name = model_aliases.get(deployment_id, deployment_id)
+    tokenizer = Tokenizer(model=openai_model_name)
 
     api_base, upstream_deployment = parse_upstream(
         upstream_endpoint, ApiType.CHAT_COMPLETION
