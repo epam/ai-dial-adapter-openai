@@ -1,7 +1,7 @@
 import pytest
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
-from aidial_adapter_openai.utils.tokens import discard_messages
+from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 
 gpt4_testdata = [
     (
@@ -109,8 +109,9 @@ gpt4_testdata = [
 @pytest.mark.parametrize("messages, max_prompt_tokens, response", gpt4_testdata)
 def test_discarded_messages(messages, max_prompt_tokens, response):
     try:
+        tokenizer = Tokenizer(model="gpt-4")
         assert (
-            discard_messages(messages, "gpt-4", max_prompt_tokens) == response
+            discard_messages(tokenizer, messages, max_prompt_tokens) == response
         )
     except HTTPException as e:
         assert e.message == response

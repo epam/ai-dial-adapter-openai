@@ -1,26 +1,13 @@
-import json
 from time import time
-from typing import Any, Mapping, Optional
+from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
 
-import tiktoken
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.tokens import calculate_prompt_tokens
-
-END_MARKER = "[DONE]"
-CHUNK_PREFIX = "data: "
-
-
-def chunk_format(data: str | Mapping[str, Any]) -> str:
-    if type(data) == str:
-        return CHUNK_PREFIX + data.strip() + "\n\n"
-    else:
-        return CHUNK_PREFIX + json.dumps(data, separators=(",", ":")) + "\n\n"
-
-
-END_CHUNK = chunk_format(END_MARKER)
+from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
+from aidial_adapter_openai.utils.tokens import Tokenizer
 
 
 def generate_id():
@@ -44,8 +31,8 @@ def build_chunk(
         "choices": [
             {
                 "index": 0,
-                "finish_reason": finish_reason,
                 choice_content_key: delta,
+                "finish_reason": finish_reason,
             }
         ],
         **extra,
@@ -53,54 +40,46 @@ def build_chunk(
 
 
 async def generate_stream(
-    messages: list[Any],
-    response,
-    model: str,
+    prompt_tokens: int,
+    stream: AsyncIterator[dict],
+    tokenizer: Tokenizer,
     deployment: str,
     discarded_messages: Optional[int],
-):
-    encoding = tiktoken.encoding_for_model(model)
-
-    prompt_tokens = calculate_prompt_tokens(messages, model, encoding)
-
+) -> AsyncIterator[dict]:
     last_chunk = None
     stream_finished = False
     try:
         total_content = ""
-        async for chunk in response:
-            chunk_dict = chunk.to_dict_recursive()
+        async for chunk in stream:
+            choice = chunk["choices"][0]
 
-            if chunk_dict["choices"][0]["finish_reason"] is not None:
+            if choice["finish_reason"] is not None:
                 stream_finished = True
-                completion_tokens = len(encoding.encode(total_content))
-                chunk_dict["usage"] = {
+                completion_tokens = tokenizer.calculate_tokens(total_content)
+                chunk["usage"] = {
                     "completion_tokens": completion_tokens,
                     "prompt_tokens": prompt_tokens,
                     "total_tokens": prompt_tokens + completion_tokens,
                 }
                 if discarded_messages is not None:
-                    chunk_dict["statistics"] = {
+                    chunk["statistics"] = {
                         "discarded_messages": discarded_messages
                     }
             else:
-                content = chunk_dict["choices"][0]["delta"].get("content") or ""
-
+                content = choice["delta"].get("content") or ""
                 total_content += content
 
-            last_chunk = chunk_dict
-            yield chunk_format(chunk_dict)
+            last_chunk = chunk
+            yield chunk
     except OpenAIException as e:
-        yield chunk_format(e.body)
-        yield END_CHUNK
-
+        yield e.body
         return
 
     if not stream_finished:
-        completion_tokens = len(encoding.encode(total_content))
-
         if last_chunk is not None:
             logger.warning("Didn't receive chunk with the finish reason")
 
+            completion_tokens = tokenizer.calculate_tokens(total_content)
             last_chunk["usage"] = {
                 "completion_tokens": completion_tokens,
                 "prompt_tokens": prompt_tokens,
@@ -109,25 +88,85 @@ async def generate_stream(
             last_chunk["choices"][0]["delta"]["content"] = ""
             last_chunk["choices"][0]["delta"]["finish_reason"] = "length"
 
-            yield chunk_format(last_chunk)
+            yield last_chunk
         else:
             logger.warning("Received 0 chunks")
 
-            yield chunk_format(
-                {
-                    "id": generate_id(),
-                    "object": "chat.completion.chunk",
-                    "created": str(int(time())),
-                    "model": deployment,
-                    "choices": [
-                        {"index": 0, "finish_reason": "length", "delta": {}}
-                    ],
-                    "usage": {
-                        "completion_tokens": 0,
-                        "prompt_tokens": prompt_tokens,
-                        "total_tokens": prompt_tokens,
-                    },
-                }
+            id = generate_id()
+            created = str(int(time()))
+            is_stream = True
+
+            yield build_chunk(
+                id,
+                "length",
+                {},
+                created,
+                is_stream,
+                model=deployment,
+                usage={
+                    "completion_tokens": 0,
+                    "prompt_tokens": prompt_tokens,
+                    "total_tokens": prompt_tokens,
+                },
             )
 
-    yield END_CHUNK
+
+def create_error_response(error_message: str, stream: bool) -> Response:
+    id = generate_id()
+    created = str(int(time()))
+
+    error_stage = {
+        "index": 0,
+        "name": "Error",
+        "content": error_message,
+        "status": "failed",
+    }
+
+    custom_content = {"stages": [error_stage]}
+
+    chunk = build_chunk(
+        id,
+        "stop",
+        {"role": "assistant", "content": "", "custom_content": custom_content},
+        created,
+        stream,
+        usage={
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+            "total_tokens": 0,
+        },
+    )
+
+    return create_response_from_chunk(chunk, stream)
+
+
+def create_response_from_chunk(chunk: dict, stream: bool) -> Response:
+    if not stream:
+        return JSONResponse(content=chunk)
+
+    async def generator() -> AsyncIterator[Any]:
+        yield format_chunk(chunk)
+        yield END_CHUNK
+
+    return StreamingResponse(generator(), media_type="text/event-stream")
+
+
+T = TypeVar("T")
+V = TypeVar("V")
+
+
+async def prepend_to_stream(
+    value: T, iterator: AsyncIterator[T]
+) -> AsyncIterator[T]:
+    yield value
+    async for item in iterator:
+        yield item
+
+
+async def map_stream(
+    func: Callable[[T], Optional[V]], iterator: AsyncIterator[T]
+) -> AsyncIterator[V]:
+    async for item in iterator:
+        new_item = func(item)
+        if new_item is not None:
+            yield new_item
