@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import io
+import mimetypes
 from typing import Mapping, Optional, TypedDict
 from urllib.parse import urljoin
 
@@ -65,7 +66,7 @@ class FileStorage:
         async with aiohttp.ClientSession() as session:
             bucket = await self._get_bucket(session)
             data = FileStorage._to_form_data(filename, content_type, content)
-            ext = _get_extension(content_type) or ""
+            ext = mimetypes.guess_extension(content_type) or ""
             url = f"{self.dial_url}/v1/files/{bucket}/{self.upload_dir}/{filename}{ext}"
 
             async with session.put(
@@ -113,12 +114,6 @@ async def download_file_as_base64(
 
 def _compute_hash_digest(file_content: str) -> str:
     return hashlib.sha256(file_content.encode()).hexdigest()
-
-
-def _get_extension(content_type: str) -> Optional[str]:
-    if content_type.startswith("image/"):
-        return "." + content_type[len("image/") :]
-    return None
 
 
 DIAL_USE_FILE_STORAGE = get_env_bool("DIAL_USE_FILE_STORAGE", False)
