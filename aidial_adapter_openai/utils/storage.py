@@ -136,7 +136,7 @@ def create_file_storage(
     if not DIAL_USE_FILE_STORAGE or DIAL_URL is None:
         return None
 
-    auth = Auth.from_headers("authorization", headers)
+    auth = Auth.from_headers("api-key", headers)
     if auth is None:
         logger.debug(
             "The request doesn't have required headers to use the DIAL file storage. "
