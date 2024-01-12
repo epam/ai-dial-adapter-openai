@@ -55,7 +55,11 @@ def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
                 {"title": "Image", "type": "image/png", "data": base64_image},
             ]
         },
-        "content": "",
+        # NOTE: text-to-text models aren't expected to generate empty strings.
+        # So since we represent text-to-image model (Dalle-3) as
+        # a text-to-text model (via chat completion interface),
+        # we need to return something.
+        "content": " ",
     }
 
 
