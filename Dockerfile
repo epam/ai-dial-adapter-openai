@@ -31,4 +31,4 @@ EXPOSE 5000
 USER appuser
 ENTRYPOINT ["/docker_entrypoint.sh"]
 
-CMD ["uvicorn", "aidial_adapter_openai.app:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD uvicorn aidial_adapter_openai.app:app --host 0.0.0.0 --port 5000 --timeout-keep-alive ${TIMEOUT_KEEP_ALIVE:-5}
