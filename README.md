@@ -61,6 +61,7 @@ Copy `.env.example` to `.env` and customize it for your environment:
 |DIAL_URL||URL of the core DIAL server (required when DIAL_USE_FILE_STORAGE=True)|
 |DALLE3_DEPLOYMENTS|``|Comma-separated list of deployments that support DALL-E 3 API. Example: `dall-e-3,dalle3,dall-e`|
 |GPT4_VISION_DEPLOYMENTS|``|Comma-separated list of deployments that support GPT-4V API. Example: `gpt-4-vision-preview,gpt-4-vision`|
+|GPT4_VISION_MAX_TOKENS|1024|Default value of `max_tokens` parameter for GPT-4V when it wasn't provided in the request|
 
 ### Docker
 
