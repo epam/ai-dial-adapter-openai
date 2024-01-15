@@ -1,4 +1,5 @@
 import mimetypes
+import os
 from typing import (
     Any,
     AsyncIterator,
@@ -43,7 +44,7 @@ from aidial_adapter_openai.utils.tokens import Tokenizer
 
 # The built-in default max_tokens is 16 tokens,
 # which is too small for most image-to-text use cases.
-DEFAULT_MAX_TOKENS = 128
+DEFAULT_MAX_TOKENS = int(os.getenv("GPT4_VISION_MAX_TOKENS", "1024"))
 
 # Officially supported image types by GPT-4 Vision
 SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
