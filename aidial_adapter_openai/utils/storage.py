@@ -17,10 +17,6 @@ class FileMetadata(TypedDict):
     parentPath: str
     bucket: str
     url: str
-    type: str
-
-    contentLength: int
-    contentType: str
 
 
 class Bucket(TypedDict):
