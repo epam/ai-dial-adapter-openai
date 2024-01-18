@@ -17,10 +17,6 @@ class FileMetadata(TypedDict):
     parentPath: str
     bucket: str
     url: str
-    type: str
-
-    contentLength: int
-    contentType: str
 
 
 class Bucket(TypedDict):
@@ -95,7 +91,7 @@ class FileStorage:
         return await self.upload(filename, content_type, content)
 
     def attachment_link_to_url(self, link: str) -> str:
-        base_url = f"{self.dial_url}/v1/files/"
+        base_url = f"{self.dial_url}/v1/"
         return urljoin(base_url, link)
 
     async def download_file_as_base64(self, url: str) -> str:
