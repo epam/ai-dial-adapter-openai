@@ -1,18 +1,22 @@
+from typing import List, Tuple
+
 import pytest
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 
-gpt4_testdata = [
+TestCase = Tuple[List[dict], int, Tuple[List[dict], List[int]] | str]
+
+gpt4_testdata: List[TestCase] = [
     (
         [],
         0,
-        ([], 0),
+        ([], []),
     ),
     (
         [{"role": "system", "message": "This is four tokens"}],
         11,
-        ([{"role": "system", "message": "This is four tokens"}], 0),
+        ([{"role": "system", "message": "This is four tokens"}], []),
     ),
     (
         [
@@ -46,7 +50,7 @@ gpt4_testdata = [
                 {"role": "assistant", "message": "This is four tokens"},
                 {"role": "user", "message": "This is four tokens"},
             ],
-            1,
+            [1],
         ),
     ),
     (
@@ -63,7 +67,7 @@ gpt4_testdata = [
                 {"role": "assistant", "message": "This is four tokens"},
                 {"role": "user", "message": "This is four tokens"},
             ],
-            1,
+            [1],
         ),
     ),
     (
@@ -81,7 +85,7 @@ gpt4_testdata = [
                 {"role": "system", "message": "This is four tokens"},
                 {"role": "user", "message": "This is four tokens"},
             ],
-            2,
+            [1, 2],
         ),
     ),
     (
@@ -100,14 +104,18 @@ gpt4_testdata = [
                 {"role": "system", "message": "This is four tokens"},
                 {"role": "user", "message": "This is four tokens"},
             ],
-            1,
+            [1],
         ),
     ),
 ]
 
 
 @pytest.mark.parametrize("messages, max_prompt_tokens, response", gpt4_testdata)
-def test_discarded_messages(messages, max_prompt_tokens, response):
+def test_discarded_messages(
+    messages: List[dict],
+    max_prompt_tokens: int,
+    response: Tuple[List[dict], List[int]] | str,
+):
     try:
         tokenizer = Tokenizer(model="gpt-4")
         assert (
