@@ -1,7 +1,8 @@
 """
 Implemented based on the official recipe: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
 """
-from typing import Any, List
+
+from typing import Any, List, Set
 
 from tiktoken import Encoding, encoding_for_model
 
@@ -42,40 +43,42 @@ class Tokenizer:
 
 def discard_messages(
     tokenizer: Tokenizer, messages: List[Any], max_prompt_tokens: int
-) -> tuple[List[Any], int]:
-    if len(messages) == 0:
-        return messages, 0  # will be rejected by the upstream
+) -> tuple[List[Any], List[int]]:
+    n = len(messages)
+
+    if n == 0:
+        return messages, []  # will be rejected by the upstream
 
     prompt_tokens = 3
 
-    non_system_messages_count = 0
-    for message in messages:
-        if message["role"] != "system":
-            non_system_messages_count += 1
-            continue
+    system_messages_count = 0
+    kept_messages: Set[int] = set()
 
-        prompt_tokens += tokenizer.calculate_tokens_per_message(message)
+    # Count system messages first
+    for idx, message in enumerate(messages):
+        if message["role"] == "system":
+            kept_messages.add(idx)
+            system_messages_count += 1
+            prompt_tokens += tokenizer.calculate_tokens_per_message(message)
 
     if max_prompt_tokens < prompt_tokens:
         raise HTTPException(
             message=f"The token size of system messages ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})"
         )
 
-    discarded_messages = non_system_messages_count
-    for message in reversed(messages):
-        if message["role"] == "system":
-            continue
+    # Then non-system messages in the reverse order
+    for idx, message in reversed(list(enumerate(messages))):
+        if message["role"] != "system":
+            prompt_tokens += tokenizer.calculate_tokens_per_message(message)
 
-        prompt_tokens += tokenizer.calculate_tokens_per_message(message)
+            if max_prompt_tokens < prompt_tokens:
+                break
 
-        if max_prompt_tokens < prompt_tokens:
-            break
-
-        discarded_messages -= 1
+            kept_messages.add(idx)
 
     if (
-        discarded_messages == non_system_messages_count
-        and non_system_messages_count > 0
+        len(kept_messages) == system_messages_count
+        and system_messages_count != n
     ):
         raise HTTPException(
             message=f"The token size of system messages and the last user message ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})",
@@ -83,17 +86,10 @@ def discard_messages(
             type="invalid_request_error",
         )
 
-    messages_without_discarded = []
+    new_messages = [
+        message for idx, message in enumerate(messages) if idx in kept_messages
+    ]
 
-    remaining_discarded_messages = discarded_messages
-    for message in messages:
-        if message["role"] == "system":
-            messages_without_discarded.append(message)
-            continue
+    discarded_messages = list(set(range(n)) - kept_messages)
 
-        if remaining_discarded_messages > 0:
-            remaining_discarded_messages -= 1
-        else:
-            messages_without_discarded.append(message)
-
-    return messages_without_discarded, discarded_messages
+    return new_messages, discarded_messages

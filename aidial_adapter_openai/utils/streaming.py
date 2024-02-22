@@ -44,7 +44,7 @@ async def generate_stream(
     stream: AsyncIterator[dict],
     tokenizer: Tokenizer,
     deployment: str,
-    discarded_messages: Optional[int],
+    discarded_messages: Optional[list[int]],
 ) -> AsyncIterator[dict]:
     last_chunk = None
     stream_finished = False
