@@ -128,10 +128,10 @@ async def chat_completion(deployment_id: str, request: Request):
         )
     )
 
-    if is_stream:
-        if isinstance(response, Response):
-            return response
+    if isinstance(response, Response):
+        return response
 
+    if is_stream:
         prompt_tokens = tokenizer.calculate_prompt_tokens(data["messages"])
         chunk_stream = map_stream(lambda obj: obj.to_dict_recursive(), response)
         return StreamingResponse(
@@ -149,12 +149,9 @@ async def chat_completion(deployment_id: str, request: Request):
     else:
         if discarded_messages is not None:
             assert type(response) == OpenAIObject
-
-            response_with_statistics = response.to_dict() | {
+            response = response.to_dict() | {
                 "statistics": {"discarded_messages": discarded_messages}
             }
-
-            return response_with_statistics
 
         return response
 
