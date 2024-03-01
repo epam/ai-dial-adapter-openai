@@ -122,4 +122,6 @@ def test_discarded_messages(
             discard_messages(tokenizer, messages, max_prompt_tokens) == response
         )
     except HTTPException as e:
+        assert e.status_code == 400
+        assert e.type == "invalid_request_error"
         assert e.message == response
