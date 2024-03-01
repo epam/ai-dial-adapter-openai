@@ -63,7 +63,9 @@ def discard_messages(
 
     if max_prompt_tokens < prompt_tokens:
         raise HTTPException(
-            message=f"The token size of system messages ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})"
+            message=f"The token size of system messages ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})",
+            status_code=400,
+            type="invalid_request_error",
         )
 
     # Then non-system messages in the reverse order
