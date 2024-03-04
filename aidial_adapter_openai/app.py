@@ -15,6 +15,7 @@ from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
 from aidial_adapter_openai.openai_override import OpenAIException
+from aidial_adapter_openai.utils.auth import get_api_key
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
@@ -63,7 +64,10 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
 
-    api_key = request.headers["X-UPSTREAM-KEY"]
+    api_key = request.headers.get("X-UPSTREAM-KEY")
+    if api_key is None:
+        api_key = await get_api_key()
+
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     if deployment_id in dalle3_deployments:
