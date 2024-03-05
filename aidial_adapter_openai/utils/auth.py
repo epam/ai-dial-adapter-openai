@@ -3,6 +3,9 @@ from typing import Mapping, Optional
 
 from azure.core.credentials import AccessToken
 from azure.identity import DefaultAzureCredential
+from fastapi import Request
+from openai import util
+from openai.util import ApiType
 from pydantic import BaseModel
 
 default_credential = DefaultAzureCredential()
@@ -19,6 +22,19 @@ async def get_api_key():
             "https://cognitiveservices.azure.com/.default"
         )
     return access_token.token
+
+
+async def get_credentials(request: Request):
+    api_key = request.headers.get("X-UPSTREAM-KEY")
+    api_type = "azure"
+    if api_key is None:
+        api_key = await get_api_key()
+        api_type = "azure_ad"
+    return api_type, api_key
+
+
+def get_auth_header(api_type: str, api_key: str):
+    return util.api_key_to_header(ApiType.from_str(api_type), api_key)
 
 
 class Auth(BaseModel):
