@@ -65,8 +65,10 @@ async def chat_completion(deployment_id: str, request: Request):
     is_stream = data.get("stream", False)
 
     api_key = request.headers.get("X-UPSTREAM-KEY")
+    api_type = "azure"
     if api_key is None:
         api_key = await get_api_key()
+        api_type = "azure_ad"
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
@@ -125,7 +127,7 @@ async def chat_completion(deployment_id: str, request: Request):
             engine=upstream_deployment,
             api_key=api_key,
             api_base=api_base,
-            api_type="azure",
+            api_type=api_type,
             api_version=api_version,
             request_timeout=(10, 600),  # connect timeout and total timeout
             **data,
