@@ -14,7 +14,7 @@ access_token: AccessToken | None = None
 EXPIRATION_WINDOW_IN_SEC = 10
 
 
-async def get_api_key():
+async def get_api_key() -> str:
     now = int(time.time()) - EXPIRATION_WINDOW_IN_SEC
     global access_token
     if access_token is None or now > access_token.expires_on:
@@ -24,7 +24,7 @@ async def get_api_key():
     return access_token.token
 
 
-async def get_credentials(request: Request):
+async def get_credentials(request: Request) -> tuple[str, str]:
     api_key = request.headers.get("X-UPSTREAM-KEY")
     api_type = "azure"
     if api_key is None:
@@ -33,7 +33,7 @@ async def get_credentials(request: Request):
     return api_type, api_key
 
 
-def get_auth_header(api_type: str, api_key: str):
+def get_auth_header(api_type: str, api_key: str) -> dict[str, str]:
     return util.api_key_to_header(ApiType.from_str(api_type), api_key)
 
 
