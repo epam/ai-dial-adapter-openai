@@ -15,6 +15,7 @@ from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
 from aidial_adapter_openai.openai_override import OpenAIException
+from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
@@ -63,18 +64,25 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
 
-    api_key = request.headers["X-UPSTREAM-KEY"]
+    api_type, api_key = await get_credentials(request)
+
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     if deployment_id in dalle3_deployments:
         storage = create_file_storage("images", request.headers)
         return await dalle3_chat_completion(
-            data, upstream_endpoint, api_key, is_stream, storage
+            data, upstream_endpoint, api_key, is_stream, storage, api_type
         )
     elif deployment_id in gpt4_vision_deployments:
         storage = create_file_storage("images", request.headers)
         return await gpt4_vision_chat_completion(
-            data, deployment_id, upstream_endpoint, api_key, is_stream, storage
+            data,
+            deployment_id,
+            upstream_endpoint,
+            api_key,
+            is_stream,
+            storage,
+            api_type,
         )
 
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
@@ -121,7 +129,7 @@ async def chat_completion(deployment_id: str, request: Request):
             engine=upstream_deployment,
             api_key=api_key,
             api_base=api_base,
-            api_type="azure",
+            api_type=api_type,
             api_version=api_version,
             request_timeout=(10, 600),  # connect timeout and total timeout
             **data,
@@ -160,7 +168,7 @@ async def chat_completion(deployment_id: str, request: Request):
 async def embedding(deployment_id: str, request: Request):
     data = await parse_body(request)
 
-    api_key = request.headers["X-UPSTREAM-KEY"]
+    api_type, api_key = await get_credentials(request)
     api_base, upstream_deployment = parse_upstream(
         request.headers["X-UPSTREAM-ENDPOINT"], ApiType.EMBEDDING
     )
@@ -170,7 +178,7 @@ async def embedding(deployment_id: str, request: Request):
             deployment_id=upstream_deployment,
             api_key=api_key,
             api_base=api_base,
-            api_type="azure",
+            api_type=api_type,
             api_version=azure_api_version,
             request_timeout=(10, 600),  # connect timeout and total timeout
             **data,
