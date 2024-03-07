@@ -14,3 +14,14 @@ license_choices:
   repository_license_choices:
   - given: FTL OR GPL-2.0-or-later
     choice: FTL
+resolutions:
+  rule_violations:
+    - message: "No license information is available for dependency \
+        'PyPI::numpy:1.26.0"
+      reason: 'CANT_FIX_EXCEPTION'
+      comment: 'The dependency has BSD 3-Clause in github repo'
+  rule_violations:
+    - message: "No license information is available for dependency \
+        'PyPI::tiktoken:0.5.1"
+      reason: 'CANT_FIX_EXCEPTION'
+      comment: 'The dependency has MIT license in github repo'
