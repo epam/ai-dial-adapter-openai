@@ -267,6 +267,7 @@ async def chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_type: str,
+    api_version,
 ) -> Response:
     if request.get("n", 1) > 1:
         raise HTTPException(
@@ -283,7 +284,7 @@ async def chat_completion(
             type="invalid_request_error",
         )
 
-    api_url = upstream_endpoint + "?api-version=2023-12-01-preview"
+    api_url = upstream_endpoint + f"?api-version={api_version}"
 
     result = await transform_messages(file_storage, messages)
 
