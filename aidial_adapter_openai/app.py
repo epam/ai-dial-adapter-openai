@@ -24,24 +24,22 @@ from aidial_adapter_openai.utils.parsers import (
     parse_deployment_list,
     parse_upstream,
 )
-from aidial_adapter_openai.utils.request_classifier import (
-    does_request_use_functions_or_tools,
-)
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.streaming import generate_stream, map_stream
 from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
-from aidial_adapter_openai.utils.versions import compare_versions
 
 logging.config.dictConfig(LogConfig().dict())
 app = FastAPI()
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
-azure_api_version = os.getenv("AZURE_API_VERSION", "2023-03-15-preview")
 dalle3_deployments = parse_deployment_list(
     os.getenv("DALLE3_DEPLOYMENTS") or ""
 )
 gpt4_vision_deployments = parse_deployment_list(
     os.getenv("GPT4_VISION_DEPLOYMENTS") or ""
+)
+api_versions_mapping: Dict[str, str] = json.loads(
+    os.getenv("API_VERSIONS_MAPPING", "{}")
 )
 
 
@@ -58,6 +56,20 @@ async def handle_exceptions(call):
         )
 
 
+def get_api_version(request: Request):
+    api_version = request.query_params.get("api-version", "")
+    api_version = api_versions_mapping.get(api_version, api_version)
+
+    if api_version == "":
+        raise HTTPException(
+            "Api version is a required query parameter",
+            400,
+            "invalid_request_error",
+        )
+
+    return api_version
+
+
 @app.post("/openai/deployments/{deployment_id}/chat/completions")
 async def chat_completion(deployment_id: str, request: Request):
     data = await parse_body(request)
@@ -67,11 +79,18 @@ async def chat_completion(deployment_id: str, request: Request):
     api_type, api_key = await get_credentials(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+    api_version = get_api_version(request)
 
     if deployment_id in dalle3_deployments:
         storage = create_file_storage("images", request.headers)
         return await dalle3_chat_completion(
-            data, upstream_endpoint, api_key, is_stream, storage, api_type
+            data,
+            upstream_endpoint,
+            api_key,
+            is_stream,
+            storage,
+            api_type,
+            api_version,
         )
     elif deployment_id in gpt4_vision_deployments:
         storage = create_file_storage("images", request.headers)
@@ -83,6 +102,7 @@ async def chat_completion(deployment_id: str, request: Request):
             is_stream,
             storage,
             api_type,
+            api_version,
         )
 
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
@@ -91,17 +111,6 @@ async def chat_completion(deployment_id: str, request: Request):
     api_base, upstream_deployment = parse_upstream(
         upstream_endpoint, ApiType.CHAT_COMPLETION
     )
-
-    api_version = azure_api_version
-
-    if does_request_use_functions_or_tools(data):
-        request_api_version = request.query_params.get("api-version")
-
-        if request_api_version is not None:
-            # 2023-07-01-preview is the first azure api version that supports functions
-            compare_result = compare_versions(request_api_version, "2023-07-01")
-            if compare_result == 0 or compare_result == 1:
-                api_version = request_api_version
 
     discarded_messages = None
     if "max_prompt_tokens" in data:
@@ -172,6 +181,7 @@ async def embedding(deployment_id: str, request: Request):
     api_base, upstream_deployment = parse_upstream(
         request.headers["X-UPSTREAM-ENDPOINT"], ApiType.EMBEDDING
     )
+    api_version = get_api_version(request)
 
     return await handle_exceptions(
         Embedding().acreate(
@@ -179,7 +189,7 @@ async def embedding(deployment_id: str, request: Request):
             api_key=api_key,
             api_base=api_base,
             api_type=api_type,
-            api_version=azure_api_version,
+            api_version=api_version,
             request_timeout=(10, 600),  # connect timeout and total timeout
             **data,
         )

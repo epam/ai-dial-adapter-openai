@@ -10,7 +10,7 @@ from aidial_adapter_openai.app import app
 @pytest.mark.asyncio
 async def test_streaming(aioresponses: aioresponses):
     aioresponses.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15",
         status=200,
         body="data: "
         + json.dumps(

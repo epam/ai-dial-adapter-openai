@@ -50,7 +50,7 @@ async def test_error_during_streaming(aioresponses: aioresponses):
     test_app = AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions",
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={
             "messages": [{"role": "user", "content": "Test content"}],
             "stream": True,
@@ -94,7 +94,7 @@ async def test_incorrect_upstream_url(aioresponses: aioresponses):
     test_app = AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions",
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={"messages": [{"role": "user", "content": "Test content"}]},
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
@@ -123,7 +123,7 @@ async def test_incorrect_format(aioresponses: aioresponses):
     test_app = AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions",
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={"messages": [{"role": "user", "content": "Test content"}]},
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
@@ -156,7 +156,7 @@ async def test_incorrect_streaming_request(aioresponses: aioresponses):
     test_app = AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions",
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={
             "messages": [{"role": "user", "content": "Test content"}],
             "stream": True,
