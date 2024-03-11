@@ -127,7 +127,7 @@ async def chat_completion(
             type="invalid_request_error",
         )
 
-    api_url = upstream_endpoint + f"?api-version={api_version}"
+    api_url = f"{upstream_endpoint}?api-version={api_version}"
     user_prompt = get_user_prompt(data)
     model_response = await generate_image(
         api_url, api_key, user_prompt, api_type

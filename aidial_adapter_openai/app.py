@@ -59,11 +59,7 @@ async def handle_exceptions(call):
 def get_api_version(request: Request):
     api_version = request.query_params.get("api-version", "")
 
-    return (
-        api_versions_mapping[api_version]
-        if api_version in api_versions_mapping
-        else api_version
-    )
+    return api_versions_mapping.get(api_version, api_version)
 
 
 @app.post("/openai/deployments/{deployment_id}/chat/completions")
@@ -192,9 +188,6 @@ async def embedding(deployment_id: str, request: Request):
             400,
             "invalid_request_error",
         )
-
-    if api_version in api_versions_mapping:
-        api_version = api_versions_mapping[api_version]
 
     return await handle_exceptions(
         Embedding().acreate(
