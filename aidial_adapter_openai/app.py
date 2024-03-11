@@ -58,8 +58,16 @@ async def handle_exceptions(call):
 
 def get_api_version(request: Request):
     api_version = request.query_params.get("api-version", "")
+    api_version = api_versions_mapping.get(api_version, api_version)
 
-    return api_versions_mapping.get(api_version, api_version)
+    if api_version == "":
+        raise HTTPException(
+            "Api version is a required query parameter",
+            400,
+            "invalid_request_error",
+        )
+
+    return api_version
 
 
 @app.post("/openai/deployments/{deployment_id}/chat/completions")
@@ -72,13 +80,6 @@ async def chat_completion(deployment_id: str, request: Request):
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
     api_version = get_api_version(request)
-
-    if api_version == "":
-        raise HTTPException(
-            "Api version is a required query parameter",
-            400,
-            "invalid_request_error",
-        )
 
     if deployment_id in dalle3_deployments:
         storage = create_file_storage("images", request.headers)
@@ -181,13 +182,6 @@ async def embedding(deployment_id: str, request: Request):
         request.headers["X-UPSTREAM-ENDPOINT"], ApiType.EMBEDDING
     )
     api_version = get_api_version(request)
-
-    if api_version == "":
-        raise HTTPException(
-            "Api version is a required query parameter",
-            400,
-            "invalid_request_error",
-        )
 
     return await handle_exceptions(
         Embedding().acreate(
