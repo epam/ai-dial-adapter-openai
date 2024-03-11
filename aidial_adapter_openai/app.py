@@ -79,7 +79,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     if api_version == "":
         raise HTTPException(
-            f"Api version is a required query parameter",
+            "Api version is a required query parameter",
             400,
             "invalid_request_error",
         )
@@ -188,7 +188,7 @@ async def embedding(deployment_id: str, request: Request):
 
     if api_version == "":
         raise HTTPException(
-            f"Api version is a required query parameter",
+            "Api version is a required query parameter",
             400,
             "invalid_request_error",
         )
