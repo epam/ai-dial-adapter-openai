@@ -77,6 +77,13 @@ async def chat_completion(deployment_id: str, request: Request):
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
     api_version = get_api_version(request)
 
+    if api_version == "":
+        raise HTTPException(
+            f"Api version is a required query parameter",
+            400,
+            "invalid_request_error",
+        )
+
     if deployment_id in dalle3_deployments:
         storage = create_file_storage("images", request.headers)
         return await dalle3_chat_completion(
@@ -178,6 +185,13 @@ async def embedding(deployment_id: str, request: Request):
         request.headers["X-UPSTREAM-ENDPOINT"], ApiType.EMBEDDING
     )
     api_version = get_api_version(request)
+
+    if api_version == "":
+        raise HTTPException(
+            f"Api version is a required query parameter",
+            400,
+            "invalid_request_error",
+        )
 
     if api_version in api_versions_mapping:
         api_version = api_versions_mapping[api_version]
