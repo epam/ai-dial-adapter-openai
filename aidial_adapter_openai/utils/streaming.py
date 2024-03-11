@@ -51,23 +51,26 @@ async def generate_stream(
     try:
         total_content = ""
         async for chunk in stream:
-            choice = chunk["choices"][0]
+            if len(chunk["choices"]) > 0:
+                choice = chunk["choices"][0]
 
-            if choice["finish_reason"] is not None:
-                stream_finished = True
-                completion_tokens = tokenizer.calculate_tokens(total_content)
-                chunk["usage"] = {
-                    "completion_tokens": completion_tokens,
-                    "prompt_tokens": prompt_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens,
-                }
-                if discarded_messages is not None:
-                    chunk["statistics"] = {
-                        "discarded_messages": discarded_messages
+                if choice["finish_reason"] is not None:
+                    stream_finished = True
+                    completion_tokens = tokenizer.calculate_tokens(
+                        total_content
+                    )
+                    chunk["usage"] = {
+                        "completion_tokens": completion_tokens,
+                        "prompt_tokens": prompt_tokens,
+                        "total_tokens": prompt_tokens + completion_tokens,
                     }
-            else:
-                content = choice["delta"].get("content") or ""
-                total_content += content
+                    if discarded_messages is not None:
+                        chunk["statistics"] = {
+                            "discarded_messages": discarded_messages
+                        }
+                else:
+                    content = choice["delta"].get("content") or ""
+                    total_content += content
 
             last_chunk = chunk
             yield chunk
