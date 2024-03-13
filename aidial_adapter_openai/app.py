@@ -41,6 +41,7 @@ gpt4_vision_deployments = parse_deployment_list(
 api_versions_mapping: Dict[str, str] = json.loads(
     os.getenv("API_VERSIONS_MAPPING", "{}")
 )
+dalle3_azure_api_version = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
 
 
 async def handle_exceptions(call):
@@ -79,7 +80,6 @@ async def chat_completion(deployment_id: str, request: Request):
     api_type, api_key = await get_credentials(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
-    api_version = get_api_version(request)
 
     if deployment_id in dalle3_deployments:
         storage = create_file_storage("images", request.headers)
@@ -90,9 +90,12 @@ async def chat_completion(deployment_id: str, request: Request):
             is_stream,
             storage,
             api_type,
-            api_version,
+            dalle3_azure_api_version,
         )
-    elif deployment_id in gpt4_vision_deployments:
+
+    api_version = get_api_version(request)
+
+    if deployment_id in gpt4_vision_deployments:
         storage = create_file_storage("images", request.headers)
         return await gpt4_vision_chat_completion(
             data,
