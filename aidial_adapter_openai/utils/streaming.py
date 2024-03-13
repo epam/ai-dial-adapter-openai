@@ -2,12 +2,18 @@ from time import time
 from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
 
+from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.openai_override import OpenAIException
+from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
 from aidial_adapter_openai.utils.tokens import Tokenizer
+
+fix_streaming_issues_in_new_api_versions = get_env_bool(
+    "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS", False
+)
 
 
 def generate_id():
@@ -46,12 +52,17 @@ async def generate_stream(
     deployment: str,
     discarded_messages: Optional[list[int]],
 ) -> AsyncIterator[dict]:
-    last_chunk = None
+    last_chunk, temp_chunk = None, None
     stream_finished = False
+
     try:
         total_content = ""
         async for chunk in stream:
             if len(chunk["choices"]) > 0:
+                if temp_chunk != None:
+                    chunk = merge(temp_chunk, chunk)
+                    temp_chunk = None
+
                 choice = chunk["choices"][0]
 
                 if choice["finish_reason"] is not None:
@@ -72,8 +83,14 @@ async def generate_stream(
                     content = choice["delta"].get("content") or ""
                     total_content += content
 
+                yield chunk
+            else:
+                if fix_streaming_issues_in_new_api_versions:
+                    temp_chunk = chunk
+                else:
+                    yield chunk
+
             last_chunk = chunk
-            yield chunk
     except OpenAIException as e:
         yield e.body
         return
