@@ -59,7 +59,7 @@ async def generate_stream(
         total_content = ""
         async for chunk in stream:
             if len(chunk["choices"]) > 0:
-                if temp_chunk != None:
+                if temp_chunk is not None:
                     chunk = merge(temp_chunk, chunk)
                     temp_chunk = None
 
