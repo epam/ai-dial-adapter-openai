@@ -22,7 +22,6 @@ env_files = [".env"]
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 fastapi = "0.109.2"
-openai = "0.28.1"
 tiktoken = "0.5.1"
 uvicorn = "0.23"
 wrapt = "^1.15.0"
@@ -31,6 +30,7 @@ numpy = "^1.26.0" # need for openai embeddings
 pillow = "^10.2.0"
 azure-identity = "^1.15.0"
 aidial-sdk = "^0.7.0"
+openai = "^1.13.3"
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"

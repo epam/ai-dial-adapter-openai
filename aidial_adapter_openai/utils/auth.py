@@ -6,8 +6,6 @@ from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity import DefaultAzureCredential
 from fastapi import Request
-from openai import util
-from openai.util import ApiType
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
@@ -49,7 +47,10 @@ async def get_credentials(request: Request) -> tuple[str, str]:
 
 
 def get_auth_header(api_type: str, api_key: str) -> dict[str, str]:
-    return util.api_key_to_header(ApiType.from_str(api_type), api_key)
+    if api_type == "azure":
+        return {"Api-Key": api_key}
+    else:
+        return {"Authorization": f"Bearer {api_key}"}
 
 
 class Auth(BaseModel):

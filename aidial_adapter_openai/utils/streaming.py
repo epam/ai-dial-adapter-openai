@@ -5,7 +5,7 @@ from uuid import uuid4
 from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from aidial_adapter_openai.openai_override import OpenAIException
+# from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
@@ -55,45 +55,43 @@ async def generate_stream(
     last_chunk, temp_chunk = None, None
     stream_finished = False
 
-    try:
-        total_content = ""
-        async for chunk in stream:
-            if len(chunk["choices"]) > 0:
-                if temp_chunk is not None:
-                    chunk = merge(temp_chunk, chunk)
-                    temp_chunk = None
+    # try:
+    total_content = ""
+    async for chunk in stream:
+        if len(chunk["choices"]) > 0:
+            if temp_chunk is not None:
+                chunk = merge(temp_chunk, chunk)
+                temp_chunk = None
 
-                choice = chunk["choices"][0]
+            choice = chunk["choices"][0]
 
-                if choice["finish_reason"] is not None:
-                    stream_finished = True
-                    completion_tokens = tokenizer.calculate_tokens(
-                        total_content
-                    )
-                    chunk["usage"] = {
-                        "completion_tokens": completion_tokens,
-                        "prompt_tokens": prompt_tokens,
-                        "total_tokens": prompt_tokens + completion_tokens,
+            if choice["finish_reason"] is not None:
+                stream_finished = True
+                completion_tokens = tokenizer.calculate_tokens(total_content)
+                chunk["usage"] = {
+                    "completion_tokens": completion_tokens,
+                    "prompt_tokens": prompt_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
+                }
+                if discarded_messages is not None:
+                    chunk["statistics"] = {
+                        "discarded_messages": discarded_messages
                     }
-                    if discarded_messages is not None:
-                        chunk["statistics"] = {
-                            "discarded_messages": discarded_messages
-                        }
-                else:
-                    content = choice["delta"].get("content") or ""
-                    total_content += content
-
-                yield chunk
             else:
-                if fix_streaming_issues_in_new_api_versions:
-                    temp_chunk = chunk
-                else:
-                    yield chunk
+                content = choice["delta"].get("content") or ""
+                total_content += content
 
-            last_chunk = chunk
-    except OpenAIException as e:
-        yield e.body
-        return
+            yield chunk
+        else:
+            if fix_streaming_issues_in_new_api_versions:
+                temp_chunk = chunk
+            else:
+                yield chunk
+
+        last_chunk = chunk
+    # except OpenAIException as e:
+    #     yield e.body
+    #     return
 
     if not stream_finished:
         if last_chunk is not None:

@@ -3,10 +3,15 @@ import logging.config
 import os
 from typing import Dict
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from openai import ChatCompletion, Embedding, error
-from openai.openai_object import OpenAIObject
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncAzureOpenAI,
+)
 
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
@@ -14,7 +19,6 @@ from aidial_adapter_openai.dalle3 import (
 from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
-from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
@@ -47,11 +51,15 @@ dalle3_azure_api_version = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
 async def handle_exceptions(call):
     try:
         return await call
-    except OpenAIException as e:
-        return Response(status_code=e.code, headers=e.headers, content=e.body)
-    except error.Timeout:
+    except APIStatusError as e:
+        return Response(
+            status_code=e.status_code,
+            headers=e.response.headers,
+            content=e.response.content,
+        )
+    except APITimeoutError:
         raise HTTPException("Request timed out", 504, "timeout")
-    except error.APIConnectionError:
+    except APIConnectionError:
         raise HTTPException(
             "Error communicating with OpenAI", 502, "connection"
         )
@@ -136,15 +144,20 @@ async def chat_completion(deployment_id: str, request: Request):
             tokenizer, data["messages"], max_prompt_tokens
         )
 
+    if "model" in data:
+        del data["model"]
+
     response = await handle_exceptions(
-        ChatCompletion().acreate(
-            engine=upstream_deployment,
-            api_key=api_key,
-            api_base=api_base,
-            api_type=api_type,
+        AsyncAzureOpenAI(
             api_version=api_version,
-            request_timeout=(10, 600),  # connect timeout and total timeout
-            **data,
+            azure_endpoint=api_base,
+            api_key=api_key,
+            timeout=httpx.Timeout(timeout=300, connect=10),
+            max_retries=0,
+        ).chat.completions.create(
+            model=upstream_deployment,
+            messages=[],
+            extra_body=data,
         )
     )
 
@@ -153,7 +166,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     if is_stream:
         prompt_tokens = tokenizer.calculate_prompt_tokens(data["messages"])
-        chunk_stream = map_stream(lambda obj: obj.to_dict_recursive(), response)
+        chunk_stream = map_stream(lambda obj: obj.dict(), response)
         return StreamingResponse(
             to_openai_sse_stream(
                 generate_stream(
@@ -187,14 +200,16 @@ async def embedding(deployment_id: str, request: Request):
     api_version = get_api_version(request)
 
     return await handle_exceptions(
-        Embedding().acreate(
-            deployment_id=upstream_deployment,
-            api_key=api_key,
-            api_base=api_base,
-            api_type=api_type,
+        AsyncAzureOpenAI(
             api_version=api_version,
-            request_timeout=(10, 600),  # connect timeout and total timeout
-            **data,
+            azure_endpoint=api_base,
+            api_key=api_key,
+            timeout=httpx.Timeout(timeout=300, connect=10),
+            max_retries=0,
+        ).embeddings.create(
+            model=upstream_deployment,
+            input=[],
+            extra_body=data,
         )
     )
 
