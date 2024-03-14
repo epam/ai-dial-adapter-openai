@@ -5,7 +5,6 @@ from uuid import uuid4
 from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-# from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
@@ -55,7 +54,6 @@ async def generate_stream(
     last_chunk, temp_chunk = None, None
     stream_finished = False
 
-    # try:
     total_content = ""
     async for chunk in stream:
         if len(chunk["choices"]) > 0:
@@ -89,9 +87,6 @@ async def generate_stream(
                 yield chunk
 
         last_chunk = chunk
-    # except OpenAIException as e:
-    #     yield e.body
-    #     return
 
     if not stream_finished:
         if last_chunk is not None:

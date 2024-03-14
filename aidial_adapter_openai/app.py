@@ -12,6 +12,7 @@ from openai import (
     APITimeoutError,
     AsyncAzureOpenAI,
 )
+from openai.types.chat import ChatCompletion
 
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
@@ -147,16 +148,23 @@ async def chat_completion(deployment_id: str, request: Request):
     if "model" in data:
         del data["model"]
 
+    authorization = (
+        {"api_key": api_key}
+        if api_type == "azure"
+        else {"azure_ad_token": api_key}
+    )
+
     response = await handle_exceptions(
         AsyncAzureOpenAI(
             api_version=api_version,
             azure_endpoint=api_base,
-            api_key=api_key,
-            timeout=httpx.Timeout(timeout=300, connect=10),
+            timeout=httpx.Timeout(timeout=600, connect=10),
             max_retries=0,
+            **authorization,
         ).chat.completions.create(
             model=upstream_deployment,
             messages=[],
+            stream=data.get("stream", False),
             extra_body=data,
         )
     )
@@ -181,8 +189,8 @@ async def chat_completion(deployment_id: str, request: Request):
         )
     else:
         if discarded_messages is not None:
-            assert type(response) == OpenAIObject
-            response = response.to_dict() | {
+            assert type(response) == ChatCompletion
+            response = response.dict() | {
                 "statistics": {"discarded_messages": discarded_messages}
             }
 
@@ -199,13 +207,19 @@ async def embedding(deployment_id: str, request: Request):
     )
     api_version = get_api_version(request)
 
+    authorization = (
+        {"api_key": api_key}
+        if api_type == "azure"
+        else {"azure_ad_token": api_key}
+    )
+
     return await handle_exceptions(
         AsyncAzureOpenAI(
             api_version=api_version,
             azure_endpoint=api_base,
-            api_key=api_key,
-            timeout=httpx.Timeout(timeout=300, connect=10),
+            timeout=httpx.Timeout(timeout=600, connect=10),
             max_retries=0,
+            **authorization,
         ).embeddings.create(
             model=upstream_deployment,
             input=[],
