@@ -14,6 +14,9 @@ from aidial_adapter_openai.dalle3 import (
 from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
+from aidial_adapter_openai.mistral import (
+    chat_completion as mistral_chat_completion,
+)
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.exceptions import HTTPException
@@ -37,6 +40,9 @@ dalle3_deployments = parse_deployment_list(
 )
 gpt4_vision_deployments = parse_deployment_list(
     os.getenv("GPT4_VISION_DEPLOYMENTS") or ""
+)
+mistral_deployments = parse_deployment_list(
+    os.getenv("MISTRAL_DEPLOYMENTS") or ""
 )
 api_versions_mapping: Dict[str, str] = json.loads(
     os.getenv("API_VERSIONS_MAPPING", "{}")
@@ -91,6 +97,10 @@ async def chat_completion(deployment_id: str, request: Request):
             storage,
             api_type,
             dalle3_azure_api_version,
+        )
+    elif deployment_id in mistral_deployments:
+        return await handle_exceptions(
+            mistral_chat_completion(data, upstream_endpoint, api_key, is_stream)
         )
 
     api_version = get_api_version(request)

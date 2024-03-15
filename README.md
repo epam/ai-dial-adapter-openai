@@ -67,6 +67,7 @@ Copy `.env.example` to `.env` and customize it for your environment:
 |DALLE3_AZURE_API_VERSION|2024-02-01|The version API for requests to Azure DALL-E-3 API|
 |FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS|False|Fixes issue with receiving the first chunk with an empty list of choices|
 |CORE_API_VERSION||Supported value `0.6` to work with the old version of the file api|
+|MISTRAL_DEPLOYMENTS|``|Comma-separated list of deployments that support Mistral Large Azure API. Example: `mistral-large-azure,mistral-large`|
 
 ### Docker
 
