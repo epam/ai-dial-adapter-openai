@@ -2,6 +2,7 @@ import base64
 import hashlib
 import io
 import mimetypes
+import os
 from typing import Mapping, Optional, TypedDict
 from urllib.parse import urljoin
 
@@ -10,6 +11,8 @@ import aiohttp
 from aidial_adapter_openai.utils.auth import Auth
 from aidial_adapter_openai.utils.env import get_env, get_env_bool
 from aidial_adapter_openai.utils.log_config import logger as log
+
+core_api_version = os.environ.get("CORE_API_VERSION", None)
 
 
 class FileMetadata(TypedDict):
@@ -91,7 +94,11 @@ class FileStorage:
         return await self.upload(filename, content_type, content)
 
     def attachment_link_to_url(self, link: str) -> str:
-        base_url = f"{self.dial_url}/v1/"
+        if core_api_version == "0.6":
+            base_url = f"{self.dial_url}/v1/files/"
+        else:
+            base_url = f"{self.dial_url}/v1/"
+
         return urljoin(base_url, link)
 
     async def download_file_as_base64(self, url: str) -> str:
