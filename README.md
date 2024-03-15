@@ -66,6 +66,7 @@ Copy `.env.example` to `.env` and customize it for your environment:
 |API_VERSIONS_MAPPING|`{}`|The mapping of versions API for requests to Azure OpenAI API. Example: `{"2023-03-15-preview": "2023-05-15", "": "2024-02-15-preview"}`. An empty key sets the default api version for the case when the user didn't pass it in the request|
 |DALLE3_AZURE_API_VERSION|2024-02-01|The version API for requests to Azure DALL-E-3 API|
 |FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS|False|Fixes issue with receiving the first chunk with an empty list of choices|
+|CORE_API_VERSION||Supported value `0.6` to work with the old version of the file api|
 
 ### Docker
 
