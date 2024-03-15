@@ -1,13 +1,13 @@
 from typing import Any, AsyncIterator
 
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from openai import ChatCompletion
 
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
 
 
 async def generate_stream(
-    stream: AsyncIterator[dict],
+    stream,
 ) -> AsyncIterator[str]:
     async for chunk in stream:
         yield format_chunk(chunk.to_dict_recursive())
@@ -19,7 +19,7 @@ async def chat_completion(
     upstream_endpoint: str,
     api_key: str,
     is_stream: bool,
-) -> Response:
+):
     response = await ChatCompletion().acreate(
         model="azureai",
         api_key="-",
@@ -29,9 +29,9 @@ async def chat_completion(
         **data,
     )
 
-    if is_stream == False:
-        return response
-    else:
+    if is_stream:
         return StreamingResponse(
             generate_stream(response), media_type="text/event-stream"
         )
+    else:
+        return response
