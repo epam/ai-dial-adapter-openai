@@ -20,6 +20,9 @@ async def chat_completion(
     api_key: str,
     is_stream: bool,
 ):
+    if "model" in data:
+        del data["model"]
+
     response = await ChatCompletion().acreate(
         model="azureai",
         api_key="-",
