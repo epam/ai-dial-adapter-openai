@@ -25,10 +25,9 @@ async def chat_completion(
 
     response = await ChatCompletion().acreate(
         model="azureai",
-        api_key="-",
+        api_key=api_key,
         api_base=upstream_endpoint,
         request_timeout=(10, 600),  # connect timeout and total timeout
-        headers={"Authorization": f"Bearer {api_key}"},
         **data,
     )
 
