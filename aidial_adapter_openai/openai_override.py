@@ -7,6 +7,7 @@ We want to retranslate the original HTTP errors to the user.
 So the standard error handlers in the openai.api_requestor.APIRequestor class
 are rewritten to wrap the original HTTP errors into OpenAIException and raise it.
 """
+
 import json
 from json import JSONDecodeError
 
