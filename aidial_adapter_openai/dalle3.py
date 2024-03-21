@@ -14,8 +14,8 @@ from aidial_adapter_openai.utils.streaming import (
 )
 
 IMG_USAGE = {
-    "completion_tokens": 0,
-    "prompt_tokens": 1,
+    "prompt_tokens": 0,
+    "completion_tokens": 1,
     "total_tokens": 1,
 }
 
