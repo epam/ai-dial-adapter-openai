@@ -28,7 +28,7 @@ uvicorn = "0.23"
 wrapt = "^1.15.0"
 pydantic = "^1.10.12"
 numpy = "^1.26.0" # need for openai embeddings
-pillow = "^10.2.0"
+pillow = "^10.3.0"
 azure-identity = "^1.15.0"
 aidial-sdk = "^0.7.0"
 
