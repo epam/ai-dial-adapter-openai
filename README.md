@@ -68,7 +68,7 @@ Copy `.env.example` to `.env` and customize it for your environment:
 |FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS|False|Fixes issue with receiving the first chunk with an empty list of choices|
 |CORE_API_VERSION||Supported value `0.6` to work with the old version of the file api|
 |MISTRAL_DEPLOYMENTS|``|Comma-separated list of deployments that support Mistral Large Azure API. Example: `mistral-large-azure,mistral-large`|
-|DATABRICKS_DEPLOYMENTS|``|Comma-separated list of deployments that support DataBricks API. Example: `databricks-dbrx-instruct`|
+|DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
 
 ### Docker
 
