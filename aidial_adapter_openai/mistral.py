@@ -3,6 +3,7 @@ from typing import Any, AsyncIterator
 from fastapi.responses import StreamingResponse
 from openai import ChatCompletion
 
+from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
 
 
@@ -25,7 +26,7 @@ async def chat_completion(
     response = await ChatCompletion().acreate(
         api_key=api_key,
         api_base=upstream_endpoint,
-        request_timeout=(10, 600),  # connect timeout and total timeout
+        request_timeout=DEFAULT_TIMEOUT,
         **data,
     )
 

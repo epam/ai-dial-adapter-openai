@@ -1,33 +1,72 @@
 import re
-from enum import Enum
+from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import Any, Dict, List
 
 from fastapi import Request
+from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
 
 
-class ApiType(Enum):
-    CHAT_COMPLETION = r"(.+?)/openai/deployments/(.+?)/chat/completions"
-    EMBEDDING = r"(.+?)/openai/deployments/(.+?)/embeddings"
+class Endpoint(ABC):
+    @abstractmethod
+    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
+        pass
 
-    def pattern(self):
-        return self.value
+    @abstractmethod
+    def get_api_type(self) -> str:
+        pass
 
 
-def parse_upstream(
-    api_endpoint: str,
-    api_type: ApiType,
-) -> tuple[str, str]:
-    match = re.search(api_type.pattern(), api_endpoint)
+class AzureOpenAIEndpoint(BaseModel):
+    api_base: str
+    deployment_id: str
 
-    if not match:
-        raise HTTPException(
-            "Invalid upstream endpoint format", 400, "invalid_request_error"
+    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
+        return {"api_base": self.api_base, "engine": self.deployment_id}
+
+    def get_api_type(self) -> str:
+        return "azure"
+
+
+class OpenAIEndpoint(BaseModel):
+    api_base: str
+
+    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
+        return {"api_base": self.api_base, "model": deployment_id}
+
+    def get_api_type(self) -> str:
+        return "open_ai"
+
+
+class EndpointParser(BaseModel):
+    name: str
+
+    def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
+        match = re.search(
+            f"(.+?)/openai/deployments/(.+?)/{self.name}", endpoint
         )
 
-    return match[1], match[2]
+        if match:
+            return AzureOpenAIEndpoint(
+                api_base=match[1], deployment_id=match[2]
+            )
+
+        match = re.search(f"(.+?)/{self.name}", endpoint)
+
+        if match:
+            return OpenAIEndpoint(api_base=match[1])
+
+        raise HTTPException(
+            f"Invalid upstream endpoint format {endpoint}",
+            400,
+            "invalid_request_error",
+        )
+
+
+chat_completions_parser = EndpointParser(name="chat/completions")
+embeddings_parser = EndpointParser(name="embeddings")
 
 
 async def parse_body(

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.parsers import EndpointParser
 
 default_credential = DefaultAzureCredential()
 access_token: AccessToken | None = None
@@ -40,12 +41,17 @@ async def get_api_key() -> str:
     return access_token.token
 
 
-async def get_credentials(request: Request) -> tuple[str, str]:
+async def get_credentials(
+    request: Request, parser: EndpointParser
+) -> tuple[str, str]:
     api_key = request.headers.get("X-UPSTREAM-KEY")
     if api_key is None:
         return "azure_ad", await get_api_key()
-    else:
-        return "azure", api_key
+
+    api_type = parser.parse(
+        request.headers["X-UPSTREAM-ENDPOINT"]
+    ).get_api_type()
+    return api_type, api_key
 
 
 def get_auth_header(api_type: str, api_key: str) -> dict[str, str]:
