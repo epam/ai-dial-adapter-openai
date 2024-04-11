@@ -59,9 +59,7 @@ class EndpointParser(BaseModel):
             return OpenAIEndpoint(api_base=match[1])
 
         raise HTTPException(
-            f"Invalid upstream endpoint format {endpoint}",
-            400,
-            "invalid_request_error",
+            "Invalid upstream endpoint format", 400, "invalid_request_error"
         )
 
 
