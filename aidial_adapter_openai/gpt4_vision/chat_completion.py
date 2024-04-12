@@ -267,7 +267,7 @@ async def chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_type: str,
-    api_version,
+    api_version: str,
 ) -> Response:
     if request.get("n", 1) > 1:
         raise HTTPException(

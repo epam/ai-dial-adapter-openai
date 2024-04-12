@@ -8,8 +8,12 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import ChatCompletion, Embedding, error
 from openai.openai_object import OpenAIObject
 
+from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
+)
+from aidial_adapter_openai.databricks import (
+    chat_completion as databricks_chat_completion,
 )
 from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
@@ -22,10 +26,10 @@ from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import LogConfig
 from aidial_adapter_openai.utils.parsers import (
-    ApiType,
+    chat_completions_parser,
+    embeddings_parser,
     parse_body,
     parse_deployment_list,
-    parse_upstream,
 )
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.storage import create_file_storage
@@ -43,6 +47,9 @@ gpt4_vision_deployments = parse_deployment_list(
 )
 mistral_deployments = parse_deployment_list(
     os.getenv("MISTRAL_DEPLOYMENTS") or ""
+)
+databricks_deployments = parse_deployment_list(
+    os.getenv("DATABRICKS_DEPLOYMENTS") or ""
 )
 api_versions_mapping: Dict[str, str] = json.loads(
     os.getenv("API_VERSIONS_MAPPING", "{}")
@@ -83,7 +90,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
 
-    api_type, api_key = await get_credentials(request)
+    api_type, api_key = await get_credentials(request, chat_completions_parser)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
@@ -100,7 +107,17 @@ async def chat_completion(deployment_id: str, request: Request):
         )
     elif deployment_id in mistral_deployments:
         return await handle_exceptions(
-            mistral_chat_completion(data, upstream_endpoint, api_key, is_stream)
+            mistral_chat_completion(data, upstream_endpoint, api_key, api_type)
+        )
+    elif deployment_id in databricks_deployments:
+        return await handle_exceptions(
+            databricks_chat_completion(
+                data,
+                deployment_id,
+                upstream_endpoint,
+                api_key,
+                api_type,
+            )
         )
 
     api_version = get_api_version(request)
@@ -120,10 +137,6 @@ async def chat_completion(deployment_id: str, request: Request):
 
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
     tokenizer = Tokenizer(model=openai_model_name)
-
-    api_base, upstream_deployment = parse_upstream(
-        upstream_endpoint, ApiType.CHAT_COMPLETION
-    )
 
     discarded_messages = None
     if "max_prompt_tokens" in data:
@@ -146,14 +159,17 @@ async def chat_completion(deployment_id: str, request: Request):
             tokenizer, data["messages"], max_prompt_tokens
         )
 
+    request_args = chat_completions_parser.parse(
+        upstream_endpoint
+    ).prepare_request_args(deployment_id)
+
     response = await handle_exceptions(
         ChatCompletion().acreate(
-            engine=upstream_deployment,
+            **request_args,
             api_key=api_key,
-            api_base=api_base,
             api_type=api_type,
             api_version=api_version,
-            request_timeout=(10, 600),  # connect timeout and total timeout
+            request_timeout=DEFAULT_TIMEOUT,
             **data,
         )
     )
@@ -190,20 +206,20 @@ async def chat_completion(deployment_id: str, request: Request):
 async def embedding(deployment_id: str, request: Request):
     data = await parse_body(request)
 
-    api_type, api_key = await get_credentials(request)
-    api_base, upstream_deployment = parse_upstream(
-        request.headers["X-UPSTREAM-ENDPOINT"], ApiType.EMBEDDING
-    )
+    api_type, api_key = await get_credentials(request, embeddings_parser)
     api_version = get_api_version(request)
+
+    request_args = embeddings_parser.parse(
+        request.headers["X-UPSTREAM-ENDPOINT"]
+    ).prepare_request_args(deployment_id)
 
     return await handle_exceptions(
         Embedding().acreate(
-            deployment_id=upstream_deployment,
+            **request_args,
             api_key=api_key,
-            api_base=api_base,
             api_type=api_type,
             api_version=api_version,
-            request_timeout=(10, 600),  # connect timeout and total timeout
+            request_timeout=DEFAULT_TIMEOUT,
             **data,
         )
     )
