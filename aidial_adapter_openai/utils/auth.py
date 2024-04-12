@@ -4,7 +4,7 @@ from typing import Mapping, Optional
 
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
-from azure.identity import DefaultAzureCredential
+from azure.identity.aio import DefaultAzureCredential
 from fastapi import Request
 from openai import util
 from openai.util import ApiType
@@ -31,7 +31,9 @@ async def get_api_key() -> str:
 
     if access_token is None or now > access_token.expires_on:
         try:
-            access_token = default_credential.get_token(AZURE_OPEN_AI_SCOPE)
+            access_token = await default_credential.get_token(
+                AZURE_OPEN_AI_SCOPE
+            )
         except ClientAuthenticationError as e:
             logger.error(
                 f"Default Azure credential failed with the error: {e.message}"
@@ -48,10 +50,15 @@ async def get_credentials(
     if api_key is None:
         return "azure_ad", await get_api_key()
 
-    api_type = parser.parse(
-        request.headers["X-UPSTREAM-ENDPOINT"]
-    ).get_api_type()
-    return api_type, api_key
+    try:
+        api_type = parser.parse(
+            request.headers["X-UPSTREAM-ENDPOINT"]
+        ).get_api_type()
+        return api_type, api_key
+    except Exception:
+        # fallback to the 'azure' api-type if the endpoint
+        # doesn't follow the expected format
+        return "azure", api_key
 
 
 def get_auth_header(api_type: str, api_key: str) -> dict[str, str]:

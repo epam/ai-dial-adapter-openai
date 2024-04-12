@@ -107,7 +107,7 @@ async def chat_completion(deployment_id: str, request: Request):
         )
     elif deployment_id in mistral_deployments:
         return await handle_exceptions(
-            mistral_chat_completion(data, upstream_endpoint, api_key, is_stream)
+            mistral_chat_completion(data, upstream_endpoint, api_key, api_type)
         )
     elif deployment_id in databricks_deployments:
         return await handle_exceptions(
@@ -116,6 +116,7 @@ async def chat_completion(deployment_id: str, request: Request):
                 deployment_id,
                 upstream_endpoint,
                 api_key,
+                api_type,
             )
         )
 
