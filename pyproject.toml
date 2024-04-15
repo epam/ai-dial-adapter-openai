@@ -30,7 +30,7 @@ pydantic = "^1.10.12"
 numpy = "^1.26.0" # need for openai embeddings
 pillow = "^10.3.0"
 azure-identity = "^1.15.0"
-aidial-sdk = "^0.7.0"
+aidial-sdk = {version = "0.8.0", extras = ["telemetry"]}
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"

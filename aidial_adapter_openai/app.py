@@ -1,8 +1,9 @@
 import json
-import logging.config
 import os
 from typing import Dict
 
+from aidial_sdk.telemetry.init import init_telemetry
+from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import ChatCompletion, Embedding, error
@@ -24,7 +25,7 @@ from aidial_adapter_openai.mistral import (
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.exceptions import HTTPException
-from aidial_adapter_openai.utils.log_config import LogConfig
+from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
     chat_completions_parser,
     embeddings_parser,
@@ -36,8 +37,11 @@ from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.streaming import generate_stream, map_stream
 from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 
-logging.config.dictConfig(LogConfig().dict())
 app = FastAPI()
+
+init_telemetry(app, TelemetryConfig())
+configure_loggers()
+
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
 dalle3_deployments = parse_deployment_list(
     os.getenv("DALLE3_DEPLOYMENTS") or ""
