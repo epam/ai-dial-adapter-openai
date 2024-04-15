@@ -28,11 +28,10 @@ async def chat_completion(
     ).prepare_request_args(deployment_id)
 
     response = await ChatCompletion().acreate(
-        **request_args,
         api_type=api_type,
         api_key=api_key,
         request_timeout=DEFAULT_TIMEOUT,
-        **data,
+        **(data | request_args),
     )
 
     if isinstance(response, AsyncIterator):
