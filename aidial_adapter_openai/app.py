@@ -165,12 +165,11 @@ async def chat_completion(deployment_id: str, request: Request):
 
     response = await handle_exceptions(
         ChatCompletion().acreate(
-            **request_args,
             api_key=api_key,
             api_type=api_type,
             api_version=api_version,
             request_timeout=DEFAULT_TIMEOUT,
-            **data,
+            **(data | request_args),
         )
     )
 
@@ -215,12 +214,11 @@ async def embedding(deployment_id: str, request: Request):
 
     return await handle_exceptions(
         Embedding().acreate(
-            **request_args,
             api_key=api_key,
             api_type=api_type,
             api_version=api_version,
             request_timeout=DEFAULT_TIMEOUT,
-            **data,
+            **(data | request_args),
         )
     )
 
