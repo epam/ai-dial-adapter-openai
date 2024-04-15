@@ -1,6 +1,7 @@
 FROM python:3.11-alpine as builder
 
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
+RUN apk add --no-cache alpine-sdk linux-headers
 RUN pip install poetry
 
 WORKDIR /app
