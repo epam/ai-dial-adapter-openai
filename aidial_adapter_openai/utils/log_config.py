@@ -1,37 +1,52 @@
 import logging
 import os
+import re
+import sys
+from logging import Filter, LogRecord
 
-from pydantic import BaseModel
+from uvicorn.logging import DefaultFormatter
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 
-class LogConfig(BaseModel):
-    version = 1
-    disable_existing_loggers = False
-    formatters = {
-        "default": {
-            "()": "uvicorn.logging.DefaultFormatter",
-            "fmt": "%(levelprefix)s | %(asctime)s | %(name)s | %(process)d | %(message)s",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
-            "use_colors": True,
-        },
-    }
-    handlers = {
-        "default": {
-            "formatter": "default",
-            "class": "logging.StreamHandler",
-            "stream": "ext://sys.stderr",
-        },
-    }
-    loggers = {
-        "aidial_adapter_openai": {"handlers": ["default"], "level": LOG_LEVEL},
-        "uvicorn": {
-            "handlers": ["default"],
-            "level": LOG_LEVEL,
-            "propagate": False,
-        },
-    }
+class HealthCheckFilter(Filter):
+    def filter(self, record: LogRecord):
+        return not re.search(r"(\s+)/health(\s+)", record.getMessage())
+
+
+def configure_loggers():
+    # Making the uvicorn logger delegate logging to the root logger
+    uvicorn_logger = logging.getLogger("uvicorn")
+    uvicorn_logger.handlers = []
+    uvicorn_logger.propagate = True
+
+    # Filter out health check requests from uvicorn logs
+    logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
+
+    # Setting up log levels
+    for name in ["aidial_adapter_openai", "uvicorn"]:
+        logging.getLogger(name).setLevel(LOG_LEVEL)
+
+    # Configuring the root logger
+    root = logging.getLogger()
+
+    root_has_stderr_handler = any(
+        isinstance(handler, logging.StreamHandler)
+        and handler.stream == sys.stderr
+        for handler in root.handlers
+    )
+
+    # If stderr handler is already set, then no need to add another one
+    if not root_has_stderr_handler:
+        formatter = DefaultFormatter(
+            fmt="%(levelprefix)s | %(asctime)s | %(name)s | %(process)d | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            use_colors=True,
+        )
+
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
 
 
 logger = logging.getLogger("aidial_adapter_openai")
