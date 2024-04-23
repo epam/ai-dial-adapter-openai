@@ -16,18 +16,13 @@ async def generate_stream(
     yield END_CHUNK
 
 
-async def chat_completion(
-    data: Any,
-    upstream_endpoint: str,
-    api_key: str,
-    api_type: str,
-):
+async def chat_completion(data: Any, upstream_endpoint: str, api_key: str):
     data["model"] = "azureai"
 
     response = await ChatCompletion().acreate(
         api_key=api_key,
         api_base=upstream_endpoint,
-        api_type=api_type,
+        api_type="openai",
         request_timeout=DEFAULT_TIMEOUT,
         **data,
     )
