@@ -27,7 +27,9 @@ class HTTPException(Exception):
         )
 
 
-def create_error(message: str, type: str, param: Any = None, code: Any = None):
+def create_error(
+    message: str, type: str | None, param: Any = None, code: Any = None
+):
     return {
         "error": {
             "message": message,

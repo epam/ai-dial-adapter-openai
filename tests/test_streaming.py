@@ -7,7 +7,7 @@ import respx
 from aidial_adapter_openai.app import app
 
 
-@respx.mock(assert_all_called=True)
+@respx.mock
 @pytest.mark.asyncio
 async def test_streaming():
     respx.post(
@@ -92,20 +92,50 @@ async def test_streaming():
             continue
 
         if index == 0:
-            assert (
-                line
-                == 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1695940483,"model":"gpt-4","choices":[{"index":0,"finish_reason":null,"delta":{"role":"assistant"}}],"usage":null}'
-            )
+            assert json.loads(line.removeprefix("data: ")) == {
+                "id": "chatcmpl-test",
+                "object": "chat.completion.chunk",
+                "created": 1695940483,
+                "model": "gpt-4",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": None,
+                        "delta": {"role": "assistant"},
+                    }
+                ],
+                "usage": None,
+            }
         elif index == 2:
-            assert (
-                line
-                == 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1695940483,"model":"gpt-4","choices":[{"index":0,"finish_reason":null,"delta":{"content":"Test content"}}],"usage":null}'
-            )
+            assert json.loads(line.removeprefix("data: ")) == {
+                "id": "chatcmpl-test",
+                "object": "chat.completion.chunk",
+                "created": 1695940483,
+                "model": "gpt-4",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": None,
+                        "delta": {"content": "Test content"},
+                    }
+                ],
+                "usage": None,
+            }
+
         elif index == 4:
-            assert (
-                line
-                == 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1696245654,"model":"gpt-4","choices":[{"index":0,"finish_reason":"stop","delta":{}}],"usage":{"completion_tokens":2,"prompt_tokens":9,"total_tokens":11}}'
-            )
+            assert json.loads(line.removeprefix("data: ")) == {
+                "id": "chatcmpl-test",
+                "object": "chat.completion.chunk",
+                "created": 1696245654,
+                "model": "gpt-4",
+                "choices": [{"index": 0, "finish_reason": "stop", "delta": {}}],
+                "usage": {
+                    "completion_tokens": 2,
+                    "prompt_tokens": 9,
+                    "total_tokens": 11,
+                },
+            }
+
         elif index == 6:
             assert line == "data: [DONE]"
         else:

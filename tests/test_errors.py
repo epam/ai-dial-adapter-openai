@@ -7,14 +7,14 @@ import respx
 from aidial_adapter_openai.app import app
 
 
-@respx.mock(assert_all_called=True)
+@respx.mock
 @pytest.mark.asyncio
 async def test_error_during_streaming():
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
     ).respond(
         status_code=200,
-        headers={"content-type": "text/event-stream"},
+        content_type="text/event-stream",
         content="data: "
         + json.dumps(
             {
@@ -72,22 +72,41 @@ async def test_error_during_streaming():
             continue
 
         if index == 0:
-            assert (
-                line
-                == 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1695940483,"model":"gpt-4","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant"}}],"usage":{"completion_tokens":0,"prompt_tokens":9,"total_tokens":9}}'
-            )
+            assert json.loads(line.removeprefix("data: ")) == {
+                "id": "chatcmpl-test",
+                "object": "chat.completion.chunk",
+                "created": 1695940483,
+                "model": "gpt-4",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant"},
+                    }
+                ],
+                "usage": {
+                    "completion_tokens": 0,
+                    "prompt_tokens": 9,
+                    "total_tokens": 9,
+                },
+            }
+
         elif index == 2:
-            assert (
-                line
-                == 'data: {"error": {"message": "Error test", "type": "runtime_error", "param": null, "code": null}}'
-            )
+            assert json.loads(line.removeprefix("data: ")) == {
+                "error": {
+                    "message": "Error test",
+                    "type": "runtime_error",
+                    "param": None,
+                    "code": None,
+                }
+            }
         elif index == 4:
             assert line == "data: [DONE]"
         else:
             assert False
 
 
-@respx.mock(assert_all_called=True)
+@respx.mock
 @pytest.mark.asyncio
 async def test_incorrect_upstream_url():
     respx.post(
@@ -116,7 +135,7 @@ async def test_incorrect_upstream_url():
     }
 
 
-@respx.mock(assert_all_called=True)
+@respx.mock
 @pytest.mark.asyncio
 async def test_incorrect_format():
     respx.post(
@@ -138,23 +157,23 @@ async def test_incorrect_format():
     assert response.content == b"Incorrect format"
 
 
-@respx.mock(assert_all_called=True)
+@respx.mock
 @pytest.mark.asyncio
 async def test_incorrect_streaming_request():
+    expected_response = {
+        "error": {
+            "message": "0 is less than the minimum of 1 - 'n'",
+            "type": "invalid_request_error",
+            "param": None,
+            "code": None,
+        }
+    }
+
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
     ).respond(
         status_code=400,
-        content=json.dumps(
-            {
-                "error": {
-                    "message": "0 is less than the minimum of 1 - 'n'",
-                    "type": "invalid_request_error",
-                    "param": None,
-                    "code": None,
-                }
-            }
-        ),
+        content=json.dumps(expected_response),
     )
 
     test_app = httpx.AsyncClient(app=app, base_url="http://test.com")
@@ -173,11 +192,4 @@ async def test_incorrect_streaming_request():
     )
 
     assert response.status_code == 400
-    assert response.json() == {
-        "error": {
-            "message": "0 is less than the minimum of 1 - 'n'",
-            "type": "invalid_request_error",
-            "param": None,
-            "code": None,
-        }
-    }
+    assert response.json() == expected_response

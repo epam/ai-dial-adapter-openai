@@ -72,10 +72,11 @@ async def handle_exceptions(call: Awaitable[T]) -> T | Response:
     try:
         return await call
     except APIStatusError as e:
+        r = e.response
         return Response(
-            content=e.body,
-            status_code=e.status_code,
-            headers=e.response.headers,
+            content=r.content,
+            status_code=r.status_code,
+            headers=r.headers,
         )
     except APITimeoutError:
         raise HTTPException("Request timed out", 504, "timeout")

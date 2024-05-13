@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from openai import APIStatusError
+from openai import APIError
 
 from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.exceptions import create_error
@@ -92,8 +92,13 @@ async def generate_stream(
                     yield chunk
 
             last_chunk = chunk
-    except APIStatusError as e:
-        yield api_status_error_to_streaming_error(e)
+    except APIError as e:
+        yield create_error(
+            message=e.message,
+            type=e.type,
+            param=e.param,
+            code=e.code,
+        )
         return
 
     if not stream_finished:
@@ -130,25 +135,6 @@ async def generate_stream(
                     "total_tokens": prompt_tokens,
                 },
             )
-
-
-def api_status_error_to_streaming_error(error: APIStatusError) -> dict:
-
-    try:
-        body = error.response.json()
-        if "error" in body:
-            return body
-    except Exception:
-        pass
-
-    return create_error(
-        message=error.message,
-        type=(
-            "invalid_request_error"
-            if error.status_code < 500
-            else "interval_server_error"
-        ),
-    )
 
 
 def create_error_response(error_message: str, stream: bool) -> Response:
