@@ -1,18 +1,15 @@
 import os
 import time
-from typing import Mapping, Optional
+from typing import Mapping, Optional, TypedDict
 
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
 from fastapi import Request
-from openai import util
-from openai.util import ApiType
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.parsers import EndpointParser
 
 default_credential = DefaultAzureCredential()
 access_token: AccessToken | None = None
@@ -43,26 +40,27 @@ async def get_api_key() -> str:
     return access_token.token
 
 
-async def get_credentials(
-    request: Request, parser: EndpointParser
-) -> tuple[str, str]:
+class OpenAICreds(TypedDict, total=False):
+    api_key: str
+    azure_ad_token: str
+
+
+async def get_credentials(request: Request) -> OpenAICreds:
     api_key = request.headers.get("X-UPSTREAM-KEY")
     if api_key is None:
-        return "azure_ad", await get_api_key()
-
-    try:
-        api_type = parser.parse(
-            request.headers["X-UPSTREAM-ENDPOINT"]
-        ).get_api_type()
-        return api_type, api_key
-    except Exception:
-        # fallback to the 'azure' api-type if the endpoint
-        # doesn't follow the expected format
-        return "azure", api_key
+        return {"azure_ad_token": await get_api_key()}
+    else:
+        return {"api_key": api_key}
 
 
-def get_auth_header(api_type: str, api_key: str) -> dict[str, str]:
-    return util.api_key_to_header(ApiType.from_str(api_type), api_key)
+def get_auth_header(creds: OpenAICreds) -> dict[str, str]:
+    if "api_key" in creds:
+        return {"api-key": creds["api_key"]}
+
+    if "azure_ad_token" in creds:
+        return {"Authorization": f"Bearer {creds['azure_ad_token']}"}
+
+    raise ValueError("Invalid credentials")
 
 
 class Auth(BaseModel):

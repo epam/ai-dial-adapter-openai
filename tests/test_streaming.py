@@ -1,18 +1,20 @@
 import json
 
+import httpx
 import pytest
-from aioresponses import aioresponses
-from httpx import AsyncClient
+import respx
 
 from aidial_adapter_openai.app import app
 
 
+@respx.mock(assert_all_called=True)
 @pytest.mark.asyncio
-async def test_streaming(aioresponses: aioresponses):
-    aioresponses.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15",
-        status=200,
-        body="data: "
+async def test_streaming():
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15"
+    ).respond(
+        status_code=200,
+        content="data: "
         + json.dumps(
             {
                 "id": "chatcmpl-test",
@@ -67,7 +69,8 @@ async def test_streaming(aioresponses: aioresponses):
         + "data: [DONE]\n\n",
         content_type="text/event-stream",
     )
-    test_app = AsyncClient(app=app, base_url="http://test.com")
+
+    test_app = httpx.AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15",

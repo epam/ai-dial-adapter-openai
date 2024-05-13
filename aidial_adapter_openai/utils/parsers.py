@@ -1,43 +1,50 @@
 import re
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TypedDict
 
 from fastapi import Request
+from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.exceptions import HTTPException
 
 
+class OpenAIParams(TypedDict, total=False):
+    api_key: str
+    azure_ad_token: str
+    api_version: str
+    timeout: Timeout
+
+
 class Endpoint(ABC):
     @abstractmethod
-    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
-        pass
-
-    @abstractmethod
-    def get_api_type(self) -> str:
+    def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
         pass
 
 
 class AzureOpenAIEndpoint(BaseModel):
-    api_base: str
-    deployment_id: str
+    base_url: str
 
-    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
-        return {"api_base": self.api_base, "engine": self.deployment_id}
-
-    def get_api_type(self) -> str:
-        return "azure"
+    def get_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
+        return AsyncAzureOpenAI(
+            base_url=self.base_url,
+            api_key=params.get("api_key"),
+            azure_ad_token=params.get("azure_ad_token"),
+            api_version=params.get("api_version"),
+            timeout=params.get("timeout"),
+        )
 
 
 class OpenAIEndpoint(BaseModel):
-    api_base: str
+    base_url: str
 
-    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
-        return {"api_base": self.api_base, "model": deployment_id}
-
-    def get_api_type(self) -> str:
-        return "open_ai"
+    def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
+        return AsyncOpenAI(
+            base_url=self.base_url,
+            api_key=params.get("api_key"),
+            timeout=params.get("timeout"),
+        )
 
 
 class EndpointParser(BaseModel):
@@ -50,13 +57,13 @@ class EndpointParser(BaseModel):
 
         if match:
             return AzureOpenAIEndpoint(
-                api_base=match[1], deployment_id=match[2]
+                base_url=f"{match[1]}/openai/deployments/{match[2]}"
             )
 
         match = re.search(f"(.+?)/{self.name}", endpoint)
 
         if match:
-            return OpenAIEndpoint(api_base=match[1])
+            return OpenAIEndpoint(base_url=match[1])
 
         raise HTTPException(
             "Invalid upstream endpoint format", 400, "invalid_request_error"
@@ -79,7 +86,7 @@ async def parse_body(
             "invalid_request_error",
         )
 
-    if type(data) != dict:
+    if not isinstance(data, dict):
         raise HTTPException(
             str(data) + " is not of type 'object'", 400, "invalid_request_error"
         )

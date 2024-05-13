@@ -1,18 +1,21 @@
 import json
 
+import httpx
 import pytest
-from aioresponses import aioresponses
-from httpx import AsyncClient
+import respx
 
 from aidial_adapter_openai.app import app
 
 
+@respx.mock(assert_all_called=True)
 @pytest.mark.asyncio
-async def test_error_during_streaming(aioresponses: aioresponses):
-    aioresponses.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
-        status=200,
-        body="data: "
+async def test_error_during_streaming():
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        content="data: "
         + json.dumps(
             {
                 "id": "chatcmpl-test",
@@ -45,9 +48,9 @@ async def test_error_during_streaming(aioresponses: aioresponses):
         )
         + "\n\n"
         + "data: [DONE]\n\n",
-        content_type="text/event-stream",
     )
-    test_app = AsyncClient(app=app, base_url="http://test.com")
+
+    test_app = httpx.AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -84,14 +87,14 @@ async def test_error_during_streaming(aioresponses: aioresponses):
             assert False
 
 
+@respx.mock(assert_all_called=True)
 @pytest.mark.asyncio
-async def test_incorrect_upstream_url(aioresponses: aioresponses):
-    aioresponses.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
-        status=200,
-        body={},
-    )
-    test_app = AsyncClient(app=app, base_url="http://test.com")
+async def test_incorrect_upstream_url():
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(status_code=200)
+
+    test_app = httpx.AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -113,14 +116,14 @@ async def test_incorrect_upstream_url(aioresponses: aioresponses):
     }
 
 
+@respx.mock(assert_all_called=True)
 @pytest.mark.asyncio
-async def test_incorrect_format(aioresponses: aioresponses):
-    aioresponses.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
-        status=400,
-        body="Incorrect format",
-    )
-    test_app = AsyncClient(app=app, base_url="http://test.com")
+async def test_incorrect_format():
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(status_code=400, content=b"Incorrect format")
+
+    test_app = httpx.AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -132,16 +135,17 @@ async def test_incorrect_format(aioresponses: aioresponses):
     )
 
     assert response.status_code == 400
-
     assert response.content == b"Incorrect format"
 
 
+@respx.mock(assert_all_called=True)
 @pytest.mark.asyncio
-async def test_incorrect_streaming_request(aioresponses: aioresponses):
-    aioresponses.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
-        status=400,
-        body=json.dumps(
+async def test_incorrect_streaming_request():
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=400,
+        content=json.dumps(
             {
                 "error": {
                     "message": "0 is less than the minimum of 1 - 'n'",
@@ -151,9 +155,9 @@ async def test_incorrect_streaming_request(aioresponses: aioresponses):
                 }
             }
         ),
-        content_type="application/json",
     )
-    test_app = AsyncClient(app=app, base_url="http://test.com")
+
+    test_app = httpx.AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",

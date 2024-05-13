@@ -1,1 +1,4 @@
-DEFAULT_TIMEOUT = (10, 600)  # connect timeout and total timeout
+from openai import Timeout
+
+# connect timeout and total timeout
+DEFAULT_TIMEOUT = Timeout(600, connect=10)
