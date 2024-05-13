@@ -5,49 +5,45 @@ import pytest
 import respx
 
 from aidial_adapter_openai.app import app
+from tests.utils.stream import OpenAIStream
 
 
 @respx.mock
 @pytest.mark.asyncio
 async def test_error_during_streaming():
+    mock_stream = OpenAIStream(
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "created": 1695940483,
+            "model": "gpt-4",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "stop",
+                    "message": {
+                        "role": "assistant",
+                    },
+                }
+            ],
+            "usage": None,
+        },
+        {
+            "error": {
+                "message": "Error test",
+                "type": "runtime_error",
+                "param": None,
+                "code": None,
+            }
+        },
+    )
+
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
     ).respond(
         status_code=200,
         content_type="text/event-stream",
-        content="data: "
-        + json.dumps(
-            {
-                "id": "chatcmpl-test",
-                "object": "chat.completion.chunk",
-                "created": 1695940483,
-                "model": "gpt-4",
-                "choices": [
-                    {
-                        "index": 0,
-                        "finish_reason": "stop",
-                        "message": {
-                            "role": "assistant",
-                        },
-                    }
-                ],
-                "usage": None,
-            }
-        )
-        + "\n\n"
-        + "data: "
-        + json.dumps(
-            {
-                "error": {
-                    "message": "Error test",
-                    "type": "runtime_error",
-                    "param": None,
-                    "code": None,
-                }
-            }
-        )
-        + "\n\n"
-        + "data: [DONE]\n\n",
+        content=mock_stream.to_content(),
     )
 
     test_app = httpx.AsyncClient(app=app, base_url="http://test.com")
@@ -65,45 +61,16 @@ async def test_error_during_streaming():
     )
 
     assert response.status_code == 200
-
-    for index, line in enumerate(response.iter_lines()):
-        if index % 2 == 1:
-            assert line == ""
-            continue
-
-        if index == 0:
-            assert json.loads(line.removeprefix("data: ")) == {
-                "id": "chatcmpl-test",
-                "object": "chat.completion.chunk",
-                "created": 1695940483,
-                "model": "gpt-4",
-                "choices": [
-                    {
-                        "index": 0,
-                        "finish_reason": "stop",
-                        "message": {"role": "assistant"},
-                    }
-                ],
-                "usage": {
-                    "completion_tokens": 0,
-                    "prompt_tokens": 9,
-                    "total_tokens": 9,
-                },
+    mock_stream.assert_response_content(
+        response,
+        usages={
+            0: {
+                "prompt_tokens": 9,
+                "completion_tokens": 0,
+                "total_tokens": 9,
             }
-
-        elif index == 2:
-            assert json.loads(line.removeprefix("data: ")) == {
-                "error": {
-                    "message": "Error test",
-                    "type": "runtime_error",
-                    "param": None,
-                    "code": None,
-                }
-            }
-        elif index == 4:
-            assert line == "data: [DONE]"
-        else:
-            assert False
+        },
+    )
 
 
 @respx.mock
