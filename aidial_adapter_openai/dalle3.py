@@ -3,7 +3,7 @@ from typing import Any, AsyncGenerator, Optional
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_header
+from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK
 from aidial_adapter_openai.utils.storage import FileStorage
@@ -27,7 +27,7 @@ async def generate_image(
         async with session.post(
             api_url,
             json={"prompt": user_prompt, "response_format": "b64_json"},
-            headers=get_auth_header(creds),
+            headers=get_auth_headers(creds),
         ) as response:
             status_code = response.status
 

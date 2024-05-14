@@ -53,7 +53,7 @@ async def get_credentials(request: Request) -> OpenAICreds:
         return {"api_key": api_key}
 
 
-def get_auth_header(creds: OpenAICreds) -> dict[str, str]:
+def get_auth_headers(creds: OpenAICreds) -> dict[str, str]:
     if "api_key" in creds:
         return {"api-key": creds["api_key"]}
 

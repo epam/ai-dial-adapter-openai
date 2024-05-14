@@ -22,7 +22,7 @@ from aidial_adapter_openai.gpt4_vision.messages import (
     create_image_message,
     create_text_message,
 )
-from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_header
+from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
@@ -316,7 +316,7 @@ async def chat_completion(
         "messages": new_messages,
     }
 
-    headers = get_auth_header(creds)
+    headers = get_auth_headers(creds)
 
     if is_stream:
         response = await predict_stream(api_url, headers, request)

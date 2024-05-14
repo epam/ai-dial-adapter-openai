@@ -28,7 +28,7 @@ from aidial_adapter_openai.gpt4_vision.chat_completion import (
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
-from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.auth import OpenAICreds, get_credentials
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
@@ -121,11 +121,13 @@ async def chat_completion(deployment_id: str, request: Request):
             storage,
             dalle3_azure_api_version,
         )
-    elif deployment_id in mistral_deployments:
+
+    if deployment_id in mistral_deployments:
         return await handle_exceptions(
             mistral_chat_completion(data, upstream_endpoint, creds)
         )
-    elif deployment_id in databricks_deployments:
+
+    if deployment_id in databricks_deployments:
         return await handle_exceptions(
             databricks_chat_completion(data, upstream_endpoint, creds)
         )
@@ -144,6 +146,18 @@ async def chat_completion(deployment_id: str, request: Request):
             api_version,
         )
 
+    return await gpt_chat_completion(
+        data, deployment_id, upstream_endpoint, creds, api_version
+    )
+
+
+async def gpt_chat_completion(
+    data: dict,
+    deployment_id: str,
+    upstream_endpoint: str,
+    creds: OpenAICreds,
+    api_version: str,
+):
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
     tokenizer = Tokenizer(model=openai_model_name)
 
@@ -207,13 +221,13 @@ async def chat_completion(deployment_id: str, request: Request):
 @app.post("/openai/deployments/{deployment_id}/embeddings")
 async def embedding(deployment_id: str, request: Request):
     data = await parse_body(request)
+    data["model"] = deployment_id
 
     creds = await get_credentials(request)
     api_version = get_api_version(request)
+    upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
-    client = embeddings_parser.parse(
-        request.headers["X-UPSTREAM-ENDPOINT"]
-    ).get_client(
+    client = embeddings_parser.parse(upstream_endpoint).get_client(
         {**creds, "api_version": api_version, "timeout": DEFAULT_TIMEOUT}
     )
 
