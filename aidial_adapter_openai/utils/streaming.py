@@ -166,6 +166,21 @@ def create_error_response(error_message: str, stream: bool) -> Response:
     return create_response_from_chunk(chunk, stream)
 
 
+def create_single_message_response(message: str, stream: bool) -> Response:
+    id = generate_id()
+    created = str(int(time()))
+
+    chunk = build_chunk(
+        id,
+        "stop",
+        {"role": "assistant", "content": message},
+        created,
+        stream,
+    )
+
+    return create_response_from_chunk(chunk, stream)
+
+
 def create_response_from_chunk(chunk: dict, stream: bool) -> Response:
     if not stream:
         return JSONResponse(content=chunk)

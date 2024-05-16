@@ -24,11 +24,23 @@ class Endpoint(ABC):
 
 
 class AzureOpenAIEndpoint(BaseModel):
-    base_url: str
+    azure_endpoint: str
+    azure_deployment: str
 
     def get_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
         return AsyncAzureOpenAI(
-            base_url=self.base_url,
+            azure_deployment=self.azure_deployment,
+            azure_endpoint=self.azure_endpoint,
+            api_key=params.get("api_key"),
+            azure_ad_token=params.get("azure_ad_token"),
+            api_version=params.get("api_version"),
+            timeout=params.get("timeout"),
+        )
+
+    def get_assistants_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
+        return AsyncAzureOpenAI(
+            # Omitting the azure_deployment parameter,
+            azure_endpoint=self.azure_endpoint,
             api_key=params.get("api_key"),
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
@@ -57,7 +69,8 @@ class EndpointParser(BaseModel):
 
         if match:
             return AzureOpenAIEndpoint(
-                base_url=f"{match[1]}/openai/deployments/{match[2]}"
+                azure_endpoint=match[1],
+                azure_deployment=match[2],
             )
 
         match = re.search(f"(.+?)/{self.name}", endpoint)

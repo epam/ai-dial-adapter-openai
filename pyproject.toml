@@ -22,7 +22,13 @@ env_files = [".env"]
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 fastapi = "0.109.2"
-openai = "1.28.0"
+# From Azure OpenAI documentation:
+# https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/code-interpreter?tabs=python:
+# > Azure OpenAI does not yet support Assistants V2.
+# > Please use the v1.20.0 release of the OpenAI
+# > Python library until V2 support is available.
+# So no need to use later versions just yet.
+openai = "1.20.0"
 tiktoken = "0.5.1"
 uvicorn = "0.23"
 wrapt = "^1.15.0"

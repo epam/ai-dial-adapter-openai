@@ -1,6 +1,7 @@
 PORT ?= 5001
 IMAGE_NAME ?= ai-dial-adapter-openai
 PLATFORM ?= linux/amd64
+DEV_PYTHON ?= 3.11
 ARGS=
 
 .PHONY: all install build serve clean lint format test integration_tests docker_build docker_run
@@ -8,6 +9,7 @@ ARGS=
 all: build
 
 install:
+	poetry env use python$(DEV_PYTHON)
 	poetry install
 
 build: install

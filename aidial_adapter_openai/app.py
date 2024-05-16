@@ -19,6 +19,9 @@ from aidial_adapter_openai.gpt import gpt_chat_completion
 from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
+from aidial_adapter_openai.gpt_code_interpreter.chat_completion import (
+    chat_completion as code_interpreter_chat_completion,
+)
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
@@ -56,6 +59,10 @@ api_versions_mapping: Dict[str, str] = json.loads(
     os.getenv("API_VERSIONS_MAPPING", "{}")
 )
 dalle3_azure_api_version = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
+gpt_code_interpreter_deployments = parse_deployment_list(
+    os.getenv("GPT_CODE_INTERPRETER_DEPLOYMENTS") or ""
+)
+
 
 T = TypeVar("T")
 
@@ -136,6 +143,13 @@ async def chat_completion(deployment_id: str, request: Request):
             is_stream,
             storage,
             api_version,
+        )
+
+    if deployment_id in gpt_code_interpreter_deployments:
+        return await handle_exceptions(
+            code_interpreter_chat_completion(
+                data, is_stream, upstream_endpoint, creds, api_version
+            )
         )
 
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
