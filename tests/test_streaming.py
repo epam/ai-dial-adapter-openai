@@ -2,13 +2,16 @@ import httpx
 import pytest
 import respx
 
-from aidial_adapter_openai.app import app
 from tests.utils.stream import OpenAIStream
+
+
+def assert_equal(actual, expected):
+    assert actual == expected
 
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_streaming():
+async def test_streaming(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         {
             "id": "chatcmpl-test",
@@ -60,8 +63,6 @@ async def test_streaming():
         content_type="text/event-stream",
     )
 
-    test_app = httpx.AsyncClient(app=app, base_url="http://test.com")
-
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15",
         json={
@@ -77,6 +78,7 @@ async def test_streaming():
     assert response.status_code == 200
     mock_stream.assert_response_content(
         response,
+        assert_equal,
         usages={
             2: {
                 "completion_tokens": 2,

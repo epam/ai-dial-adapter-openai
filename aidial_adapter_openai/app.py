@@ -37,6 +37,7 @@ from aidial_adapter_openai.utils.parsers import (
     parse_body,
     parse_deployment_list,
 )
+from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.streaming import generate_stream, map_stream
@@ -187,7 +188,9 @@ async def gpt_chat_completion(
     )
 
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion | Response = (
-        await handle_exceptions(client.chat.completions.create(**data))
+        await handle_exceptions(
+            call_with_extra_body(client.chat.completions.create, data)
+        )
     )
 
     if isinstance(response, Response):
@@ -209,13 +212,10 @@ async def gpt_chat_completion(
             media_type="text/event-stream",
         )
     else:
-
+        resp = response.to_dict()
         if discarded_messages is not None:
-            return response.to_dict() | {
-                "statistics": {"discarded_messages": discarded_messages}
-            }
-        else:
-            return response
+            resp |= {"statistics": {"discarded_messages": discarded_messages}}
+        return resp
 
 
 @app.post("/openai/deployments/{deployment_id}/embeddings")
@@ -231,7 +231,9 @@ async def embedding(deployment_id: str, request: Request):
         {**creds, "api_version": api_version, "timeout": DEFAULT_TIMEOUT}
     )
 
-    return await handle_exceptions(client.embeddings.create(**data))
+    return await handle_exceptions(
+        call_with_extra_body(client.embeddings.create, data)
+    )
 
 
 @app.exception_handler(HTTPException)

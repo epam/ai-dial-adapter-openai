@@ -1,5 +1,5 @@
 import json
-from typing import List
+from typing import Any, Callable, List
 
 import httpx
 
@@ -18,23 +18,26 @@ class OpenAIStream:
         return ret
 
     def assert_response_content(
-        self, response: httpx.Response, usages: dict[int, dict] = {}
+        self,
+        response: httpx.Response,
+        assert_equality: Callable[[Any, Any], None],
+        usages: dict[int, dict] = {},
     ):
         line_idx = 0
         for line in response.iter_lines():
             chunk_idx = line_idx // 2
 
             if line_idx % 2 == 1:
-                assert line == ""
+                assert_equality(line, "")
 
             elif chunk_idx < len(self.chunks):
                 chunk = self.chunks[chunk_idx]
                 if chunk_idx in usages:
                     chunk = chunk | {"usage": usages[chunk_idx]}
-                assert json.loads(line.removeprefix("data: ")) == chunk
+                assert_equality(json.loads(line.removeprefix("data: ")), chunk)
 
             elif chunk_idx == len(self.chunks):
-                assert line == "data: [DONE]"
+                assert_equality(line, "data: [DONE]")
 
             else:
                 assert False
