@@ -5,15 +5,8 @@ from typing import Awaitable, Dict, TypeVar
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response, StreamingResponse
-from openai import (
-    APIConnectionError,
-    APIStatusError,
-    APITimeoutError,
-    AsyncStream,
-)
-from openai.types.chat.chat_completion import ChatCompletion
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from fastapi.responses import JSONResponse, Response
+from openai import APIConnectionError, APIStatusError, APITimeoutError
 
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.dalle3 import (
@@ -22,26 +15,24 @@ from aidial_adapter_openai.dalle3 import (
 from aidial_adapter_openai.databricks import (
     chat_completion as databricks_chat_completion,
 )
+from aidial_adapter_openai.gpt import gpt_chat_completion
 from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
-from aidial_adapter_openai.utils.auth import OpenAICreds, get_credentials
+from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
-    chat_completions_parser,
     embeddings_parser,
     parse_body,
     parse_deployment_list,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
-from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.storage import create_file_storage
-from aidial_adapter_openai.utils.streaming import generate_stream, map_stream
-from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
+from aidial_adapter_openai.utils.tokens import Tokenizer
 
 app = FastAPI()
 
@@ -147,75 +138,19 @@ async def chat_completion(deployment_id: str, request: Request):
             api_version,
         )
 
-    return await gpt_chat_completion(
-        data, deployment_id, upstream_endpoint, creds, api_version
-    )
-
-
-async def gpt_chat_completion(
-    data: dict,
-    deployment_id: str,
-    upstream_endpoint: str,
-    creds: OpenAICreds,
-    api_version: str,
-):
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
     tokenizer = Tokenizer(model=openai_model_name)
 
-    discarded_messages = None
-    if "max_prompt_tokens" in data:
-        max_prompt_tokens = data["max_prompt_tokens"]
-        if not isinstance(max_prompt_tokens, int):
-            raise HTTPException(
-                f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
-                400,
-                "invalid_request_error",
-            )
-        if max_prompt_tokens < 1:
-            raise HTTPException(
-                f"'{max_prompt_tokens}' is less than the minimum of 1 - 'max_prompt_tokens'",
-                400,
-                "invalid_request_error",
-            )
-        del data["max_prompt_tokens"]
-
-        data["messages"], discarded_messages = discard_messages(
-            tokenizer, data["messages"], max_prompt_tokens
-        )
-
-    client = chat_completions_parser.parse(upstream_endpoint).get_client(
-        {**creds, "api_version": api_version, "timeout": DEFAULT_TIMEOUT}
-    )
-
-    response: AsyncStream[ChatCompletionChunk] | ChatCompletion | Response = (
-        await handle_exceptions(
-            call_with_extra_body(client.chat.completions.create, data)
+    return await handle_exceptions(
+        gpt_chat_completion(
+            data,
+            deployment_id,
+            tokenizer,
+            upstream_endpoint,
+            creds,
+            api_version,
         )
     )
-
-    if isinstance(response, Response):
-        return response
-
-    elif isinstance(response, AsyncStream):
-        prompt_tokens = tokenizer.calculate_prompt_tokens(data["messages"])
-        chunk_stream = map_stream(lambda obj: obj.to_dict(), response)
-        return StreamingResponse(
-            to_openai_sse_stream(
-                generate_stream(
-                    prompt_tokens,
-                    chunk_stream,
-                    tokenizer,
-                    deployment_id,
-                    discarded_messages,
-                )
-            ),
-            media_type="text/event-stream",
-        )
-    else:
-        resp = response.to_dict()
-        if discarded_messages is not None:
-            resp |= {"statistics": {"discarded_messages": discarded_messages}}
-        return resp
 
 
 @app.post("/openai/deployments/{deployment_id}/embeddings")

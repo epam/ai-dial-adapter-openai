@@ -33,7 +33,7 @@ async def call_with_extra_body(
     return await func(**arg)
 
 
-def has_kwargs_argument(func: Callable[..., Coroutine[Any, Any, T]]) -> bool:
+def has_kwargs_argument(func: Callable[..., Coroutine[Any, Any, Any]]) -> bool:
     """
     Determines if the given function accepts a variable keyword argument (**kwargs).
     """
