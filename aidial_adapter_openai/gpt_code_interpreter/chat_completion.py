@@ -8,8 +8,8 @@ from openai.types.beta.code_interpreter_tool_param import (
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.gpt_code_interpreter.assistants_api import (
     create_message,
+    get_response,
     poll_run_till_completion,
-    retrieve_and_print_messages,
 )
 from aidial_adapter_openai.gpt_code_interpreter.bing_search import (
     search_bing,
@@ -31,7 +31,6 @@ async def chat_completion(
     creds: OpenAICreds,
     api_version: str,
 ) -> Response:
-    pass
 
     openai_endpoint = chat_completions_parser.parse(endpoint)
 
@@ -53,8 +52,6 @@ async def chat_completion(
         instructions = messages[0]["content"]
         messages = messages[1:]
 
-    query = messages[-1]["content"]
-
     code_interpreter: CodeInterpreterToolParam = {"type": "code_interpreter"}
 
     assistant = await client.beta.assistants.create(
@@ -64,12 +61,21 @@ async def chat_completion(
     )
 
     thread = await client.beta.threads.create()
-    await create_message(client, thread.id, "user", query)
+
+    for message in messages:
+        role = message["role"]
+        if role == "system":
+            raise HTTPException(
+                "System messages other than the first one are not allowed",
+                400,
+                "invalid_request_error",
+            )
+        content = message.get("content") or ""
+        await create_message(client, thread.id, role, content)
 
     run = await client.beta.threads.runs.create(
         thread_id=thread.id,
         assistant_id=assistant.id,
-        instructions=instructions,
     )
 
     await poll_run_till_completion(
@@ -79,8 +85,11 @@ async def chat_completion(
         available_functions={"search_bing": search_bing},
     )
 
-    content = await retrieve_and_print_messages(
-        client=client, thread_id=thread.id, out_dir="data"
+    content = await get_response(
+        client=client,
+        thread_id=thread.id,
+        run_id=run.id,
+        out_dir="data",
     )
 
-    return create_single_message_response(content or "NA", stream)
+    return create_single_message_response(content, stream)
