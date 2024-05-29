@@ -17,6 +17,7 @@ from aidial_adapter_openai.gpt_code_interpreter.bing_search import (
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
     chat_completions_parser,
@@ -27,6 +28,8 @@ from aidial_adapter_openai.utils.streaming import create_single_message_response
 class EventHandler(AsyncAssistantEventHandler):
     @override
     async def on_event(self, event: AssistantStreamEvent) -> None:
+        logger.debug(f"Event: {event}")
+
         if event.event == "thread.run.step.created":
             details = event.data.step_details
             if details.type == "tool_calls":
@@ -36,6 +39,8 @@ class EventHandler(AsyncAssistantEventHandler):
 
     @override
     async def on_text_delta(self, delta: TextDelta, snapshot: Text) -> None:
+        logger.debug(f"TextDelta: {delta}")
+
         print(delta.value, end="", flush=True)
 
     @override
