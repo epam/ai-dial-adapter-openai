@@ -106,7 +106,7 @@ async def generate_stream(
                 "total_tokens": prompt_tokens + completion_tokens,
             }
             last_chunk["choices"][0]["delta"]["content"] = ""
-            last_chunk["choices"][0]["delta"]["finish_reason"] = "length"
+            last_chunk["choices"][0]["finish_reason"] = "length"
 
             yield last_chunk
         else:

@@ -23,7 +23,7 @@ env_files = [".env"]
 python = ">=3.11,<3.13"
 fastapi = "0.109.2"
 openai = "0.28.1"
-tiktoken = "0.5.1"
+tiktoken = "0.7.0"
 uvicorn = "0.23"
 wrapt = "^1.15.0"
 pydantic = "^1.10.12"

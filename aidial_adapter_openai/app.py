@@ -124,6 +124,9 @@ async def chat_completion(deployment_id: str, request: Request):
             )
         )
 
+    openai_model_name = model_aliases.get(deployment_id, deployment_id)
+    tokenizer = Tokenizer(model=openai_model_name)
+
     api_version = get_api_version(request)
 
     if deployment_id in gpt4_vision_deployments:
@@ -137,10 +140,8 @@ async def chat_completion(deployment_id: str, request: Request):
             storage,
             api_type,
             api_version,
+            tokenizer,
         )
-
-    openai_model_name = model_aliases.get(deployment_id, deployment_id)
-    tokenizer = Tokenizer(model=openai_model_name)
 
     discarded_messages = None
     if "max_prompt_tokens" in data:

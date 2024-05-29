@@ -268,6 +268,7 @@ async def chat_completion(
     file_storage: Optional[FileStorage],
     api_type: str,
     api_version: str,
+    tokenizer: Tokenizer,
 ) -> Response:
     if request.get("n", 1) > 1:
         raise HTTPException(
@@ -305,7 +306,6 @@ async def chat_completion(
 
     new_messages, prompt_image_tokens = result
 
-    tokenizer = Tokenizer(model="gpt-4")
     prompt_text_tokens = tokenizer.calculate_prompt_tokens(messages)
     estimated_prompt_tokens = prompt_text_tokens + prompt_image_tokens
 
@@ -359,7 +359,7 @@ async def chat_completion(
                 type="invalid_response_error",
             )
 
-        content = response["choices"][0]["message"].get("content", "")
+        content = response["choices"][0]["message"].get("content") or ""
         usage = response["usage"]
 
         actual_prompt_tokens = usage["prompt_tokens"]
