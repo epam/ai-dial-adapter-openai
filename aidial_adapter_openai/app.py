@@ -58,8 +58,10 @@ databricks_deployments = parse_deployment_list(
     os.getenv("DATABRICKS_DEPLOYMENTS") or ""
 )
 dalle3_azure_api_version = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
+
+# FIXME: remove the non-trivial default, it only for the review env experimentation
 gpt4_code_interpreter_deployments = parse_deployment_list(
-    os.getenv("GPT_CODE_INTERPRETER_DEPLOYMENTS") or ""
+    os.getenv("GPT_CODE_INTERPRETER_DEPLOYMENTS") or "gpt-4-0613"
 )
 
 for deployment_id in gpt4_code_interpreter_deployments:
@@ -70,6 +72,7 @@ for deployment_id in gpt4_code_interpreter_deployments:
 
 @app.post("/openai/deployments/{deployment_id}/chat/completions")
 async def chat_completion(deployment_id: str, request: Request):
+
     data = await parse_body(request)
     data["model"] = deployment_id
 
