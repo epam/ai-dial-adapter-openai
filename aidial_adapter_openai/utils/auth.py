@@ -45,8 +45,11 @@ class OpenAICreds(TypedDict, total=False):
     azure_ad_token: str
 
 
-async def get_credentials(request: Request) -> OpenAICreds:
-    api_key = request.headers.get("X-UPSTREAM-KEY")
+async def get_credentials_from_request(request: Request) -> OpenAICreds:
+    return await get_credentials(request.headers.get("X-UPSTREAM-KEY"))
+
+
+async def get_credentials(api_key: str | None) -> OpenAICreds:
     if api_key is None:
         return {"azure_ad_token": await get_api_key()}
     else:

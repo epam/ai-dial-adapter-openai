@@ -1,4 +1,7 @@
-from typing import Any, Optional
+from typing import Any, Awaitable, Optional, TypeVar
+
+from fastapi.responses import Response
+from openai import APIConnectionError, APIStatusError, APITimeoutError
 
 
 class HTTPException(Exception):
@@ -38,3 +41,24 @@ def create_error(
             "code": code,
         }
     }
+
+
+T = TypeVar("T")
+
+
+async def handle_exceptions(call: Awaitable[T]) -> T | Response:
+    try:
+        return await call
+    except APIStatusError as e:
+        r = e.response
+        return Response(
+            content=r.content,
+            status_code=r.status_code,
+            headers=r.headers,
+        )
+    except APITimeoutError:
+        raise HTTPException("Request timed out", 504, "timeout")
+    except APIConnectionError:
+        raise HTTPException(
+            "Error communicating with OpenAI", 502, "connection"
+        )

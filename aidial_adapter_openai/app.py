@@ -1,12 +1,11 @@
 import json
 import os
-from typing import Awaitable, Dict, TypeVar
+from typing import Dict
 
-from aidial_sdk.telemetry.init import init_telemetry
+from aidial_sdk import DIALApp
 from aidial_sdk.telemetry.types import TelemetryConfig
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
-from openai import APIConnectionError, APIStatusError, APITimeoutError
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.dalle3 import (
@@ -16,17 +15,20 @@ from aidial_adapter_openai.databricks import (
     chat_completion as databricks_chat_completion,
 )
 from aidial_adapter_openai.gpt import gpt_chat_completion
+from aidial_adapter_openai.gpt4_code_interpreter.application import (
+    CodeInterpreterApplication,
+)
 from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
-)
-from aidial_adapter_openai.gpt_code_interpreter.chat_completion import (
-    chat_completion as code_interpreter_chat_completion,
 )
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
-from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_adapter_openai.utils.auth import get_credentials_from_request
+from aidial_adapter_openai.utils.exceptions import (
+    HTTPException,
+    handle_exceptions,
+)
 from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
     embeddings_parser,
@@ -36,10 +38,10 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.tokens import Tokenizer
+from aidial_adapter_openai.utils.version import get_api_version_from_request
 
-app = FastAPI()
+app = DIALApp(add_healthcheck=True, telemetry_config=TelemetryConfig())
 
-init_telemetry(app, TelemetryConfig())
 configure_loggers()
 
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
@@ -55,48 +57,15 @@ mistral_deployments = parse_deployment_list(
 databricks_deployments = parse_deployment_list(
     os.getenv("DATABRICKS_DEPLOYMENTS") or ""
 )
-api_versions_mapping: Dict[str, str] = json.loads(
-    os.getenv("API_VERSIONS_MAPPING", "{}")
-)
 dalle3_azure_api_version = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
-gpt_code_interpreter_deployments = parse_deployment_list(
+gpt4_code_interpreter_deployments = parse_deployment_list(
     os.getenv("GPT_CODE_INTERPRETER_DEPLOYMENTS") or ""
 )
 
-
-T = TypeVar("T")
-
-
-async def handle_exceptions(call: Awaitable[T]) -> T | Response:
-    try:
-        return await call
-    except APIStatusError as e:
-        r = e.response
-        return Response(
-            content=r.content,
-            status_code=r.status_code,
-            headers=r.headers,
-        )
-    except APITimeoutError:
-        raise HTTPException("Request timed out", 504, "timeout")
-    except APIConnectionError:
-        raise HTTPException(
-            "Error communicating with OpenAI", 502, "connection"
-        )
-
-
-def get_api_version(request: Request):
-    api_version = request.query_params.get("api-version", "")
-    api_version = api_versions_mapping.get(api_version, api_version)
-
-    if api_version == "":
-        raise HTTPException(
-            "Api version is a required query parameter",
-            400,
-            "invalid_request_error",
-        )
-
-    return api_version
+for deployment_id in gpt4_code_interpreter_deployments:
+    app.add_chat_completion(
+        deployment_id, CodeInterpreterApplication(deployment_id)
+    )
 
 
 @app.post("/openai/deployments/{deployment_id}/chat/completions")
@@ -106,7 +75,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     is_stream = data.get("stream", False)
 
-    creds = await get_credentials(request)
+    creds = await get_credentials_from_request(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
@@ -131,7 +100,7 @@ async def chat_completion(deployment_id: str, request: Request):
             databricks_chat_completion(data, upstream_endpoint, creds)
         )
 
-    api_version = get_api_version(request)
+    api_version = get_api_version_from_request(request)
 
     if deployment_id in gpt4_vision_deployments:
         storage = create_file_storage("images", request.headers)
@@ -143,13 +112,6 @@ async def chat_completion(deployment_id: str, request: Request):
             is_stream,
             storage,
             api_version,
-        )
-
-    if deployment_id in gpt_code_interpreter_deployments:
-        return await handle_exceptions(
-            code_interpreter_chat_completion(
-                data, is_stream, upstream_endpoint, creds, api_version
-            )
         )
 
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
@@ -172,8 +134,8 @@ async def embedding(deployment_id: str, request: Request):
     data = await parse_body(request)
     data["model"] = deployment_id
 
-    creds = await get_credentials(request)
-    api_version = get_api_version(request)
+    creds = await get_credentials_from_request(request)
+    api_version = get_api_version_from_request(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     client = embeddings_parser.parse(upstream_endpoint).get_client(

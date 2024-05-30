@@ -4,9 +4,12 @@ import re
 import sys
 from logging import Filter, LogRecord
 
+from aidial_sdk import logger as aidial_logger
 from uvicorn.logging import DefaultFormatter
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+DIAL_LOG_LEVEL = os.getenv("DIAL_LOG_LEVEL", "WARNING")
+aidial_logger.setLevel(DIAL_LOG_LEVEL)
 
 
 class HealthCheckFilter(Filter):
