@@ -15,7 +15,16 @@ class Tokenizer:
 
     def __init__(self, model: str) -> None:
         self.model = model
-        self.encoding = encoding_for_model(model)
+        try:
+            self.encoding = encoding_for_model(model)
+        except KeyError:
+            raise HTTPException(
+                message=f"Could not find tokenizer for the model {model!r} in tiktoken. "
+                "Consider mapping the model to an existing tokenizer via MODEL_ALIASES env var, "
+                "or declare it as a model which doesn't require tokenization through tiktoken.",
+                status_code=500,
+                type="interval_server_error",
+            )
 
     def calculate_tokens(self, string: str) -> int:
         return len(self.encoding.encode(string))

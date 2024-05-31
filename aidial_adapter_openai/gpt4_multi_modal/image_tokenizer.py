@@ -10,7 +10,10 @@ from typing import Tuple, assert_never
 
 from PIL import Image
 
-from aidial_adapter_openai.gpt4_vision.messages import DetailLevel, ImageDetail
+from aidial_adapter_openai.gpt4_multi_modal.messages import (
+    DetailLevel,
+    ImageDetail,
+)
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 
 
