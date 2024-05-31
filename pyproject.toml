@@ -29,7 +29,7 @@ fastapi = "0.109.2"
 # > Python library until V2 support is available.
 # So no need to use later versions just yet.
 openai = "1.20.0"
-tiktoken = "0.5.1"
+tiktoken = "0.7.0"
 uvicorn = "0.23"
 wrapt = "^1.15.0"
 pydantic = "^1.10.12"

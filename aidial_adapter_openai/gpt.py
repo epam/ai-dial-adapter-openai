@@ -16,10 +16,10 @@ from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 async def gpt_chat_completion(
     data: dict,
     deployment_id: str,
-    tokenizer: Tokenizer,
     upstream_endpoint: str,
     creds: OpenAICreds,
     api_version: str,
+    tokenizer: Tokenizer,
 ):
     discarded_messages = None
     if "max_prompt_tokens" in data:
