@@ -14,6 +14,7 @@ from typing import (
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_adapter_openai.gpt4_vision.gpt4_conversion import (
     convert_gpt4v_to_gpt4_chunk,
 )
@@ -23,7 +24,6 @@ from aidial_adapter_openai.gpt4_vision.messages import (
     create_text_message,
 )
 from aidial_adapter_openai.utils.auth import get_auth_header
-from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import (
@@ -270,15 +270,16 @@ async def chat_completion(
     api_version: str,
 ) -> Response:
     if request.get("n", 1) > 1:
-        raise HTTPException(
+        raise DialException(
             status_code=422,
             message="The deployment doesn't support n > 1",
             type="invalid_request_error",
+            display_message="This model doesn't support more than one alternative answer.",
         )
 
     messages: List[Any] = request["messages"]
     if len(messages) == 0:
-        raise HTTPException(
+        raise DialException(
             status_code=422,
             message="The request doesn't contain any messages",
             type="invalid_request_error",
@@ -297,7 +298,7 @@ async def chat_completion(
             return create_error_response(error_message, is_stream)
         else:
             # Throw an error if the request came from the API
-            raise HTTPException(
+            raise DialException(
                 status_code=400,
                 message=result,
                 type="invalid_request_error",
@@ -353,7 +354,7 @@ async def chat_completion(
 
         response = convert_gpt4v_to_gpt4_chunk(response)
         if response is None:
-            raise HTTPException(
+            raise DialException(
                 status_code=500,
                 message="The origin returned invalid response",
                 type="invalid_response_error",

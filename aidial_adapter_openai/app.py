@@ -24,7 +24,7 @@ from aidial_adapter_openai.mistral import (
 )
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
     chat_completions_parser,
@@ -67,10 +67,18 @@ async def handle_exceptions(call):
     except OpenAIException as e:
         return Response(status_code=e.code, headers=e.headers, content=e.body)
     except error.Timeout:
-        raise HTTPException("Request timed out", 504, "timeout")
+        raise DialException(
+            "Request timed out",
+            504,
+            "timeout",
+            display_message="Request timed out. Try again later, please!",
+        )
     except error.APIConnectionError:
-        raise HTTPException(
-            "Error communicating with OpenAI", 502, "connection"
+        raise DialException(
+            "Error communicating with OpenAI",
+            502,
+            "connection",
+            display_message="OpenAI server is not responsive. Try again later, please!",
         )
 
 
@@ -79,7 +87,7 @@ def get_api_version(request: Request):
     api_version = api_versions_mapping.get(api_version, api_version)
 
     if api_version == "":
-        raise HTTPException(
+        raise DialException(
             "Api version is a required query parameter",
             400,
             "invalid_request_error",
@@ -146,13 +154,13 @@ async def chat_completion(deployment_id: str, request: Request):
     if "max_prompt_tokens" in data:
         max_prompt_tokens = data["max_prompt_tokens"]
         if not isinstance(max_prompt_tokens, int):
-            raise HTTPException(
+            raise DialException(
                 f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
                 400,
                 "invalid_request_error",
             )
         if max_prompt_tokens < 1:
-            raise HTTPException(
+            raise DialException(
                 f"'{max_prompt_tokens}' is less than the minimum of 1 - 'max_prompt_tokens'",
                 400,
                 "invalid_request_error",
@@ -197,7 +205,7 @@ async def chat_completion(deployment_id: str, request: Request):
         )
     else:
         if discarded_messages is not None:
-            assert type(response) == OpenAIObject
+            assert isinstance(response, OpenAIObject)
             response = response.to_dict() | {
                 "statistics": {"discarded_messages": discarded_messages}
             }
@@ -227,8 +235,8 @@ async def embedding(deployment_id: str, request: Request):
     )
 
 
-@app.exception_handler(HTTPException)
-def exception_handler(request: Request, exc: HTTPException):
+@app.exception_handler(DialException)
+def exception_handler(request: Request, exc: DialException):
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -237,6 +245,7 @@ def exception_handler(request: Request, exc: HTTPException):
                 "type": exc.type,
                 "param": exc.param,
                 "code": exc.code,
+                "display_message": exc.display_message,
             }
         },
     )

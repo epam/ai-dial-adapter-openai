@@ -9,8 +9,8 @@ from fastapi import Request
 from openai import util
 from openai.util import ApiType
 from pydantic import BaseModel
+from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import EndpointParser
 
@@ -38,7 +38,12 @@ async def get_api_key() -> str:
             logger.error(
                 f"Default Azure credential failed with the error: {e.message}"
             )
-            raise HTTPException("Authentication failed", 401, "Unauthorized")
+            raise DialException(
+                "Authentication failed",
+                401,
+                "Unauthorized",
+                display_message="You're not authorized, try to log in again!",
+            )
 
     return access_token.token
 

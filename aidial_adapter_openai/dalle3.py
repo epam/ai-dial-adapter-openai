@@ -2,9 +2,9 @@ from typing import Any, AsyncGenerator, Optional
 
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from aidial_sdk.exceptions import HTTPException as DialException
 
 from aidial_adapter_openai.utils.auth import get_auth_header
-from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
@@ -85,7 +85,7 @@ def get_user_prompt(data: Any):
         or "content" not in data["messages"][-1]
         or not data["messages"][-1]
     ):
-        raise HTTPException(
+        raise DialException(
             "Your request is invalid", 400, "invalid_request_error"
         )
 
@@ -121,7 +121,7 @@ async def chat_completion(
     api_version: str,
 ) -> Response:
     if data.get("n", 1) > 1:
-        raise HTTPException(
+        raise DialException(
             status_code=422,
             message="The deployment doesn't support n > 1",
             type="invalid_request_error",
