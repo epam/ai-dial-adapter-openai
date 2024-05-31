@@ -3,9 +3,9 @@ from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import Any, Dict, List
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi import Request
 from pydantic import BaseModel
-from aidial_sdk.exceptions import HTTPException as DialException
 
 
 class Endpoint(ABC):

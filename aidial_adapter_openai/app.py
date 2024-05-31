@@ -2,6 +2,7 @@ import json
 import os
 from typing import Dict
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI, Request
@@ -24,7 +25,6 @@ from aidial_adapter_openai.mistral import (
 )
 from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
     chat_completions_parser,

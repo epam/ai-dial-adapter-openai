@@ -2,6 +2,7 @@ from typing import List, Tuple
 
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
+
 from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 
 TestCase = Tuple[List[dict], int, Tuple[List[dict], List[int]] | str]

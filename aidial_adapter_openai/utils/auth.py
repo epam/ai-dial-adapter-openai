@@ -2,6 +2,7 @@ import os
 import time
 from typing import Mapping, Optional
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
@@ -9,7 +10,6 @@ from fastapi import Request
 from openai import util
 from openai.util import ApiType
 from pydantic import BaseModel
-from aidial_sdk.exceptions import HTTPException as DialException
 
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import EndpointParser

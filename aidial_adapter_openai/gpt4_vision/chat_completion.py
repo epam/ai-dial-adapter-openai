@@ -12,9 +12,9 @@ from typing import (
 )
 
 import aiohttp
+from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_adapter_openai.gpt4_vision.gpt4_conversion import (
     convert_gpt4v_to_gpt4_chunk,
 )

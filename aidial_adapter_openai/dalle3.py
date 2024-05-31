@@ -1,8 +1,8 @@
 from typing import Any, AsyncGenerator, Optional
 
 import aiohttp
-from fastapi.responses import JSONResponse, Response, StreamingResponse
 from aidial_sdk.exceptions import HTTPException as DialException
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.auth import get_auth_header
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK

@@ -4,9 +4,8 @@ Implemented based on the official recipe: https://cookbook.openai.com/examples/h
 
 from typing import Any, List, Set
 
-from tiktoken import Encoding, encoding_for_model
-
 from aidial_sdk.exceptions import HTTPException as DialException
+from tiktoken import Encoding, encoding_for_model
 
 
 class Tokenizer:
