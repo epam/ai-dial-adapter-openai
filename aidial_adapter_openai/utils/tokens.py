@@ -6,7 +6,7 @@ from typing import Any, List, Set
 
 from tiktoken import Encoding, encoding_for_model
 
-from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_adapter_openai.errors import UserError
 
 
 class Tokenizer:
@@ -62,10 +62,8 @@ def discard_messages(
             prompt_tokens += tokenizer.calculate_tokens_per_message(message)
 
     if max_prompt_tokens < prompt_tokens:
-        raise HTTPException(
-            message=f"The token size of system messages ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})",
-            status_code=400,
-            type="invalid_request_error",
+        raise UserError(
+            f"The token size of system messages ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})"
         )
 
     # Then non-system messages in the reverse order
@@ -82,10 +80,8 @@ def discard_messages(
         len(kept_messages) == system_messages_count
         and system_messages_count != n
     ):
-        raise HTTPException(
-            message=f"The token size of system messages and the last user message ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})",
-            status_code=400,
-            type="invalid_request_error",
+        raise UserError(
+            f"The token size of system messages and the last user message ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})"
         )
 
     new_messages = [

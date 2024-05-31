@@ -5,6 +5,7 @@ from openai import ChatCompletion
 from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
+from aidial_adapter_openai.utils.exceptions import dial_exception_decorator
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import chat_completions_parser
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
@@ -16,6 +17,7 @@ def debug_print(chunk):
     return chunk
 
 
+@dial_exception_decorator
 async def chat_completion(
     data: Any,
     deployment_id: str,

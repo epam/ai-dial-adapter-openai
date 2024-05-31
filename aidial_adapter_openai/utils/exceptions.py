@@ -1,30 +1,59 @@
-from typing import Any, Optional
+from functools import wraps
+from typing import Any
+from aidial_sdk.exceptions import HTTPException as DialException
+from openai import error
+from aidial_adapter_openai.errors import UserError, ValidationError
+from aidial_adapter_openai.openai_override import OpenAIException
+from aidial_adapter_openai.utils.log_config import logger
 
 
-class HTTPException(Exception):
-    def __init__(
-        self,
-        message: str,
-        status_code: int = 500,
-        type: str = "runtime_error",
-        param: Optional[str] = None,
-        code: Optional[str] = None,
-    ) -> None:
-        self.message = message
-        self.status_code = status_code
-        self.type = type
-        self.param = param
-        self.code = code
-
-    def __repr__(self):
-        return "%s(message=%r, status_code=%r, type=%r, param=%r, code=%r)" % (
-            self.__class__.__name__,
-            self.message,
-            self.status_code,
-            self.type,
-            self.param,
-            self.code,
+def to_dial_exception(e: Exception) -> DialException:
+    if isinstance(e, DialException):
+        return e
+    if isinstance(e, UserError):
+        return e.to_dial_exception()
+    elif isinstance(e, ValidationError):
+        return e.to_dial_exception()
+    elif isinstance(e, error.Timeout):
+        return DialException("Request timed out", 504, "timeout")
+    elif isinstance(e, error.APIConnectionError):
+        return DialException(
+            "Error communicating with OpenAI", 502, "connection"
         )
+    elif isinstance(e, OpenAIException):
+        return DialException(e.body, e.code)
+    else:
+        return DialException(
+            status_code=500,
+            type="internal_server_error",
+            message=str(e),
+            code=None,
+            param=None,
+        )
+
+
+def dial_exception_decorator(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            logger.exception(e)
+            raise to_dial_exception(e) from e
+
+    return wrapper
+
+
+def dial_exception_decorator_sync(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.exception(e)
+            raise to_dial_exception(e) from e
+
+    return wrapper
 
 
 def create_error(message: str, type: str, param: Any = None, code: Any = None):

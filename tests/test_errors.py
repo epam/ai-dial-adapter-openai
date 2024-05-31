@@ -109,6 +109,7 @@ async def test_incorrect_upstream_url(aioresponses: aioresponses):
             "type": "invalid_request_error",
             "param": None,
             "code": None,
+            "diplay_message": None,
         }
     }
 
@@ -167,7 +168,6 @@ async def test_incorrect_streaming_request(aioresponses: aioresponses):
             "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
         },
     )
-
     assert response.status_code == 400
     assert response.json() == {
         "error": {
@@ -175,5 +175,6 @@ async def test_incorrect_streaming_request(aioresponses: aioresponses):
             "type": "invalid_request_error",
             "param": None,
             "code": None,
+            "display_message": None,
         }
     }

@@ -12,8 +12,10 @@ from typing import (
 )
 
 import aiohttp
+from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from aidial_adapter_openai.errors import UserError, ValidationError
 from aidial_adapter_openai.gpt4_vision.gpt4_conversion import (
     convert_gpt4v_to_gpt4_chunk,
 )
@@ -23,7 +25,7 @@ from aidial_adapter_openai.gpt4_vision.messages import (
     create_text_message,
 )
 from aidial_adapter_openai.utils.auth import get_auth_header
-from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_adapter_openai.utils.exceptions import dial_exception_decorator
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import (
@@ -259,6 +261,7 @@ async def transform_messages(
 T = TypeVar("T")
 
 
+@dial_exception_decorator
 async def chat_completion(
     request: Any,
     deployment: str,
@@ -270,19 +273,11 @@ async def chat_completion(
     api_version: str,
 ) -> Response:
     if request.get("n", 1) > 1:
-        raise HTTPException(
-            status_code=422,
-            message="The deployment doesn't support n > 1",
-            type="invalid_request_error",
-        )
+        raise ValidationError("The deployment doesn't support n > 1")
 
     messages: List[Any] = request["messages"]
     if len(messages) == 0:
-        raise HTTPException(
-            status_code=422,
-            message="The request doesn't contain any messages",
-            type="invalid_request_error",
-        )
+        raise UserError("The request doesn't contain any messages")
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
 
@@ -297,11 +292,7 @@ async def chat_completion(
             return create_error_response(error_message, is_stream)
         else:
             # Throw an error if the request came from the API
-            raise HTTPException(
-                status_code=400,
-                message=result,
-                type="invalid_request_error",
-            )
+            raise ValidationError(result, code=None, status_code=400)
 
     new_messages, prompt_image_tokens = result
 
@@ -353,7 +344,7 @@ async def chat_completion(
 
         response = convert_gpt4v_to_gpt4_chunk(response)
         if response is None:
-            raise HTTPException(
+            raise DialException(
                 status_code=500,
                 message="The origin returned invalid response",
                 type="invalid_response_error",

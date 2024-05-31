@@ -3,8 +3,8 @@ from typing import Any, AsyncGenerator, Optional
 import aiohttp
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from aidial_adapter_openai.errors import ValidationError
 from aidial_adapter_openai.utils.auth import get_auth_header
-from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
@@ -85,9 +85,7 @@ def get_user_prompt(data: Any):
         or "content" not in data["messages"][-1]
         or not data["messages"][-1]
     ):
-        raise HTTPException(
-            "Your request is invalid", 400, "invalid_request_error"
-        )
+        raise ValidationError("Message prompt is invalid!")
 
     return data["messages"][-1]["content"]
 
@@ -121,11 +119,7 @@ async def chat_completion(
     api_version: str,
 ) -> Response:
     if data.get("n", 1) > 1:
-        raise HTTPException(
-            status_code=422,
-            message="The deployment doesn't support n > 1",
-            type="invalid_request_error",
-        )
+        raise ValidationError("The deployment doesn't support n > 1")
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
     user_prompt = get_user_prompt(data)

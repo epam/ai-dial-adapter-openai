@@ -2,11 +2,12 @@ import json
 import os
 from typing import Dict
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from openai import ChatCompletion, Embedding, error
+from openai import ChatCompletion, Embedding
 from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
@@ -16,15 +17,18 @@ from aidial_adapter_openai.dalle3 import (
 from aidial_adapter_openai.databricks import (
     chat_completion as databricks_chat_completion,
 )
+from aidial_adapter_openai.errors import ValidationError
 from aidial_adapter_openai.gpt4_vision.chat_completion import (
     chat_completion as gpt4_vision_chat_completion,
 )
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
-from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_adapter_openai.utils.exceptions import (
+    dial_exception_decorator,
+    dial_exception_decorator_sync,
+)
 from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
     chat_completions_parser,
@@ -61,29 +65,13 @@ api_versions_mapping: Dict[str, str] = json.loads(
 dalle3_azure_api_version = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
 
 
-async def handle_exceptions(call):
-    try:
-        return await call
-    except OpenAIException as e:
-        return Response(status_code=e.code, headers=e.headers, content=e.body)
-    except error.Timeout:
-        raise HTTPException("Request timed out", 504, "timeout")
-    except error.APIConnectionError:
-        raise HTTPException(
-            "Error communicating with OpenAI", 502, "connection"
-        )
-
-
+@dial_exception_decorator_sync
 def get_api_version(request: Request):
     api_version = request.query_params.get("api-version", "")
     api_version = api_versions_mapping.get(api_version, api_version)
 
     if api_version == "":
-        raise HTTPException(
-            "Api version is a required query parameter",
-            400,
-            "invalid_request_error",
-        )
+        raise ValidationError("API version is not specified!")
 
     return api_version
 
@@ -110,18 +98,15 @@ async def chat_completion(deployment_id: str, request: Request):
             dalle3_azure_api_version,
         )
     elif deployment_id in mistral_deployments:
-        return await handle_exceptions(
-            mistral_chat_completion(data, upstream_endpoint, api_key)
-        )
+        return await mistral_chat_completion(data, upstream_endpoint, api_key)
+
     elif deployment_id in databricks_deployments:
-        return await handle_exceptions(
-            databricks_chat_completion(
-                data,
-                deployment_id,
-                upstream_endpoint,
-                api_key,
-                api_type,
-            )
+        return await databricks_chat_completion(
+            data,
+            deployment_id,
+            upstream_endpoint,
+            api_key,
+            api_type,
         )
 
     api_version = get_api_version(request)
@@ -146,13 +131,13 @@ async def chat_completion(deployment_id: str, request: Request):
     if "max_prompt_tokens" in data:
         max_prompt_tokens = data["max_prompt_tokens"]
         if not isinstance(max_prompt_tokens, int):
-            raise HTTPException(
+            raise DialException(
                 f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
                 400,
                 "invalid_request_error",
             )
         if max_prompt_tokens < 1:
-            raise HTTPException(
+            raise DialException(
                 f"'{max_prompt_tokens}' is less than the minimum of 1 - 'max_prompt_tokens'",
                 400,
                 "invalid_request_error",
@@ -167,14 +152,13 @@ async def chat_completion(deployment_id: str, request: Request):
         upstream_endpoint
     ).prepare_request_args(deployment_id)
 
-    response = await handle_exceptions(
-        ChatCompletion().acreate(
-            api_key=api_key,
-            api_type=api_type,
-            api_version=api_version,
-            request_timeout=DEFAULT_TIMEOUT,
-            **(data | request_args),
-        )
+    wrapped_acreate = dial_exception_decorator(ChatCompletion().acreate)
+    response = await wrapped_acreate(
+        api_key=api_key,
+        api_type=api_type,
+        api_version=api_version,
+        request_timeout=DEFAULT_TIMEOUT,
+        **(data | request_args),
     )
 
     if isinstance(response, Response):
@@ -197,7 +181,7 @@ async def chat_completion(deployment_id: str, request: Request):
         )
     else:
         if discarded_messages is not None:
-            assert type(response) == OpenAIObject
+            assert isinstance(response, OpenAIObject)
             response = response.to_dict() | {
                 "statistics": {"discarded_messages": discarded_messages}
             }
@@ -216,19 +200,18 @@ async def embedding(deployment_id: str, request: Request):
         request.headers["X-UPSTREAM-ENDPOINT"]
     ).prepare_request_args(deployment_id)
 
-    return await handle_exceptions(
-        Embedding().acreate(
-            api_key=api_key,
-            api_type=api_type,
-            api_version=api_version,
-            request_timeout=DEFAULT_TIMEOUT,
-            **(data | request_args),
-        )
+    wrapped_acreate = dial_exception_decorator(Embedding().acreate)
+    return await wrapped_acreate(
+        api_key=api_key,
+        api_type=api_type,
+        api_version=api_version,
+        request_timeout=DEFAULT_TIMEOUT,
+        **(data | request_args),
     )
 
 
-@app.exception_handler(HTTPException)
-def exception_handler(request: Request, exc: HTTPException):
+@app.exception_handler(DialException)
+def exception_handler(request: Request, exc: DialException):
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -237,6 +220,7 @@ def exception_handler(request: Request, exc: HTTPException):
                 "type": exc.type,
                 "param": exc.param,
                 "code": exc.code,
+                "display_message": exc.display_message,
             }
         },
     )

@@ -5,6 +5,7 @@ from openai import ChatCompletion
 from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
+from aidial_adapter_openai.utils.exceptions import dial_exception_decorator
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
 
 
@@ -16,6 +17,7 @@ async def generate_stream(
     yield END_CHUNK
 
 
+@dial_exception_decorator
 async def chat_completion(data: Any, upstream_endpoint: str, api_key: str):
     data["model"] = "azureai"
 

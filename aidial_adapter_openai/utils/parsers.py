@@ -6,7 +6,11 @@ from typing import Any, Dict, List
 from fastapi import Request
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.exceptions import HTTPException
+from aidial_adapter_openai.errors import ValidationError
+from aidial_adapter_openai.utils.exceptions import (
+    dial_exception_decorator,
+    dial_exception_decorator_sync,
+)
 
 
 class Endpoint(ABC):
@@ -43,6 +47,7 @@ class OpenAIEndpoint(BaseModel):
 class EndpointParser(BaseModel):
     name: str
 
+    @dial_exception_decorator_sync
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
         match = re.search(
             f"(.+?)/openai/deployments/(.+?)/{self.name}", endpoint
@@ -58,8 +63,8 @@ class EndpointParser(BaseModel):
         if match:
             return OpenAIEndpoint(api_base=match[1])
 
-        raise HTTPException(
-            "Invalid upstream endpoint format", 400, "invalid_request_error"
+        raise ValidationError(
+            "Invalid upstream endpoint format", status_code=400, code=None
         )
 
 
@@ -67,21 +72,22 @@ chat_completions_parser = EndpointParser(name="chat/completions")
 embeddings_parser = EndpointParser(name="embeddings")
 
 
+@dial_exception_decorator
 async def parse_body(
     request: Request,
 ) -> Dict[str, Any]:
     try:
         data = await request.json()
     except JSONDecodeError as e:
-        raise HTTPException(
+        raise ValidationError(
             "Your request contained invalid JSON: " + str(e),
-            400,
-            "invalid_request_error",
+            status_code=400,
+            code=None,
         )
 
-    if type(data) != dict:
-        raise HTTPException(
-            str(data) + " is not of type 'object'", 400, "invalid_request_error"
+    if not isinstance(data, dict):
+        raise ValidationError(
+            str(data) + " is not of type 'object'", status_code=400, code=None
         )
 
     return data
