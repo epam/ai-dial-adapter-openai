@@ -70,18 +70,16 @@ def discard_messages(
             prompt_tokens += tokenizer.calculate_tokens_per_message(message)
 
     if max_prompt_tokens < prompt_tokens:
+        error_message = (
+            f"The token size of system messages ({prompt_tokens}) "
+            f"exceeds prompt token limit ({max_prompt_tokens}). "
+            "Try reducing the length of the messages."
+        )
         raise DialException(
-            message=(
-                f"The token size of system messages ({prompt_tokens}) "
-                f"exceeds prompt token limit ({max_prompt_tokens})"
-            ),
+            message=error_message,
             status_code=400,
             type="invalid_request_error",
-            display_message=(
-                f"The token size of system messages ({prompt_tokens}) "
-                f"exceeds prompt token limit ({max_prompt_tokens})."
-                "Try reducing the length of the messages."
-            ),
+            display_message=error_message,
         )
 
     # Then non-system messages in the reverse order
@@ -98,18 +96,16 @@ def discard_messages(
         len(kept_messages) == system_messages_count
         and system_messages_count != n
     ):
+        error_message = (
+            f"The token size of system messages and the last user message ({prompt_tokens}) "
+            f"exceeds prompt token limit ({max_prompt_tokens}). "
+            "Try reducing the length of the messages."
+        )
         raise DialException(
-            message=(
-                f"The token size of system messages and the last user message ({prompt_tokens}) "
-                f"exceeds prompt token limit ({max_prompt_tokens})"
-            ),
+            message=error_message,
             status_code=400,
             type="invalid_request_error",
-            display_message=(
-                f"The token size of system messages and the last user message ({prompt_tokens}) "
-                f"exceeds prompt token limit ({max_prompt_tokens})."
-                "Try reducing the length of the messages."
-            ),
+            display_message=error_message,
         )
 
     new_messages = [
