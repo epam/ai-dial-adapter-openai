@@ -39,6 +39,7 @@ make serve
 ```
 
 ### Make on Windows
+
 As of now, Windows distributions do not include the make tool. To run make commands, the tool can be installed using
 the following command (since [Windows 10](https://learn.microsoft.com/en-us/windows/package-manager/winget/)):
 ```sh
@@ -69,6 +70,7 @@ Copy `.env.example` to `.env` and customize it for your environment:
 |CORE_API_VERSION||Supported value `0.6` to work with the old version of the file api|
 |MISTRAL_DEPLOYMENTS|``|Comma-separated list of deployments that support Mistral Large Azure API. Example: `mistral-large-azure,mistral-large`|
 |DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
+|GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 
 ### Docker
 

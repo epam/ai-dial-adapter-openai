@@ -2,10 +2,10 @@ from typing import List, Tuple
 
 import pytest
 
-from aidial_adapter_openai.gpt4_vision.image_tokenizer import (
+from aidial_adapter_openai.gpt4_multi_modal.image_tokenizer import (
     tokenize_image_by_size,
 )
-from aidial_adapter_openai.gpt4_vision.messages import ImageDetail
+from aidial_adapter_openai.gpt4_multi_modal.messages import ImageDetail
 
 test_cases: List[Tuple[int, int, ImageDetail, int]] = [
     (1, 1, "auto", 85),

@@ -17,8 +17,9 @@ from aidial_adapter_openai.dalle3 import (
 from aidial_adapter_openai.databricks import (
     chat_completion as databricks_chat_completion,
 )
-from aidial_adapter_openai.gpt4_vision.chat_completion import (
-    chat_completion as gpt4_vision_chat_completion,
+from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
+    gpt4_vision_chat_completion,
+    gpt4o_chat_completion,
 )
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
@@ -55,6 +56,7 @@ mistral_deployments = parse_deployment_list(
 databricks_deployments = parse_deployment_list(
     os.getenv("DATABRICKS_DEPLOYMENTS") or ""
 )
+gpt4o_deployments = parse_deployment_list(os.getenv("GPT4O_DEPLOYMENTS") or "")
 api_versions_mapping: Dict[str, str] = json.loads(
     os.getenv("API_VERSIONS_MAPPING", "{}")
 )
@@ -149,6 +151,22 @@ async def chat_completion(deployment_id: str, request: Request):
 
     openai_model_name = model_aliases.get(deployment_id, deployment_id)
     tokenizer = Tokenizer(model=openai_model_name)
+
+    if deployment_id in gpt4o_deployments:
+        storage = create_file_storage("images", request.headers)
+        return await handle_exceptions(
+            gpt4o_chat_completion(
+                data,
+                deployment_id,
+                upstream_endpoint,
+                api_key,
+                is_stream,
+                storage,
+                api_type,
+                api_version,
+                tokenizer,
+            )
+        )
 
     discarded_messages = None
     if "max_prompt_tokens" in data:

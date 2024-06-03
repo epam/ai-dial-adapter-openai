@@ -1,55 +1,44 @@
-import mimetypes
 import os
 from typing import (
     Any,
     AsyncIterator,
+    Callable,
     Dict,
     List,
     Optional,
-    Tuple,
     TypeVar,
     cast,
 )
 
 import aiohttp
-from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.gpt4_vision.gpt4_conversion import (
+from aidial_adapter_openai.gpt4_multi_modal.download import (
+    SUPPORTED_FILE_EXTS,
+    transform_messages,
+)
+from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
     convert_gpt4v_to_gpt4_chunk,
 )
-from aidial_adapter_openai.gpt4_vision.image_tokenizer import tokenize_image
-from aidial_adapter_openai.gpt4_vision.messages import (
-    create_image_message,
-    create_text_message,
-)
 from aidial_adapter_openai.utils.auth import get_auth_header
-from aidial_adapter_openai.utils.image_data_url import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import (
     parse_openai_sse_stream,
     to_openai_sse_stream,
 )
-from aidial_adapter_openai.utils.storage import (
-    FileStorage,
-    download_file_as_base64,
-)
+from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
     create_error_response,
     generate_stream,
     map_stream,
     prepend_to_stream,
 )
-from aidial_adapter_openai.utils.text import format_ordinal
 from aidial_adapter_openai.utils.tokens import Tokenizer
 
 # The built-in default max_tokens is 16 tokens,
 # which is too small for most image-to-text use cases.
-DEFAULT_MAX_TOKENS = int(os.getenv("GPT4_VISION_MAX_TOKENS", "1024"))
-
-# Officially supported image types by GPT-4 Vision
-SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
+GPT4V_DEFAULT_MAX_TOKENS = int(os.getenv("GPT4_VISION_MAX_TOKENS", "1024"))
 
 USAGE = f"""
 ### Usage
@@ -120,143 +109,55 @@ async def predict_non_stream(
             return await response.json()
 
 
-def guess_attachment_type(attachment: dict) -> Optional[str]:
-    type = attachment.get("type")
-    if type is None:
-        return None
-
-    if "octet-stream" in type:
-        # It's an arbitrary binary file. Trying to guess the type from the URL.
-        url = attachment.get("url")
-        if url is not None:
-            url_type = mimetypes.guess_type(url)[0]
-            if url_type is not None:
-                return url_type
-        return None
-
-    return type
-
-
-async def download_image(
-    file_storage: Optional[FileStorage], attachment: dict
-) -> ImageDataURL | str:
-    try:
-        type = guess_attachment_type(attachment)
-        if type is None:
-            return "Can't derive media type of the attachment"
-        elif type not in SUPPORTED_IMAGE_TYPES:
-            return f"The attachment isn't one of the supported types: {type}"
-
-        if "data" in attachment:
-            return ImageDataURL(type=type, data=attachment["data"])
-
-        if "url" in attachment:
-            attachment_link: str = attachment["url"]
-
-            image_url = ImageDataURL.from_data_url(attachment_link)
-            if image_url is not None:
-                if image_url.type in SUPPORTED_IMAGE_TYPES:
-                    return image_url
-                else:
-                    return (
-                        "The image attachment isn't one of the supported types"
-                    )
-
-            if file_storage is not None:
-                url = file_storage.attachment_link_to_url(attachment_link)
-                data = await file_storage.download_file_as_base64(url)
-            else:
-                data = await download_file_as_base64(attachment_link)
-
-            return ImageDataURL(type=type, data=data)
-
-        return "Invalid attachment"
-
-    except Exception as e:
-        logger.debug(f"Failed to download image: {e}")
-        return "Failed to download image"
+async def gpt4o_chat_completion(
+    request: Any,
+    deployment: str,
+    upstream_endpoint: str,
+    api_key: str,
+    is_stream: bool,
+    file_storage: Optional[FileStorage],
+    api_type: str,
+    api_version: str,
+    tokenizer: Tokenizer,
+) -> Response:
+    return await chat_completion(
+        request,
+        deployment,
+        upstream_endpoint,
+        api_key,
+        is_stream,
+        file_storage,
+        api_type,
+        api_version,
+        tokenizer,
+        lambda x: x,
+        None,
+    )
 
 
-async def transform_message(
-    file_storage: Optional[FileStorage], message: dict
-) -> Tuple[dict, int] | List[Tuple[int, str]]:
-    content = message.get("content", "")
-    custom_content = message.get("custom_content", {})
-    attachments = custom_content.get("attachments", [])
-
-    message = {k: v for k, v in message.items() if k != "custom_content"}
-
-    if len(attachments) == 0:
-        return message, 0
-
-    logger.debug(f"original attachments: {attachments}")
-
-    download_results: List[ImageDataURL | str] = [
-        await download_image(file_storage, attachment)
-        for attachment in attachments
-    ]
-
-    logger.debug(f"download results: {download_results}")
-
-    errors: List[Tuple[int, str]] = [
-        (idx, result)
-        for idx, result in enumerate(download_results)
-        if isinstance(result, str)
-    ]
-
-    if len(errors) > 0:
-        logger.debug(f"download errors: {errors}")
-        return errors
-
-    image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
-
-    image_tokens: List[int] = []
-    image_messages: List[dict] = []
-
-    for image_url in image_urls:
-        tokens, detail = tokenize_image(image_url, "auto")
-        image_tokens.append(tokens)
-        image_messages.append(create_image_message(image_url, detail))
-
-    total_image_tokens = sum(image_tokens)
-
-    logger.debug(f"image tokens: {image_tokens}")
-
-    sub_messages: List[dict] = [create_text_message(content)] + image_messages
-
-    return {**message, "content": sub_messages}, total_image_tokens
-
-
-async def transform_messages(
-    file_storage: Optional[FileStorage], messages: List[dict]
-) -> Tuple[List[dict], int] | str:
-    new_messages: List[dict] = []
-    image_tokens = 0
-
-    errors: Dict[int, List[Tuple[int, str]]] = {}
-
-    n = len(messages)
-    for idx, message in enumerate(messages):
-        result = await transform_message(file_storage, message)
-        if isinstance(result, list):
-            errors[n - idx] = result
-        else:
-            new_message, tokens = result
-            new_messages.append(new_message)
-            image_tokens += tokens
-
-    if errors:
-        msg = "Some of the image attachments failed to download:"
-        for i, error in errors.items():
-            msg += f"\n- {format_ordinal(i)} message from end:"
-            for j, err in error:
-                msg += f"\n  - {format_ordinal(j + 1)} attachment: {err}"
-        return msg
-
-    return new_messages, image_tokens
-
-
-T = TypeVar("T")
+async def gpt4_vision_chat_completion(
+    request: Any,
+    deployment: str,
+    upstream_endpoint: str,
+    api_key: str,
+    is_stream: bool,
+    file_storage: Optional[FileStorage],
+    api_type: str,
+    api_version: str,
+) -> Response:
+    return await chat_completion(
+        request,
+        deployment,
+        upstream_endpoint,
+        api_key,
+        is_stream,
+        file_storage,
+        api_type,
+        api_version,
+        Tokenizer("gpt-4"),
+        convert_gpt4v_to_gpt4_chunk,
+        GPT4V_DEFAULT_MAX_TOKENS,
+    )
 
 
 async def chat_completion(
@@ -268,9 +169,13 @@ async def chat_completion(
     file_storage: Optional[FileStorage],
     api_type: str,
     api_version: str,
+    tokenizer: Tokenizer,
+    response_transformer: Callable[[dict], dict | None],
+    default_max_tokens: int | None,
 ) -> Response:
+
     if request.get("n", 1) > 1:
-        raise DialException(
+        raise HTTPException(
             status_code=422,
             message="The deployment doesn't support n > 1",
             type="invalid_request_error",
@@ -278,7 +183,7 @@ async def chat_completion(
 
     messages: List[Any] = request["messages"]
     if len(messages) == 0:
-        raise DialException(
+        raise HTTPException(
             status_code=422,
             message="The request doesn't contain any messages",
             type="invalid_request_error",
@@ -289,7 +194,7 @@ async def chat_completion(
     result = await transform_messages(file_storage, messages)
 
     if isinstance(result, str):
-        logger.debug(f"Failed to prepare request for GPT4V: {result}")
+        logger.debug(f"Failed to prepare request: {result}")
 
         if file_storage is not None:
             # Report user-level error if the request came from the chat
@@ -297,7 +202,7 @@ async def chat_completion(
             return create_error_response(error_message, is_stream)
         else:
             # Throw an error if the request came from the API
-            raise DialException(
+            raise HTTPException(
                 status_code=400,
                 message=result,
                 type="invalid_request_error",
@@ -305,15 +210,12 @@ async def chat_completion(
 
     new_messages, prompt_image_tokens = result
 
-    tokenizer = Tokenizer(model="gpt-4")
     prompt_text_tokens = tokenizer.calculate_prompt_tokens(messages)
     estimated_prompt_tokens = prompt_text_tokens + prompt_image_tokens
 
-    max_tokens = request.get("max_tokens", DEFAULT_MAX_TOKENS)
-
     request = {
         **request,
-        "max_tokens": max_tokens,
+        "max_tokens": request.get("max_tokens") or default_max_tokens,
         "messages": new_messages,
     }
 
@@ -323,6 +225,8 @@ async def chat_completion(
         response = await predict_stream(api_url, headers, request)
         if isinstance(response, Response):
             return response
+
+        T = TypeVar("T")
 
         def debug_print(chunk: T) -> T:
             logger.debug(f"chunk: {chunk}")
@@ -334,7 +238,7 @@ async def chat_completion(
                     debug_print,
                     generate_stream(
                         stream=map_stream(
-                            convert_gpt4v_to_gpt4_chunk,
+                            response_transformer,
                             parse_openai_sse_stream(response),
                         ),
                         prompt_tokens=estimated_prompt_tokens,
@@ -351,7 +255,7 @@ async def chat_completion(
         if isinstance(response, Response):
             return response
 
-        response = convert_gpt4v_to_gpt4_chunk(response)
+        response = response_transformer(response)
         if response is None:
             raise DialException(
                 status_code=500,
@@ -359,7 +263,7 @@ async def chat_completion(
                 type="invalid_response_error",
             )
 
-        content = response["choices"][0]["message"].get("content", "")
+        content = response["choices"][0]["message"].get("content") or ""
         usage = response["usage"]
 
         actual_prompt_tokens = usage["prompt_tokens"]
