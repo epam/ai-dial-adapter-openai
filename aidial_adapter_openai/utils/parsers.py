@@ -3,10 +3,9 @@ from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import Any, Dict, List
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi import Request
 from pydantic import BaseModel
-
-from aidial_adapter_openai.utils.exceptions import HTTPException
 
 
 class Endpoint(ABC):
@@ -58,7 +57,7 @@ class EndpointParser(BaseModel):
         if match:
             return OpenAIEndpoint(api_base=match[1])
 
-        raise HTTPException(
+        raise DialException(
             "Invalid upstream endpoint format", 400, "invalid_request_error"
         )
 
@@ -73,14 +72,14 @@ async def parse_body(
     try:
         data = await request.json()
     except JSONDecodeError as e:
-        raise HTTPException(
+        raise DialException(
             "Your request contained invalid JSON: " + str(e),
             400,
             "invalid_request_error",
         )
 
-    if type(data) != dict:
-        raise HTTPException(
+    if not isinstance(data, dict):
+        raise DialException(
             str(data) + " is not of type 'object'", 400, "invalid_request_error"
         )
 

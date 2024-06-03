@@ -109,6 +109,7 @@ async def test_incorrect_upstream_url(aioresponses: aioresponses):
             "type": "invalid_request_error",
             "param": None,
             "code": None,
+            "display_message": None,
         }
     }
 
@@ -148,6 +149,7 @@ async def test_incorrect_streaming_request(aioresponses: aioresponses):
                     "type": "invalid_request_error",
                     "param": None,
                     "code": None,
+                    "display_message": None,
                 }
             }
         ),
@@ -175,5 +177,6 @@ async def test_incorrect_streaming_request(aioresponses: aioresponses):
             "type": "invalid_request_error",
             "param": None,
             "code": None,
+            "display_message": None,
         }
     }

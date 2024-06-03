@@ -2,6 +2,7 @@ import os
 import time
 from typing import Mapping, Optional
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
@@ -10,7 +11,6 @@ from openai import util
 from openai.util import ApiType
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import EndpointParser
 
@@ -38,7 +38,11 @@ async def get_api_key() -> str:
             logger.error(
                 f"Default Azure credential failed with the error: {e.message}"
             )
-            raise HTTPException("Authentication failed", 401, "Unauthorized")
+            raise DialException(
+                "Authentication failed",
+                401,
+                "Unauthorized",
+            )
 
     return access_token.token
 
