@@ -71,14 +71,14 @@ async def handle_exceptions(call):
             "Request timed out",
             504,
             "timeout",
-            display_message="Request timed out. Try again later, please!",
+            display_message="Request timed out. Please try again later.",
         )
     except error.APIConnectionError:
         raise DialException(
             "Error communicating with OpenAI",
             502,
             "connection",
-            display_message="OpenAI server is not responsive. Try again later, please!",
+            display_message="OpenAI server is not responsive. Please try again later.",
         )
 
 

@@ -42,7 +42,6 @@ async def get_api_key() -> str:
                 "Authentication failed",
                 401,
                 "Unauthorized",
-                display_message="You're not authorized, try to log in again!",
             )
 
     return access_token.token

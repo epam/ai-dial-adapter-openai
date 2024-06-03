@@ -274,7 +274,6 @@ async def chat_completion(
             status_code=422,
             message="The deployment doesn't support n > 1",
             type="invalid_request_error",
-            display_message="This model doesn't support more than one alternative answer.",
         )
 
     messages: List[Any] = request["messages"]
