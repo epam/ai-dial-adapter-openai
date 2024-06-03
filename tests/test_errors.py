@@ -73,6 +73,7 @@ async def test_missing_api_version(test_app: httpx.AsyncClient):
             "message": "Api version is a required query parameter",
             "param": None,
             "type": "invalid_request_error",
+            "display_message": None,
         }
     }
 
@@ -204,6 +205,7 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
             "type": "invalid_request_error",
             "param": None,
             "code": None,
+            "display_message": None,
         }
     }
 
@@ -237,6 +239,7 @@ async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
             "type": "invalid_request_error",
             "param": None,
             "code": None,
+            "display_message": None,
         }
     }
 

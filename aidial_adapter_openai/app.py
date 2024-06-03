@@ -2,6 +2,7 @@ import json
 import os
 from typing import Awaitable, Dict, TypeVar
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI, Request
@@ -24,7 +25,6 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.exceptions import HTTPException
 from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
     embeddings_parser,
@@ -73,10 +73,18 @@ async def handle_exceptions(call: Awaitable[T]) -> T | Response:
             headers=r.headers,
         )
     except APITimeoutError:
-        raise HTTPException("Request timed out", 504, "timeout")
+        raise DialException(
+            "Request timed out",
+            504,
+            "timeout",
+            display_message="Request timed out. Please try again later.",
+        )
     except APIConnectionError:
-        raise HTTPException(
-            "Error communicating with OpenAI", 502, "connection"
+        raise DialException(
+            "Error communicating with OpenAI",
+            502,
+            "connection",
+            display_message="OpenAI server is not responsive. Please try again later.",
         )
 
 
@@ -85,7 +93,7 @@ def get_api_version(request: Request):
     api_version = api_versions_mapping.get(api_version, api_version)
 
     if api_version == "":
-        raise HTTPException(
+        raise DialException(
             "Api version is a required query parameter",
             400,
             "invalid_request_error",
@@ -188,8 +196,8 @@ async def embedding(deployment_id: str, request: Request):
     )
 
 
-@app.exception_handler(HTTPException)
-def exception_handler(request: Request, exc: HTTPException):
+@app.exception_handler(DialException)
+def exception_handler(request: Request, exc: DialException):
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -198,6 +206,7 @@ def exception_handler(request: Request, exc: HTTPException):
                 "type": exc.type,
                 "param": exc.param,
                 "code": exc.code,
+                "display_message": exc.display_message,
             }
         },
     )
