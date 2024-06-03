@@ -11,8 +11,8 @@ from typing import (
 )
 
 import aiohttp
-from fastapi.responses import JSONResponse, Response, StreamingResponse
 from aidial_sdk.exceptions import HTTPException as DialException
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.gpt4_multi_modal.download import (
     SUPPORTED_FILE_EXTS,
@@ -175,7 +175,7 @@ async def chat_completion(
 ) -> Response:
 
     if request.get("n", 1) > 1:
-        raise HTTPException(
+        raise DialException(
             status_code=422,
             message="The deployment doesn't support n > 1",
             type="invalid_request_error",
@@ -183,7 +183,7 @@ async def chat_completion(
 
     messages: List[Any] = request["messages"]
     if len(messages) == 0:
-        raise HTTPException(
+        raise DialException(
             status_code=422,
             message="The request doesn't contain any messages",
             type="invalid_request_error",
@@ -202,7 +202,7 @@ async def chat_completion(
             return create_error_response(error_message, is_stream)
         else:
             # Throw an error if the request came from the API
-            raise HTTPException(
+            raise DialException(
                 status_code=400,
                 message=result,
                 type="invalid_request_error",
