@@ -17,7 +17,7 @@ class Tokenizer:
         try:
             self.encoding = encoding_for_model(model)
         except KeyError:
-            raise HTTPException(
+            raise DialException(
                 message=f"Could not find tokenizer for the model {model!r} in tiktoken. "
                 "Consider mapping the model to an existing tokenizer via MODEL_ALIASES env var, "
                 "or declare it as a model which doesn't require tokenization through tiktoken.",
@@ -71,10 +71,17 @@ def discard_messages(
 
     if max_prompt_tokens < prompt_tokens:
         raise DialException(
-            message=f"The token size of system messages ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})",
+            message=(
+                f"The token size of system messages ({prompt_tokens}) "
+                f"exceeds prompt token limit ({max_prompt_tokens})"
+            ),
             status_code=400,
             type="invalid_request_error",
-            display_message="You exceeded amount of tokens for this chat. Please try create another one.",
+            display_message=(
+                f"The token size of system messages and the last user message ({prompt_tokens})"
+                f"exceeds prompt token limit ({max_prompt_tokens})."
+                "Try reducing the length of the messages."
+            ),
         )
 
     # Then non-system messages in the reverse order
@@ -92,10 +99,17 @@ def discard_messages(
         and system_messages_count != n
     ):
         raise DialException(
-            message=f"The token size of system messages and the last user message ({prompt_tokens}) exceeds prompt token limit ({max_prompt_tokens})",
+            message=(
+                f"The token size of system messages and the last user message ({prompt_tokens}) "
+                f"exceeds prompt token limit ({max_prompt_tokens})"
+            ),
             status_code=400,
             type="invalid_request_error",
-            display_message="You exceeded amount of tokens for this chat. Please try create another one.",
+            display_message=(
+                f"The token size of system messages and the last user message ({prompt_tokens})"
+                f"exceeds prompt token limit ({max_prompt_tokens})."
+                "Try reducing the length of the messages."
+            ),
         )
 
     new_messages = [
