@@ -78,7 +78,7 @@ def discard_messages(
             status_code=400,
             type="invalid_request_error",
             display_message=(
-                f"The token size of system messages and the last user message ({prompt_tokens}) "
+                f"The token size of system messages ({prompt_tokens}) "
                 f"exceeds prompt token limit ({max_prompt_tokens})."
                 "Try reducing the length of the messages."
             ),
