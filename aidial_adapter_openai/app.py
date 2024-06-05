@@ -20,6 +20,7 @@ from aidial_adapter_openai.env import (
     DATABRICKS_DEPLOYMENTS,
     GPT4_VISION_DEPLOYMENTS,
     GPT4O_DEPLOYMENTS,
+    LEGACY_COMPLETIONS_DEPLOYMENTS,
     MISTRAL_DEPLOYMENTS,
     MODEL_ALIASES,
 )
@@ -27,6 +28,7 @@ from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     gpt4_vision_chat_completion,
     gpt4o_chat_completion,
 )
+from aidial_adapter_openai.legacy_completions import legacy_completions
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
@@ -70,6 +72,7 @@ async def chat_completion(deployment_id: str, request: Request):
     is_stream = data.get("stream", False)
 
     api_type, api_key = await get_credentials(request, chat_completions_parser)
+    api_version = get_api_version(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
@@ -98,8 +101,18 @@ async def chat_completion(deployment_id: str, request: Request):
                 api_type,
             )
         )
-
-    api_version = get_api_version(request)
+    elif deployment_id in LEGACY_COMPLETIONS_DEPLOYMENTS:
+        return await handle_exceptions(
+            legacy_completions(
+                data,
+                deployment_id,
+                is_stream,
+                upstream_endpoint,
+                api_key,
+                api_type,
+                api_version,
+            )
+        )
 
     if deployment_id in GPT4_VISION_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
