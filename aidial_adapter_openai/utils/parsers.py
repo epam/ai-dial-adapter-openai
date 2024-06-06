@@ -63,6 +63,7 @@ class EndpointParser(BaseModel):
 
 
 chat_completions_parser = EndpointParser(name="chat/completions")
+completions_parser = EndpointParser(name="completions")
 embeddings_parser = EndpointParser(name="embeddings")
 
 

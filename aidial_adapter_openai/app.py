@@ -37,6 +37,7 @@ from aidial_adapter_openai.utils.exceptions import handle_exceptions
 from aidial_adapter_openai.utils.log_config import configure_loggers
 from aidial_adapter_openai.utils.parsers import (
     chat_completions_parser,
+    completions_parser,
     embeddings_parser,
     parse_body,
 )
@@ -67,20 +68,29 @@ def get_api_version(request: Request):
 
 @app.post("/openai/deployments/{deployment_id}/chat/completions")
 async def chat_completion(deployment_id: str, request: Request):
+
     data = await parse_body(request)
 
     is_stream = data.get("stream", False)
 
-    api_type, api_key = await get_credentials(request, chat_completions_parser)
+    if deployment_id in LEGACY_COMPLETIONS_DEPLOYMENTS:
+        endpoint_parser = completions_parser
+    else:
+        endpoint_parser = chat_completions_parser
+
+    api_type, api_key = await get_credentials(request, endpoint_parser)
     api_version = get_api_version(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+    request_args = endpoint_parser.parse(
+        upstream_endpoint
+    ).prepare_request_args(deployment_id)
 
     if deployment_id in DALLE3_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
         return await dalle3_chat_completion(
             data,
-            upstream_endpoint,
+            endpoint_parser.parse(upstream_endpoint).api_base,
             api_key,
             is_stream,
             storage,
@@ -107,10 +117,10 @@ async def chat_completion(deployment_id: str, request: Request):
                 data,
                 deployment_id,
                 is_stream,
-                upstream_endpoint,
                 api_key,
                 api_type,
                 api_version,
+                **request_args,
             )
         )
 
@@ -166,10 +176,6 @@ async def chat_completion(deployment_id: str, request: Request):
         data["messages"], discarded_messages = discard_messages(
             tokenizer, data["messages"], max_prompt_tokens
         )
-
-    request_args = chat_completions_parser.parse(
-        upstream_endpoint
-    ).prepare_request_args(deployment_id)
 
     response = await handle_exceptions(
         ChatCompletion().acreate(
