@@ -24,7 +24,7 @@ def convert_completion_to_chat_completion(
         "id": item_dict["id"],
         "model": item_dict["model"],
         "created": item_dict["created"],
-        "usage": item_dict["usage"],
+        "usage": item_dict.get("usage") or {},
         "choices": [
             {
                 "index": choice["index"],
