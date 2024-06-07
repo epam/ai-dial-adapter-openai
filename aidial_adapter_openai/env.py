@@ -24,10 +24,6 @@ DATABRICKS_DEPLOYMENTS = parse_deployment_list(
     os.getenv("DATABRICKS_DEPLOYMENTS") or ""
 )
 GPT4O_DEPLOYMENTS = parse_deployment_list(os.getenv("GPT4O_DEPLOYMENTS") or "")
-LEGACY_COMPLETIONS_DEPLOYMENTS = parse_deployment_list(
-    os.getenv("LEGACY_COMPLETIONS_DEPLOYMENTS") or ""
-)
-
 COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: Dict[str, str] = json.loads(
     os.getenv("COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES") or "{}"
 )

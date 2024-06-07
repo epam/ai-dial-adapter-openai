@@ -71,7 +71,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     data = await parse_body(request)
 
-    is_stream = data.get("stream", False)
+    is_stream = bool(data.get("stream", False))
 
     if deployment_id in LEGACY_COMPLETIONS_DEPLOYMENTS:
         endpoint_parser = completions_parser
@@ -82,9 +82,27 @@ async def chat_completion(deployment_id: str, request: Request):
     api_version = get_api_version(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
-    request_args = endpoint_parser.parse(
+
+    # If it is not chat completions, but legacy completions
+    if not chat_completions_parser.is_valid(
         upstream_endpoint
-    ).prepare_request_args(deployment_id)
+    ) and completions_parser.is_valid(upstream_endpoint):
+
+        return await handle_exceptions(
+            legacy_completions(
+                data,
+                deployment_id,
+                is_stream,
+                api_key,
+                api_type,
+                api_version,
+                **(
+                    completions_parser.parse(
+                        upstream_endpoint
+                    ).prepare_request_args(deployment_id)
+                ),
+            ),
+        )
 
     if deployment_id in DALLE3_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
@@ -109,18 +127,6 @@ async def chat_completion(deployment_id: str, request: Request):
                 upstream_endpoint,
                 api_key,
                 api_type,
-            )
-        )
-    elif deployment_id in LEGACY_COMPLETIONS_DEPLOYMENTS:
-        return await handle_exceptions(
-            legacy_completions(
-                data,
-                deployment_id,
-                is_stream,
-                api_key,
-                api_type,
-                api_version,
-                **request_args,
             )
         )
 
@@ -176,6 +182,10 @@ async def chat_completion(deployment_id: str, request: Request):
         data["messages"], discarded_messages = discard_messages(
             tokenizer, data["messages"], max_prompt_tokens
         )
+
+    request_args = chat_completions_parser.parse(
+        upstream_endpoint
+    ).prepare_request_args(deployment_id)
 
     response = await handle_exceptions(
         ChatCompletion().acreate(

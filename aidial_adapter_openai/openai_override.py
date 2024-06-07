@@ -35,7 +35,7 @@ def handle_error_response_wrapper(wrapped, self, args, kwargs):
     raise OpenAIException(*args)
 
 
-# Overriden to handle cases, when server returns valid stream, but wihtout "text/event-stream" header
+# Overriden to handle cases, when server returns valid stream, but without "text/event-stream" header
 def interpret_response_wrapper(
     wrapped,
     self: APIRequestor,
@@ -72,7 +72,7 @@ def interpret_response_wrapper(
         )
 
 
-# Overriden to handle cases, when server returns valid stream, but wihtout "text/event-stream" header
+# Overriden to handle cases, when server returns valid stream, but without "text/event-stream" header
 async def interpret_async_response_wrapper(
     wrapped,
     self: APIRequestor,

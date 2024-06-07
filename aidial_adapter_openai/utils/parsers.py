@@ -1,11 +1,13 @@
 import re
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
-from typing import Any, Dict, List
+from typing import Dict, List, Union
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi import Request
 from pydantic import BaseModel
+
+from aidial_adapter_openai.types import ChatCompletionRequestData
 
 
 class Endpoint(ABC):
@@ -42,7 +44,10 @@ class OpenAIEndpoint(BaseModel):
 class EndpointParser(BaseModel):
     name: str
 
-    def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
+    def _find_match(
+        self,
+        endpoint,
+    ) -> Union[AzureOpenAIEndpoint, OpenAIEndpoint, None]:
         match = re.search(
             f"(.+?)/openai/deployments/(.+?)/{self.name}", endpoint
         )
@@ -53,9 +58,18 @@ class EndpointParser(BaseModel):
             )
 
         match = re.search(f"(.+?)/{self.name}", endpoint)
-
         if match:
             return OpenAIEndpoint(api_base=match[1])
+        return match
+
+    def is_valid(self, endpoint: str) -> bool:
+        if self._find_match(endpoint):
+            return True
+        return False
+
+    def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
+        if match := self._find_match(endpoint):
+            return match
 
         raise DialException(
             "Invalid upstream endpoint format", 400, "invalid_request_error"
@@ -69,7 +83,7 @@ embeddings_parser = EndpointParser(name="embeddings")
 
 async def parse_body(
     request: Request,
-) -> Dict[str, Any]:
+) -> ChatCompletionRequestData:
     try:
         data = await request.json()
     except JSONDecodeError as e:
@@ -84,7 +98,7 @@ async def parse_body(
             str(data) + " is not of type 'object'", 400, "invalid_request_error"
         )
 
-    return data
+    return data  # type: ignore
 
 
 def parse_deployment_list(deployments: str) -> List[str]:
