@@ -20,7 +20,6 @@ from aidial_adapter_openai.env import (
     DATABRICKS_DEPLOYMENTS,
     GPT4_VISION_DEPLOYMENTS,
     GPT4O_DEPLOYMENTS,
-    LEGACY_COMPLETIONS_DEPLOYMENTS,
     MISTRAL_DEPLOYMENTS,
     MODEL_ALIASES,
 )
@@ -70,15 +69,7 @@ def get_api_version(request: Request):
 async def chat_completion(deployment_id: str, request: Request):
 
     data = await parse_body(request)
-
     is_stream = bool(data.get("stream", False))
-
-    if deployment_id in LEGACY_COMPLETIONS_DEPLOYMENTS:
-        endpoint_parser = completions_parser
-    else:
-        endpoint_parser = chat_completions_parser
-
-    api_type, api_key = await get_credentials(request, endpoint_parser)
     api_version = get_api_version(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
@@ -87,6 +78,7 @@ async def chat_completion(deployment_id: str, request: Request):
     if not chat_completions_parser.is_valid(
         upstream_endpoint
     ) and completions_parser.is_valid(upstream_endpoint):
+        api_type, api_key = await get_credentials(request, completions_parser)
 
         return await handle_exceptions(
             legacy_completions(
@@ -104,11 +96,12 @@ async def chat_completion(deployment_id: str, request: Request):
             ),
         )
 
+    api_type, api_key = await get_credentials(request, chat_completions_parser)
     if deployment_id in DALLE3_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
         return await dalle3_chat_completion(
             data,
-            endpoint_parser.parse(upstream_endpoint).api_base,
+            upstream_endpoint,
             api_key,
             is_stream,
             storage,

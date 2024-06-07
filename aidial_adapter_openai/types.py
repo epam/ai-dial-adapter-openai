@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Optional, Union
+from typing import List, Optional, TypedDict, Union
 
 
 class MessageData(TypedDict):
