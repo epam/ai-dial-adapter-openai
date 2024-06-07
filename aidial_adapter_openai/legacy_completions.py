@@ -49,6 +49,7 @@ async def legacy_completions(
     api_version: str,
     api_base: str,
     model=None,
+    engine=None,
 ):
     if data.get("n", 1) > 1:  # type: ignore
         raise DialException(
@@ -79,6 +80,7 @@ async def legacy_completions(
         "temperature": data.get("temperature"),
         "presence_penalty": data.get("presence_penalty"),
         "stop": data.get("stop"),
+        "engine": data.get("engine"),
     }
     response = await handle_exceptions(
         Completion.acreate(
