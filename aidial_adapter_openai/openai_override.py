@@ -35,6 +35,7 @@ def handle_error_response_wrapper(wrapped, self, args, kwargs):
     raise OpenAIException(*args)
 
 
+# Overriden to handle cases, when server returns valid stream, but wihtout "text/event-stream" header
 def interpret_response_wrapper(
     wrapped,
     self: APIRequestor,
@@ -44,7 +45,15 @@ def interpret_response_wrapper(
 ) -> Tuple[Union[OpenAIResponse, Iterator[OpenAIResponse]], bool]:
     """Returns the response(s) and a bool indicating whether it is a stream."""
     result, stream = args
-    if stream:
+
+    # Only patched "if"
+    if (
+        stream and "text/event-stream" in result.headers.get("Content-Type", "")
+    ) or (
+        stream
+        and result.headers.get("Content-Type") is None
+        and 200 <= result.status < 300
+    ):
         return (
             self._interpret_response_line(
                 line, result.status_code, result.headers, stream=True
@@ -63,6 +72,7 @@ def interpret_response_wrapper(
         )
 
 
+# Overriden to handle cases, when server returns valid stream, but wihtout "text/event-stream" header
 async def interpret_async_response_wrapper(
     wrapped,
     self: APIRequestor,
@@ -72,7 +82,15 @@ async def interpret_async_response_wrapper(
 ) -> Tuple[Union[OpenAIResponse, AsyncGenerator[OpenAIResponse, None]], bool]:
     """Returns the response(s) and a bool indicating whether it is a stream."""
     result, stream = args
-    if stream:
+
+    # Only patched "if"
+    if (
+        stream and "text/event-stream" in result.headers.get("Content-Type", "")
+    ) or (
+        stream
+        and result.headers.get("Content-Type") is None
+        and 200 <= result.status < 300
+    ):
         return (
             self._interpret_response_line(
                 line, result.status, result.headers, stream=True
@@ -141,12 +159,13 @@ wrapt.wrap_function_wrapper(
     APIRequestor, "_interpret_response_line", interpret_response_line_wrapper
 )
 
+# TODO: remove this, whe openai library version will migrate from 0.8 version
 wrapt.wrap_function_wrapper(
     APIRequestor,
     "_interpret_async_response",
     interpret_async_response_wrapper,
 )
-
+# TODO: remove this, whe openai library version will migrate from 0.8 version
 wrapt.wrap_function_wrapper(
     APIRequestor, "_interpret_response", interpret_response_wrapper
 )
