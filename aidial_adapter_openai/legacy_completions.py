@@ -9,6 +9,7 @@ from aidial_adapter_openai.env import COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES
 from aidial_adapter_openai.types import ChatCompletionRequestData
 from aidial_adapter_openai.utils.auth import get_auth_header
 from aidial_adapter_openai.utils.exceptions import handle_exceptions
+from aidial_adapter_openai.utils.remove_none import remove_none
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import map_stream
 
@@ -48,7 +49,6 @@ async def legacy_completions(
     api_version: str,
     api_base: str,
     model=None,
-    engine=None,
 ):
     if data.get("n", 1) > 1:  # type: ignore
         raise DialException(
@@ -70,7 +70,16 @@ async def legacy_completions(
         template := COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES.get(deployment_id)
     ) is not None:
         prompt = template.format(prompt=prompt)
-
+    extra_params = {
+        "frequency_penalty": data.get("frequency_penalty"),
+        "best_of": data.get("best_of"),
+        "logit_bias": data.get("logit_bias"),
+        "max_tokens": data.get("max_tokens"),
+        "top_p": data.get("top_p"),
+        "temperature": data.get("temperature"),
+        "presence_penalty": data.get("presence_penalty"),
+        "stop": data.get("stop"),
+    }
     response = await handle_exceptions(
         Completion.acreate(
             headers={
@@ -81,19 +90,11 @@ async def legacy_completions(
             api_type=api_type,
             api_key=api_key,
             prompt=prompt,
-            model=data.get("model") or model,
-            best_of=data.get("best_of"),
-            frequency_penalty=data.get("frequency_penalty"),
-            logit_bias=data.get("logit_bias"),
-            max_tokens=data.get("max_tokens"),
-            top_p=data.get("top_p"),
-            temperature=data.get("temperature"),
-            presence_penalty=data.get("presence_penalty"),
-            stop=data.get("stop"),
             stream=is_stream,
             deployment_id=deployment_id if api_type == "azure" else None,
-            engine=engine,
+            model=data.get("model") or model,
             timeout=DEFAULT_TIMEOUT,
+            **remove_none(extra_params),
         )
     )
     if isinstance(response, Response):
