@@ -2,12 +2,12 @@ from time import time
 from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
 
+from aidial_sdk.utils.errors import json_error
 from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import APIError
 
 from aidial_adapter_openai.utils.env import get_env_bool
-from aidial_adapter_openai.utils.exceptions import create_error
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
 from aidial_adapter_openai.utils.tokens import Tokenizer
@@ -93,7 +93,7 @@ async def generate_stream(
 
             last_chunk = chunk
     except APIError as e:
-        yield create_error(
+        yield json_error(
             message=e.message,
             type=e.type,
             param=e.param,

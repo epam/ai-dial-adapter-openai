@@ -1,5 +1,3 @@
-import json
-
 import httpx
 import pytest
 import respx
@@ -141,11 +139,8 @@ async def test_missing_api_version(test_app: httpx.AsyncClient):
     assert response.status_code == 400
     assert response.json() == {
         "error": {
-            "code": None,
             "message": "Api version is a required query parameter",
-            "param": None,
             "type": "invalid_request_error",
-            "display_message": None,
         }
     }
 
@@ -172,8 +167,6 @@ async def test_error_during_streaming(test_app: httpx.AsyncClient):
             "error": {
                 "message": "Error test",
                 "type": "runtime_error",
-                "param": None,
-                "code": None,
             }
         },
     )
@@ -234,9 +227,6 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
         "error": {
             "message": "Invalid upstream endpoint format",
             "type": "invalid_request_error",
-            "param": None,
-            "code": None,
-            "display_message": None,
         }
     }
 
@@ -264,35 +254,25 @@ async def test_incorrect_format(test_app: httpx.AsyncClient):
 @respx.mock
 @pytest.mark.asyncio
 async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
-    expected_response = {
-        "error": {
-            "message": "0 is less than the minimum of 1 - 'n'",
-            "type": "invalid_request_error",
-            "param": None,
-            "code": None,
-            "display_message": None,
-        }
-    }
-
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(
-        status_code=400,
-        content=json.dumps(expected_response),
-    )
-
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={
             "messages": [{"role": "user", "content": "Test content"}],
             "stream": True,
-            "n": 0,
+            "max_prompt_tokens": 0,
         },
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
             "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
         },
     )
+
+    expected_response = {
+        "error": {
+            "message": "'0' is less than the minimum of 1 - 'max_prompt_tokens'",
+            "type": "invalid_request_error",
+        }
+    }
 
     assert response.status_code == 400
     assert response.json() == expected_response

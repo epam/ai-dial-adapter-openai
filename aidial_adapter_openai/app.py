@@ -5,6 +5,7 @@ from typing import Awaitable, Dict, TypeVar
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
+from aidial_sdk.utils.errors import json_error
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from openai import APIConnectionError, APIStatusError, APITimeoutError
@@ -200,15 +201,13 @@ async def embedding(deployment_id: str, request: Request):
 def exception_handler(request: Request, exc: DialException):
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": {
-                "message": exc.message,
-                "type": exc.type,
-                "param": exc.param,
-                "code": exc.code,
-                "display_message": exc.display_message,
-            }
-        },
+        content=json_error(
+            message=exc.message,
+            type=exc.type,
+            param=exc.param,
+            code=exc.code,
+            display_message=exc.display_message,
+        ),
     )
 
 
