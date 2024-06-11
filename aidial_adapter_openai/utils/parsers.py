@@ -56,16 +56,14 @@ class EndpointParser(BaseModel):
             return AzureOpenAIEndpoint(
                 api_base=match[1], deployment_id=match[2]
             )
-
         match = re.search(f"(.+?)/{self.name}", endpoint)
         if match:
             return OpenAIEndpoint(api_base=match[1])
-        return match
+
+        return None
 
     def is_valid(self, endpoint: str) -> bool:
-        if self._find_match(endpoint):
-            return True
-        return False
+        return self._find_match(endpoint) is not None
 
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
         if match := self._find_match(endpoint):
