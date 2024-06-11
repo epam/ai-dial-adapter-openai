@@ -19,7 +19,7 @@ async def call_with_extra_body(
 
     if extra_args and "extra_body" not in expected_args:
         raise DialException(
-            f"Unrecognized request field supplied: {extra_args}.",
+            f"Extra arguments aren't supported: {extra_args}.",
             400,
             "invalid_request_error",
         )
@@ -40,6 +40,5 @@ def has_kwargs_argument(func: Callable[..., Coroutine[Any, Any, Any]]) -> bool:
     signature = inspect.signature(func)
     for param in signature.parameters.values():
         if param.kind == inspect.Parameter.VAR_KEYWORD:
-            print(param)
             return True
     return False
