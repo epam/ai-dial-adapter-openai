@@ -1,8 +1,10 @@
-from typing import List, Optional, TypedDict, Union
+from typing import List, Literal, Optional, TypedDict, Union
+
+RoleType = Literal["user", "system", "assistant"]
 
 
 class MessageData(TypedDict):
-    role: str
+    role: RoleType
     content: str
 
 

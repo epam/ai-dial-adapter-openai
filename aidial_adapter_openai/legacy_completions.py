@@ -1,3 +1,5 @@
+from typing import Any
+
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi import Response
 from fastapi.responses import StreamingResponse
@@ -6,7 +8,7 @@ from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.env import COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES
-from aidial_adapter_openai.types import ChatCompletionRequestData
+from aidial_adapter_openai.types import ChatCompletionRequestData, RoleType
 from aidial_adapter_openai.utils.auth import get_auth_header
 from aidial_adapter_openai.utils.exceptions import handle_exceptions
 from aidial_adapter_openai.utils.remove_none import remove_none
@@ -15,12 +17,14 @@ from aidial_adapter_openai.utils.streaming import map_stream
 
 
 def convert_completion_to_chat_completion(
-    item: OpenAIObject, role="assistant", is_stream: bool = False
-):
+    item: OpenAIObject,
+    role: RoleType,
+    is_stream: bool,
+) -> dict[str, Any]:
     item_dict = item.to_dict_recursive()
 
     return {
-        "object": "chat.completion",
+        "object": "chat.completion.chunk" if is_stream else "chat.completion",
         "id": item_dict["id"],
         "model": item_dict["model"],
         "created": item_dict["created"],
@@ -48,8 +52,8 @@ async def legacy_completions(
     api_type: str,
     api_version: str,
     api_base: str,
-    model=None,
-    engine=None,
+    model: str | None = None,
+    engine: str | None = None,
 ):
     if data.get("n", 1) > 1:  # type: ignore
         raise DialException(
@@ -105,7 +109,7 @@ async def legacy_completions(
     if is_stream:
         chunks_formatted = map_stream(
             lambda obj: convert_completion_to_chat_completion(
-                obj, is_stream=is_stream
+                obj, role="assistant", is_stream=is_stream
             ),
             response,
         )
@@ -114,4 +118,6 @@ async def legacy_completions(
             media_type="text/event-stream",
         )
     else:
-        return convert_completion_to_chat_completion(response)
+        return convert_completion_to_chat_completion(
+            response, role="assistant", is_stream=False
+        )
