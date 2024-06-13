@@ -1,6 +1,10 @@
+import json
+from typing import Callable
+
 import httpx
 import pytest
 import respx
+from respx.types import SideEffectTypes
 
 from tests.utils.stream import OpenAIStream
 
@@ -9,10 +13,28 @@ def assert_equal(actual, expected):
     assert actual == expected
 
 
+def mock_response(
+    status_code: int,
+    headers: dict,
+    content: str,
+    check_request: Callable[[httpx.Request], None] = lambda _: None,
+) -> SideEffectTypes:
+    def side_effect(request: httpx.Request):
+        check_request(request)
+        return httpx.Response(
+            status_code=status_code,
+            headers=headers,
+            content=content,
+        )
+
+    return side_effect
+
+
 @respx.mock
 @pytest.mark.asyncio
 async def test_top_level_extra_field(test_app: httpx.AsyncClient):
     # The adapter tolerates top-level extra fields
+    # and passes it further to the upstream endpoint.
 
     mock_stream = OpenAIStream(
         {
@@ -29,12 +51,18 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
         },
     )
 
+    def check_request(request: httpx.Request):
+        assert json.loads(request.content)["extra_field"] == 1
+
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(
-        status_code=200,
-        content_type="text/event-stream",
-        content=mock_stream.to_content(),
+    ).mock(
+        side_effect=mock_response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            content=mock_stream.to_content(),
+            check_request=check_request,
+        ),
     )
 
     response = await test_app.post(
@@ -68,6 +96,7 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
 @pytest.mark.asyncio
 async def test_nested_extra_field(test_app: httpx.AsyncClient):
     # The adapter tolerates nested extra fields
+    # and passes it further to the upstream endpoint.
 
     mock_stream = OpenAIStream(
         {
@@ -84,12 +113,18 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
         },
     )
 
+    def check_request(request: httpx.Request):
+        assert json.loads(request.content)["messages"][0]["extra_field"] == 1
+
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(
-        status_code=200,
-        content_type="text/event-stream",
-        content=mock_stream.to_content(),
+    ).mock(
+        side_effect=mock_response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            content=mock_stream.to_content(),
+            check_request=check_request,
+        ),
     )
 
     response = await test_app.post(
@@ -139,7 +174,7 @@ async def test_missing_api_version(test_app: httpx.AsyncClient):
     assert response.status_code == 400
     assert response.json() == {
         "error": {
-            "message": "Api version is a required query parameter",
+            "message": "api-version is a required query parameter",
             "type": "invalid_request_error",
         }
     }
@@ -208,10 +243,6 @@ async def test_error_during_streaming(test_app: httpx.AsyncClient):
 @respx.mock
 @pytest.mark.asyncio
 async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(status_code=200)
-
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={"messages": [{"role": "user", "content": "Test content"}]},
@@ -233,10 +264,10 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_incorrect_format(test_app: httpx.AsyncClient):
+async def test_correct_upstream_url(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(status_code=400, content=b"Incorrect format")
+    ).respond(status_code=400, content=b"Any response")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -248,7 +279,7 @@ async def test_incorrect_format(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 400
-    assert response.content == b"Incorrect format"
+    assert response.content == b"Any response"
 
 
 @respx.mock

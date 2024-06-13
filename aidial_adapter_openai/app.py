@@ -95,7 +95,7 @@ def get_api_version(request: Request):
 
     if api_version == "":
         raise DialException(
-            "Api version is a required query parameter",
+            "api-version is a required query parameter",
             400,
             "invalid_request_error",
         )
