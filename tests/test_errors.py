@@ -15,7 +15,7 @@ def assert_equal(actual, expected):
 
 def mock_response(
     status_code: int,
-    headers: dict,
+    content_type: str,
     content: str,
     check_request: Callable[[httpx.Request], None] = lambda _: None,
 ) -> SideEffectTypes:
@@ -23,7 +23,7 @@ def mock_response(
         check_request(request)
         return httpx.Response(
             status_code=status_code,
-            headers=headers,
+            headers={"content-type": content_type},
             content=content,
         )
 
@@ -32,7 +32,7 @@ def mock_response(
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_top_level_extra_field(test_app: httpx.AsyncClient):
+async def test_single_chunk_token_counting(test_app: httpx.AsyncClient):
     # The adapter tolerates top-level extra fields
     # and passes it further to the upstream endpoint.
 
@@ -51,18 +51,12 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
         },
     )
 
-    def check_request(request: httpx.Request):
-        assert json.loads(request.content)["extra_field"] == 1
-
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).mock(
-        side_effect=mock_response(
-            status_code=200,
-            headers={"content-type": "text/event-stream"},
-            content=mock_stream.to_content(),
-            check_request=check_request,
-        ),
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
     )
 
     response = await test_app.post(
@@ -70,7 +64,6 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
         json={
             "messages": [{"role": "user", "content": "Test content"}],
             "stream": True,
-            "extra_field": 1,
         },
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
@@ -94,24 +87,50 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_top_level_extra_field(test_app: httpx.AsyncClient):
+    # The adapter tolerates top-level extra fields
+    # and passes it further to the upstream endpoint.
+
+    mock_stream = OpenAIStream({"error": {"message": "whatever"}})
+
+    def check_request(request: httpx.Request):
+        assert json.loads(request.content)["extra_field"] == 1
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).mock(
+        side_effect=mock_response(
+            status_code=200,
+            content_type="text/event-stream",
+            content=mock_stream.to_content(),
+            check_request=check_request,
+        ),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+            "extra_field": 1,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+    mock_stream.assert_response_content(response, assert_equal)
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_nested_extra_field(test_app: httpx.AsyncClient):
     # The adapter tolerates nested extra fields
     # and passes it further to the upstream endpoint.
 
-    mock_stream = OpenAIStream(
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "stop",
-                    "delta": {"role": "assistant", "content": "5"},
-                }
-            ],
-        },
-    )
+    mock_stream = OpenAIStream({"error": {"message": "whatever"}})
 
     def check_request(request: httpx.Request):
         assert json.loads(request.content)["messages"][0]["extra_field"] == 1
@@ -121,7 +140,7 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
     ).mock(
         side_effect=mock_response(
             status_code=200,
-            headers={"content-type": "text/event-stream"},
+            content_type="text/event-stream",
             content=mock_stream.to_content(),
             check_request=check_request,
         ),
@@ -142,17 +161,7 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 200
-    mock_stream.assert_response_content(
-        response,
-        assert_equal,
-        usages={
-            0: {
-                "prompt_tokens": 11,
-                "completion_tokens": 1,
-                "total_tokens": 12,
-            }
-        },
-    )
+    mock_stream.assert_response_content(response, assert_equal)
 
 
 @respx.mock
@@ -267,7 +276,7 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
 async def test_correct_upstream_url(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(status_code=400, content=b"Any response")
+    ).respond(status_code=400, content="whatever")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -279,7 +288,7 @@ async def test_correct_upstream_url(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 400
-    assert response.content == b"Any response"
+    assert response.content == b"whatever"
 
 
 @respx.mock
