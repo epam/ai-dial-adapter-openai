@@ -106,6 +106,15 @@ def get_api_version(request: Request):
 @app.post("/openai/deployments/{deployment_id}/chat/completions")
 async def chat_completion(deployment_id: str, request: Request):
     data = await parse_body(request)
+
+    # Azure OpenAI deployments ignore "model" request field,
+    # since the deployment id is already encoded in the endpoint path.
+    # This is not the case for non-Azure OpenAI deployments, so
+    # they require the "model" field to be set.
+    # However, openai==1.33.0 requires the "model" field for **both**
+    # Azure and non-Azure deployments.
+    # Therefore, we provide the "model" field for all deployments here.
+    # The same goes for /embeddings endpoint.
     data["model"] = deployment_id
 
     is_stream = data.get("stream", False)
@@ -182,6 +191,8 @@ async def chat_completion(deployment_id: str, request: Request):
 @app.post("/openai/deployments/{deployment_id}/embeddings")
 async def embedding(deployment_id: str, request: Request):
     data = await parse_body(request)
+
+    # See note for /chat/completions endpoint
     data["model"] = deployment_id
 
     creds = await get_credentials(request)
