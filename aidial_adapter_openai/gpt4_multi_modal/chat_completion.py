@@ -21,7 +21,7 @@ from aidial_adapter_openai.gpt4_multi_modal.download import (
 from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
     convert_gpt4v_to_gpt4_chunk,
 )
-from aidial_adapter_openai.utils.auth import get_auth_header
+from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import (
     parse_openai_sse_stream,
@@ -113,10 +113,9 @@ async def gpt4o_chat_completion(
     request: Any,
     deployment: str,
     upstream_endpoint: str,
-    api_key: str,
+    creds: OpenAICreds,
     is_stream: bool,
     file_storage: Optional[FileStorage],
-    api_type: str,
     api_version: str,
     tokenizer: Tokenizer,
 ) -> Response:
@@ -124,10 +123,9 @@ async def gpt4o_chat_completion(
         request,
         deployment,
         upstream_endpoint,
-        api_key,
+        creds,
         is_stream,
         file_storage,
-        api_type,
         api_version,
         tokenizer,
         lambda x: x,
@@ -139,20 +137,18 @@ async def gpt4_vision_chat_completion(
     request: Any,
     deployment: str,
     upstream_endpoint: str,
-    api_key: str,
+    creds: OpenAICreds,
     is_stream: bool,
     file_storage: Optional[FileStorage],
-    api_type: str,
     api_version: str,
 ) -> Response:
     return await chat_completion(
         request,
         deployment,
         upstream_endpoint,
-        api_key,
+        creds,
         is_stream,
         file_storage,
-        api_type,
         api_version,
         Tokenizer("gpt-4"),
         convert_gpt4v_to_gpt4_chunk,
@@ -164,10 +160,9 @@ async def chat_completion(
     request: Any,
     deployment: str,
     upstream_endpoint: str,
-    api_key: str,
+    creds: OpenAICreds,
     is_stream: bool,
     file_storage: Optional[FileStorage],
-    api_type: str,
     api_version: str,
     tokenizer: Tokenizer,
     response_transformer: Callable[[dict], dict | None],
@@ -219,7 +214,7 @@ async def chat_completion(
         "messages": new_messages,
     }
 
-    headers = get_auth_header(api_type, api_key)
+    headers = get_auth_headers(creds)
 
     if is_stream:
         response = await predict_stream(api_url, headers, request)

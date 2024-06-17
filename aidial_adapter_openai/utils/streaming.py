@@ -2,10 +2,11 @@ from time import time
 from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
 
+from aidial_sdk.utils.errors import json_error
 from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from openai import APIError
 
-from aidial_adapter_openai.openai_override import OpenAIException
 from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
@@ -65,6 +66,9 @@ async def generate_stream(
 
                 choice = chunk["choices"][0]
 
+                content = (choice.get("delta") or {}).get("content") or ""
+                total_content += content
+
                 if choice["finish_reason"] is not None:
                     stream_finished = True
                     completion_tokens = tokenizer.calculate_tokens(
@@ -79,9 +83,6 @@ async def generate_stream(
                         chunk["statistics"] = {
                             "discarded_messages": discarded_messages
                         }
-                else:
-                    content = choice["delta"].get("content") or ""
-                    total_content += content
 
                 yield chunk
             else:
@@ -91,8 +92,13 @@ async def generate_stream(
                     yield chunk
 
             last_chunk = chunk
-    except OpenAIException as e:
-        yield e.body
+    except APIError as e:
+        yield json_error(
+            message=e.message,
+            type=e.type,
+            param=e.param,
+            code=e.code,
+        )
         return
 
     if not stream_finished:

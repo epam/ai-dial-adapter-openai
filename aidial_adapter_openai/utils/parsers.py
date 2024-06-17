@@ -1,42 +1,51 @@
 import re
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TypedDict
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi import Request
+from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
+
+
+class OpenAIParams(TypedDict, total=False):
+    api_key: str
+    azure_ad_token: str
+    api_version: str
+    timeout: Timeout
 
 
 class Endpoint(ABC):
     @abstractmethod
-    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
-        pass
-
-    @abstractmethod
-    def get_api_type(self) -> str:
+    def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
         pass
 
 
 class AzureOpenAIEndpoint(BaseModel):
-    api_base: str
-    deployment_id: str
+    azure_endpoint: str
+    azure_deployment: str
 
-    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
-        return {"api_base": self.api_base, "engine": self.deployment_id}
-
-    def get_api_type(self) -> str:
-        return "azure"
+    def get_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
+        return AsyncAzureOpenAI(
+            azure_endpoint=self.azure_endpoint,
+            azure_deployment=self.azure_deployment,
+            api_key=params.get("api_key"),
+            azure_ad_token=params.get("azure_ad_token"),
+            api_version=params.get("api_version"),
+            timeout=params.get("timeout"),
+        )
 
 
 class OpenAIEndpoint(BaseModel):
-    api_base: str
+    base_url: str
 
-    def prepare_request_args(self, deployment_id: str) -> Dict[str, str]:
-        return {"api_base": self.api_base, "model": deployment_id}
-
-    def get_api_type(self) -> str:
-        return "open_ai"
+    def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
+        return AsyncOpenAI(
+            base_url=self.base_url,
+            api_key=params.get("api_key"),
+            timeout=params.get("timeout"),
+        )
 
 
 class EndpointParser(BaseModel):
@@ -49,13 +58,14 @@ class EndpointParser(BaseModel):
 
         if match:
             return AzureOpenAIEndpoint(
-                api_base=match[1], deployment_id=match[2]
+                azure_endpoint=match[1],
+                azure_deployment=match[2],
             )
 
         match = re.search(f"(.+?)/{self.name}", endpoint)
 
         if match:
-            return OpenAIEndpoint(api_base=match[1])
+            return OpenAIEndpoint(base_url=match[1])
 
         raise DialException(
             "Invalid upstream endpoint format", 400, "invalid_request_error"
