@@ -4,14 +4,15 @@ from typing import Any, Callable, Coroutine, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
 
-T = TypeVar("T")
-
 
 @functools.lru_cache(maxsize=64)
 def _inspect_signature(
-    func: Callable[..., Coroutine[Any, Any, T]]
+    func: Callable[..., Coroutine[Any, Any, Any]]
 ) -> inspect.Signature:
     return inspect.signature(func)
+
+
+T = TypeVar("T")
 
 
 async def call_with_extra_body(
