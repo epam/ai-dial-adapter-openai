@@ -1,63 +1,53 @@
 import json
-from typing import Callable
 
-import httpx
 import pytest
-import respx
-from respx.types import SideEffectTypes
+from aioresponses import aioresponses
+from httpx import AsyncClient
 
-from tests.utils.stream import OpenAIStream
-
-
-def assert_equal(actual, expected):
-    assert actual == expected
+from aidial_adapter_openai.app import app
 
 
-def mock_response(
-    status_code: int,
-    content_type: str,
-    content: str,
-    check_request: Callable[[httpx.Request], None] = lambda _: None,
-) -> SideEffectTypes:
-    def side_effect(request: httpx.Request):
-        check_request(request)
-        return httpx.Response(
-            status_code=status_code,
-            headers={"content-type": content_type},
-            content=content,
+@pytest.mark.asyncio
+async def test_error_during_streaming(aioresponses: aioresponses):
+    aioresponses.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        status=200,
+        body="data: "
+        + json.dumps(
+            {
+                "id": "chatcmpl-test",
+                "object": "chat.completion.chunk",
+                "created": 1695940483,
+                "model": "gpt-4",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                        },
+                    }
+                ],
+                "usage": None,
+            }
         )
-
-    return side_effect
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_single_chunk_token_counting(test_app: httpx.AsyncClient):
-    # The adapter tolerates top-level extra fields
-    # and passes it further to the upstream endpoint.
-
-    mock_stream = OpenAIStream(
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "stop",
-                    "delta": {"role": "assistant", "content": "5"},
+        + "\n\n"
+        + "data: "
+        + json.dumps(
+            {
+                "error": {
+                    "message": "Error test",
+                    "type": "runtime_error",
+                    "param": None,
+                    "code": None,
                 }
-            ],
-        },
-    )
-
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(
-        status_code=200,
+            }
+        )
+        + "\n\n"
+        + "data: [DONE]\n\n",
         content_type="text/event-stream",
-        content=mock_stream.to_content(),
     )
+    test_app = AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -72,193 +62,43 @@ async def test_single_chunk_token_counting(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 200
-    mock_stream.assert_response_content(
-        response,
-        assert_equal,
-        usages={
-            0: {
-                "prompt_tokens": 9,
-                "completion_tokens": 1,
-                "total_tokens": 10,
-            }
-        },
-    )
+
+    for index, line in enumerate(response.iter_lines()):
+        if index % 2 == 1:
+            assert line == ""
+            continue
+
+        if index == 0:
+            assert (
+                line
+                == 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1695940483,"model":"gpt-4","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant"}}],"usage":{"completion_tokens":0,"prompt_tokens":9,"total_tokens":9}}'
+            )
+        elif index == 2:
+            assert (
+                line
+                == 'data: {"error": {"message": "Error test", "type": "runtime_error", "param": null, "code": null}}'
+            )
+        elif index == 4:
+            assert line == "data: [DONE]"
+        else:
+            assert False
 
 
-@respx.mock
 @pytest.mark.asyncio
-async def test_top_level_extra_field(test_app: httpx.AsyncClient):
-    # The adapter tolerates top-level extra fields
-    # and passes it further to the upstream endpoint.
-
-    mock_stream = OpenAIStream({"error": {"message": "whatever"}})
-
-    def check_request(request: httpx.Request):
-        assert json.loads(request.content)["extra_field"] == 1
-
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).mock(
-        side_effect=mock_response(
-            status_code=200,
-            content_type="text/event-stream",
-            content=mock_stream.to_content(),
-            check_request=check_request,
-        ),
+async def test_incorrect_upstream_url(aioresponses: aioresponses):
+    aioresponses.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        status=200,
+        body={},
     )
+    test_app = AsyncClient(app=app, base_url="http://test.com")
 
-    response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
-        json={
-            "messages": [{"role": "user", "content": "Test content"}],
-            "stream": True,
-            "extra_field": 1,
-        },
-        headers={
-            "X-UPSTREAM-KEY": "TEST_API_KEY",
-            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
-        },
-    )
-
-    assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_nested_extra_field(test_app: httpx.AsyncClient):
-    # The adapter tolerates nested extra fields
-    # and passes it further to the upstream endpoint.
-
-    mock_stream = OpenAIStream({"error": {"message": "whatever"}})
-
-    def check_request(request: httpx.Request):
-        assert json.loads(request.content)["messages"][0]["extra_field"] == 1
-
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).mock(
-        side_effect=mock_response(
-            status_code=200,
-            content_type="text/event-stream",
-            content=mock_stream.to_content(),
-            check_request=check_request,
-        ),
-    )
-
-    response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
-        json={
-            "messages": [
-                {"role": "user", "content": "2+3=?", "extra_field": 1}
-            ],
-            "stream": True,
-        },
-        headers={
-            "X-UPSTREAM-KEY": "TEST_API_KEY",
-            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
-        },
-    )
-
-    assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_missing_api_version(test_app: httpx.AsyncClient):
-
-    response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions",
-        json={
-            "messages": [{"role": "user", "content": "Test content"}],
-            "stream": True,
-        },
-        headers={
-            "X-UPSTREAM-KEY": "TEST_API_KEY",
-            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
-        },
-    )
-
-    assert response.status_code == 400
-    assert response.json() == {
-        "error": {
-            "message": "api-version is a required query parameter",
-            "type": "invalid_request_error",
-        }
-    }
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_error_during_streaming(test_app: httpx.AsyncClient):
-    mock_stream = OpenAIStream(
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "stop",
-                    "delta": {"role": "assistant"},
-                }
-            ],
-            "usage": None,
-        },
-        {
-            "error": {
-                "message": "Error test",
-                "type": "runtime_error",
-            }
-        },
-    )
-
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(
-        status_code=200,
-        content_type="text/event-stream",
-        content=mock_stream.to_content(),
-    )
-
-    response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
-        json={
-            "messages": [{"role": "user", "content": "Test content"}],
-            "stream": True,
-        },
-        headers={
-            "X-UPSTREAM-KEY": "TEST_API_KEY",
-            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
-        },
-    )
-
-    assert response.status_code == 200
-    mock_stream.assert_response_content(
-        response,
-        assert_equal,
-        usages={
-            0: {
-                "prompt_tokens": 9,
-                "completion_tokens": 0,
-                "total_tokens": 9,
-            }
-        },
-    )
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={"messages": [{"role": "user", "content": "Test content"}]},
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
-            # upstream endpoint should contain the full path
-            "X-UPSTREAM-ENDPOINT": "http://localhost:5001",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001",  # upstream endpoint should contain the full path
         },
     )
 
@@ -267,16 +107,21 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
         "error": {
             "message": "Invalid upstream endpoint format",
             "type": "invalid_request_error",
+            "param": None,
+            "code": None,
+            "display_message": None,
         }
     }
 
 
-@respx.mock
 @pytest.mark.asyncio
-async def test_correct_upstream_url(test_app: httpx.AsyncClient):
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(status_code=400, content="whatever")
+async def test_incorrect_format(aioresponses: aioresponses):
+    aioresponses.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        status=400,
+        body="Incorrect format",
+    )
+    test_app = AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -288,18 +133,36 @@ async def test_correct_upstream_url(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 400
-    assert response.content == b"whatever"
+
+    assert response.content == b"Incorrect format"
 
 
-@respx.mock
 @pytest.mark.asyncio
-async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
+async def test_incorrect_streaming_request(aioresponses: aioresponses):
+    aioresponses.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        status=400,
+        body=json.dumps(
+            {
+                "error": {
+                    "message": "0 is less than the minimum of 1 - 'n'",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": None,
+                    "display_message": None,
+                }
+            }
+        ),
+        content_type="application/json",
+    )
+    test_app = AsyncClient(app=app, base_url="http://test.com")
+
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={
             "messages": [{"role": "user", "content": "Test content"}],
             "stream": True,
-            "max_prompt_tokens": 0,
+            "n": 0,
         },
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
@@ -307,12 +170,13 @@ async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
         },
     )
 
-    expected_response = {
+    assert response.status_code == 400
+    assert response.json() == {
         "error": {
-            "message": "'0' is less than the minimum of 1 - 'max_prompt_tokens'",
+            "message": "0 is less than the minimum of 1 - 'n'",
             "type": "invalid_request_error",
+            "param": None,
+            "code": None,
+            "display_message": None,
         }
     }
-
-    assert response.status_code == 400
-    assert response.json() == expected_response

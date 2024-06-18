@@ -1,46 +1,37 @@
-from typing import Any
+from typing import Any, AsyncIterator, cast
 
 from fastapi.responses import StreamingResponse
-from openai import AsyncOpenAI, AsyncStream
-from openai.types.chat.chat_completion import ChatCompletion
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from openai import ChatCompletion
+from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
-from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.reflection import call_with_extra_body
-from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
-from aidial_adapter_openai.utils.streaming import map_stream
+from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
 
 
-def debug_print(chunk):
-    logger.debug(f"chunk: {chunk}")
-    return chunk
+async def generate_stream(
+    stream: AsyncIterator[OpenAIObject],
+) -> AsyncIterator[str]:
+    async for chunk in stream:
+        yield format_chunk(chunk.to_dict_recursive())
+    yield END_CHUNK
 
 
-async def chat_completion(
-    data: Any, upstream_endpoint: str, creds: OpenAICreds
-):
+async def chat_completion(data: Any, upstream_endpoint: str, api_key: str):
+    data["model"] = "azureai"
 
-    client = AsyncOpenAI(
-        base_url=upstream_endpoint,
-        timeout=DEFAULT_TIMEOUT,
-        api_key=creds.get("api_key"),
+    response = await ChatCompletion().acreate(
+        api_key=api_key,
+        api_base=upstream_endpoint,
+        api_type="openai",
+        request_timeout=DEFAULT_TIMEOUT,
+        **data,
     )
 
-    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
-        await call_with_extra_body(client.chat.completions.create, data)
-    )
+    if isinstance(response, AsyncIterator):
+        response = cast(AsyncIterator[OpenAIObject], response)
 
-    if isinstance(response, AsyncStream):
         return StreamingResponse(
-            to_openai_sse_stream(
-                map_stream(
-                    debug_print,
-                    map_stream(lambda chunk: chunk.to_dict(), response),
-                )
-            ),
-            media_type="text/event-stream",
+            generate_stream(response), media_type="text/event-stream"
         )
     else:
         return response

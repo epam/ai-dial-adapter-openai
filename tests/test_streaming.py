@@ -1,67 +1,73 @@
-import httpx
+import json
+
 import pytest
-import respx
+from aioresponses import aioresponses
+from httpx import AsyncClient
 
-from tests.utils.stream import OpenAIStream
-
-
-def assert_equal(actual, expected):
-    assert actual == expected
+from aidial_adapter_openai.app import app
 
 
-@respx.mock
 @pytest.mark.asyncio
-async def test_streaming(test_app: httpx.AsyncClient):
-    mock_stream = OpenAIStream(
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": None,
-                    "delta": {
-                        "role": "assistant",
-                    },
-                }
-            ],
-            "usage": None,
-        },
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": None,
-                    "delta": {
-                        "content": "Test content",
-                    },
-                }
-            ],
-            "usage": None,
-        },
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1696245654,
-            "model": "gpt-4",
-            "choices": [{"index": 0, "finish_reason": "stop", "delta": {}}],
-            "usage": None,
-        },
-    )
-
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15"
-    ).respond(
-        status_code=200,
-        content=mock_stream.to_content(),
+async def test_streaming(aioresponses: aioresponses):
+    aioresponses.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15",
+        status=200,
+        body="data: "
+        + json.dumps(
+            {
+                "id": "chatcmpl-test",
+                "object": "chat.completion.chunk",
+                "created": 1695940483,
+                "model": "gpt-4",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": None,
+                        "delta": {
+                            "role": "assistant",
+                        },
+                    }
+                ],
+                "usage": None,
+            }
+        )
+        + "\n\n"
+        + "data: "
+        + json.dumps(
+            {
+                "id": "chatcmpl-test",
+                "object": "chat.completion.chunk",
+                "created": 1695940483,
+                "model": "gpt-4",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": None,
+                        "delta": {
+                            "content": "Test content",
+                        },
+                    }
+                ],
+                "usage": None,
+            }
+        )
+        + "\n\n"
+        + "data: "
+        + json.dumps(
+            {
+                "id": "chatcmpl-test",
+                "object": "chat.completion.chunk",
+                "created": 1696245654,
+                "model": "gpt-4",
+                "choices": [{"index": 0, "finish_reason": "stop", "delta": {}}],
+                "usage": None,
+            }
+        )
+        + "\n\n"
+        + "data: [DONE]\n\n",
         content_type="text/event-stream",
     )
+    test_app = AsyncClient(app=app, base_url="http://test.com")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15",
@@ -76,14 +82,28 @@ async def test_streaming(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 200
-    mock_stream.assert_response_content(
-        response,
-        assert_equal,
-        usages={
-            2: {
-                "completion_tokens": 2,
-                "prompt_tokens": 9,
-                "total_tokens": 11,
-            }
-        },
-    )
+
+    for index, line in enumerate(response.iter_lines()):
+        if index % 2 == 1:
+            assert line == ""
+            continue
+
+        if index == 0:
+            assert (
+                line
+                == 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1695940483,"model":"gpt-4","choices":[{"index":0,"finish_reason":null,"delta":{"role":"assistant"}}],"usage":null}'
+            )
+        elif index == 2:
+            assert (
+                line
+                == 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1695940483,"model":"gpt-4","choices":[{"index":0,"finish_reason":null,"delta":{"content":"Test content"}}],"usage":null}'
+            )
+        elif index == 4:
+            assert (
+                line
+                == 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1696245654,"model":"gpt-4","choices":[{"index":0,"finish_reason":"stop","delta":{}}],"usage":{"completion_tokens":2,"prompt_tokens":9,"total_tokens":11}}'
+            )
+        elif index == 6:
+            assert line == "data: [DONE]"
+        else:
+            assert False

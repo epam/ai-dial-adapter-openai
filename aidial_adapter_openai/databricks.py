@@ -1,15 +1,12 @@
-from typing import Any
+from typing import Any, AsyncIterator, cast
 
 from fastapi.responses import StreamingResponse
-from openai import AsyncStream
-from openai.types.chat.chat_completion import ChatCompletion
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from openai import ChatCompletion
+from openai.openai_object import OpenAIObject
 
 from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
-from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import chat_completions_parser
-from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import map_stream
 
@@ -20,22 +17,33 @@ def debug_print(chunk):
 
 
 async def chat_completion(
-    data: Any, upstream_endpoint: str, creds: OpenAICreds
+    data: Any,
+    deployment_id: str,
+    upstream_endpoint: str,
+    api_key: str,
+    api_type: str,
 ):
-    client = chat_completions_parser.parse(upstream_endpoint).get_client(
-        {**creds, "timeout": DEFAULT_TIMEOUT}
+    request_args = chat_completions_parser.parse(
+        upstream_endpoint
+    ).prepare_request_args(deployment_id)
+
+    response = await ChatCompletion().acreate(
+        api_type=api_type,
+        api_key=api_key,
+        request_timeout=DEFAULT_TIMEOUT,
+        **(data | request_args),
     )
 
-    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
-        await call_with_extra_body(client.chat.completions.create, data)
-    )
+    if isinstance(response, AsyncIterator):
+        response = cast(AsyncIterator[OpenAIObject], response)
 
-    if isinstance(response, AsyncStream):
         return StreamingResponse(
             to_openai_sse_stream(
                 map_stream(
                     debug_print,
-                    map_stream(lambda chunk: chunk.to_dict(), response),
+                    map_stream(
+                        lambda chunk: chunk.to_dict_recursive(), response
+                    ),
                 )
             ),
             media_type="text/event-stream",

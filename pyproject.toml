@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aidial-adapter-openai"
-version = "0.13.0rc"
+version = "0.12.0rc"
 description = "DIAL adapter for OpenAI"
 authors = ["EPAM RAIL <SpecialEPM-DIALDevTeam@epam.com>"]
 homepage = "https://epam-rail.com"
@@ -22,7 +22,7 @@ env_files = [".env"]
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 fastapi = "0.109.2"
-openai = "1.33.0"
+openai = "0.28.1"
 tiktoken = "0.7.0"
 uvicorn = "0.23"
 wrapt = "^1.15.0"
@@ -35,9 +35,9 @@ httpx = "^0.25.0" # TODO: remove once SDK supports conditional instrumentation
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
-pytest-asyncio = "0.21.1"
 python-dotenv = "1.0.0"
-respx = "^0.21.1"
+pytest-aioresponses = "^0.2.0"
+aioresponses = "^0.7.6"
 
 [tool.poetry.group.lint.dependencies]
 pyright = "1.1.324"
@@ -48,12 +48,6 @@ flake8 = "6.0.0"
 
 [tool.poetry.group.dev.dependencies]
 nox = "^2023.4.22"
-
-[tool.pytest.ini_options]
-# muting warnings coming from opentelemetry package
-filterwarnings = [
-    "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies"
-]
 
 [tool.pyright]
 typeCheckingMode = "basic"

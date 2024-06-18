@@ -4,7 +4,7 @@ import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
+from aidial_adapter_openai.utils.auth import get_auth_header
 from aidial_adapter_openai.utils.sse_stream import END_CHUNK
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
@@ -21,13 +21,13 @@ IMG_USAGE = {
 
 
 async def generate_image(
-    api_url: str, creds: OpenAICreds, user_prompt: str
+    api_url: str, api_key: str, user_prompt: str, api_type: str
 ) -> Any:
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url,
             json={"prompt": user_prompt, "response_format": "b64_json"},
-            headers=get_auth_headers(creds),
+            headers=get_auth_header(api_type, api_key),
         ) as response:
             status_code = response.status
 
@@ -114,9 +114,10 @@ async def move_attachments_data_to_storage(
 async def chat_completion(
     data: Any,
     upstream_endpoint: str,
-    creds: OpenAICreds,
+    api_key: str,
     is_stream: bool,
     file_storage: Optional[FileStorage],
+    api_type: str,
     api_version: str,
 ) -> Response:
     if data.get("n", 1) > 1:
@@ -128,7 +129,9 @@ async def chat_completion(
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
     user_prompt = get_user_prompt(data)
-    model_response = await generate_image(api_url, creds, user_prompt)
+    model_response = await generate_image(
+        api_url, api_key, user_prompt, api_type
+    )
 
     if isinstance(model_response, JSONResponse):
         return model_response
