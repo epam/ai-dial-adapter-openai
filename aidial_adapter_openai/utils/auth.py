@@ -23,10 +23,13 @@ AZURE_OPEN_AI_SCOPE: str = os.getenv(
 
 
 async def get_api_key() -> str:
-    now = int(time.time()) - EXPIRATION_WINDOW_IN_SEC
+    now = int(time.time())
     global access_token
 
-    if access_token is None or now > access_token.expires_on:
+    if (
+        access_token is None
+        or now + EXPIRATION_WINDOW_IN_SEC > access_token.expires_on
+    ):
         try:
             access_token = await default_credential.get_token(
                 AZURE_OPEN_AI_SCOPE
