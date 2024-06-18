@@ -1,3 +1,5 @@
+import logging
+
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi.responses import StreamingResponse
 from openai import AsyncStream
@@ -14,9 +16,9 @@ from aidial_adapter_openai.utils.streaming import generate_stream, map_stream
 from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 
 
-def debug_print(chunk):
-    logger.debug(f"chunk: {chunk}")
-    return chunk
+def debug_print(chunk: dict):
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"chunk: {chunk}")
 
 
 async def gpt_chat_completion(
@@ -57,19 +59,22 @@ async def gpt_chat_completion(
     )
 
     if isinstance(response, AsyncStream):
+
+        def to_dict(chunk: ChatCompletionChunk) -> dict:
+            dict = chunk.to_dict()
+            debug_print(dict)
+            return dict
+
         prompt_tokens = tokenizer.calculate_prompt_tokens(data["messages"])
         return StreamingResponse(
             to_openai_sse_stream(
-                map_stream(
-                    debug_print,
-                    generate_stream(
-                        prompt_tokens,
-                        map_stream(lambda obj: obj.to_dict(), response),
-                        tokenizer,
-                        deployment_id,
-                        discarded_messages,
-                    ),
-                )
+                generate_stream(
+                    prompt_tokens,
+                    map_stream(to_dict, response),
+                    tokenizer,
+                    deployment_id,
+                    discarded_messages,
+                ),
             ),
             media_type="text/event-stream",
         )
