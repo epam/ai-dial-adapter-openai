@@ -24,6 +24,16 @@ class Endpoint(ABC):
         pass
 
 
+# FIXME: remove
+test_client = AsyncAzureOpenAI(
+    azure_endpoint="http://localhost:5005",
+    azure_deployment="gpt-4",
+    api_key="dummy",
+    api_version="2023-03-15-preview",
+    http_client=http_client,
+)
+
+
 class AzureOpenAIEndpoint(BaseModel):
     azure_endpoint: str
     azure_deployment: str
