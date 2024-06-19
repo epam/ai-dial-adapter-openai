@@ -4,9 +4,8 @@ from contextlib import asynccontextmanager
 from typing import Awaitable, Dict, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
-
-# from aidial_sdk.telemetry.init import init_telemetry
-# from aidial_sdk.telemetry.types import TelemetryConfig
+from aidial_sdk.telemetry.init import init_telemetry
+from aidial_sdk.telemetry.types import TelemetryConfig
 from aidial_sdk.utils.errors import json_error
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
@@ -27,7 +26,7 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.globals import http_client
+from aidial_adapter_openai.utils.globals import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import (
     embeddings_parser,
@@ -43,13 +42,13 @@ from aidial_adapter_openai.utils.tokens import Tokenizer
 async def lifespan(app: FastAPI):
     yield
     logger.info("Application shutdown")
-    await http_client.aclose()
+    await get_http_client().aclose()
 
 
 app = FastAPI(lifespan=lifespan)
 
 
-# init_telemetry(app, TelemetryConfig())
+init_telemetry(app, TelemetryConfig())
 configure_loggers()
 
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))

@@ -6,7 +6,7 @@ from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.globals import http_client
+from aidial_adapter_openai.utils.globals import get_http_client
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
@@ -25,7 +25,7 @@ async def chat_completion(
     client = AsyncOpenAI(
         base_url=upstream_endpoint,
         api_key=creds.get("api_key"),
-        http_client=http_client,
+        http_client=get_http_client(),
     )
 
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (

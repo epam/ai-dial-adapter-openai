@@ -8,7 +8,7 @@ from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.globals import http_client
+from aidial_adapter_openai.utils.globals import get_http_client
 
 
 class OpenAIParams(TypedDict, total=False):
@@ -24,16 +24,6 @@ class Endpoint(ABC):
         pass
 
 
-# FIXME: remove
-test_client = AsyncAzureOpenAI(
-    azure_endpoint="http://localhost:5005",
-    azure_deployment="gpt-4",
-    api_key="dummy",
-    api_version="2023-03-15-preview",
-    http_client=http_client,
-)
-
-
 class AzureOpenAIEndpoint(BaseModel):
     azure_endpoint: str
     azure_deployment: str
@@ -46,7 +36,7 @@ class AzureOpenAIEndpoint(BaseModel):
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
             timeout=params.get("timeout"),
-            http_client=http_client,
+            http_client=get_http_client(),
         )
 
 
@@ -58,7 +48,7 @@ class OpenAIEndpoint(BaseModel):
             base_url=self.base_url,
             api_key=params.get("api_key"),
             timeout=params.get("timeout"),
-            http_client=http_client,
+            http_client=get_http_client(),
         )
 
 
