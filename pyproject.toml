@@ -31,7 +31,6 @@ numpy = "^1.26.0" # need for openai embeddings
 pillow = "^10.3.0"
 azure-identity = "^1.16.1"
 aidial-sdk = {version = "^0.8.0", extras = ["telemetry"]}
-httpx = "^0.25.0" # TODO: remove once SDK supports conditional instrumentation
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"

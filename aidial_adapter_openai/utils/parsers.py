@@ -6,6 +6,7 @@ from typing import Any, Dict, List, TypedDict
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
+from openai._base_client import AsyncHttpxClientWrapper
 from pydantic import BaseModel
 
 
@@ -22,6 +23,9 @@ class Endpoint(ABC):
         pass
 
 
+http_client = AsyncHttpxClientWrapper(follow_redirects=True)
+
+
 class AzureOpenAIEndpoint(BaseModel):
     azure_endpoint: str
     azure_deployment: str
@@ -34,6 +38,7 @@ class AzureOpenAIEndpoint(BaseModel):
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
             timeout=params.get("timeout"),
+            http_client=http_client,
         )
 
 
@@ -45,6 +50,7 @@ class OpenAIEndpoint(BaseModel):
             base_url=self.base_url,
             api_key=params.get("api_key"),
             timeout=params.get("timeout"),
+            http_client=http_client,
         )
 
 

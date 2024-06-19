@@ -16,7 +16,7 @@ from aidial_adapter_openai.utils.streaming import generate_stream, map_stream
 from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
 
 
-def debug_print(chunk: dict):
+def debug_print(chunk: dict) -> None:
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(f"chunk: {chunk}")
 
