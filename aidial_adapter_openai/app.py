@@ -26,7 +26,8 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.log_config import configure_loggers
+from aidial_adapter_openai.utils.globals import http_client
+from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import (
     embeddings_parser,
     parse_body,
@@ -220,6 +221,12 @@ def exception_handler(request: Request, exc: DialException):
             display_message=exc.display_message,
         ),
     )
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Application shutdown")
+    await http_client.aclose()
 
 
 @app.get("/health")

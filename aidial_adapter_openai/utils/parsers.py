@@ -6,8 +6,9 @@ from typing import Any, Dict, List, TypedDict
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
-from openai._base_client import AsyncHttpxClientWrapper
 from pydantic import BaseModel
+
+from aidial_adapter_openai.utils.globals import http_client
 
 
 class OpenAIParams(TypedDict, total=False):
@@ -21,9 +22,6 @@ class Endpoint(ABC):
     @abstractmethod
     def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
         pass
-
-
-http_client = AsyncHttpxClientWrapper(follow_redirects=True)
 
 
 class AzureOpenAIEndpoint(BaseModel):
