@@ -6,7 +6,6 @@ from openai import AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
-from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import chat_completions_parser
@@ -51,7 +50,7 @@ async def gpt_chat_completion(
         )
 
     client = chat_completions_parser.parse(upstream_endpoint).get_client(
-        {**creds, "api_version": api_version, "timeout": DEFAULT_TIMEOUT}
+        {**creds, "api_version": api_version}
     )
 
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (

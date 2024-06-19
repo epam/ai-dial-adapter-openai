@@ -11,7 +11,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from openai import APIConnectionError, APIStatusError, APITimeoutError
 
-from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
 )
@@ -211,7 +210,7 @@ async def embedding(deployment_id: str, request: Request):
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     client = embeddings_parser.parse(upstream_endpoint).get_client(
-        {**creds, "api_version": api_version, "timeout": DEFAULT_TIMEOUT}
+        {**creds, "api_version": api_version}
     )
 
     return await handle_exceptions(

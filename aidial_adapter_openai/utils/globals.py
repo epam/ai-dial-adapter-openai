@@ -1,3 +1,12 @@
-from openai._base_client import AsyncHttpxClientWrapper
+import httpx
 
-http_client = AsyncHttpxClientWrapper(follow_redirects=True)
+from aidial_adapter_openai.constant import (
+    DEFAULT_CONNECTION_LIMITS,
+    DEFAULT_TIMEOUT,
+)
+
+http_client = httpx.AsyncClient(
+    timeout=DEFAULT_TIMEOUT,
+    limits=DEFAULT_CONNECTION_LIMITS,
+    follow_redirects=True,
+)
