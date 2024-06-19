@@ -4,8 +4,9 @@ from contextlib import asynccontextmanager
 from typing import Awaitable, Dict, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.telemetry.init import init_telemetry
-from aidial_sdk.telemetry.types import TelemetryConfig
+
+# from aidial_sdk.telemetry.init import init_telemetry
+# from aidial_sdk.telemetry.types import TelemetryConfig
 from aidial_sdk.utils.errors import json_error
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
@@ -48,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-init_telemetry(app, TelemetryConfig())
+# init_telemetry(app, TelemetryConfig())
 configure_loggers()
 
 model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
