@@ -1,5 +1,6 @@
 import json
 import os
+from contextlib import asynccontextmanager
 from typing import Awaitable, Dict, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
@@ -37,7 +38,16 @@ from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.tokens import Tokenizer
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    logger.info("Application shutdown")
+    await http_client.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
+
 
 init_telemetry(app, TelemetryConfig())
 configure_loggers()
@@ -221,12 +231,6 @@ def exception_handler(request: Request, exc: DialException):
             display_message=exc.display_message,
         ),
     )
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Application shutdown")
-    await http_client.aclose()
 
 
 @app.get("/health")
