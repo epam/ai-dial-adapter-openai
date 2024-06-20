@@ -8,7 +8,7 @@ from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.globals import get_http_client
+from aidial_adapter_openai.utils.http_client import get_http_client
 
 
 class OpenAIParams(TypedDict, total=False):
