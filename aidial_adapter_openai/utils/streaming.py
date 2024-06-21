@@ -1,3 +1,4 @@
+import logging
 from time import time
 from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
@@ -6,6 +7,7 @@ from aidial_sdk.utils.errors import json_error
 from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import APIError
+from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.log_config import logger
@@ -196,3 +198,14 @@ async def map_stream(
         new_item = func(item)
         if new_item is not None:
             yield new_item
+
+
+def debug_print(title: str, chunk: dict) -> None:
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"{title}: {chunk}")
+
+
+def chunk_to_dict(chunk: ChatCompletionChunk) -> dict:
+    dict = chunk.to_dict()
+    debug_print("chunk", dict)
+    return dict

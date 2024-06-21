@@ -1,5 +1,6 @@
 import json
 import os
+from contextlib import asynccontextmanager
 from typing import Awaitable, Dict, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
@@ -10,7 +11,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from openai import APIConnectionError, APIStatusError, APITimeoutError
 
-from aidial_adapter_openai.constant import DEFAULT_TIMEOUT
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
 )
@@ -26,7 +26,8 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.log_config import configure_loggers
+from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import (
     embeddings_parser,
     parse_body,
@@ -36,7 +37,16 @@ from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.tokens import Tokenizer
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    logger.info("Application shutdown")
+    await get_http_client().aclose()
+
+
+app = FastAPI(lifespan=lifespan)
+
 
 init_telemetry(app, TelemetryConfig())
 configure_loggers()
@@ -200,7 +210,7 @@ async def embedding(deployment_id: str, request: Request):
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     client = embeddings_parser.parse(upstream_endpoint).get_client(
-        {**creds, "api_version": api_version, "timeout": DEFAULT_TIMEOUT}
+        {**creds, "api_version": api_version}
     )
 
     return await handle_exceptions(

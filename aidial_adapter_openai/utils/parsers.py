@@ -8,6 +8,8 @@ from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
 
+from aidial_adapter_openai.utils.http_client import get_http_client
+
 
 class OpenAIParams(TypedDict, total=False):
     api_key: str
@@ -34,6 +36,7 @@ class AzureOpenAIEndpoint(BaseModel):
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
             timeout=params.get("timeout"),
+            http_client=get_http_client(),
         )
 
 
@@ -45,6 +48,7 @@ class OpenAIEndpoint(BaseModel):
             base_url=self.base_url,
             api_key=params.get("api_key"),
             timeout=params.get("timeout"),
+            http_client=get_http_client(),
         )
 
 

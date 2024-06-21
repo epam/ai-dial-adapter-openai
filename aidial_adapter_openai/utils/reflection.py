@@ -1,7 +1,16 @@
+import functools
 import inspect
 from typing import Any, Callable, Coroutine, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
+
+
+@functools.lru_cache(maxsize=64)
+def _inspect_signature(
+    func: Callable[..., Coroutine[Any, Any, Any]]
+) -> inspect.Signature:
+    return inspect.signature(func)
+
 
 T = TypeVar("T")
 
@@ -12,7 +21,7 @@ async def call_with_extra_body(
     if has_kwargs_argument(func):
         return await func(**arg)
 
-    expected_args = set(inspect.signature(func).parameters.keys())
+    expected_args = set(_inspect_signature(func).parameters.keys())
     actual_args = set(arg.keys())
 
     extra_args = actual_args - expected_args
@@ -37,7 +46,7 @@ def has_kwargs_argument(func: Callable[..., Coroutine[Any, Any, Any]]) -> bool:
     """
     Determines if the given function accepts a variable keyword argument (**kwargs).
     """
-    signature = inspect.signature(func)
+    signature = _inspect_signature(func)
     for param in signature.parameters.values():
         if param.kind == inspect.Parameter.VAR_KEYWORD:
             return True

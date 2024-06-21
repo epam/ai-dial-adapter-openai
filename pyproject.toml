@@ -27,11 +27,12 @@ tiktoken = "0.7.0"
 uvicorn = "0.23"
 wrapt = "^1.15.0"
 pydantic = "^1.10.12"
-numpy = "^1.26.0" # need for openai embeddings
+# required by openai embeddings; avoiding openai[datalib],
+# since it also depends on pandas
+numpy = "^1.26.0"
 pillow = "^10.3.0"
 azure-identity = "^1.16.1"
 aidial-sdk = {version = "^0.8.0", extras = ["telemetry"]}
-httpx = "^0.25.0" # TODO: remove once SDK supports conditional instrumentation
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
