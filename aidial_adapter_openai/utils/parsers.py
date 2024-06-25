@@ -52,32 +52,45 @@ class OpenAIEndpoint(BaseModel):
         )
 
 
+def _parse_endpoint(
+    name, endpoint
+) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
+    if azure_match := re.search(
+        f"(.+?)/openai/deployments/(.+?)/{name}", endpoint
+    ):
+        return AzureOpenAIEndpoint(
+            azure_endpoint=azure_match[1],
+            azure_deployment=azure_match[2],
+        )
+
+    if openai_match := re.search(f"(.+?)/{name}", endpoint):
+        return OpenAIEndpoint(base_url=openai_match[1])
+
+
 class EndpointParser(BaseModel):
     name: str
 
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
-        match = re.search(
-            f"(.+?)/openai/deployments/(.+?)/{self.name}", endpoint
-        )
-
-        if match:
-            return AzureOpenAIEndpoint(
-                azure_endpoint=match[1],
-                azure_deployment=match[2],
-            )
-
-        match = re.search(f"(.+?)/{self.name}", endpoint)
-
-        if match:
-            return OpenAIEndpoint(base_url=match[1])
-
+        if result := _parse_endpoint(self.name, endpoint):
+            return result
         raise DialException(
             "Invalid upstream endpoint format", 400, "invalid_request_error"
         )
 
 
+class LegacyCompletionsParser(BaseModel):
+    def parse(
+        self, endpoint: str
+    ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
+        if "/chat/completions" in endpoint:
+            return None
+
+        return _parse_endpoint("completions", endpoint)
+
+
 chat_completions_parser = EndpointParser(name="chat/completions")
 embeddings_parser = EndpointParser(name="embeddings")
+legacy_completions_parser = LegacyCompletionsParser()
 
 
 async def parse_body(
