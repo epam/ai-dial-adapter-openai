@@ -23,7 +23,7 @@ def convert_to_chat_completions_response(
         id=chunk.id,
         finish_reason=chunk.choices[0].finish_reason,
         delta=chunk.choices[0].text,
-        created=chunk.created,
+        created=str(chunk.created),
         is_stream=is_stream,
         usage=chunk.usage.to_dict() if chunk.usage else None,
     )
