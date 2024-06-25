@@ -22,6 +22,9 @@ from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     gpt4_vision_chat_completion,
     gpt4o_chat_completion,
 )
+from aidial_adapter_openai.legacy_completions import (
+    chat_completion as legacy_completion,
+)
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
@@ -30,6 +33,7 @@ from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import (
     embeddings_parser,
+    legacy_completions_parser,
     parse_body,
     parse_deployment_list,
 )
@@ -125,13 +129,25 @@ async def chat_completion(deployment_id: str, request: Request):
     # Azure and non-Azure deployments.
     # Therefore, we provide the "model" field for all deployments here.
     # The same goes for /embeddings endpoint.
-    data["model"] = deployment_id
+    data["model"] = (
+        deployment_id if data.get("model") is None else data["model"]
+    )
 
     is_stream = data.get("stream", False)
 
     creds = await get_credentials(request)
+    api_version = get_api_version(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+
+    if completions_endpoint := legacy_completions_parser.parse(
+        upstream_endpoint
+    ):
+        return await handle_exceptions(
+            legacy_completion(
+                data, completions_endpoint, creds, api_version, is_stream
+            )
+        )
 
     if deployment_id in dalle3_deployments:
         storage = create_file_storage("images", request.headers)
@@ -153,8 +169,6 @@ async def chat_completion(deployment_id: str, request: Request):
         return await handle_exceptions(
             databricks_chat_completion(data, upstream_endpoint, creds)
         )
-
-    api_version = get_api_version(request)
 
     if deployment_id in gpt4_vision_deployments:
         storage = create_file_storage("images", request.headers)
