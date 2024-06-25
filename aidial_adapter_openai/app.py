@@ -1,7 +1,5 @@
-import json
-import os
 from contextlib import asynccontextmanager
-from typing import Awaitable, Dict, TypeVar
+from typing import Awaitable, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry
@@ -16,6 +14,16 @@ from aidial_adapter_openai.dalle3 import (
 )
 from aidial_adapter_openai.databricks import (
     chat_completion as databricks_chat_completion,
+)
+from aidial_adapter_openai.env import (
+    API_VERSIONS_MAPPING,
+    DALLE3_AZURE_API_VERSION,
+    DALLE3_DEPLOYMENTS,
+    DATABRICKS_DEPLOYMENTS,
+    GPT4_VISION_DEPLOYMENTS,
+    GPT4O_DEPLOYMENTS,
+    MISTRAL_DEPLOYMENTS,
+    MODEL_ALIASES,
 )
 from aidial_adapter_openai.gpt import gpt_chat_completion
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
@@ -35,7 +43,6 @@ from aidial_adapter_openai.utils.parsers import (
     embeddings_parser,
     legacy_completions_parser,
     parse_body,
-    parse_deployment_list,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.storage import create_file_storage
@@ -54,25 +61,6 @@ app = FastAPI(lifespan=lifespan)
 
 init_telemetry(app, TelemetryConfig())
 configure_loggers()
-
-model_aliases: Dict[str, str] = json.loads(os.getenv("MODEL_ALIASES", "{}"))
-dalle3_deployments = parse_deployment_list(
-    os.getenv("DALLE3_DEPLOYMENTS") or ""
-)
-gpt4_vision_deployments = parse_deployment_list(
-    os.getenv("GPT4_VISION_DEPLOYMENTS") or ""
-)
-mistral_deployments = parse_deployment_list(
-    os.getenv("MISTRAL_DEPLOYMENTS") or ""
-)
-databricks_deployments = parse_deployment_list(
-    os.getenv("DATABRICKS_DEPLOYMENTS") or ""
-)
-gpt4o_deployments = parse_deployment_list(os.getenv("GPT4O_DEPLOYMENTS") or "")
-api_versions_mapping: Dict[str, str] = json.loads(
-    os.getenv("API_VERSIONS_MAPPING", "{}")
-)
-dalle3_azure_api_version = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
 
 T = TypeVar("T")
 
@@ -105,7 +93,7 @@ async def handle_exceptions(call: Awaitable[T]) -> T | Response:
 
 def get_api_version(request: Request):
     api_version = request.query_params.get("api-version", "")
-    api_version = api_versions_mapping.get(api_version, api_version)
+    api_version = API_VERSIONS_MAPPING.get(api_version, api_version)
 
     if api_version == "":
         raise DialException(
@@ -145,11 +133,16 @@ async def chat_completion(deployment_id: str, request: Request):
     ):
         return await handle_exceptions(
             legacy_completion(
-                data, completions_endpoint, creds, api_version, is_stream
+                data,
+                completions_endpoint,
+                creds,
+                api_version,
+                is_stream,
+                deployment_id,
             )
         )
 
-    if deployment_id in dalle3_deployments:
+    if deployment_id in DALLE3_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
         return await dalle3_chat_completion(
             data,
@@ -157,20 +150,20 @@ async def chat_completion(deployment_id: str, request: Request):
             creds,
             is_stream,
             storage,
-            dalle3_azure_api_version,
+            DALLE3_AZURE_API_VERSION,
         )
 
-    if deployment_id in mistral_deployments:
+    if deployment_id in MISTRAL_DEPLOYMENTS:
         return await handle_exceptions(
             mistral_chat_completion(data, upstream_endpoint, creds)
         )
 
-    if deployment_id in databricks_deployments:
+    if deployment_id in DATABRICKS_DEPLOYMENTS:
         return await handle_exceptions(
             databricks_chat_completion(data, upstream_endpoint, creds)
         )
 
-    if deployment_id in gpt4_vision_deployments:
+    if deployment_id in GPT4_VISION_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
         return await gpt4_vision_chat_completion(
             data,
@@ -182,10 +175,10 @@ async def chat_completion(deployment_id: str, request: Request):
             api_version,
         )
 
-    openai_model_name = model_aliases.get(deployment_id, deployment_id)
+    openai_model_name = MODEL_ALIASES.get(deployment_id, deployment_id)
     tokenizer = Tokenizer(model=openai_model_name)
 
-    if deployment_id in gpt4o_deployments:
+    if deployment_id in GPT4O_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
         return await handle_exceptions(
             gpt4o_chat_completion(

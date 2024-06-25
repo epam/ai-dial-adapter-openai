@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from openai import AsyncStream
 from openai.types import Completion
 
+from aidial_adapter_openai.env import COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
@@ -34,6 +35,7 @@ async def chat_completion(
     creds: OpenAICreds,
     api_version: str,
     is_stream: bool,
+    deployment_id: str,
 ) -> Any:
 
     if data.get("n", 1) > 1:  # type: ignore
@@ -48,6 +50,11 @@ async def chat_completion(
     messages = data.get("messages", [])
 
     prompt = messages[-1].get("content") or ""
+
+    if (
+        template := COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES.get(deployment_id)
+    ) is not None:
+        prompt = template.format(prompt=prompt)
 
     if len(messages) == 0:
         raise DialException(
