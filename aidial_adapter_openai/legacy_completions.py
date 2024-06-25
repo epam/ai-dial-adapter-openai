@@ -21,9 +21,9 @@ def convert_to_chat_completions_response(
 ) -> Dict[str, Any]:
     return build_chunk(
         id=chunk.id,
-        finish_reason=None,
+        finish_reason=chunk.choices[0].finish_reason,
         delta=chunk.choices[0].text,
-        created=chunk.choices[0].finish_reason,
+        created=chunk.created,
         is_stream=is_stream,
         usage=chunk.usage.to_dict() if chunk.usage else None,
     )
