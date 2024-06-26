@@ -115,9 +115,7 @@ async def chat_completion(deployment_id: str, request: Request):
     # Azure and non-Azure deployments.
     # Therefore, we provide the "model" field for all deployments here.
     # The same goes for /embeddings endpoint.
-    data["model"] = (
-        deployment_id if data.get("model") is None else data["model"]
-    )
+    data["model"] = data.get("model") or deployment_id
 
     is_stream = data.get("stream", False)
 
