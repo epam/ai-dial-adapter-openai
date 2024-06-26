@@ -34,7 +34,6 @@ async def chat_completion(
     endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
     creds: OpenAICreds,
     api_version: str,
-    is_stream: bool,
     deployment_id: str,
 ) -> Any:
 
@@ -48,6 +47,12 @@ async def chat_completion(
     client = endpoint.get_client({**creds, "api_version": api_version})
 
     messages = data.get("messages", [])
+    if len(messages) == 0:
+        raise DialException(
+            status_code=422,
+            message="The request doesn't contain any messages",
+            type="invalid_request_error",
+        )
 
     prompt = messages[-1].get("content") or ""
 
@@ -56,18 +61,10 @@ async def chat_completion(
     ) is not None:
         prompt = template.format(prompt=prompt)
 
-    if len(messages) == 0:
-        raise DialException(
-            status_code=422,
-            message="The request doesn't contain any messages",
-            type="invalid_request_error",
-        )
-
     del data["messages"]
-    del data["stream"]
     response = await call_with_extra_body(
         client.completions.create,
-        {"prompt": prompt, "stream": is_stream, **data},
+        {"prompt": prompt, **data},
     )
 
     if isinstance(response, AsyncStream):

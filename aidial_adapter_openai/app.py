@@ -137,7 +137,6 @@ async def chat_completion(deployment_id: str, request: Request):
                 completions_endpoint,
                 creds,
                 api_version,
-                is_stream,
                 deployment_id,
             )
         )
