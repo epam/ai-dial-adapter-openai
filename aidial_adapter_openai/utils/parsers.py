@@ -62,9 +62,10 @@ def _parse_endpoint(
             azure_endpoint=azure_match[1],
             azure_deployment=azure_match[2],
         )
-
-    if openai_match := re.search(f"(.+?)/{name}", endpoint):
+    elif openai_match := re.search(f"(.+?)/{name}", endpoint):
         return OpenAIEndpoint(base_url=openai_match[1])
+    else:
+        return None
 
 
 class EndpointParser(BaseModel):
