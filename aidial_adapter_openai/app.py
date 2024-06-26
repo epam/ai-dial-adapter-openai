@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from openai import APIConnectionError, APIStatusError, APITimeoutError
 
+from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
 )
@@ -30,9 +31,6 @@ from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     gpt4_vision_chat_completion,
     gpt4o_chat_completion,
 )
-from aidial_adapter_openai.legacy_completions import (
-    chat_completion as legacy_completion,
-)
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
@@ -40,8 +38,8 @@ from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import (
+    completions_parser,
     embeddings_parser,
-    legacy_completions_parser,
     parse_body,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
@@ -128,11 +126,9 @@ async def chat_completion(deployment_id: str, request: Request):
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
-    if completions_endpoint := legacy_completions_parser.parse(
-        upstream_endpoint
-    ):
+    if completions_endpoint := completions_parser.parse(upstream_endpoint):
         return await handle_exceptions(
-            legacy_completion(
+            completion(
                 data,
                 completions_endpoint,
                 creds,

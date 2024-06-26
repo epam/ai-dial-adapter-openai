@@ -79,7 +79,7 @@ class EndpointParser(BaseModel):
         )
 
 
-class LegacyCompletionsParser(BaseModel):
+class CompletionsParser(BaseModel):
     def parse(
         self, endpoint: str
     ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
@@ -91,7 +91,7 @@ class LegacyCompletionsParser(BaseModel):
 
 chat_completions_parser = EndpointParser(name="chat/completions")
 embeddings_parser = EndpointParser(name="embeddings")
-legacy_completions_parser = LegacyCompletionsParser()
+completions_parser = CompletionsParser()
 
 
 async def parse_body(

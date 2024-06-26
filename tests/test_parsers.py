@@ -5,7 +5,7 @@ from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
     OpenAIEndpoint,
     chat_completions_parser,
-    legacy_completions_parser,
+    completions_parser,
 )
 
 NORMAL_CHAT_CASES = [
@@ -101,12 +101,12 @@ def test_chat_failing_cases(endpoint):
 
 
 @pytest.mark.parametrize("endpoint, parsed", NORMAL_COMPLETIONS_CASES)
-def test_legacy_completions_normal(endpoint, parsed):
-    result = legacy_completions_parser.parse(endpoint)
+def test_completions_parser_normal(endpoint, parsed):
+    result = completions_parser.parse(endpoint)
     assert result == parsed
 
 
 @pytest.mark.parametrize("endpoint, parsed", NORMAL_CHAT_CASES)
-def test_legacy_completions_invalid(endpoint, parsed):
-    result = legacy_completions_parser.parse(endpoint)
+def test_completions_parser_invalid(endpoint, parsed):
+    result = completions_parser.parse(endpoint)
     assert result is None
