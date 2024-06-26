@@ -103,7 +103,7 @@ def get_api_version(request: Request):
     return api_version
 
 
-@app.post("/openai/deployments/{deployment_id}/chat/completions")
+@app.post("/openai/deployments/{deployment_id:path}/chat/completions")
 async def chat_completion(deployment_id: str, request: Request):
     data = await parse_body(request)
 
@@ -198,7 +198,7 @@ async def chat_completion(deployment_id: str, request: Request):
     )
 
 
-@app.post("/openai/deployments/{deployment_id}/embeddings")
+@app.post("/openai/deployments/{deployment_id:path}/embeddings")
 async def embedding(deployment_id: str, request: Request):
     data = await parse_body(request)
 
