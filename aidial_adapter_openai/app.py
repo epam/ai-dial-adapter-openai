@@ -203,7 +203,7 @@ async def embedding(deployment_id: str, request: Request):
     data = await parse_body(request)
 
     # See note for /chat/completions endpoint
-    data["model"] = deployment_id
+    data["model"] = data.get("model") or deployment_id
 
     creds = await get_credentials(request)
     api_version = get_api_version(request)
