@@ -13,20 +13,26 @@ from aidial_adapter_openai.utils.parsers import (
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
-from aidial_adapter_openai.utils.streaming import build_chunk, map_stream
+from aidial_adapter_openai.utils.streaming import (
+    build_chunk,
+    debug_print,
+    map_stream,
+)
 
 
 def convert_to_chat_completions_response(
     chunk: Completion, is_stream: bool
 ) -> Dict[str, Any]:
-    return build_chunk(
+    converted_chunk = build_chunk(
         id=chunk.id,
         finish_reason=chunk.choices[0].finish_reason,
-        delta=chunk.choices[0].text,
+        delta={"content": chunk.choices[0].text, "role": "assistant"},
         created=str(chunk.created),
         is_stream=is_stream,
         usage=chunk.usage.to_dict() if chunk.usage else None,
     )
+    debug_print("response", converted_chunk)
+    return converted_chunk
 
 
 async def chat_completion(
@@ -76,7 +82,8 @@ async def chat_completion(
                     ),
                     response,
                 )
-            )
+            ),
+            media_type="text/event-stream",
         )
     else:
         return JSONResponse(
