@@ -20,13 +20,20 @@ from aidial_adapter_openai.utils.streaming import (
 )
 
 
+def sanitize_text(text: str) -> str:
+    return text.replace("<|endoftext|>", "")
+
+
 def convert_to_chat_completions_response(
     chunk: Completion, is_stream: bool
 ) -> Dict[str, Any]:
     converted_chunk = build_chunk(
         id=chunk.id,
         finish_reason=chunk.choices[0].finish_reason,
-        delta={"content": chunk.choices[0].text, "role": "assistant"},
+        delta={
+            "content": sanitize_text(chunk.choices[0].text),
+            "role": "assistant",
+        },
         created=str(chunk.created),
         is_stream=is_stream,
         usage=chunk.usage.to_dict() if chunk.usage else None,
