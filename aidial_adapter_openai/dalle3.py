@@ -2,6 +2,7 @@ from typing import Any, AsyncGenerator, Optional
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.utils.errors import json_error
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
@@ -22,7 +23,7 @@ IMG_USAGE = {
 
 async def generate_image(
     api_url: str, creds: OpenAICreds, user_prompt: str
-) -> Any:
+) -> JSONResponse | Any:
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url,
@@ -35,19 +36,27 @@ async def generate_image(
 
             if status_code == 200:
                 return data
+
+            if "error" in data:
+                error = data["error"]
+
+                if error.get("code") in [
+                    "content_policy_violation",
+                    "contentFilter",
+                ]:
+                    error["code"] = "content_filter"
+
+                return JSONResponse(
+                    content=json_error(
+                        message=error.get("message"),
+                        type=error.get("type"),
+                        param=error.get("param"),
+                        code=error.get("code"),
+                    ),
+                    status_code=status_code,
+                )
             else:
-                if "error" in data:
-                    error = data["error"]
-
-                    if error.get("code") == "contentFilter":
-                        error["code"] = "content_filter"
-
-                    return JSONResponse(
-                        content={"error": error},
-                        status_code=status_code,
-                    )
-                else:
-                    return JSONResponse(content=data, status_code=status_code)
+                return JSONResponse(content=data, status_code=status_code)
 
 
 def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
