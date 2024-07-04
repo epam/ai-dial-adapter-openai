@@ -24,13 +24,14 @@ class FileMetadata(TypedDict):
 
 class Bucket(TypedDict):
     bucket: str
-    appdata: str
+    appdata: str | None
 
 
 class FileStorage:
     dial_url: str
     upload_dir: str
     auth: Auth
+
     bucket: Optional[Bucket]
 
     def __init__(self, dial_url: str, upload_dir: str, auth: Auth):
@@ -50,6 +51,15 @@ class FileStorage:
                 log.debug(f"bucket: {self.bucket}")
 
         return self.bucket
+
+    async def _get_user_bucket(self, session: aiohttp.ClientSession) -> str:
+        bucket = await self._get_bucket(session)
+        appdata = bucket.get("appdata")
+        if appdata is None:
+            raise ValueError(
+                "Can't retrieve user bucket because appdata isn't available"
+            )
+        return appdata.split("/", 1)[0]
 
     @staticmethod
     def _to_form_data(
@@ -104,7 +114,7 @@ class FileStorage:
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
         async with aiohttp.ClientSession() as session:
-            bucket = (await self._get_bucket(session))["bucket"]
+            bucket = await self._get_user_bucket(session)
         return url.removeprefix(f"{self.dial_url}/v1/files/{bucket}/")
 
     async def download_file_as_base64(self, url: str) -> str:
