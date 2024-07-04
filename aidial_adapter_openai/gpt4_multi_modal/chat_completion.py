@@ -29,7 +29,8 @@ from aidial_adapter_openai.utils.sse_stream import (
 )
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
-    create_error_response,
+    create_response_from_chunk,
+    create_stage_chunk,
     generate_stream,
     map_stream,
     prepend_to_stream,
@@ -189,19 +190,18 @@ async def chat_completion(
     result = await transform_messages(file_storage, messages)
 
     if isinstance(result, str):
-        logger.debug(f"Failed to prepare request: {result}")
+        logger.error(f"Failed to prepare request: {result}")
 
-        if file_storage is not None:
-            # Report user-level error if the request came from the chat
-            error_message = result + "\n\n" + USAGE
-            return create_error_response(error_message, is_stream)
-        else:
-            # Throw an error if the request came from the API
-            raise DialException(
-                status_code=400,
-                message=result,
-                type="invalid_request_error",
-            )
+        chunk = create_stage_chunk("Usage", USAGE, is_stream)
+
+        exc = DialException(
+            status_code=400,
+            message=result,
+            display_message=result,
+            type="invalid_request_error",
+        )
+
+        return create_response_from_chunk(chunk, exc, is_stream)
 
     new_messages, prompt_image_tokens = result
 

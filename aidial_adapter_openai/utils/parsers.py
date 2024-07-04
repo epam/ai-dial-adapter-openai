@@ -94,9 +94,7 @@ embeddings_parser = EndpointParser(name="embeddings")
 completions_parser = CompletionsParser()
 
 
-async def parse_body(
-    request: Request,
-) -> Dict[str, Any]:
+async def parse_body(request: Request) -> Dict[str, Any]:
     try:
         data = await request.json()
     except JSONDecodeError as e:
@@ -114,8 +112,5 @@ async def parse_body(
     return data
 
 
-def parse_deployment_list(deployments: str) -> List[str]:
-    if deployments is None:
-        return []
-
-    return list(map(str.strip, deployments.split(",")))
+def parse_deployment_list(deployments: str | None) -> List[str]:
+    return list(map(str.strip, (deployments or "").split(",")))

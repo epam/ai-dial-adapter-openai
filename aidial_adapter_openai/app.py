@@ -4,7 +4,6 @@ from typing import Awaitable, TypeVar
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
-from aidial_sdk.utils.errors import json_error
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from openai import APIConnectionError, APIStatusError, APITimeoutError
@@ -35,6 +34,7 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.errors import dial_exception_to_json_error
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import (
@@ -222,13 +222,7 @@ async def embedding(deployment_id: str, request: Request):
 def exception_handler(request: Request, exc: DialException):
     return JSONResponse(
         status_code=exc.status_code,
-        content=json_error(
-            message=exc.message,
-            type=exc.type,
-            param=exc.param,
-            code=exc.code,
-            display_message=exc.display_message,
-        ),
+        content=dial_exception_to_json_error(exc),
     )
 
 
