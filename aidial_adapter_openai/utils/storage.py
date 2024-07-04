@@ -101,9 +101,11 @@ class FileStorage:
 
         return urljoin(base_url, link)
 
-    def get_human_readable_name(self, link: str) -> str:
+    async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
-        return url.removeprefix(f"{self.dial_url}/v1/files/")
+        async with aiohttp.ClientSession() as session:
+            bucket = (await self._get_bucket(session))["bucket"]
+        return url.removeprefix(f"{self.dial_url}/v1/files/{bucket}/")
 
     async def download_file_as_base64(self, url: str) -> str:
         headers: Mapping[str, str] = {}

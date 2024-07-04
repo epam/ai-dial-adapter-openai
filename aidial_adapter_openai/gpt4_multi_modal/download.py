@@ -44,7 +44,7 @@ class ImageFail(BaseModel):
     message: str
 
 
-def get_attachment_name(
+async def get_attachment_name(
     file_storage: Optional[FileStorage], attachment: dict
 ) -> str:
     if "data" in attachment:
@@ -53,7 +53,7 @@ def get_attachment_name(
     if "url" in attachment:
         attachment_link = attachment["url"]
         if file_storage is not None:
-            return file_storage.get_human_readable_name(attachment_link)
+            return await file_storage.get_human_readable_name(attachment_link)
         return attachment_link
 
     return "invalid attachment"
@@ -62,7 +62,7 @@ def get_attachment_name(
 async def download_image(
     file_storage: Optional[FileStorage], attachment: dict
 ) -> ImageDataURL | ImageFail:
-    name = get_attachment_name(file_storage, attachment)
+    name = await get_attachment_name(file_storage, attachment)
 
     def fail(message: str) -> ImageFail:
         return ImageFail(name=name, message=message)
