@@ -145,14 +145,14 @@ def create_stage_chunk(name: str, content: str, stream: bool) -> dict:
     id = generate_id()
     created = str(int(time()))
 
-    state = {
+    stage = {
         "index": 0,
         "name": name,
         "content": content,
         "status": "completed",
     }
 
-    custom_content = {"stages": [state]}
+    custom_content = {"stages": [stage]}
 
     return build_chunk(
         id,
