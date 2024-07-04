@@ -72,9 +72,7 @@ async def download_image(
         if type is None:
             return fail("can't derive media type of the attachment")
         elif type not in SUPPORTED_IMAGE_TYPES:
-            return fail(
-                f"the attachment isn't one of the supported types: {type}"
-            )
+            return fail("the attachment is not one of the supported types")
 
         if "data" in attachment:
             return ImageDataURL(type=type, data=attachment["data"])
@@ -84,12 +82,11 @@ async def download_image(
 
             image_url = ImageDataURL.from_data_url(attachment_link)
             if image_url is not None:
-                if image_url.type in SUPPORTED_IMAGE_TYPES:
-                    return image_url
-                else:
+                if image_url.type not in SUPPORTED_IMAGE_TYPES:
                     return fail(
-                        f"the image attachment isn't one of the supported types: {image_url.type}"
+                        "the attachment is not one of the supported types"
                     )
+                return image_url
 
             if file_storage is not None:
                 url = file_storage.attachment_link_to_url(attachment_link)
@@ -103,7 +100,7 @@ async def download_image(
 
     except Exception as e:
         logger.error(f"Failed to download the image: {e}")
-        return fail("failed to download the image")
+        return fail("failed to download the attachment")
 
 
 async def transform_message(

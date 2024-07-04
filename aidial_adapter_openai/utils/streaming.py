@@ -13,7 +13,7 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.errors import dial_exception_to_json_error
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
+from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.tokens import Tokenizer
 
 fix_streaming_issues_in_new_api_versions = get_env_bool(
@@ -184,14 +184,13 @@ def create_response_from_chunk(
         else:
             return JSONResponse(content=chunk)
 
-    async def generator() -> AsyncIterator[Any]:
-        yield format_chunk(chunk)
+    async def generator() -> AsyncIterator[dict]:
+        yield chunk
         if exc is not None:
             yield dial_exception_to_json_error(exc)
-        yield END_CHUNK
 
     return StreamingResponse(
-        generator(),
+        to_openai_sse_stream(generator()),
         media_type="text/event-stream",
     )
 
