@@ -1,4 +1,4 @@
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncIterator, Optional
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
@@ -6,13 +6,9 @@ from aidial_sdk.utils.errors import json_error
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
-from aidial_adapter_openai.utils.sse_stream import END_CHUNK
+from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.storage import FileStorage
-from aidial_adapter_openai.utils.streaming import (
-    build_chunk,
-    format_chunk,
-    generate_id,
-)
+from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
 
 IMG_USAGE = {
     "prompt_tokens": 0,
@@ -73,18 +69,10 @@ def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
 
 async def generate_stream(
     id: str, created: str, custom_content: Any
-) -> AsyncGenerator[Any, Any]:
-    yield format_chunk(
-        build_chunk(id, None, {"role": "assistant"}, created, True)
-    )
-
-    yield format_chunk(build_chunk(id, None, custom_content, created, True))
-
-    yield format_chunk(
-        build_chunk(id, "stop", {}, created, True, usage=IMG_USAGE)
-    )
-
-    yield END_CHUNK
+) -> AsyncIterator[dict]:
+    yield build_chunk(id, None, {"role": "assistant"}, created, True)
+    yield build_chunk(id, None, custom_content, created, True)
+    yield build_chunk(id, "stop", {}, created, True, usage=IMG_USAGE)
 
 
 def get_user_prompt(data: Any):
@@ -166,6 +154,6 @@ async def chat_completion(
         )
     else:
         return StreamingResponse(
-            generate_stream(id, created, custom_content),
+            to_openai_sse_stream(generate_stream(id, created, custom_content)),
             media_type="text/event-stream",
         )

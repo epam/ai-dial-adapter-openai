@@ -3,6 +3,7 @@ from time import time
 from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.utils.errors import json_error
 from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -10,8 +11,9 @@ from openai import APIError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.env import get_env_bool
+from aidial_adapter_openai.utils.errors import dial_exception_to_json_error
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import END_CHUNK, format_chunk
+from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.tokens import Tokenizer
 
 fix_streaming_issues_in_new_api_versions = get_env_bool(
@@ -139,23 +141,27 @@ async def generate_stream(
             )
 
 
-def create_error_response(error_message: str, stream: bool) -> Response:
+def create_stage_chunk(name: str, content: str, stream: bool) -> dict:
     id = generate_id()
     created = str(int(time()))
 
-    error_stage = {
+    stage = {
         "index": 0,
-        "name": "Error",
-        "content": error_message,
-        "status": "failed",
+        "name": name,
+        "content": content,
+        "status": "completed",
     }
 
-    custom_content = {"stages": [error_stage]}
+    custom_content = {"stages": [stage]}
 
-    chunk = build_chunk(
+    return build_chunk(
         id,
         "stop",
-        {"role": "assistant", "content": "", "custom_content": custom_content},
+        {
+            "role": "assistant",
+            "content": "",
+            "custom_content": custom_content,
+        },
         created,
         stream,
         usage={
@@ -165,18 +171,28 @@ def create_error_response(error_message: str, stream: bool) -> Response:
         },
     )
 
-    return create_response_from_chunk(chunk, stream)
 
-
-def create_response_from_chunk(chunk: dict, stream: bool) -> Response:
+def create_response_from_chunk(
+    chunk: dict, exc: DialException | None, stream: bool
+) -> Response:
     if not stream:
-        return JSONResponse(content=chunk)
+        if exc is not None:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=dial_exception_to_json_error(exc),
+            )
+        else:
+            return JSONResponse(content=chunk)
 
-    async def generator() -> AsyncIterator[Any]:
-        yield format_chunk(chunk)
-        yield END_CHUNK
+    async def generator() -> AsyncIterator[dict]:
+        yield chunk
+        if exc is not None:
+            yield dial_exception_to_json_error(exc)
 
-    return StreamingResponse(generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        to_openai_sse_stream(generator()),
+        media_type="text/event-stream",
+    )
 
 
 T = TypeVar("T")

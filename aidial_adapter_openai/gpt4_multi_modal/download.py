@@ -1,5 +1,7 @@
 import mimetypes
-from typing import Dict, List, Optional, Tuple, cast
+from typing import List, Optional, Set, Tuple, cast
+
+from pydantic import BaseModel
 
 from aidial_adapter_openai.gpt4_multi_modal.image_tokenizer import (
     tokenize_image,
@@ -14,7 +16,6 @@ from aidial_adapter_openai.utils.storage import (
     FileStorage,
     download_file_as_base64,
 )
-from aidial_adapter_openai.utils.text import format_ordinal
 
 # Officially supported image types by GPT-4 Vision, GPT-4o
 SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
@@ -23,30 +24,55 @@ SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
 
 def guess_attachment_type(attachment: dict) -> Optional[str]:
     type = attachment.get("type")
-    if type is None:
-        return None
 
-    if "octet-stream" in type:
+    if type is None or "octet-stream" in type:
         # It's an arbitrary binary file. Trying to guess the type from the URL.
         url = attachment.get("url")
         if url is not None:
             url_type = mimetypes.guess_type(url)[0]
             if url_type is not None:
                 return url_type
-        return None
 
     return type
 
 
+class ImageFail(BaseModel):
+    class Config:
+        frozen = True
+
+    name: str
+    message: str
+
+
+async def get_attachment_name(
+    file_storage: Optional[FileStorage], attachment: dict
+) -> str:
+    if "data" in attachment:
+        return attachment.get("title") or "data attachment"
+
+    if "url" in attachment:
+        attachment_link = attachment["url"]
+        if file_storage is not None:
+            return await file_storage.get_human_readable_name(attachment_link)
+        return attachment_link
+
+    return "invalid attachment"
+
+
 async def download_image(
     file_storage: Optional[FileStorage], attachment: dict
-) -> ImageDataURL | str:
+) -> ImageDataURL | ImageFail:
+    name = await get_attachment_name(file_storage, attachment)
+
+    def fail(message: str) -> ImageFail:
+        return ImageFail(name=name, message=message)
+
     try:
         type = guess_attachment_type(attachment)
         if type is None:
-            return "Can't derive media type of the attachment"
+            return fail("can't derive media type of the attachment")
         elif type not in SUPPORTED_IMAGE_TYPES:
-            return f"The attachment isn't one of the supported types: {type}"
+            return fail("the attachment is not one of the supported types")
 
         if "data" in attachment:
             return ImageDataURL(type=type, data=attachment["data"])
@@ -56,12 +82,11 @@ async def download_image(
 
             image_url = ImageDataURL.from_data_url(attachment_link)
             if image_url is not None:
-                if image_url.type in SUPPORTED_IMAGE_TYPES:
-                    return image_url
-                else:
-                    return (
-                        "The image attachment isn't one of the supported types"
+                if image_url.type not in SUPPORTED_IMAGE_TYPES:
+                    return fail(
+                        "the attachment is not one of the supported types"
                     )
+                return image_url
 
             if file_storage is not None:
                 url = file_storage.attachment_link_to_url(attachment_link)
@@ -71,16 +96,16 @@ async def download_image(
 
             return ImageDataURL(type=type, data=data)
 
-        return "Invalid attachment"
+        return fail("invalid attachment")
 
     except Exception as e:
-        logger.debug(f"Failed to download image: {e}")
-        return "Failed to download image"
+        logger.error(f"Failed to download the image: {e}")
+        return fail("failed to download the attachment")
 
 
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict
-) -> Tuple[dict, int] | List[Tuple[int, str]]:
+) -> Tuple[dict, int] | List[ImageFail]:
     content = message.get("content", "")
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
@@ -92,21 +117,19 @@ async def transform_message(
 
     logger.debug(f"original attachments: {attachments}")
 
-    download_results: List[ImageDataURL | str] = [
+    download_results: List[ImageDataURL | ImageFail] = [
         await download_image(file_storage, attachment)
         for attachment in attachments
     ]
 
     logger.debug(f"download results: {download_results}")
 
-    errors: List[Tuple[int, str]] = [
-        (idx, result)
-        for idx, result in enumerate(download_results)
-        if isinstance(result, str)
+    errors: List[ImageFail] = [
+        res for res in download_results if isinstance(res, ImageFail)
     ]
 
-    if len(errors) > 0:
-        logger.debug(f"download errors: {errors}")
+    if errors:
+        logger.error(f"download errors: {errors}")
         return errors
 
     image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
@@ -131,27 +154,23 @@ async def transform_message(
 async def transform_messages(
     file_storage: Optional[FileStorage], messages: List[dict]
 ) -> Tuple[List[dict], int] | str:
-    new_messages: List[dict] = []
     image_tokens = 0
+    new_messages: List[dict] = []
+    errors: Set[ImageFail] = set()
 
-    errors: Dict[int, List[Tuple[int, str]]] = {}
-
-    n = len(messages)
-    for idx, message in enumerate(messages):
+    for message in messages:
         result = await transform_message(file_storage, message)
         if isinstance(result, list):
-            errors[n - idx] = result
+            errors.update(result)
         else:
             new_message, tokens = result
             new_messages.append(new_message)
             image_tokens += tokens
 
     if errors:
-        msg = "Some of the image attachments failed to download:"
-        for i, error in errors.items():
-            msg += f"\n- {format_ordinal(i)} message from end:"
-            for j, err in error:
-                msg += f"\n  - {format_ordinal(j + 1)} attachment: {err}"
+        msg = "The following file attachments failed to process:"
+        for idx, error in enumerate(errors, start=1):
+            msg += f"\n{idx}. {error.name}: {error.message}"
         return msg
 
     return new_messages, image_tokens
