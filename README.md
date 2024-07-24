@@ -42,9 +42,11 @@ make serve
 
 As of now, Windows distributions do not include the make tool. To run make commands, the tool can be installed using
 the following command (since [Windows 10](https://learn.microsoft.com/en-us/windows/package-manager/winget/)):
+
 ```sh
 winget install GnuWin32.Make
 ```
+
 For convenience, the tool folder can be added to the PATH environment variable as `C:\Program Files (x86)\GnuWin32\bin`.
 The command definitions inside Makefile should be cross-platform to keep the development environment setup simple.
 
