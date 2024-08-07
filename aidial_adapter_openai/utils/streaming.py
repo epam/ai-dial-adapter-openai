@@ -14,7 +14,6 @@ from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.errors import dial_exception_to_json_error
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
-from aidial_adapter_openai.utils.tokens import Tokenizer
 
 fix_streaming_issues_in_new_api_versions = get_env_bool(
     "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS", False
@@ -28,21 +27,22 @@ def generate_id():
 def build_chunk(
     id: str,
     finish_reason: Optional[str],
-    delta: Any,
+    message: Any,
     created: str,
-    is_stream,
+    is_stream: bool,
     **extra,
 ):
-    choice_content_key = "delta" if is_stream else "message"
+    message_key = "delta" if is_stream else "message"
+    object_name = "chat.completion.chunk" if is_stream else "chat.completion"
 
     return {
         "id": id,
-        "object": "chat.completion.chunk" if is_stream else "chat.completion",
+        "object": object_name,
         "created": created,
         "choices": [
             {
                 "index": 0,
-                choice_content_key: delta,
+                message_key: message,
                 "finish_reason": finish_reason,
             }
         ],
@@ -51,17 +51,31 @@ def build_chunk(
 
 
 async def generate_stream(
-    prompt_tokens: int,
-    stream: AsyncIterator[dict],
-    tokenizer: Tokenizer,
+    *,
+    get_prompt_tokens: Callable[[], int],
+    tokenize: Callable[[str], int],
     deployment: str,
     discarded_messages: Optional[list[int]],
+    stream: AsyncIterator[dict],
 ) -> AsyncIterator[dict]:
+
     last_chunk, temp_chunk = None, None
     stream_finished = False
+    total_content = ""
+
+    def finalize_last_chunk(chunk: dict) -> None:
+        if not chunk.get("usage"):
+            completion_tokens = tokenize(total_content)
+            prompt_tokens = get_prompt_tokens()
+            chunk["usage"] = {
+                "completion_tokens": completion_tokens,
+                "prompt_tokens": prompt_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            }
+        if discarded_messages is not None:
+            chunk["statistics"] = {"discarded_messages": discarded_messages}
 
     try:
-        total_content = ""
         async for chunk in stream:
             if len(chunk["choices"]) > 0:
                 if temp_chunk is not None:
@@ -69,24 +83,13 @@ async def generate_stream(
                     temp_chunk = None
 
                 choice = chunk["choices"][0]
-
-                content = (choice.get("delta") or {}).get("content") or ""
-                total_content += content
+                total_content += (choice.get("delta") or {}).get(
+                    "content"
+                ) or ""
 
                 if choice["finish_reason"] is not None:
                     stream_finished = True
-                    completion_tokens = tokenizer.calculate_tokens(
-                        total_content
-                    )
-                    chunk["usage"] = {
-                        "completion_tokens": completion_tokens,
-                        "prompt_tokens": prompt_tokens,
-                        "total_tokens": prompt_tokens + completion_tokens,
-                    }
-                    if discarded_messages is not None:
-                        chunk["statistics"] = {
-                            "discarded_messages": discarded_messages
-                        }
+                    finalize_last_chunk(chunk)
 
                 yield chunk
             else:
@@ -106,39 +109,26 @@ async def generate_stream(
         return
 
     if not stream_finished:
-        if last_chunk is not None:
-            logger.warning("Didn't receive chunk with the finish reason")
-
-            completion_tokens = tokenizer.calculate_tokens(total_content)
-            last_chunk["usage"] = {
-                "completion_tokens": completion_tokens,
-                "prompt_tokens": prompt_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-            }
-            last_chunk["choices"][0]["delta"]["content"] = ""
-            last_chunk["choices"][0]["finish_reason"] = "length"
-
-            yield last_chunk
-        else:
+        if last_chunk is None:
             logger.warning("Received 0 chunks")
 
-            id = generate_id()
-            created = str(int(time()))
-            is_stream = True
-
-            yield build_chunk(
-                id,
-                "length",
-                {},
-                created,
-                is_stream,
+            last_chunk = build_chunk(
+                id=generate_id(),
                 model=deployment,
-                usage={
-                    "completion_tokens": 0,
-                    "prompt_tokens": prompt_tokens,
-                    "total_tokens": prompt_tokens,
-                },
+                is_stream=True,
+                created=str(int(time())),
+                message={},
+                finish_reason=None,
             )
+        else:
+            logger.warning("Didn't receive chunk with the finish reason")
+
+        finalize_last_chunk(last_chunk)
+
+        last_chunk["choices"][0]["delta"] = {}
+        last_chunk["choices"][0]["finish_reason"] = "length"
+
+        yield last_chunk
 
 
 def create_stage_chunk(name: str, content: str, stream: bool) -> dict:

@@ -232,14 +232,14 @@ async def chat_completion(
                 map_stream(
                     debug_print,
                     generate_stream(
+                        get_prompt_tokens=lambda: estimated_prompt_tokens,
+                        tokenize=tokenizer.calculate_tokens,
+                        deployment=deployment,
+                        discarded_messages=None,
                         stream=map_stream(
                             response_transformer,
                             parse_openai_sse_stream(response),
                         ),
-                        prompt_tokens=estimated_prompt_tokens,
-                        tokenizer=tokenizer,
-                        deployment=deployment,
-                        discarded_messages=None,
                     ),
                 )
             ),

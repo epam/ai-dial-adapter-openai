@@ -191,7 +191,7 @@ async def test_missing_api_version(test_app: httpx.AsyncClient):
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_error_during_streaming(test_app: httpx.AsyncClient):
+async def test_error_during_streaming_stopped(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         {
             "id": "chatcmpl-test",
@@ -247,6 +247,115 @@ async def test_error_during_streaming(test_app: httpx.AsyncClient):
             }
         },
     )
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "created": 1695940483,
+            "model": "gpt-4",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "delta": {"role": "assistant", "content": "hello "},
+                }
+            ],
+            "usage": None,
+        },
+        {
+            "error": {
+                "message": "Error test",
+                "type": "runtime_error",
+            }
+        },
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+    mock_stream.assert_response_content(response, assert_equal)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_interrupted_stream(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "created": 1695940483,
+            "model": "gpt-4",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "delta": {"role": "assistant", "content": "hello"},
+                }
+            ],
+            "usage": None,
+        }
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+
+    expected_final_chunk = {
+        "id": "chatcmpl-test",
+        "choices": [{"delta": {}, "finish_reason": "length", "index": 0}],
+        "created": 1695940483,
+        "model": "gpt-4",
+        "object": "chat.completion.chunk",
+        "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 9,
+            "total_tokens": 10,
+        },
+    }
+
+    expected_stream = OpenAIStream(*mock_stream.chunks, expected_final_chunk)
+    expected_stream.assert_response_content(response, assert_equal)
 
 
 @respx.mock
