@@ -2,7 +2,7 @@ import httpx
 import pytest
 import respx
 
-from tests.utils.stream import OpenAIStream
+from tests.utils.stream import OpenAIStream, single_choice_chunk
 
 
 def assert_equal(actual, expected):
@@ -13,46 +13,9 @@ def assert_equal(actual, expected):
 @pytest.mark.asyncio
 async def test_streaming_computed_tokens(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": None,
-                    "delta": {
-                        "role": "assistant",
-                    },
-                }
-            ],
-            "usage": None,
-        },
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": None,
-                    "delta": {
-                        "content": "Test content",
-                    },
-                }
-            ],
-            "usage": None,
-        },
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1696245654,
-            "model": "gpt-4",
-            "choices": [{"index": 0, "finish_reason": "stop", "delta": {}}],
-            "usage": None,
-        },
+        single_choice_chunk(delta={"role": "assistant"}),
+        single_choice_chunk(delta={"content": "Test content"}),
+        single_choice_chunk(delta={}, finish_reason="stop"),
     )
 
     respx.post(
@@ -93,55 +56,17 @@ async def test_streaming_computed_tokens(test_app: httpx.AsyncClient):
 @pytest.mark.asyncio
 async def test_streaming_inherited_tokens(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": None,
-                    "delta": {
-                        "role": "assistant",
-                    },
-                }
-            ],
-            "usage": None,
-        },
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": None,
-                    "delta": {
-                        "content": "Test content",
-                    },
-                }
-            ],
-        },
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1696245654,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "stop",
-                    "delta": {},
-                }
-            ],
-            "usage": {
+        single_choice_chunk(delta={"role": "assistant"}),
+        single_choice_chunk(delta={"content": "Test content"}),
+        single_choice_chunk(
+            delta={},
+            finish_reason="stop",
+            usage={
                 "completion_tokens": 111,
                 "prompt_tokens": 222,
                 "total_tokens": 333,
             },
-        },
+        ),
     )
 
     respx.post(

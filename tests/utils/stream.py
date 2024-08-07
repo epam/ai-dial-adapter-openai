@@ -43,3 +43,49 @@ class OpenAIStream:
                 assert False
 
             line_idx += 1
+
+
+def chunk(
+    *,
+    id: str = "chatcmpl-test",
+    created: str = "1695940483",
+    model: str = "gpt-4",
+    choices: List[dict],
+    usage: dict | None = None,
+    **kwargs,
+) -> dict:
+    return {
+        "id": id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": choices,
+        "usage": usage,
+        **kwargs,
+    }
+
+
+def single_choice_chunk(
+    *,
+    id: str = "chatcmpl-test",
+    created: str = "1695940483",
+    model: str = "gpt-4",
+    finish_reason: str | None = None,
+    delta: dict = {},
+    usage: dict | None = None,
+    **kwargs,
+) -> dict:
+    return chunk(
+        id=id,
+        created=created,
+        model=model,
+        choices=[
+            {
+                "index": 0,
+                "finish_reason": finish_reason,
+                "delta": delta,
+            }
+        ],
+        usage=usage,
+        **kwargs,
+    )
