@@ -63,7 +63,11 @@ async def generate_stream(
     stream_finished = False
     total_content = ""
 
-    def finalize_last_chunk(chunk: dict) -> None:
+    def finalize_finish_chunk(chunk: dict) -> None:
+        """
+        Adding additional information to a chunk that has non-null finish_reason field.
+        """
+
         if not chunk.get("usage"):
             completion_tokens = tokenize(total_content)
             prompt_tokens = get_prompt_tokens()
@@ -89,7 +93,7 @@ async def generate_stream(
 
                 if choice["finish_reason"] is not None:
                     stream_finished = True
-                    finalize_last_chunk(chunk)
+                    finalize_finish_chunk(chunk)
 
                 yield chunk
             else:
@@ -111,24 +115,26 @@ async def generate_stream(
     if not stream_finished:
         if last_chunk is None:
             logger.warning("Received 0 chunks")
-
-            last_chunk = build_chunk(
-                id=generate_id(),
-                model=deployment,
-                is_stream=True,
-                created=str(int(time())),
-                message={},
-                finish_reason=None,
-            )
         else:
             logger.warning("Didn't receive chunk with the finish reason")
 
-        finalize_last_chunk(last_chunk)
+        last_chunk = last_chunk or {}
+        id = last_chunk.get("id") or generate_id()
+        created = last_chunk.get("created") or str(int(time()))
+        model = last_chunk.get("model") or deployment
 
-        last_chunk["choices"][0]["delta"] = {}
-        last_chunk["choices"][0]["finish_reason"] = "length"
+        finish_chunk = build_chunk(
+            id=id,
+            created=created,
+            model=model,
+            is_stream=True,
+            message={},
+            finish_reason="length",
+        )
 
-        yield last_chunk
+        finalize_finish_chunk(finish_chunk)
+
+        yield finish_chunk
 
 
 def create_stage_chunk(name: str, content: str, stream: bool) -> dict:
