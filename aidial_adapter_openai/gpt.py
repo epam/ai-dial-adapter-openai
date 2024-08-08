@@ -56,15 +56,16 @@ async def gpt_chat_completion(
 
     if isinstance(response, AsyncStream):
 
-        prompt_tokens = tokenizer.calculate_prompt_tokens(data["messages"])
         return StreamingResponse(
             to_openai_sse_stream(
                 generate_stream(
-                    prompt_tokens,
-                    map_stream(chunk_to_dict, response),
-                    tokenizer,
-                    deployment_id,
-                    discarded_messages,
+                    get_prompt_tokens=lambda: tokenizer.calculate_prompt_tokens(
+                        data["messages"]
+                    ),
+                    tokenize=tokenizer.calculate_tokens,
+                    deployment=deployment_id,
+                    discarded_messages=discarded_messages,
+                    stream=map_stream(chunk_to_dict, response),
                 ),
             ),
             media_type="text/event-stream",

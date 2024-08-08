@@ -30,7 +30,7 @@ def convert_to_chat_completions_response(
     converted_chunk = build_chunk(
         id=chunk.id,
         finish_reason=chunk.choices[0].finish_reason,
-        delta={
+        message={
             "content": sanitize_text(chunk.choices[0].text),
             "role": "assistant",
         },

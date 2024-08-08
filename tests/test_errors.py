@@ -6,7 +6,7 @@ import pytest
 import respx
 from respx.types import SideEffectTypes
 
-from tests.utils.stream import OpenAIStream
+from tests.utils.stream import OpenAIStream, single_choice_chunk
 
 
 def assert_equal(actual, expected):
@@ -37,18 +37,9 @@ async def test_single_chunk_token_counting(test_app: httpx.AsyncClient):
     # and passes it further to the upstream endpoint.
 
     mock_stream = OpenAIStream(
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "stop",
-                    "delta": {"role": "assistant", "content": "5"},
-                }
-            ],
-        },
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "5"}, finish_reason="stop"
+        ),
     )
 
     respx.post(
@@ -191,28 +182,10 @@ async def test_missing_api_version(test_app: httpx.AsyncClient):
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_error_during_streaming(test_app: httpx.AsyncClient):
+async def test_error_during_streaming_stopped(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
-        {
-            "id": "chatcmpl-test",
-            "object": "chat.completion.chunk",
-            "created": 1695940483,
-            "model": "gpt-4",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "stop",
-                    "delta": {"role": "assistant"},
-                }
-            ],
-            "usage": None,
-        },
-        {
-            "error": {
-                "message": "Error test",
-                "type": "runtime_error",
-            }
-        },
+        single_choice_chunk(finish_reason="stop", delta={"role": "assistant"}),
+        {"error": {"message": "Error test", "type": "runtime_error"}},
     )
 
     respx.post(
@@ -247,6 +220,77 @@ async def test_error_during_streaming(test_app: httpx.AsyncClient):
             }
         },
     )
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(delta={"role": "assistant", "content": "hello "}),
+        {"error": {"message": "Error test", "type": "runtime_error"}},
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+    mock_stream.assert_response_content(response, assert_equal)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_interrupted_stream(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(delta={"role": "assistant", "content": "hello"}),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+
+    expected_final_chunk = single_choice_chunk(
+        delta={},
+        finish_reason="length",
+        usage={"completion_tokens": 1, "prompt_tokens": 9, "total_tokens": 10},
+    )
+
+    expected_stream = OpenAIStream(*mock_stream.chunks, expected_final_chunk)
+    expected_stream.assert_response_content(response, assert_equal)
 
 
 @respx.mock
