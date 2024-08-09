@@ -34,7 +34,7 @@ def convert_to_chat_completions_response(
             "content": sanitize_text(chunk.choices[0].text),
             "role": "assistant",
         },
-        created=str(chunk.created),
+        created=chunk.created,
         is_stream=is_stream,
         usage=chunk.usage.to_dict() if chunk.usage else None,
     )

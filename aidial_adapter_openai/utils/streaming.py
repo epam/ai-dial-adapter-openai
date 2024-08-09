@@ -20,18 +20,22 @@ fix_streaming_issues_in_new_api_versions = get_env_bool(
 )
 
 
-def generate_id():
+def generate_id() -> str:
     return "chatcmpl-" + str(uuid4())
+
+
+def generate_created() -> int:
+    return int(time())
 
 
 def build_chunk(
     id: str,
     finish_reason: Optional[str],
     message: Any,
-    created: str,
+    created: int,
     is_stream: bool,
     **extra,
-):
+) -> dict:
     message_key = "delta" if is_stream else "message"
     object_name = "chat.completion.chunk" if is_stream else "chat.completion"
 
@@ -120,7 +124,7 @@ async def generate_stream(
 
         last_chunk = last_chunk or {}
         id = last_chunk.get("id") or generate_id()
-        created = last_chunk.get("created") or str(int(time()))
+        created = last_chunk.get("created") or generate_created()
         model = last_chunk.get("model") or deployment
 
         finish_chunk = build_chunk(
@@ -139,7 +143,7 @@ async def generate_stream(
 
 def create_stage_chunk(name: str, content: str, stream: bool) -> dict:
     id = generate_id()
-    created = str(int(time()))
+    created = generate_created()
 
     stage = {
         "index": 0,

@@ -48,7 +48,7 @@ class OpenAIStream:
 def chunk(
     *,
     id: str = "chatcmpl-test",
-    created: str = "1695940483",
+    created: int = 1695940483,
     model: str = "gpt-4",
     choices: List[dict],
     usage: dict | None = None,
@@ -68,7 +68,7 @@ def chunk(
 def single_choice_chunk(
     *,
     id: str = "chatcmpl-test",
-    created: str = "1695940483",
+    created: int = 1695940483,
     model: str = "gpt-4",
     finish_reason: str | None = None,
     delta: dict = {},
