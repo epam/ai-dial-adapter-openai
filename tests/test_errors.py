@@ -1,16 +1,25 @@
 import json
-from typing import Callable
+from typing import Any, Callable
 
 import httpx
 import pytest
 import respx
 from respx.types import SideEffectTypes
 
+from tests.utils.dictionary import exclude_keys
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
 
-def assert_equal(actual, expected):
+def assert_equal(actual: Any, expected: Any):
     assert actual == expected
+
+
+def assert_equal_no_dynamic_fields(actual: Any, expected: Any):
+    if isinstance(actual, dict) and isinstance(expected, dict):
+        keys = {"id", "created"}
+        assert exclude_keys(actual, keys) == exclude_keys(expected, keys)
+    else:
+        assert actual == expected
 
 
 def mock_response(
@@ -291,6 +300,45 @@ async def test_interrupted_stream(test_app: httpx.AsyncClient):
 
     expected_stream = OpenAIStream(*mock_stream.chunks, expected_final_chunk)
     expected_stream.assert_response_content(response, assert_equal)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_zero_chunk_stream(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream()
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+
+    expected_final_chunk = single_choice_chunk(
+        delta={},
+        finish_reason="length",
+        usage={"prompt_tokens": 9, "completion_tokens": 0, "total_tokens": 9},
+    )
+
+    expected_stream = OpenAIStream(expected_final_chunk)
+    expected_stream.assert_response_content(
+        response, assert_equal_no_dynamic_fields
+    )
 
 
 @respx.mock

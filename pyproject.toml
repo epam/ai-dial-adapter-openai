@@ -51,9 +51,10 @@ flake8 = "6.0.0"
 nox = "^2023.4.22"
 
 [tool.pytest.ini_options]
-# muting warnings coming from opentelemetry package
+# muting warnings coming from opentelemetry and pkg_resources packages
 filterwarnings = [
-    "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies"
+    "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies",
+    "ignore::DeprecationWarning:pkg_resources"
 ]
 
 [tool.pyright]

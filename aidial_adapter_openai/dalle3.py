@@ -68,7 +68,7 @@ def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
 
 
 async def generate_stream(
-    id: str, created: str, custom_content: Any
+    id: str, created: int, custom_content: Any
 ) -> AsyncIterator[dict]:
     yield build_chunk(id, None, {"role": "assistant"}, created, True)
     yield build_chunk(id, None, custom_content, created, True)
