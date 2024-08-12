@@ -2,7 +2,7 @@ import functools
 import inspect
 from typing import Any, Callable, Coroutine, TypeVar
 
-from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.exceptions import invalid_request_error
 
 
 @functools.lru_cache(maxsize=64)
@@ -27,10 +27,8 @@ async def call_with_extra_body(
     extra_args = actual_args - expected_args
 
     if extra_args and "extra_body" not in expected_args:
-        raise DialException(
-            f"Extra arguments aren't supported: {extra_args}.",
-            400,
-            "invalid_request_error",
+        raise invalid_request_error(
+            f"Extra arguments aren't supported: {extra_args}."
         )
 
     arg["extra_body"] = arg.get("extra_body") or {}

@@ -1,4 +1,4 @@
-from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.exceptions import invalid_request_error
 from fastapi.responses import StreamingResponse
 from openai import AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
@@ -14,7 +14,7 @@ from aidial_adapter_openai.utils.streaming import (
     generate_stream,
     map_stream,
 )
-from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
+from aidial_adapter_openai.utils.tokens import Tokenizer, truncate_prompt
 
 
 async def gpt_chat_completion(
@@ -29,20 +29,16 @@ async def gpt_chat_completion(
     if "max_prompt_tokens" in data:
         max_prompt_tokens = data["max_prompt_tokens"]
         if not isinstance(max_prompt_tokens, int):
-            raise DialException(
+            raise invalid_request_error(
                 f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
-                400,
-                "invalid_request_error",
             )
         if max_prompt_tokens < 1:
-            raise DialException(
+            raise invalid_request_error(
                 f"'{max_prompt_tokens}' is less than the minimum of 1 - 'max_prompt_tokens'",
-                400,
-                "invalid_request_error",
             )
         del data["max_prompt_tokens"]
 
-        data["messages"], discarded_messages = discard_messages(
+        data["messages"], discarded_messages = truncate_prompt(
             tokenizer, data["messages"], max_prompt_tokens
         )
 
