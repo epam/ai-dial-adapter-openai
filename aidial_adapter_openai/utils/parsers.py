@@ -36,6 +36,7 @@ class AzureOpenAIEndpoint(BaseModel):
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
             timeout=params.get("timeout"),
+            max_retries=0,
             http_client=get_http_client(),
         )
 
@@ -48,6 +49,7 @@ class OpenAIEndpoint(BaseModel):
             base_url=self.base_url,
             api_key=params.get("api_key"),
             timeout=params.get("timeout"),
+            max_retries=0,
             http_client=get_http_client(),
         )
 
