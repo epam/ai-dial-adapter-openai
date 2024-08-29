@@ -37,4 +37,7 @@ EXPOSE 5000
 USER appuser
 ENTRYPOINT ["/docker_entrypoint.sh"]
 
+HEALTHCHECK  --interval=30s --timeout=30s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
+
 CMD uvicorn aidial_adapter_openai.app:app --host 0.0.0.0 --port 5000 --timeout-keep-alive ${TIMEOUT_KEEP_ALIVE:-5}
