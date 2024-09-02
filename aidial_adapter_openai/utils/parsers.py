@@ -24,6 +24,10 @@ class Endpoint(ABC):
         pass
 
 
+# Retries are handled on the DIAL Core side
+_MAX_RETRIES = 0
+
+
 class AzureOpenAIEndpoint(BaseModel):
     azure_endpoint: str
     azure_deployment: str
@@ -36,6 +40,7 @@ class AzureOpenAIEndpoint(BaseModel):
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
             timeout=params.get("timeout"),
+            max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
         )
 
@@ -48,6 +53,7 @@ class OpenAIEndpoint(BaseModel):
             base_url=self.base_url,
             api_key=params.get("api_key"),
             timeout=params.get("timeout"),
+            max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
         )
 
