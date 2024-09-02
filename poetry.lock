@@ -2,44 +2,40 @@
 
 [[package]]
 name = "aidial-sdk"
-version = "0.11.0rc"
+version = "0.11.0"
 description = "Framework to create applications and model adapters for AI DIAL"
 optional = false
-python-versions = ">=3.8.1,<4.0"
-files = []
-develop = false
+python-versions = "<4.0,>=3.8.1"
+files = [
+    {file = "aidial_sdk-0.11.0-py3-none-any.whl", hash = "sha256:b5a86e3727d9a78b8eff0e9f4bdd64d419801b391654492be1a53223b952f15a"},
+    {file = "aidial_sdk-0.11.0.tar.gz", hash = "sha256:2e6133a4b2593ba5069c368374ca3a45709612f1b655db441771115a77eedc7a"},
+]
 
 [package.dependencies]
-aiohttp = "^3.8.3"
+aiohttp = ">=3.8.3,<4.0.0"
 fastapi = ">=0.51,<1.0"
 httpx = ">=0.25.0,<1.0"
-opentelemetry-api = {version = "1.20.0", optional = true}
-opentelemetry-distro = {version = "0.41b0", optional = true}
-opentelemetry-exporter-otlp-proto-grpc = {version = "1.20.0", optional = true}
-opentelemetry-exporter-prometheus = {version = "0.41b0", optional = true}
-opentelemetry-instrumentation = {version = "0.41b0", optional = true}
-opentelemetry-instrumentation-aiohttp-client = {version = "0.41b0", optional = true}
-opentelemetry-instrumentation-fastapi = {version = "0.41b0", optional = true}
-opentelemetry-instrumentation-httpx = {version = "0.41b0", optional = true}
-opentelemetry-instrumentation-logging = {version = "0.41b0", optional = true}
-opentelemetry-instrumentation-requests = {version = "0.41b0", optional = true}
-opentelemetry-instrumentation-system-metrics = {version = "0.41b0", optional = true}
-opentelemetry-instrumentation-urllib = {version = "0.41b0", optional = true}
-opentelemetry-sdk = {version = "1.20.0", optional = true}
-prometheus-client = {version = "0.17.1", optional = true}
+opentelemetry-api = {version = "1.20.0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-distro = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-exporter-otlp-proto-grpc = {version = "1.20.0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-exporter-prometheus = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-instrumentation = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-instrumentation-aiohttp-client = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-instrumentation-fastapi = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-instrumentation-httpx = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-instrumentation-logging = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-instrumentation-requests = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-instrumentation-system-metrics = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-instrumentation-urllib = {version = "0.41b0", optional = true, markers = "extra == \"telemetry\""}
+opentelemetry-sdk = {version = "1.20.0", optional = true, markers = "extra == \"telemetry\""}
+prometheus-client = {version = "0.17.1", optional = true, markers = "extra == \"telemetry\""}
 pydantic = ">=1.10,<3"
-requests = "^2.19"
+requests = ">=2.19,<3.0"
 uvicorn = ">=0.19,<1.0"
-wrapt = "^1.14"
+wrapt = ">=1.14,<2.0"
 
 [package.extras]
 telemetry = ["opentelemetry-api (==1.20.0)", "opentelemetry-distro (==0.41b0)", "opentelemetry-exporter-otlp-proto-grpc (==1.20.0)", "opentelemetry-exporter-prometheus (==0.41b0)", "opentelemetry-instrumentation (==0.41b0)", "opentelemetry-instrumentation-aiohttp-client (==0.41b0)", "opentelemetry-instrumentation-fastapi (==0.41b0)", "opentelemetry-instrumentation-httpx (==0.41b0)", "opentelemetry-instrumentation-logging (==0.41b0)", "opentelemetry-instrumentation-requests (==0.41b0)", "opentelemetry-instrumentation-system-metrics (==0.41b0)", "opentelemetry-instrumentation-urllib (==0.41b0)", "opentelemetry-sdk (==1.20.0)", "prometheus-client (==0.17.1)"]
-
-[package.source]
-type = "git"
-url = "https://github.com/epam/ai-dial-sdk.git"
-reference = "feat/added-helpers-for-errors"
-resolved_reference = "8ff5acb7ecc6a835119b67e48a2aaffe6ba70bb4"
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -2445,4 +2441,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "b668b52b2e2cce7474b1759326c9aa811dce775c5325b9c83ef91a0291a71cdb"
+content-hash = "c4b3f6834cb2bdcfb58b510c8cbecb60c936b33a1d12abfeb782a53f28051475"

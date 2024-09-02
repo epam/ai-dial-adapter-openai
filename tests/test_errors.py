@@ -91,7 +91,9 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
     # The adapter tolerates top-level extra fields
     # and passes it further to the upstream endpoint.
 
-    mock_stream = OpenAIStream({"error": {"message": "whatever"}})
+    mock_stream = OpenAIStream(
+        {"error": {"message": "whatever", "code": "500"}}
+    )
 
     def check_request(request: httpx.Request):
         assert json.loads(request.content)["extra_field"] == 1
@@ -130,7 +132,9 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
     # The adapter tolerates nested extra fields
     # and passes it further to the upstream endpoint.
 
-    mock_stream = OpenAIStream({"error": {"message": "whatever"}})
+    mock_stream = OpenAIStream(
+        {"error": {"message": "whatever", "code": "500"}}
+    )
 
     def check_request(request: httpx.Request):
         assert json.loads(request.content)["messages"][0]["extra_field"] == 1
@@ -183,6 +187,7 @@ async def test_missing_api_version(test_app: httpx.AsyncClient):
     assert response.status_code == 400
     assert response.json() == {
         "error": {
+            "code": "400",
             "message": "api-version is a required query parameter",
             "type": "invalid_request_error",
         }
@@ -194,7 +199,13 @@ async def test_missing_api_version(test_app: httpx.AsyncClient):
 async def test_error_during_streaming_stopped(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(finish_reason="stop", delta={"role": "assistant"}),
-        {"error": {"message": "Error test", "type": "runtime_error"}},
+        {
+            "error": {
+                "message": "Error test",
+                "type": "runtime_error",
+                "code": "500",
+            }
+        },
     )
 
     respx.post(
@@ -236,7 +247,13 @@ async def test_error_during_streaming_stopped(test_app: httpx.AsyncClient):
 async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant", "content": "hello "}),
-        {"error": {"message": "Error test", "type": "runtime_error"}},
+        {
+            "error": {
+                "message": "Error test",
+                "type": "runtime_error",
+                "code": "500",
+            }
+        },
     )
 
     respx.post(
@@ -359,6 +376,7 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
         "error": {
             "message": "Invalid upstream endpoint format",
             "type": "invalid_request_error",
+            "code": "400",
         }
     }
 
@@ -401,6 +419,7 @@ async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
 
     expected_response = {
         "error": {
+            "code": "400",
             "message": "'0' is less than the minimum of 1 - 'max_prompt_tokens'",
             "type": "invalid_request_error",
         }

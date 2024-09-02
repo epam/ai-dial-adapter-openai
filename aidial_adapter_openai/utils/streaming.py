@@ -4,14 +4,12 @@ from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.utils.errors import json_error
 from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from openai import APIError
+from openai import APIError, APIStatusError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.env import get_env_bool
-from aidial_adapter_openai.utils.errors import dial_exception_to_json_error
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 
@@ -108,12 +106,14 @@ async def generate_stream(
 
             last_chunk = chunk
     except APIError as e:
-        yield json_error(
+        status_code = e.status_code if isinstance(e, APIStatusError) else 500
+        yield DialException(
+            status_code=status_code,
             message=e.message,
             type=e.type,
             param=e.param,
             code=e.code,
-        )
+        ).json_error()
         return
 
     if not stream_finished:
@@ -177,17 +177,14 @@ def create_response_from_chunk(
 ) -> Response:
     if not stream:
         if exc is not None:
-            return JSONResponse(
-                status_code=exc.status_code,
-                content=dial_exception_to_json_error(exc),
-            )
+            return exc.to_fastapi_response()
         else:
             return JSONResponse(content=chunk)
 
     async def generator() -> AsyncIterator[dict]:
         yield chunk
         if exc is not None:
-            yield dial_exception_to_json_error(exc)
+            yield exc.json_error()
 
     return StreamingResponse(
         to_openai_sse_stream(generator()),

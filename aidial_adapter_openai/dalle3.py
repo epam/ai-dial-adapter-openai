@@ -1,8 +1,8 @@
 from typing import Any, AsyncIterator, Optional
 
 import aiohttp
+from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import request_validation_error
-from aidial_sdk.utils.errors import json_error
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
@@ -42,15 +42,13 @@ async def generate_image(
                 ]:
                     error["code"] = "content_filter"
 
-                return JSONResponse(
-                    content=json_error(
-                        message=error.get("message"),
-                        type=error.get("type"),
-                        param=error.get("param"),
-                        code=error.get("code"),
-                    ),
+                return DIALException(
                     status_code=status_code,
-                )
+                    message=error.get("message"),
+                    type=error.get("type"),
+                    param=error.get("param"),
+                    code=error.get("code"),
+                ).to_fastapi_response()
             else:
                 return JSONResponse(content=data, status_code=status_code)
 
