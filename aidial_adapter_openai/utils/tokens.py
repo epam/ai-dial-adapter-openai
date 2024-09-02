@@ -51,12 +51,12 @@ class Tokenizer:
         return tokens
 
 
-T = TypeVar("T", bound=dict)
+_T = TypeVar("_T", bound=dict)
 
 
 def truncate_prompt(
-    tokenizer: Tokenizer, messages: List[T], max_prompt_tokens: int
-) -> tuple[List[T], List[int]]:
+    tokenizer: Tokenizer, messages: List[_T], max_prompt_tokens: int
+) -> tuple[List[_T], List[int]]:
     n = len(messages)
 
     if n == 0:
