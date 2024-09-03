@@ -2,13 +2,13 @@
 
 [[package]]
 name = "aidial-sdk"
-version = "0.11.0"
+version = "0.13.0"
 description = "Framework to create applications and model adapters for AI DIAL"
 optional = false
 python-versions = "<4.0,>=3.8.1"
 files = [
-    {file = "aidial_sdk-0.11.0-py3-none-any.whl", hash = "sha256:b5a86e3727d9a78b8eff0e9f4bdd64d419801b391654492be1a53223b952f15a"},
-    {file = "aidial_sdk-0.11.0.tar.gz", hash = "sha256:2e6133a4b2593ba5069c368374ca3a45709612f1b655db441771115a77eedc7a"},
+    {file = "aidial_sdk-0.13.0-py3-none-any.whl", hash = "sha256:35784f12367e43f4540d67bab7b18315832e313517e02e969068d7ff2de3d69e"},
+    {file = "aidial_sdk-0.13.0.tar.gz", hash = "sha256:c895c22d95d1c1954e170ebda3f5010e80cd47ed8b7225d375d1da01f67962e5"},
 ]
 
 [package.dependencies]
@@ -2441,4 +2441,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "c4b3f6834cb2bdcfb58b510c8cbecb60c936b33a1d12abfeb782a53f28051475"
+content-hash = "e63a91778f4b0c6b001c143a407108d11ccace9a4d63e056826d55613bd5ffb0"

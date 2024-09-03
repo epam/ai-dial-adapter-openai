@@ -5,9 +5,9 @@ Implemented based on the official recipe: https://cookbook.openai.com/examples/h
 from typing import Any, List, Set, TypeVar
 
 from aidial_sdk.exceptions import (
-    internal_server_error,
-    truncate_prompt_error_system,
-    truncate_prompt_error_system_and_last_user,
+    InternalServerError,
+    TruncatePromptSystemAndLastUserError,
+    TruncatePromptSystemError,
 )
 from tiktoken import Encoding, encoding_for_model
 
@@ -21,7 +21,7 @@ class Tokenizer:
         try:
             self.encoding = encoding_for_model(model)
         except KeyError:
-            raise internal_server_error(
+            raise InternalServerError(
                 f"Could not find tokenizer for the model {model!r} in tiktoken. "
                 "Consider mapping the model to an existing tokenizer via MODEL_ALIASES env var, "
                 "or declare it as a model which doesn't require tokenization through tiktoken.",
@@ -75,7 +75,7 @@ def truncate_prompt(
             prompt_tokens += tokenizer.calculate_tokens_per_message(message)
 
     if max_prompt_tokens < prompt_tokens:
-        raise truncate_prompt_error_system(max_prompt_tokens, prompt_tokens)
+        raise TruncatePromptSystemError(max_prompt_tokens, prompt_tokens)
 
     # Then non-system messages in the reverse order
     for idx, message in reversed(list(enumerate(messages))):
@@ -91,7 +91,7 @@ def truncate_prompt(
         len(kept_messages) == system_messages_count
         and system_messages_count != n
     ):
-        raise truncate_prompt_error_system_and_last_user(
+        raise TruncatePromptSystemAndLastUserError(
             max_prompt_tokens, prompt_tokens
         )
 

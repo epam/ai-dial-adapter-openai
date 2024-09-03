@@ -2,7 +2,7 @@ from typing import Any, AsyncIterator, Optional
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DIALException
-from aidial_sdk.exceptions import request_validation_error
+from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
@@ -80,7 +80,7 @@ def get_user_prompt(data: Any) -> str:
             raise ValueError("Content isn't a string")
         return prompt
     except Exception:
-        raise request_validation_error(
+        raise RequestValidationError(
             "Invalid request. Expected a string at path 'messages[-1].content'."
         )
 
@@ -113,7 +113,7 @@ async def chat_completion(
     api_version: str,
 ) -> Response:
     if data.get("n", 1) > 1:
-        raise request_validation_error("The deployment doesn't support n > 1")
+        raise RequestValidationError("The deployment doesn't support n > 1")
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
     user_prompt = get_user_prompt(data)

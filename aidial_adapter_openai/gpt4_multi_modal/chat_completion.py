@@ -12,10 +12,7 @@ from typing import (
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import (
-    invalid_request_error,
-    request_validation_error,
-)
+from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.gpt4_multi_modal.download import (
@@ -175,13 +172,11 @@ async def chat_completion(
 ) -> Response:
 
     if request.get("n", 1) > 1:
-        raise request_validation_error("The deployment doesn't support n > 1")
+        raise RequestValidationError("The deployment doesn't support n > 1")
 
     messages: List[Any] = request["messages"]
     if len(messages) == 0:
-        raise request_validation_error(
-            "The request doesn't contain any messages"
-        )
+        raise RequestValidationError("The request doesn't contain any messages")
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
 
@@ -192,7 +187,7 @@ async def chat_completion(
 
         chunk = create_stage_chunk("Usage", USAGE, is_stream)
 
-        exc = invalid_request_error(message=result, display_message=result)
+        exc = InvalidRequestError(message=result, display_message=result)
 
         return create_response_from_chunk(chunk, exc, is_stream)
 

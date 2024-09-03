@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import Any, Dict, List, TypedDict
 
-from aidial_sdk.exceptions import invalid_request_error
+from aidial_sdk.exceptions import InvalidRequestError
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
@@ -80,7 +80,7 @@ class EndpointParser(BaseModel):
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
         if result := _parse_endpoint(self.name, endpoint):
             return result
-        raise invalid_request_error("Invalid upstream endpoint format")
+        raise InvalidRequestError("Invalid upstream endpoint format")
 
 
 class CompletionsParser(BaseModel):
@@ -102,12 +102,12 @@ async def parse_body(request: Request) -> Dict[str, Any]:
     try:
         data = await request.json()
     except JSONDecodeError as e:
-        raise invalid_request_error(
+        raise InvalidRequestError(
             "Your request contained invalid JSON: " + str(e)
         )
 
     if not isinstance(data, dict):
-        raise invalid_request_error(str(data) + " is not of type 'object'")
+        raise InvalidRequestError(str(data) + " is not of type 'object'")
 
     return data
 

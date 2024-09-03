@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from typing import Awaitable, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import invalid_request_error
+from aidial_sdk.exceptions import InvalidRequestError
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI, Request
@@ -94,7 +94,7 @@ def get_api_version(request: Request):
     api_version = API_VERSIONS_MAPPING.get(api_version, api_version)
 
     if api_version == "":
-        raise invalid_request_error("api-version is a required query parameter")
+        raise InvalidRequestError("api-version is a required query parameter")
 
     return api_version
 

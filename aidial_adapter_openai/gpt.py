@@ -1,4 +1,4 @@
-from aidial_sdk.exceptions import invalid_request_error
+from aidial_sdk.exceptions import InvalidRequestError
 from fastapi.responses import StreamingResponse
 from openai import AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
@@ -29,11 +29,11 @@ async def gpt_chat_completion(
     if "max_prompt_tokens" in data:
         max_prompt_tokens = data["max_prompt_tokens"]
         if not isinstance(max_prompt_tokens, int):
-            raise invalid_request_error(
+            raise InvalidRequestError(
                 f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
             )
         if max_prompt_tokens < 1:
-            raise invalid_request_error(
+            raise InvalidRequestError(
                 f"'{max_prompt_tokens}' is less than the minimum of 1 - 'max_prompt_tokens'",
             )
         del data["max_prompt_tokens"]

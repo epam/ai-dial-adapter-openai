@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from aidial_sdk.exceptions import request_validation_error
+from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from openai import AsyncStream
 from openai.types import Completion
@@ -51,15 +51,13 @@ async def chat_completion(
 ) -> Any:
 
     if data.get("n", 1) > 1:  # type: ignore
-        raise request_validation_error("The deployment doesn't support n > 1")
+        raise RequestValidationError("The deployment doesn't support n > 1")
 
     client = endpoint.get_client({**creds, "api_version": api_version})
 
     messages = data.get("messages", [])
     if len(messages) == 0:
-        raise request_validation_error(
-            "The request doesn't contain any messages"
-        )
+        raise RequestValidationError("The request doesn't contain any messages")
 
     prompt = messages[-1].get("content") or ""
 
