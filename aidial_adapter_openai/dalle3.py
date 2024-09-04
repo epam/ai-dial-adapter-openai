@@ -79,10 +79,10 @@ def get_user_prompt(data: Any) -> str:
         if isinstance(prompt, str):
             raise ValueError("Content isn't a string")
         return prompt
-    except Exception:
+    except Exception as e:
         raise RequestValidationError(
             "Invalid request. Expected a string at path 'messages[-1].content'."
-        )
+        ) from e
 
 
 async def move_attachments_data_to_storage(
