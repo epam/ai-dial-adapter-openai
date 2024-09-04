@@ -2,9 +2,13 @@
 Implemented based on the official recipe: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
 """
 
-from typing import Any, List, Set
+from typing import Any, List, Set, TypeVar
 
-from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.exceptions import (
+    InternalServerError,
+    TruncatePromptSystemAndLastUserError,
+    TruncatePromptSystemError,
+)
 from tiktoken import Encoding, encoding_for_model
 
 
@@ -16,14 +20,12 @@ class Tokenizer:
         self.model = model
         try:
             self.encoding = encoding_for_model(model)
-        except KeyError:
-            raise DialException(
-                message=f"Could not find tokenizer for the model {model!r} in tiktoken. "
+        except KeyError as e:
+            raise InternalServerError(
+                f"Could not find tokenizer for the model {model!r} in tiktoken. "
                 "Consider mapping the model to an existing tokenizer via MODEL_ALIASES env var, "
                 "or declare it as a model which doesn't require tokenization through tiktoken.",
-                status_code=500,
-                type="interval_server_error",
-            )
+            ) from e
 
     def calculate_tokens(self, string: str) -> int:
         return len(self.encoding.encode(string))
@@ -31,7 +33,7 @@ class Tokenizer:
     def calculate_prompt_tokens(self, messages: List[Any]) -> int:
         return 3 + sum(map(self.calculate_tokens_per_message, messages))
 
-    def calculate_tokens_per_message(self, message: Any) -> int:
+    def calculate_tokens_per_message(self, message: dict) -> int:
         if self.model == "gpt-3.5-turbo-0301":
             tokens_per_message = 4
             tokens_per_name = -1
@@ -49,9 +51,12 @@ class Tokenizer:
         return tokens
 
 
-def discard_messages(
-    tokenizer: Tokenizer, messages: List[Any], max_prompt_tokens: int
-) -> tuple[List[Any], List[int]]:
+_T = TypeVar("_T", bound=dict)
+
+
+def truncate_prompt(
+    tokenizer: Tokenizer, messages: List[_T], max_prompt_tokens: int
+) -> tuple[List[_T], List[int]]:
     n = len(messages)
 
     if n == 0:
@@ -70,17 +75,7 @@ def discard_messages(
             prompt_tokens += tokenizer.calculate_tokens_per_message(message)
 
     if max_prompt_tokens < prompt_tokens:
-        error_message = (
-            f"The token size of system messages ({prompt_tokens}) "
-            f"exceeds prompt token limit ({max_prompt_tokens}). "
-            "Try reducing the length of the messages."
-        )
-        raise DialException(
-            message=error_message,
-            status_code=400,
-            type="invalid_request_error",
-            display_message=error_message,
-        )
+        raise TruncatePromptSystemError(max_prompt_tokens, prompt_tokens)
 
     # Then non-system messages in the reverse order
     for idx, message in reversed(list(enumerate(messages))):
@@ -96,16 +91,8 @@ def discard_messages(
         len(kept_messages) == system_messages_count
         and system_messages_count != n
     ):
-        error_message = (
-            f"The token size of system messages and the last user message ({prompt_tokens}) "
-            f"exceeds prompt token limit ({max_prompt_tokens}). "
-            "Try reducing the length of the messages."
-        )
-        raise DialException(
-            message=error_message,
-            status_code=400,
-            type="invalid_request_error",
-            display_message=error_message,
+        raise TruncatePromptSystemAndLastUserError(
+            max_prompt_tokens, prompt_tokens
         )
 
     new_messages = [

@@ -38,11 +38,7 @@ async def get_api_key() -> str:
             logger.error(
                 f"Default Azure credential failed with the error: {e.message}"
             )
-            raise DialException(
-                "Authentication failed",
-                401,
-                "Unauthorized",
-            )
+            raise DialException("Authentication failed", 401, "Unauthorized")
 
     return access_token.token
 

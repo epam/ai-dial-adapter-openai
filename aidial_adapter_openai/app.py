@@ -2,10 +2,11 @@ from contextlib import asynccontextmanager
 from typing import Awaitable, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.exceptions import InvalidRequestError
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from openai import APIConnectionError, APIStatusError, APITimeoutError
 
 from aidial_adapter_openai.completions import chat_completion as completion
@@ -34,7 +35,6 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.errors import dial_exception_to_json_error
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import (
@@ -75,16 +75,16 @@ async def handle_exceptions(call: Awaitable[T]) -> T | Response:
         )
     except APITimeoutError:
         raise DialException(
-            "Request timed out",
-            504,
-            "timeout",
+            status_code=504,
+            type="timeout",
+            message="Request timed out",
             display_message="Request timed out. Please try again later.",
         )
     except APIConnectionError:
         raise DialException(
-            "Error communicating with OpenAI",
-            502,
-            "connection",
+            status_code=502,
+            type="connection",
+            message="Error communicating with OpenAI",
             display_message="OpenAI server is not responsive. Please try again later.",
         )
 
@@ -94,11 +94,7 @@ def get_api_version(request: Request):
     api_version = API_VERSIONS_MAPPING.get(api_version, api_version)
 
     if api_version == "":
-        raise DialException(
-            "api-version is a required query parameter",
-            400,
-            "invalid_request_error",
-        )
+        raise InvalidRequestError("api-version is a required query parameter")
 
     return api_version
 
@@ -220,10 +216,7 @@ async def embedding(deployment_id: str, request: Request):
 
 @app.exception_handler(DialException)
 def exception_handler(request: Request, exc: DialException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=dial_exception_to_json_error(exc),
-    )
+    return exc.to_fastapi_response()
 
 
 @app.get("/health")
