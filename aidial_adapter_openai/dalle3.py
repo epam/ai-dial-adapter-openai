@@ -76,7 +76,7 @@ async def generate_stream(
 def get_user_prompt(data: Any) -> str:
     try:
         prompt = data["messages"][-1]["content"]
-        if isinstance(prompt, str):
+        if not isinstance(prompt, str):
             raise ValueError("Content isn't a string")
         return prompt
     except Exception as e:
