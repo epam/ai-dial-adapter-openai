@@ -47,14 +47,17 @@ class ImageFail(BaseModel):
 async def get_attachment_name(
     file_storage: Optional[FileStorage], attachment: dict
 ) -> str:
+    if title := attachment.get("title"):
+        return title
+
     if "data" in attachment:
         return attachment.get("title") or "data attachment"
 
     if "url" in attachment:
-        attachment_link = attachment["url"]
+        link = attachment["url"]
         if file_storage is not None:
-            return await file_storage.get_human_readable_name(attachment_link)
-        return attachment_link
+            return await file_storage.get_human_readable_name(link)
+        return link
 
     return "invalid attachment"
 
