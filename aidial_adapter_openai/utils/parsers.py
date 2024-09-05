@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import Any, Dict, List, TypedDict
 
-from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.exceptions import InvalidRequestError
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
@@ -24,6 +24,10 @@ class Endpoint(ABC):
         pass
 
 
+# Retries are handled on the DIAL Core side
+_MAX_RETRIES = 0
+
+
 class AzureOpenAIEndpoint(BaseModel):
     azure_endpoint: str
     azure_deployment: str
@@ -36,6 +40,7 @@ class AzureOpenAIEndpoint(BaseModel):
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
             timeout=params.get("timeout"),
+            max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
         )
 
@@ -48,6 +53,7 @@ class OpenAIEndpoint(BaseModel):
             base_url=self.base_url,
             api_key=params.get("api_key"),
             timeout=params.get("timeout"),
+            max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
         )
 
@@ -74,9 +80,7 @@ class EndpointParser(BaseModel):
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
         if result := _parse_endpoint(self.name, endpoint):
             return result
-        raise DialException(
-            "Invalid upstream endpoint format", 400, "invalid_request_error"
-        )
+        raise InvalidRequestError("Invalid upstream endpoint format")
 
 
 class CompletionsParser(BaseModel):
@@ -98,16 +102,12 @@ async def parse_body(request: Request) -> Dict[str, Any]:
     try:
         data = await request.json()
     except JSONDecodeError as e:
-        raise DialException(
-            "Your request contained invalid JSON: " + str(e),
-            400,
-            "invalid_request_error",
+        raise InvalidRequestError(
+            "Your request contained invalid JSON: " + str(e)
         )
 
     if not isinstance(data, dict):
-        raise DialException(
-            str(data) + " is not of type 'object'", 400, "invalid_request_error"
-        )
+        raise InvalidRequestError(str(data) + " is not of type 'object'")
 
     return data
 

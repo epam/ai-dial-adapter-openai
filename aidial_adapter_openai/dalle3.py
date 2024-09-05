@@ -1,8 +1,8 @@
 from typing import Any, AsyncIterator, Optional
 
 import aiohttp
-from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.utils.errors import json_error
+from aidial_sdk.exceptions import HTTPException as DIALException
+from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
@@ -42,15 +42,13 @@ async def generate_image(
                 ]:
                     error["code"] = "content_filter"
 
-                return JSONResponse(
-                    content=json_error(
-                        message=error.get("message"),
-                        type=error.get("type"),
-                        param=error.get("param"),
-                        code=error.get("code"),
-                    ),
+                return DIALException(
                     status_code=status_code,
-                )
+                    message=error.get("message"),
+                    type=error.get("type"),
+                    param=error.get("param"),
+                    code=error.get("code"),
+                ).to_fastapi_response()
             else:
                 return JSONResponse(content=data, status_code=status_code)
 
@@ -75,18 +73,16 @@ async def generate_stream(
     yield build_chunk(id, "stop", {}, created, True, usage=IMG_USAGE)
 
 
-def get_user_prompt(data: Any):
-    if (
-        "messages" not in data
-        or len(data["messages"]) == 0
-        or "content" not in data["messages"][-1]
-        or not data["messages"][-1]
-    ):
-        raise DialException(
-            "Your request is invalid", 400, "invalid_request_error"
-        )
-
-    return data["messages"][-1]["content"]
+def get_user_prompt(data: Any) -> str:
+    try:
+        prompt = data["messages"][-1]["content"]
+        if not isinstance(prompt, str):
+            raise ValueError("Content isn't a string")
+        return prompt
+    except Exception as e:
+        raise RequestValidationError(
+            "Invalid request. Expected a string at path 'messages[-1].content'."
+        ) from e
 
 
 async def move_attachments_data_to_storage(
@@ -117,11 +113,7 @@ async def chat_completion(
     api_version: str,
 ) -> Response:
     if data.get("n", 1) > 1:
-        raise DialException(
-            status_code=422,
-            message="The deployment doesn't support n > 1",
-            type="invalid_request_error",
-        )
+        raise RequestValidationError("The deployment doesn't support n > 1")
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
     user_prompt = get_user_prompt(data)

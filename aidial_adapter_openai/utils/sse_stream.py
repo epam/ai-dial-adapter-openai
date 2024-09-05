@@ -1,7 +1,7 @@
 import json
 from typing import Any, AsyncIterator, Mapping
 
-from aidial_sdk.utils.errors import json_error
+from aidial_sdk.exceptions import runtime_server_error
 
 DATA_PREFIX = "data: "
 OPENAI_END_MARKER = "[DONE]"
@@ -24,18 +24,16 @@ async def parse_openai_sse_stream(
         try:
             payload = line.decode("utf-8-sig").lstrip()  # type: ignore
         except Exception:
-            yield json_error(
-                message="Can't decode chunk to a string", type="runtime_error"
-            )
+            yield runtime_server_error(
+                "Can't decode chunk to a string"
+            ).json_error()
             return
 
         if payload.strip() == "":
             continue
 
         if not payload.startswith(DATA_PREFIX):
-            yield json_error(
-                message="Invalid chunk format", type="runtime_error"
-            )
+            yield runtime_server_error("Invalid chunk format").json_error()
             return
 
         payload = payload[len(DATA_PREFIX) :]
@@ -46,9 +44,7 @@ async def parse_openai_sse_stream(
         try:
             chunk = json.loads(payload)
         except json.JSONDecodeError:
-            yield json_error(
-                message="Can't parse chunk to JSON", type="runtime_error"
-            )
+            yield runtime_server_error("Can't parse chunk to JSON").json_error()
             return
 
         yield chunk

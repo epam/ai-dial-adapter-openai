@@ -3,7 +3,7 @@ from typing import List, Tuple
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.utils.tokens import Tokenizer, discard_messages
+from aidial_adapter_openai.utils.tokens import Tokenizer, truncate_prompt
 
 TestCase = Tuple[List[dict], int, Tuple[List[dict], List[int]] | str]
 
@@ -120,7 +120,7 @@ def test_discarded_messages_without_error(
     response: Tuple[List[dict], List[int]],
 ):
     tokenizer = Tokenizer(model="gpt-4")
-    assert discard_messages(tokenizer, messages, max_prompt_tokens) == response
+    assert truncate_prompt(tokenizer, messages, max_prompt_tokens) == response
 
 
 @pytest.mark.parametrize(
@@ -133,5 +133,5 @@ def test_discarded_messages_with_error(
 ):
     tokenizer = Tokenizer(model="gpt-4")
     with pytest.raises(DialException) as e_info:
-        discard_messages(tokenizer, messages, max_prompt_tokens)
+        truncate_prompt(tokenizer, messages, max_prompt_tokens)
         assert e_info.value.message == error_message
