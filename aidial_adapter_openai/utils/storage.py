@@ -129,7 +129,7 @@ class FileStorage:
 
         link = link.removeprefix(f"{bucket}/")
         decoded_link = unquote(link)
-        return link if link == decoded_link else repr(link)
+        return link if link == decoded_link else repr(decoded_link)
 
     async def download_file_as_base64(self, url: str) -> str:
         headers: Mapping[str, str] = {}
