@@ -4,7 +4,7 @@ import io
 import mimetypes
 import os
 from typing import Mapping, Optional, TypedDict
-from urllib.parse import urljoin
+from urllib.parse import unquote, urljoin
 
 import aiohttp
 
@@ -111,11 +111,25 @@ class FileStorage:
 
         return urljoin(base_url, link)
 
+    def _url_to_attachment_link(self, url: str) -> str:
+        if core_api_version == "0.6":
+            return url.removeprefix(f"{self.dial_url}/v1/files/")
+        else:
+            return url.removeprefix(f"{self.dial_url}/v1/")
+
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
-        async with aiohttp.ClientSession() as session:
-            bucket = await self._get_user_bucket(session)
-        return url.removeprefix(f"{self.dial_url}/v1/files/{bucket}/")
+        link = self._url_to_attachment_link(url)
+
+        if link.startswith("public/"):
+            bucket = "public"
+        else:
+            async with aiohttp.ClientSession() as session:
+                bucket = await self._get_user_bucket(session)
+
+        link = link.removeprefix(f"{bucket}/")
+        decoded_link = unquote(link)
+        return link if link == decoded_link else repr(decoded_link)
 
     async def download_file_as_base64(self, url: str) -> str:
         headers: Mapping[str, str] = {}
