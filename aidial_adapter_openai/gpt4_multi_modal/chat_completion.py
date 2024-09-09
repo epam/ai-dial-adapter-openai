@@ -12,15 +12,22 @@ from typing import (
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
+from aidial_sdk.exceptions import (
+    InternalServerError,
+    InvalidRequestError,
+    RequestValidationError,
+)
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from aidial_adapter_openai.gpt4_multi_modal.download import (
-    SUPPORTED_FILE_EXTS,
-    transform_messages,
-)
+from aidial_adapter_openai.gpt4_multi_modal.download import SUPPORTED_FILE_EXTS
 from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
     convert_gpt4v_to_gpt4_chunk,
+)
+from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+    transform_messages,
+)
+from aidial_adapter_openai.gpt4_multi_modal.truncate import (
+    truncate_transformed_messages,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.log_config import logger
@@ -41,6 +48,7 @@ from aidial_adapter_openai.utils.tokens import Tokenizer
 # The built-in default max_tokens is 16 tokens,
 # which is too small for most image-to-text use cases.
 GPT4V_DEFAULT_MAX_TOKENS = int(os.getenv("GPT4_VISION_MAX_TOKENS", "1024"))
+GPT4O_DEFAULT_MAX_TOKEN = int(os.getenv("GPT4O_MAX_TOKENS", "4096"))
 
 USAGE = f"""
 ### Usage
@@ -131,7 +139,7 @@ async def gpt4o_chat_completion(
         api_version,
         tokenizer,
         lambda x: x,
-        None,
+        GPT4O_DEFAULT_MAX_TOKEN,
     )
 
 
@@ -168,7 +176,7 @@ async def chat_completion(
     api_version: str,
     tokenizer: Tokenizer,
     response_transformer: Callable[[dict], dict | None],
-    default_max_tokens: int | None,
+    default_max_tokens: int,
 ) -> Response:
 
     if request.get("n", 1) > 1:
@@ -180,26 +188,31 @@ async def chat_completion(
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
 
-    result = await transform_messages(file_storage, messages)
+    result = await transform_messages(file_storage, messages, tokenizer)
 
-    if isinstance(result, str):
+    if result.error_message:
         logger.error(f"Failed to prepare request: {result}")
 
         chunk = create_stage_chunk("Usage", USAGE, is_stream)
 
-        exc = InvalidRequestError(message=result, display_message=result)
+        exc = InvalidRequestError(
+            message=result.error_message, display_message=result
+        )
 
         return create_response_from_chunk(chunk, exc, is_stream)
 
-    new_messages, prompt_image_tokens = result
+    max_tokens = request.get("max_tokens") or default_max_tokens
 
-    prompt_text_tokens = tokenizer.calculate_prompt_tokens(messages)
-    estimated_prompt_tokens = prompt_text_tokens + prompt_image_tokens
+    if result.transformations is None:
+        raise InternalServerError("Transformations cannot be null")
+    truncation_result = truncate_transformed_messages(
+        result.transformations, max_tokens
+    )
 
     request = {
         **request,
-        "max_tokens": request.get("max_tokens") or default_max_tokens,
-        "messages": new_messages,
+        "max_tokens": max_tokens,
+        "messages": truncation_result.messages,
     }
 
     headers = get_auth_headers(creds)
@@ -220,10 +233,10 @@ async def chat_completion(
                 map_stream(
                     debug_print,
                     generate_stream(
-                        get_prompt_tokens=lambda: estimated_prompt_tokens,
+                        get_prompt_tokens=lambda: truncation_result.overall_token,
                         tokenize=tokenizer.calculate_tokens,
                         deployment=deployment,
-                        discarded_messages=None,
+                        discarded_messages=truncation_result.discarded_messages,
                         stream=map_stream(
                             response_transformer,
                             parse_openai_sse_stream(response),
@@ -249,10 +262,17 @@ async def chat_completion(
         content = response["choices"][0]["message"].get("content") or ""
         usage = response["usage"]
 
+        if truncation_result.discarded_messages:
+            response |= {
+                "statistics": {
+                    "discarded_messages": truncation_result.discarded_messages
+                }
+            }
+
         actual_prompt_tokens = usage["prompt_tokens"]
-        if actual_prompt_tokens != estimated_prompt_tokens:
+        if actual_prompt_tokens != truncation_result.overall_token:
             logger.warning(
-                f"Estimated prompt tokens ({estimated_prompt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
+                f"Estimated prompt tokens ({truncation_result.overall_token}) don't match the actual ones ({actual_prompt_tokens})"
             )
 
         actual_completion_tokens = usage["completion_tokens"]
