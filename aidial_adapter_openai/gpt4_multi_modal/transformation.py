@@ -58,16 +58,9 @@ async def transform_message(
     content = message.get("content", "")
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
+    logger.debug(f"original attachments: {attachments}")
 
     message = {k: v for k, v in message.items() if k != "custom_content"}
-
-    if len(attachments) == 0:
-        return MessageTransformResult(
-            message=message,
-            text_tokens=tokenizer.calculate_tokens_per_message(message),
-        )
-
-    logger.debug(f"original attachments: {attachments}")
 
     download_results: List[ImageDataURL | ImageFail] = [
         await download_image(file_storage, attachment)
