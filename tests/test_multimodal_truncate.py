@@ -4,12 +4,11 @@ from aidial_sdk.exceptions import (
     TruncatePromptSystemError,
 )
 
+from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
+    multimodal_truncate,
+)
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     MessageTransformResult,
-    TruncateTransformedMessagesResult,
-)
-from aidial_adapter_openai.gpt4_multi_modal.truncate import (
-    truncate_transformed_messages,
 )
 
 
@@ -19,12 +18,11 @@ def test_truncate_transformed_messages_system_and_last_user_error():
     """
     transformations = [
         MessageTransformResult(
-            text_tokens=10,
+            tokens=10,
             message={"role": "system", "content": "System message"},
         ),
         MessageTransformResult(
-            image_tokens=40,
-            text_tokens=10,
+            tokens=50,
             message={
                 "role": "user",
                 "content": [
@@ -35,7 +33,7 @@ def test_truncate_transformed_messages_system_and_last_user_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemAndLastUserError):
-        truncate_transformed_messages(transformations, 15)
+        multimodal_truncate(transformations, 15, 0)
 
 
 def test_truncate_transformed_messages_system_error():
@@ -44,79 +42,66 @@ def test_truncate_transformed_messages_system_error():
     """
     transformations = [
         MessageTransformResult(
-            text_tokens=10,
+            tokens=10,
             message={"role": "system", "content": "System message"},
         ),
     ]
     with pytest.raises(TruncatePromptSystemError):
-        truncate_transformed_messages(transformations, 10)
+        multimodal_truncate(transformations, 10, 1)
 
 
 @pytest.mark.parametrize(
-    "transformations,max_tokens,expected_result",
+    "transformations,max_prompt_tokens,discarded_messages,used_tokens",
     [
         # Truncate one text message
         (
             [
                 MessageTransformResult(
-                    text_tokens=10,
+                    tokens=10,
                     message={"role": "system", "content": "System message"},
                 ),
                 MessageTransformResult(
-                    text_tokens=10,
+                    tokens=10,
                     message={"role": "user", "content": "User message 1"},
                 ),
                 MessageTransformResult(
-                    text_tokens=10,
+                    tokens=10,
                     message={"role": "user", "content": "User message 2"},
                 ),
             ],
             30,
-            TruncateTransformedMessagesResult(
-                messages=[
-                    {"role": "system", "content": "System message"},
-                    {"role": "user", "content": "User message 2"},
-                ],
-                discarded_messages=[1],
-                overall_token=23,
-            ),
+            [1],
+            23,
         ),
         # No message to truncate
         (
             [
                 MessageTransformResult(
-                    text_tokens=10,
+                    tokens=10,
                     message={"role": "system", "content": "System message"},
                 ),
                 MessageTransformResult(
-                    text_tokens=10,
+                    tokens=10,
                     message={"role": "user", "content": "User message"},
                 ),
             ],
             30,
-            TruncateTransformedMessagesResult(
-                messages=[
-                    {"role": "system", "content": "System message"},
-                    {"role": "user", "content": "User message"},
-                ],
-                discarded_messages=[],
-                overall_token=23,
-            ),
+            [],
+            23,
         ),
         # Truncate one image message
         (
             [
                 MessageTransformResult(
-                    text_tokens=10,
+                    tokens=10,
                     message={"role": "system", "content": "System message"},
                 ),
                 MessageTransformResult(
-                    text_tokens=10,
+                    tokens=10,
                     message={"role": "user", "content": "User message"},
                 ),
                 MessageTransformResult(
-                    text_tokens=10,
-                    image_tokens=40,
+                    tokens=50,
                     message={
                         "role": "user",
                         "content": [
@@ -127,25 +112,21 @@ def test_truncate_transformed_messages_system_error():
                 ),
             ],
             70,
-            TruncateTransformedMessagesResult(
-                messages=[
-                    {"role": "system", "content": "System message"},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"message": "image"},
-                            {"type": "image_url", "image_url": "..."},
-                        ],
-                    },
-                ],
-                discarded_messages=[1],
-                overall_token=63,
-            ),
+            [1],
+            63,
         ),
     ],
 )
 def test_truncate_transformed_messages(
-    transformations, max_tokens, expected_result
+    transformations, max_prompt_tokens, discarded_messages, used_tokens
 ):
-    result = truncate_transformed_messages(transformations, max_tokens)
-    assert result == expected_result
+    truncated, actual_discarded_messages, actual_used_tokens = (
+        multimodal_truncate(
+            transformations, max_prompt_tokens, initial_prompt_tokens=3
+        )
+    )
+    assert actual_discarded_messages == discarded_messages
+    assert actual_used_tokens == used_tokens
+    assert truncated == [
+        t for i, t in enumerate(transformations) if i not in discarded_messages
+    ]

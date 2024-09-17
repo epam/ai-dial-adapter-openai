@@ -1,5 +1,6 @@
 from typing import List, Optional, cast
 
+from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel, root_validator
 
 from aidial_adapter_openai.gpt4_multi_modal.download import (
@@ -20,14 +21,8 @@ from aidial_adapter_openai.utils.tokens import Tokenizer
 
 
 class MessageTransformResult(BaseModel):
-    text_tokens: int = 0
-    image_tokens: int = 0
-    errors: Optional[List[ImageFail]] = None
+    tokens: int
     message: dict
-
-    @property
-    def total_tokens(self) -> int:
-        return self.text_tokens + self.image_tokens
 
 
 class TransformMessagesResult(BaseModel):
@@ -46,15 +41,13 @@ class TransformMessagesResult(BaseModel):
         return values
 
 
-class TruncateTransformedMessagesResult(BaseModel):
-    messages: List[dict]
-    discarded_messages: List[int]
-    overall_token: int
+class TruncateErrorMessage(str):
+    pass
 
 
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict, tokenizer: Tokenizer
-) -> MessageTransformResult:
+) -> MessageTransformResult | List[ImageFail]:
     content = message.get("content", "")
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
@@ -75,7 +68,7 @@ async def transform_message(
 
     if errors:
         logger.error(f"download errors: {errors}")
-        return MessageTransformResult(message=message, errors=errors)
+        return errors
 
     image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
 
@@ -89,15 +82,17 @@ async def transform_message(
 
     logger.debug(f"image tokens: {image_tokens}")
 
-    return MessageTransformResult(
-        image_tokens=sum(image_tokens),
-        text_tokens=tokenizer.calculate_tokens_per_message(
-            create_text_message(content)
-        ),
-        message={
+    # Create parts of the message if there are images
+    if image_messages:
+        message = {
             **message,
             "content": [create_text_message(content)] + image_messages,
-        },
+        }
+
+    return MessageTransformResult(
+        tokens=sum(image_tokens)
+        + tokenizer.calculate_tokens_per_message(message),
+        message=message,
     )
 
 
@@ -105,18 +100,19 @@ async def transform_messages(
     file_storage: Optional[FileStorage],
     messages: List[dict],
     tokenizer: Tokenizer,
-) -> TransformMessagesResult:
+) -> List[MessageTransformResult] | InvalidRequestError:
     transformations = [
         await transform_message(file_storage, message, tokenizer)
         for message in messages
     ]
     all_errors = set(
-        [error for t in transformations if t.errors for error in t.errors]
+        [error for error in transformations if isinstance(error, ImageFail)]
     )
     if all_errors:
         msg = "The following file attachments failed to process:"
         for idx, error in enumerate(all_errors, start=1):
             msg += f"\n{idx}. {error.name}: {error.message}"
-        return TransformMessagesResult(error_message=msg)
+        return InvalidRequestError(message=msg, display_message=msg)
 
-    return TransformMessagesResult(transformations=transformations)
+    transformations = cast(List[MessageTransformResult], transformations)
+    return transformations

@@ -6,17 +6,14 @@ from typing import (
     Dict,
     List,
     Optional,
+    Tuple,
     TypeVar,
     cast,
 )
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import (
-    InternalServerError,
-    InvalidRequestError,
-    RequestValidationError,
-)
+from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.gpt4_multi_modal.download import SUPPORTED_FILE_EXTS
@@ -24,13 +21,16 @@ from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
     convert_gpt4v_to_gpt4_chunk,
 )
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+    MessageTransformResult,
     transform_messages,
-)
-from aidial_adapter_openai.gpt4_multi_modal.truncate import (
-    truncate_transformed_messages,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.prompt_truncate import (
+    DiscardedMessages,
+    UsedTokens,
+    truncate_prompt,
+)
 from aidial_adapter_openai.utils.sse_stream import (
     parse_openai_sse_stream,
     to_openai_sse_stream,
@@ -48,7 +48,7 @@ from aidial_adapter_openai.utils.tokens import Tokenizer
 # The built-in default max_tokens is 16 tokens,
 # which is too small for most image-to-text use cases.
 GPT4V_DEFAULT_MAX_TOKENS = int(os.getenv("GPT4_VISION_MAX_TOKENS", "1024"))
-GPT4O_DEFAULT_MAX_TOKEN = int(os.getenv("GPT4O_MAX_TOKENS", "4096"))
+# GPT4O_DEFAULT_MAX_TOKEN = int(os.getenv("GPT4O_MAX_TOKENS", "4096"))
 
 USAGE = f"""
 ### Usage
@@ -119,6 +119,20 @@ async def predict_non_stream(
             return await response.json()
 
 
+def multimodal_truncate(
+    transformations: List[MessageTransformResult],
+    max_prompt_tokens: int,
+    initial_prompt_tokens: int,
+) -> Tuple[List[MessageTransformResult], DiscardedMessages, UsedTokens]:
+    return truncate_prompt(
+        message_holders=transformations,
+        message_tokens_getter=lambda item: item.tokens,
+        is_system_message_getter=lambda item: item.message["role"] == "system",
+        max_prompt_tokens=max_prompt_tokens,
+        initial_prompt_tokens=initial_prompt_tokens,
+    )
+
+
 async def gpt4o_chat_completion(
     request: Any,
     deployment: str,
@@ -139,7 +153,7 @@ async def gpt4o_chat_completion(
         api_version,
         tokenizer,
         lambda x: x,
-        GPT4O_DEFAULT_MAX_TOKEN,
+        None,
     )
 
 
@@ -176,9 +190,8 @@ async def chat_completion(
     api_version: str,
     tokenizer: Tokenizer,
     response_transformer: Callable[[dict], dict | None],
-    default_max_tokens: int,
+    default_max_tokens: Optional[int],
 ) -> Response:
-
     if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
@@ -188,31 +201,45 @@ async def chat_completion(
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
 
-    result = await transform_messages(file_storage, messages, tokenizer)
-
-    if result.error_message:
-        logger.error(f"Failed to prepare request: {result}")
-
-        chunk = create_stage_chunk("Usage", USAGE, is_stream)
-
-        exc = InvalidRequestError(
-            message=result.error_message, display_message=result
-        )
-
-        return create_response_from_chunk(chunk, exc, is_stream)
-
-    max_tokens = request.get("max_tokens") or default_max_tokens
-
-    if result.transformations is None:
-        raise InternalServerError("Transformations cannot be null")
-    truncation_result = truncate_transformed_messages(
-        result.transformations, max_tokens
+    transformation_result = await transform_messages(
+        file_storage, messages, tokenizer
     )
+
+    if isinstance(transformation_result, InvalidRequestError):
+        logger.error(
+            f"Failed to prepare request: {transformation_result.message}"
+        )
+        chunk = create_stage_chunk("Usage", USAGE, is_stream)
+        return create_response_from_chunk(
+            chunk, transformation_result, is_stream
+        )
+    max_prompt_tokens = None
+    if "max_prompt_tokens" in request:
+        max_prompt_tokens = request.pop("max_prompt_tokens")
+
+    truncation_result = transformation_result
+    discarded_messages = None
+    estimated_propmpt_tokens = tokenizer.calculate_overall_prompt_tokens(
+        sum(item.tokens for item in transformation_result)
+    )
+    logger.debug(f"prompt tokens before truncation: {estimated_propmpt_tokens}")
+
+    if max_prompt_tokens is not None:
+        truncation_result, discarded_messages, estimated_propmpt_tokens = (
+            multimodal_truncate(
+                transformations=transformation_result,
+                max_prompt_tokens=max_prompt_tokens,
+                initial_prompt_tokens=tokenizer.PROMPT_TOKENS,
+            )
+        )
+        logger.debug(
+            f"prompt tokens after truncation: {estimated_propmpt_tokens}"
+        )
 
     request = {
         **request,
-        "max_tokens": max_tokens,
-        "messages": truncation_result.messages,
+        "max_tokens": request.get("max_tokens") or default_max_tokens,
+        "messages": [t.message for t in truncation_result],
     }
 
     headers = get_auth_headers(creds)
@@ -233,10 +260,10 @@ async def chat_completion(
                 map_stream(
                     debug_print,
                     generate_stream(
-                        get_prompt_tokens=lambda: truncation_result.overall_token,
+                        get_prompt_tokens=lambda: estimated_propmpt_tokens,
                         tokenize=tokenizer.calculate_tokens,
                         deployment=deployment,
-                        discarded_messages=truncation_result.discarded_messages,
+                        discarded_messages=discarded_messages,
                         stream=map_stream(
                             response_transformer,
                             parse_openai_sse_stream(response),
@@ -262,17 +289,15 @@ async def chat_completion(
         content = response["choices"][0]["message"].get("content") or ""
         usage = response["usage"]
 
-        if truncation_result.discarded_messages:
+        if discarded_messages:
             response |= {
-                "statistics": {
-                    "discarded_messages": truncation_result.discarded_messages
-                }
+                "statistics": {"discarded_messages": discarded_messages}
             }
 
         actual_prompt_tokens = usage["prompt_tokens"]
-        if actual_prompt_tokens != truncation_result.overall_token:
+        if actual_prompt_tokens != estimated_propmpt_tokens:
             logger.warning(
-                f"Estimated prompt tokens ({truncation_result.overall_token}) don't match the actual ones ({actual_prompt_tokens})"
+                f"Estimated prompt tokens ({estimated_propmpt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
             )
 
         actual_completion_tokens = usage["completion_tokens"]

@@ -3,16 +3,19 @@ from typing import List, Tuple
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.utils.tokens import Tokenizer, truncate_prompt
+from aidial_adapter_openai.gpt import plain_message_truncate
+from aidial_adapter_openai.utils.prompt_truncate import DiscardedMessages
+from aidial_adapter_openai.utils.tokens import Tokenizer
 
-TestCase = Tuple[List[dict], int, Tuple[List[dict], List[int]] | str]
+PlainMessages = List[dict]
+MaxPromptTokens = int
+TestCase = Tuple[
+    PlainMessages,
+    MaxPromptTokens,
+    Tuple[PlainMessages, DiscardedMessages],
+]
 
 normal_cases: List[TestCase] = [
-    (
-        [],
-        0,
-        ([], []),
-    ),
     (
         [{"role": "system", "message": "This is four tokens"}],
         11,
@@ -91,7 +94,14 @@ normal_cases: List[TestCase] = [
     ),
 ]
 
-error_cases: List[TestCase] = [
+ErrorMessage = str
+error_cases: List[
+    Tuple[
+        PlainMessages,
+        MaxPromptTokens,
+        ErrorMessage,
+    ]
+] = [
     (
         [
             {"role": "system", "message": "This is four tokens"},
@@ -110,6 +120,7 @@ error_cases: List[TestCase] = [
         18,
         "The token size of system messages and the last user message (19) exceeds prompt token limit (18)",
     ),
+    ([], 0, ""),
 ]
 
 
@@ -120,7 +131,10 @@ def test_discarded_messages_without_error(
     response: Tuple[List[dict], List[int]],
 ):
     tokenizer = Tokenizer(model="gpt-4")
-    assert truncate_prompt(tokenizer, messages, max_prompt_tokens) == response
+    truncated_messages, discarded_messages, _used_tokens = (
+        plain_message_truncate(messages, max_prompt_tokens, tokenizer)
+    )
+    assert (truncated_messages, discarded_messages) == response
 
 
 @pytest.mark.parametrize(
@@ -133,5 +147,5 @@ def test_discarded_messages_with_error(
 ):
     tokenizer = Tokenizer(model="gpt-4")
     with pytest.raises(DialException) as e_info:
-        truncate_prompt(tokenizer, messages, max_prompt_tokens)
+        plain_message_truncate(messages, max_prompt_tokens, tokenizer)
         assert e_info.value.message == error_message

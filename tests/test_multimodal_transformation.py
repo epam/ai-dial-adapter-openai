@@ -5,7 +5,6 @@ import pytest
 from aidial_adapter_openai.gpt4_multi_modal.download import ImageFail
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     MessageTransformResult,
-    TransformMessagesResult,
     transform_message,
     transform_messages,
 )
@@ -123,7 +122,8 @@ async def test_transform_message(
 
     result = await transform_message(mock_file_storage, message, mock_tokenizer)
 
-    assert result.total_tokens == expected_tokens
+    assert not isinstance(result, list)
+    assert result.tokens == expected_tokens
     assert result.message["content"] == expected_content
 
 
@@ -140,63 +140,72 @@ async def test_transform_message_with_error(
         name="error.jpg", message="File not found"
     )
     result = await transform_message(mock_file_storage, message, mock_tokenizer)
-
-    assert result.errors is not None
-    assert len(result.errors) == 1
-    assert result.errors[0].name == "error.jpg"
-    assert result.errors[0].message == "File not found"
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert isinstance(result[0], ImageFail)
+    assert result[0].name == "error.jpg"
+    assert result[0].message == "File not found"
 
 
 @pytest.mark.parametrize(
-    "messages,expected_result",
+    "messages,expected_transformations",
     [
         (
             [{"role": "user", "content": "Hello"}],
-            TransformMessagesResult(
-                transformations=[
-                    MessageTransformResult(
-                        text_tokens=10,
-                        message={"role": "user", "content": "Hello"},
-                    )
-                ]
-            ),
+            [
+                MessageTransformResult(
+                    tokens=10,
+                    message={"role": "user", "content": "Hello"},
+                )
+            ],
         ),
         (
             [
+                {"role": "system", "content": "Hello"},
                 {
                     "role": "user",
                     "content": "",
-                    "custom_content": {"attachments": ["error.jpg"]},
-                }
+                    "custom_content": {"attachments": ["image1.jpg"]},
+                },
             ],
-            TransformMessagesResult(
-                error_message="The following file attachments failed to process:\n1. error.jpg: File not found"
-            ),
+            [
+                MessageTransformResult(
+                    tokens=10, message={"role": "system", "content": "Hello"}
+                ),
+                MessageTransformResult(
+                    tokens=30,
+                    message={
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": ""},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": "data:image/jpeg;base64,...",
+                                    "detail": "high",
+                                },
+                            },
+                        ],
+                    },
+                ),
+            ],
         ),
     ],
 )
 @pytest.mark.asyncio
 async def test_transform_messages(
+    mock_tokenize_image,
     mock_file_storage,
     mock_tokenizer,
     mock_download_image,
     messages,
-    expected_result,
+    expected_transformations,
 ):
-    if "error.jpg" in str(messages):
-        mock_download_image.return_value = ImageFail(
-            name="error.jpg", message="File not found"
-        )
-    else:
-        mock_download_image.return_value = ImageDataURL(
-            type="image/jpeg", data="..."
-        )
-
+    mock_download_image.return_value = ImageDataURL(
+        type="image/jpeg", data="..."
+    )
     result = await transform_messages(
         mock_file_storage, messages, mock_tokenizer
     )
 
-    if expected_result.error_message:
-        assert result.error_message == expected_result.error_message
-    else:
-        assert result.transformations == expected_result.transformations
+    assert result == expected_transformations
