@@ -12,7 +12,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
 )
 
 
-def test_truncate_transformed_messages_system_and_last_user_error():
+def test_multimodal_truncate_with_system_and_last_user_error():
     """
     Only system messages fit
     """
@@ -36,7 +36,7 @@ def test_truncate_transformed_messages_system_and_last_user_error():
         multimodal_truncate(transformations, 15, 0)
 
 
-def test_truncate_transformed_messages_system_error():
+def test_multimodal_truncate_with_system_error():
     """
     It's just a system message, but with prompt tokens (+3) it's too long.
     """
@@ -117,7 +117,7 @@ def test_truncate_transformed_messages_system_error():
         ),
     ],
 )
-def test_truncate_transformed_messages(
+def test_multimodal_truncate(
     transformations, max_prompt_tokens, discarded_messages, used_tokens
 ):
     truncated, actual_discarded_messages, actual_used_tokens = (
