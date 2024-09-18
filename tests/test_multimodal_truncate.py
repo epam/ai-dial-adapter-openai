@@ -8,7 +8,7 @@ from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     multimodal_truncate,
 )
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    MessageTransformResult,
+    MultiModalMessage,
 )
 
 
@@ -17,11 +17,11 @@ def test_truncate_transformed_messages_system_and_last_user_error():
     Only system messages fit
     """
     transformations = [
-        MessageTransformResult(
+        MultiModalMessage(
             tokens=10,
             message={"role": "system", "content": "System message"},
         ),
-        MessageTransformResult(
+        MultiModalMessage(
             tokens=50,
             message={
                 "role": "user",
@@ -41,7 +41,7 @@ def test_truncate_transformed_messages_system_error():
     It's just a system message, but with prompt tokens (+3) it's too long.
     """
     transformations = [
-        MessageTransformResult(
+        MultiModalMessage(
             tokens=10,
             message={"role": "system", "content": "System message"},
         ),
@@ -56,15 +56,15 @@ def test_truncate_transformed_messages_system_error():
         # Truncate one text message
         (
             [
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10,
                     message={"role": "system", "content": "System message"},
                 ),
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10,
                     message={"role": "user", "content": "User message 1"},
                 ),
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10,
                     message={"role": "user", "content": "User message 2"},
                 ),
@@ -76,11 +76,11 @@ def test_truncate_transformed_messages_system_error():
         # No message to truncate
         (
             [
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10,
                     message={"role": "system", "content": "System message"},
                 ),
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10,
                     message={"role": "user", "content": "User message"},
                 ),
@@ -92,15 +92,15 @@ def test_truncate_transformed_messages_system_error():
         # Truncate one image message
         (
             [
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10,
                     message={"role": "system", "content": "System message"},
                 ),
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10,
                     message={"role": "user", "content": "User message"},
                 ),
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=50,
                     message={
                         "role": "user",

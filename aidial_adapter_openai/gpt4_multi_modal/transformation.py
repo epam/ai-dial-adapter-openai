@@ -1,7 +1,8 @@
 from typing import List, Optional, cast
 
+from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel
 
 from aidial_adapter_openai.gpt4_multi_modal.download import (
     ImageFail,
@@ -20,34 +21,18 @@ from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.tokens import Tokenizer
 
 
-class MessageTransformResult(BaseModel):
+class MultiModalMessage(BaseModel):
     tokens: int
     message: dict
 
 
-class TransformMessagesResult(BaseModel):
-    error_message: Optional[str] = None
-    transformations: Optional[List[MessageTransformResult]] = None
-
-    @root_validator(pre=True)
-    def validate_info(cls, values):
-        if (
-            values.get("error_message") is None
-            and values.get("transformations") is None
-        ):
-            raise ValueError(
-                "Either 'error_message' or 'transformations' must be provided."
-            )
-        return values
-
-
-class TruncateErrorMessage(str):
-    pass
+class TransformationError(BaseModel):
+    image_fails: List[ImageFail]
 
 
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict, tokenizer: Tokenizer
-) -> MessageTransformResult | List[ImageFail]:
+) -> MultiModalMessage | TransformationError:
     content = message.get("content", "")
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
@@ -62,13 +47,13 @@ async def transform_message(
 
     logger.debug(f"download results: {download_results}")
 
-    errors: List[ImageFail] = [
+    fails: List[ImageFail] = [
         res for res in download_results if isinstance(res, ImageFail)
     ]
 
-    if errors:
-        logger.error(f"download errors: {errors}")
-        return errors
+    if fails:
+        logger.error(f"download errors: {fails}")
+        return TransformationError(image_fails=fails)
 
     image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
 
@@ -89,7 +74,7 @@ async def transform_message(
             "content": [create_text_message(content)] + image_messages,
         }
 
-    return MessageTransformResult(
+    return MultiModalMessage(
         tokens=sum(image_tokens)
         + tokenizer.calculate_tokens_per_message(message),
         message=message,
@@ -100,19 +85,29 @@ async def transform_messages(
     file_storage: Optional[FileStorage],
     messages: List[dict],
     tokenizer: Tokenizer,
-) -> List[MessageTransformResult] | InvalidRequestError:
+) -> List[MultiModalMessage] | DialException:
     transformations = [
         await transform_message(file_storage, message, tokenizer)
         for message in messages
     ]
-    all_errors = set(
-        [error for error in transformations if isinstance(error, ImageFail)]
-    )
+    all_errors = [
+        error
+        for error in transformations
+        if isinstance(error, TransformationError)
+    ]
+
     if all_errors:
+        image_fails = set(
+            image_fail
+            for error in all_errors
+            for image_fail in error.image_fails
+        )
         msg = "The following file attachments failed to process:"
-        for idx, error in enumerate(all_errors, start=1):
-            msg += f"\n{idx}. {error.name}: {error.message}"
+        msg += "\n".join(
+            f"{idx}. {error.name}: {error.message}"
+            for idx, error in enumerate(image_fails, start=1)
+        )
         return InvalidRequestError(message=msg, display_message=msg)
 
-    transformations = cast(List[MessageTransformResult], transformations)
+    transformations = cast(List[MultiModalMessage], transformations)
     return transformations

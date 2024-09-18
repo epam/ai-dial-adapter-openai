@@ -13,7 +13,7 @@ from typing import (
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
+from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from aidial_adapter_openai.gpt4_multi_modal.download import SUPPORTED_FILE_EXTS
@@ -21,7 +21,7 @@ from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
     convert_gpt4v_to_gpt4_chunk,
 )
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    MessageTransformResult,
+    MultiModalMessage,
     transform_messages,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
@@ -120,10 +120,10 @@ async def predict_non_stream(
 
 
 def multimodal_truncate(
-    transformations: List[MessageTransformResult],
+    transformations: List[MultiModalMessage],
     max_prompt_tokens: int,
     initial_prompt_tokens: int,
-) -> Tuple[List[MessageTransformResult], DiscardedMessages, UsedTokens]:
+) -> Tuple[List[MultiModalMessage], DiscardedMessages, UsedTokens]:
     return truncate_prompt(
         message_holders=transformations,
         message_tokens_getter=lambda item: item.tokens,
@@ -205,7 +205,7 @@ async def chat_completion(
         file_storage, messages, tokenizer
     )
 
-    if isinstance(transformation_result, InvalidRequestError):
+    if isinstance(transformation_result, DialException):
         logger.error(
             f"Failed to prepare request: {transformation_result.message}"
         )

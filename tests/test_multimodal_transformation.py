@@ -4,7 +4,8 @@ import pytest
 
 from aidial_adapter_openai.gpt4_multi_modal.download import ImageFail
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    MessageTransformResult,
+    MultiModalMessage,
+    TransformationError,
     transform_message,
     transform_messages,
 )
@@ -122,7 +123,7 @@ async def test_transform_message(
 
     result = await transform_message(mock_file_storage, message, mock_tokenizer)
 
-    assert not isinstance(result, list)
+    assert isinstance(result, MultiModalMessage)
     assert result.tokens == expected_tokens
     assert result.message["content"] == expected_content
 
@@ -140,11 +141,13 @@ async def test_transform_message_with_error(
         name="error.jpg", message="File not found"
     )
     result = await transform_message(mock_file_storage, message, mock_tokenizer)
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert isinstance(result[0], ImageFail)
-    assert result[0].name == "error.jpg"
-    assert result[0].message == "File not found"
+    assert isinstance(result, TransformationError)
+    assert result.image_fails
+    assert len(result.image_fails) == 1
+    image_fail = result.image_fails[0]
+    assert isinstance(image_fail, ImageFail)
+    assert image_fail.name == "error.jpg"
+    assert image_fail.message == "File not found"
 
 
 @pytest.mark.parametrize(
@@ -153,7 +156,7 @@ async def test_transform_message_with_error(
         (
             [{"role": "user", "content": "Hello"}],
             [
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10,
                     message={"role": "user", "content": "Hello"},
                 )
@@ -169,10 +172,10 @@ async def test_transform_message_with_error(
                 },
             ],
             [
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=10, message={"role": "system", "content": "Hello"}
                 ),
-                MessageTransformResult(
+                MultiModalMessage(
                     tokens=30,
                     message={
                         "role": "user",
