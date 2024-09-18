@@ -5,7 +5,7 @@ from aidial_sdk.exceptions import (
 )
 
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
-    multimodal_truncate,
+    multimodal_truncate_prompt,
 )
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     MultiModalMessage,
@@ -33,7 +33,7 @@ def test_multimodal_truncate_with_system_and_last_user_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemAndLastUserError):
-        multimodal_truncate(transformations, 15, 0)
+        multimodal_truncate_prompt(transformations, 15, 0)
 
 
 def test_multimodal_truncate_with_system_error():
@@ -47,7 +47,7 @@ def test_multimodal_truncate_with_system_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemError):
-        multimodal_truncate(transformations, 10, 1)
+        multimodal_truncate_prompt(transformations, 10, 1)
 
 
 @pytest.mark.parametrize(
@@ -121,7 +121,7 @@ def test_multimodal_truncate(
     transformations, max_prompt_tokens, discarded_messages, used_tokens
 ):
     truncated, actual_discarded_messages, actual_used_tokens = (
-        multimodal_truncate(
+        multimodal_truncate_prompt(
             transformations, max_prompt_tokens, initial_prompt_tokens=3
         )
     )

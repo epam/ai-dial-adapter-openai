@@ -119,7 +119,7 @@ async def predict_non_stream(
             return await response.json()
 
 
-def multimodal_truncate(
+def multimodal_truncate_prompt(
     transformations: List[MultiModalMessage],
     max_prompt_tokens: int,
     initial_prompt_tokens: int,
@@ -226,7 +226,7 @@ async def chat_completion(
 
     if max_prompt_tokens is not None:
         truncation_result, discarded_messages, estimated_propmpt_tokens = (
-            multimodal_truncate(
+            multimodal_truncate_prompt(
                 transformations=transformation_result,
                 max_prompt_tokens=max_prompt_tokens,
                 initial_prompt_tokens=tokenizer.PROMPT_TOKENS,
