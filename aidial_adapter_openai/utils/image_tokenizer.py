@@ -10,10 +10,10 @@ from typing import assert_never
 
 from PIL import Image
 
-from aidial_adapter_openai.utils.image_data_url import ImageDataURL
-from aidial_adapter_openai.utils.message_content_part import (
-    DetailLevel,
+from aidial_adapter_openai.utils.image import (
+    ImageDataURL,
     ImageDetail,
+    resolve_detail_level,
 )
 
 
@@ -29,19 +29,6 @@ def tokenize_image(image: ImageDataURL, detail: ImageDetail) -> int:
     with Image.open(BytesIO(image_data)) as img:
         width, height = img.size
         return tokenize_image_by_size(width, height, detail)
-
-
-def resolve_detail_level(
-    width: int, height: int, detail: ImageDetail
-) -> DetailLevel:
-    match detail:
-        case "auto":
-            is_low = width <= 512 and height <= 512
-            return "low" if is_low else "high"
-        case "low":
-            return "low"
-        case "high":
-            return "high"
 
 
 def tokenize_image_by_size(width: int, height: int, detail: ImageDetail) -> int:

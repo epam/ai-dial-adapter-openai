@@ -1,14 +1,12 @@
-"""
-Module for creating parts of "content" field in a message.
-Used to create a message with text and image content parts.
-"""
+from typing import List
 
-from typing import Literal
+from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.image_data_url import ImageDataURL
-
-DetailLevel = Literal["low", "high"]
-ImageDetail = DetailLevel | Literal["auto"]
+from aidial_adapter_openai.utils.image import (
+    ImageDataURL,
+    ImageDetail,
+    ImageMetadata,
+)
 
 
 def create_image_content_part(image: ImageDataURL, detail: ImageDetail) -> dict:
@@ -26,3 +24,8 @@ def create_text_content_part(text: str) -> dict:
         "type": "text",
         "text": text,
     }
+
+
+class MultiModalMessage(BaseModel):
+    image_metadatas: List[ImageMetadata]
+    message_raw: dict

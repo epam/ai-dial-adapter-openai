@@ -1,26 +1,18 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from aidial_adapter_openai.gpt4_multi_modal.attachment import ImageFail
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    MultiModalMessage,
     TransformationError,
     transform_message,
     transform_messages,
 )
-from aidial_adapter_openai.utils.image_data_url import ImageDataURL
-from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.image import ImageDataURL, ImageMetadata
+from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 
 TOKENS_FOR_TEXT = 10
 TOKENS_FOR_IMAGE = 20
-
-
-@pytest.fixture
-def mock_tokenizer():
-    tokenizer = MagicMock(spec=Tokenizer)
-    tokenizer.calculate_tokens_per_message.return_value = TOKENS_FOR_TEXT
-    return tokenizer
 
 
 @pytest.fixture
@@ -37,11 +29,16 @@ def mock_download_image():
 
 
 @pytest.fixture
-def mock_tokenize_image():
+def mock_image_metadata():
     with patch(
-        "aidial_adapter_openai.gpt4_multi_modal.transformation.tokenize_image"
+        "aidial_adapter_openai.gpt4_multi_modal.transformation.ImageMetadata.from_image_data_url"
     ) as mock:
-        mock.return_value = (TOKENS_FOR_IMAGE, "high")
+        mock.return_value = ImageMetadata(
+            width=100,
+            height=100,
+            detail="high",
+            image=ImageDataURL(type="image/jpeg", data="..."),
+        )
         yield mock
 
 
@@ -110,9 +107,8 @@ def mock_tokenize_image():
 @pytest.mark.asyncio
 async def test_transform_message(
     mock_file_storage,
-    mock_tokenizer,
     mock_download_image,
-    mock_tokenize_image,
+    mock_image_metadata,
     message,
     expected_tokens,
     expected_content,
@@ -121,16 +117,15 @@ async def test_transform_message(
         type="image/jpeg", data="..."
     )
 
-    result = await transform_message(mock_file_storage, message, mock_tokenizer)
+    result = await transform_message(mock_file_storage, message)
 
     assert isinstance(result, MultiModalMessage)
-    assert result.tokens == expected_tokens
-    assert result.message["content"] == expected_content
+    assert result.message_raw["content"] == expected_content
 
 
 @pytest.mark.asyncio
 async def test_transform_message_with_error(
-    mock_file_storage, mock_tokenizer, mock_download_image
+    mock_file_storage, mock_download_image
 ):
     message = {
         "role": "user",
@@ -140,7 +135,7 @@ async def test_transform_message_with_error(
     mock_download_image.return_value = ImageFail(
         name="error.jpg", message="File not found"
     )
-    result = await transform_message(mock_file_storage, message, mock_tokenizer)
+    result = await transform_message(mock_file_storage, message)
     assert isinstance(result, TransformationError)
     assert result.image_fails
     assert len(result.image_fails) == 1
@@ -157,8 +152,8 @@ async def test_transform_message_with_error(
             [{"role": "user", "content": "Hello"}],
             [
                 MultiModalMessage(
-                    tokens=10,
-                    message={"role": "user", "content": "Hello"},
+                    image_metadatas=[],
+                    message_raw={"role": "user", "content": "Hello"},
                 )
             ],
         ),
@@ -173,11 +168,19 @@ async def test_transform_message_with_error(
             ],
             [
                 MultiModalMessage(
-                    tokens=10, message={"role": "system", "content": "Hello"}
+                    image_metadatas=[],
+                    message_raw={"role": "system", "content": "Hello"},
                 ),
                 MultiModalMessage(
-                    tokens=30,
-                    message={
+                    image_metadatas=[
+                        ImageMetadata(
+                            width=100,
+                            height=100,
+                            detail="high",
+                            image=ImageDataURL(type="image/jpeg", data="..."),
+                        )
+                    ],
+                    message_raw={
                         "role": "user",
                         "content": [
                             {"type": "text", "text": ""},
@@ -197,9 +200,8 @@ async def test_transform_message_with_error(
 )
 @pytest.mark.asyncio
 async def test_transform_messages(
-    mock_tokenize_image,
+    mock_image_metadata,
     mock_file_storage,
-    mock_tokenizer,
     mock_download_image,
     messages,
     expected_transformations,
@@ -207,8 +209,6 @@ async def test_transform_messages(
     mock_download_image.return_value = ImageDataURL(
         type="image/jpeg", data="..."
     )
-    result = await transform_messages(
-        mock_file_storage, messages, mock_tokenizer
-    )
+    result = await transform_messages(mock_file_storage, messages)
 
     assert result == expected_transformations

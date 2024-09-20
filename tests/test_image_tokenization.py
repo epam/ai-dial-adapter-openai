@@ -2,8 +2,8 @@ from typing import List, Tuple
 
 import pytest
 
+from aidial_adapter_openai.utils.image import ImageDetail
 from aidial_adapter_openai.utils.image_tokenizer import tokenize_image_by_size
-from aidial_adapter_openai.utils.message_content_part import ImageDetail
 
 test_cases: List[Tuple[int, int, ImageDetail, int]] = [
     (1, 1, "auto", 85),
@@ -25,13 +25,8 @@ test_cases: List[Tuple[int, int, ImageDetail, int]] = [
 
 @pytest.mark.parametrize("width, height, detail, expected_tokens", test_cases)
 def test_tokenize(width, height, detail, expected_tokens):
-    tokens1, detail1 = tokenize_image_by_size(width, height, detail)
-    tokens2, detail2 = tokenize_image_by_size(height, width, detail)
+    tokens1 = tokenize_image_by_size(width, height, detail)
+    tokens2 = tokenize_image_by_size(height, width, detail)
 
     assert tokens1 == expected_tokens
     assert tokens2 == expected_tokens
-
-    expected_detail = "low" if expected_tokens == 85 else "high"
-
-    assert detail1 == expected_detail
-    assert detail2 == expected_detail

@@ -44,7 +44,10 @@ from aidial_adapter_openai.utils.parsers import (
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.storage import create_file_storage
-from aidial_adapter_openai.utils.tokenizer import MutliModalTokenizer, Tokenizer
+from aidial_adapter_openai.utils.tokenizer import (
+    MutliModalTokenizer,
+    PlainTextTokenizer,
+)
 
 
 @asynccontextmanager
@@ -181,7 +184,7 @@ async def chat_completion(deployment_id: str, request: Request):
             )
         )
 
-    tokenizer = Tokenizer(model=openai_model_name)
+    tokenizer = PlainTextTokenizer(model=openai_model_name)
     return await handle_exceptions(
         gpt_chat_completion(
             data,

@@ -27,6 +27,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.sse_stream import (
     parse_openai_sse_stream,
     to_openai_sse_stream,
@@ -39,7 +40,7 @@ from aidial_adapter_openai.utils.streaming import (
     map_stream,
     prepend_to_stream,
 )
-from aidial_adapter_openai.utils.tokenizer import MutliModalTokenizer, Tokenizer
+from aidial_adapter_openai.utils.tokenizer import MutliModalTokenizer
 from aidial_adapter_openai.utils.truncate_prompt import (
     DiscardedMessages,
     TruncatedTokens,
@@ -120,17 +121,18 @@ async def predict_non_stream(
 
 
 def multimodal_truncate_prompt(
-    messages: List[dict],
+    messages: List[MultiModalMessage],
     max_prompt_tokens: int,
     initial_prompt_tokens: int,
     tokenizer: MutliModalTokenizer,
-) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
+) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
         message_holders=messages,
-        message_tokens_getter=lambda message: tokenizer.calculate_tokens_per_message(
+        message_tokens_getter=lambda message: tokenizer.calculate_message_tokens(
             message
         ),
-        is_system_message_getter=lambda message: message["role"] == "system",
+        is_system_message_getter=lambda message: message.message_raw["role"]
+        == "system",
         max_prompt_tokens=max_prompt_tokens,
         initial_prompt_tokens=initial_prompt_tokens,
     )
@@ -204,21 +206,15 @@ async def chat_completion(
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
 
-    multi_modal_messages = await transform_messages(
-        file_storage, messages, tokenizer
-    )
-
-    if isinstance(multi_modal_messages, DialException):
-        logger.error(
-            f"Failed to prepare request: {multi_modal_messages.message}"
-        )
+    transform_result = await transform_messages(file_storage, messages)
+    if isinstance(transform_result, DialException):
+        logger.error(f"Failed to prepare request: {transform_result.message}")
         chunk = create_stage_chunk("Usage", USAGE, is_stream)
-        return create_response_from_chunk(
-            chunk, multi_modal_messages, is_stream
-        )
-    max_prompt_tokens = request.pop("max_prompt_tokens", None)
+        return create_response_from_chunk(chunk, transform_result, is_stream)
 
+    multi_modal_messages = transform_result
     discarded_messages = None
+    max_prompt_tokens = request.pop("max_prompt_tokens", None)
     if max_prompt_tokens is not None:
         multi_modal_messages, discarded_messages, estimated_prompt_tokens = (
             multimodal_truncate_prompt(
@@ -242,7 +238,7 @@ async def chat_completion(
     request = {
         **request,
         "max_tokens": request.get("max_tokens") or default_max_tokens,
-        "messages": multi_modal_messages,
+        "messages": [m.message_raw for m in multi_modal_messages],
     }
 
     headers = get_auth_headers(creds)
@@ -264,7 +260,7 @@ async def chat_completion(
                     debug_print,
                     generate_stream(
                         get_prompt_tokens=lambda: estimated_prompt_tokens,
-                        tokenize=tokenizer.calculate_tokens,
+                        tokenize=tokenizer.calculate_text_tokens,
                         deployment=deployment,
                         discarded_messages=discarded_messages,
                         stream=map_stream(
@@ -304,7 +300,7 @@ async def chat_completion(
             )
 
         actual_completion_tokens = usage["completion_tokens"]
-        estimated_completion_tokens = tokenizer.calculate_tokens(content)
+        estimated_completion_tokens = tokenizer.calculate_text_tokens(content)
         if actual_completion_tokens != estimated_completion_tokens:
             logger.warning(
                 f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"

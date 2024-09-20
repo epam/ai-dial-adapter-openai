@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.image_data_url import ImageDataURL
+from aidial_adapter_openai.utils.image import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.storage import (
     FileStorage,

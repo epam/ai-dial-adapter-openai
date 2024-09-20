@@ -7,9 +7,11 @@ from aidial_sdk.exceptions import (
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     multimodal_truncate_prompt,
 )
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    MultiModalMessage,
-)
+from aidial_adapter_openai.utils.image import ImageDataURL, ImageMetadata
+from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.tokenizer import MutliModalTokenizer
+
+tokenizer = MutliModalTokenizer("gpt-4o")
 
 
 def test_multimodal_truncate_with_system_and_last_user_error():
@@ -18,36 +20,42 @@ def test_multimodal_truncate_with_system_and_last_user_error():
     """
     transformations = [
         MultiModalMessage(
-            tokens=10,
-            message={"role": "system", "content": "System message"},
+            image_metadatas=[],
+            message_raw={"role": "system", "content": "this is four tokens"},
         ),
         MultiModalMessage(
-            tokens=50,
-            message={
+            image_metadatas=[
+                # Small image for 85 tokens
+                ImageMetadata(
+                    width=100,
+                    height=100,
+                    detail="low",
+                    image=ImageDataURL(type="image/jpeg", data="..."),
+                )
+            ],
+            message_raw={
                 "role": "user",
                 "content": [
-                    {"message": "text"},
+                    {"type": "message", "message": "this is four tokens"},
                     {"type": "image_url", "image_url": "..."},
                 ],
             },
         ),
     ]
     with pytest.raises(TruncatePromptSystemAndLastUserError):
-        multimodal_truncate_prompt(transformations, 15, 0)
+        multimodal_truncate_prompt(transformations, 15, 0, tokenizer)
 
 
 def test_multimodal_truncate_with_system_error():
-    """
-    It's just a system message, but with prompt tokens (+3) it's too long.
-    """
+    # 4 tokens for content + 3 tokens for message + 3 tokens for request = 10 tokens
     transformations = [
         MultiModalMessage(
-            tokens=10,
-            message={"role": "system", "content": "System message"},
+            image_metadatas=[],
+            message_raw={"role": "system", "content": "this is four tokens"},
         ),
     ]
     with pytest.raises(TruncatePromptSystemError):
-        multimodal_truncate_prompt(transformations, 10, 1)
+        multimodal_truncate_prompt(transformations, 9, 3, tokenizer)
 
 
 @pytest.mark.parametrize(
@@ -55,65 +63,105 @@ def test_multimodal_truncate_with_system_error():
     [
         # Truncate one text message
         (
+            # 8 * 3 (messages) + 3 (request) = 27 tokens
             [
+                # 4 tokens of content + 3 tokens for message + 1 token of role key = 8 tokens
                 MultiModalMessage(
-                    tokens=10,
-                    message={"role": "system", "content": "System message"},
+                    image_metadatas=[],
+                    message_raw={
+                        "role": "system",
+                        "content": "this is four tokens",
+                    },
                 ),
+                # 8 tokens
                 MultiModalMessage(
-                    tokens=10,
-                    message={"role": "user", "content": "User message 1"},
+                    image_metadatas=[],
+                    message_raw={
+                        "role": "user",
+                        "content": "this is four tokens",
+                    },
                 ),
+                # 8 tokens
                 MultiModalMessage(
-                    tokens=10,
-                    message={"role": "user", "content": "User message 2"},
+                    image_metadatas=[],
+                    message_raw={
+                        "role": "user",
+                        "content": "this is four tokens",
+                    },
                 ),
             ],
-            30,
+            25,
             [1],
-            23,
+            19,
         ),
-        # No message to truncate
+        # 19 tokens
         (
             [
+                # 8 tokens
                 MultiModalMessage(
-                    tokens=10,
-                    message={"role": "system", "content": "System message"},
+                    image_metadatas=[],
+                    message_raw={
+                        "role": "system",
+                        "content": "this is four tokens",
+                    },
                 ),
+                # 8 tokens
                 MultiModalMessage(
-                    tokens=10,
-                    message={"role": "user", "content": "User message"},
+                    image_metadatas=[],
+                    message_raw={
+                        "role": "user",
+                        "content": "this is four tokens",
+                    },
                 ),
             ],
-            30,
+            20,
             [],
-            23,
+            19,
         ),
-        # Truncate one image message
+        # 112 tokens
         (
             [
+                # 8 tokens
                 MultiModalMessage(
-                    tokens=10,
-                    message={"role": "system", "content": "System message"},
+                    image_metadatas=[],
+                    message_raw={
+                        "role": "system",
+                        "content": "this is four tokens",
+                    },
                 ),
+                # 8 tokens
                 MultiModalMessage(
-                    tokens=10,
-                    message={"role": "user", "content": "User message"},
+                    image_metadatas=[],
+                    message_raw={
+                        "role": "user",
+                        "content": "this if four tokens",
+                    },
                 ),
+                # 85 (image) + 8 (textual) = 93 tokens
                 MultiModalMessage(
-                    tokens=50,
-                    message={
+                    image_metadatas=[
+                        ImageMetadata(
+                            width=100,
+                            height=100,
+                            detail="low",
+                            image=ImageDataURL(type="image/jpeg", data="..."),
+                        )
+                    ],
+                    message_raw={
                         "role": "user",
                         "content": [
-                            {"message": "image"},
+                            {
+                                "type": "text",
+                                "text": "this is four tokens",
+                            },
                             {"type": "image_url", "image_url": "..."},
                         ],
                     },
                 ),
             ],
-            70,
+            104,
             [1],
-            63,
+            104,
         ),
     ],
 )
@@ -122,7 +170,10 @@ def test_multimodal_truncate(
 ):
     truncated, actual_discarded_messages, actual_used_tokens = (
         multimodal_truncate_prompt(
-            transformations, max_prompt_tokens, initial_prompt_tokens=3
+            transformations,
+            max_prompt_tokens,
+            initial_prompt_tokens=3,
+            tokenizer=tokenizer,
         )
     )
     assert actual_discarded_messages == discarded_messages
