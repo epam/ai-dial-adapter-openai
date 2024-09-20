@@ -8,7 +8,7 @@ from aidial_sdk.exceptions import (
 _T = TypeVar("_T")
 
 DiscardedMessages = List[int]
-UsedTokens = int
+TruncatedTokens = int
 
 
 def truncate_prompt(
@@ -16,8 +16,8 @@ def truncate_prompt(
     message_tokens_getter: Callable[[_T], int],
     is_system_message_getter: Callable[[_T], bool],
     max_prompt_tokens: int,
-    initial_prompt_tokens: int = 3,
-) -> Tuple[List[_T], DiscardedMessages, UsedTokens]:
+    initial_prompt_tokens: int,
+) -> Tuple[List[_T], DiscardedMessages, TruncatedTokens]:
 
     prompt_tokens = initial_prompt_tokens
 
@@ -41,11 +41,7 @@ def truncate_prompt(
         message_tokens = message_tokens_getter(message_holder)
 
         if max_prompt_tokens < prompt_tokens + message_tokens:
-            if len(
-                kept_messages
-            ) == system_messages_count and system_messages_count != len(
-                message_holders
-            ):
+            if len(kept_messages) == system_messages_count:
                 raise TruncatePromptSystemAndLastUserError(
                     max_prompt_tokens, prompt_tokens + message_tokens
                 )

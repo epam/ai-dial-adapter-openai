@@ -8,11 +8,6 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import chat_completions_parser
-from aidial_adapter_openai.utils.prompt_truncate import (
-    DiscardedMessages,
-    UsedTokens,
-    truncate_prompt,
-)
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
@@ -21,19 +16,23 @@ from aidial_adapter_openai.utils.streaming import (
     generate_stream,
     map_stream,
 )
-from aidial_adapter_openai.utils.tokens import Tokenizer
+from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.truncate_prompt import (
+    DiscardedMessages,
+    TruncatedTokens,
+    truncate_prompt,
+)
 
 
-def plain_message_truncate(
+def plain_text_truncate_prompt(
     messages: List[dict], max_prompt_tokens: int, tokenizer: Tokenizer
-) -> Tuple[List[dict], DiscardedMessages, UsedTokens]:
+) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
         message_holders=messages,
-        message_tokens_getter=lambda message: tokenizer.calculate_tokens_per_message(
-            message
-        ),
+        message_tokens_getter=tokenizer.calculate_tokens_per_message,
         is_system_message_getter=lambda message: message["role"] == "system",
         max_prompt_tokens=max_prompt_tokens,
+        initial_prompt_tokens=tokenizer.TOKENS_PER_REQUEST,
     )
 
 
@@ -46,7 +45,7 @@ async def gpt_chat_completion(
     tokenizer: Tokenizer,
 ):
     discarded_messages = None
-    used_prompt_tokens = None
+    prompt_tokens = None
     if "max_prompt_tokens" in data:
         max_prompt_tokens = data["max_prompt_tokens"]
         if not isinstance(max_prompt_tokens, int):
@@ -59,8 +58,8 @@ async def gpt_chat_completion(
             )
         del data["max_prompt_tokens"]
 
-        data["messages"], discarded_messages, used_prompt_tokens = (
-            plain_message_truncate(
+        data["messages"], discarded_messages, prompt_tokens = (
+            plain_text_truncate_prompt(
                 messages=cast(List[dict], data["messages"]),
                 max_prompt_tokens=max_prompt_tokens,
                 tokenizer=tokenizer,
@@ -78,7 +77,7 @@ async def gpt_chat_completion(
         return StreamingResponse(
             to_openai_sse_stream(
                 generate_stream(
-                    get_prompt_tokens=lambda: used_prompt_tokens
+                    get_prompt_tokens=lambda: prompt_tokens
                     or tokenizer.calculate_prompt_tokens(data["messages"]),
                     tokenize=tokenizer.calculate_tokens,
                     deployment=deployment_id,

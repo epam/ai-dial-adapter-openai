@@ -4,21 +4,19 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel
 
-from aidial_adapter_openai.gpt4_multi_modal.download import (
+from aidial_adapter_openai.gpt4_multi_modal.attachment import (
     ImageFail,
     download_image,
 )
-from aidial_adapter_openai.gpt4_multi_modal.image_tokenizer import (
-    tokenize_image,
-)
-from aidial_adapter_openai.gpt4_multi_modal.messages import (
-    create_image_message,
-    create_text_message,
-)
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
+from aidial_adapter_openai.utils.image_tokenizer import tokenize_image
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.message_content_part import (
+    create_image_content_part,
+    create_text_content_part,
+)
 from aidial_adapter_openai.utils.storage import FileStorage
-from aidial_adapter_openai.utils.tokens import Tokenizer
+from aidial_adapter_openai.utils.tokenizer import Tokenizer
 
 
 class MultiModalMessage(BaseModel):
@@ -32,7 +30,7 @@ class TransformationError(BaseModel):
 
 async def transform_message(
     file_storage: Optional[FileStorage], message: dict, tokenizer: Tokenizer
-) -> MultiModalMessage | TransformationError:
+) -> dict | TransformationError:
     content = message.get("content", "")
     custom_content = message.get("custom_content", {})
     attachments = custom_content.get("attachments", [])
@@ -57,35 +55,21 @@ async def transform_message(
 
     image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
 
-    image_tokens: List[int] = []
-    image_messages: List[dict] = []
-
-    for image_url in image_urls:
-        tokens, detail = tokenize_image(image_url, "auto")
-        image_tokens.append(tokens)
-        image_messages.append(create_image_message(image_url, detail))
-
-    logger.debug(f"image tokens: {image_tokens}")
-
-    # Create parts of the message if there are images
-    if image_messages:
-        message = {
-            **message,
-            "content": [create_text_message(content)] + image_messages,
-        }
-
-    return MultiModalMessage(
-        tokens=sum(image_tokens)
-        + tokenizer.calculate_tokens_per_message(message),
-        message=message,
-    )
+    return {
+        **message,
+        "content": [create_text_content_part(content)]
+        + [
+            create_image_content_part(image_url, "auto")
+            for image_url in image_urls
+        ],
+    }
 
 
 async def transform_messages(
     file_storage: Optional[FileStorage],
     messages: List[dict],
     tokenizer: Tokenizer,
-) -> List[MultiModalMessage] | DialException:
+) -> List[dict] | DialException:
     transformations = [
         await transform_message(file_storage, message, tokenizer)
         for message in messages
@@ -109,5 +93,5 @@ async def transform_messages(
         )
         return InvalidRequestError(message=msg, display_message=msg)
 
-    transformations = cast(List[MultiModalMessage], transformations)
+    transformations = cast(List[dict], transformations)
     return transformations

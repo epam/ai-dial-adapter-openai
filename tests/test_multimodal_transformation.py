@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aidial_adapter_openai.gpt4_multi_modal.download import ImageFail
+from aidial_adapter_openai.gpt4_multi_modal.attachment import ImageFail
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     MultiModalMessage,
     TransformationError,
@@ -10,7 +10,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     transform_messages,
 )
 from aidial_adapter_openai.utils.image_data_url import ImageDataURL
-from aidial_adapter_openai.utils.tokens import Tokenizer
+from aidial_adapter_openai.utils.tokenizer import Tokenizer
 
 TOKENS_FOR_TEXT = 10
 TOKENS_FOR_IMAGE = 20

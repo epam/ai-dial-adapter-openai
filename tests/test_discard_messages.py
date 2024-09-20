@@ -3,16 +3,16 @@ from typing import List, Tuple
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.gpt import plain_message_truncate
-from aidial_adapter_openai.utils.prompt_truncate import DiscardedMessages
-from aidial_adapter_openai.utils.tokens import Tokenizer
+from aidial_adapter_openai.gpt import plain_text_truncate_prompt
+from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.truncate_prompt import DiscardedMessages
 
-PlainMessages = List[dict]
+PlainTextMessages = List[dict]
 MaxPromptTokens = int
 TestCase = Tuple[
-    PlainMessages,
+    PlainTextMessages,
     MaxPromptTokens,
-    Tuple[PlainMessages, DiscardedMessages],
+    Tuple[PlainTextMessages, DiscardedMessages],
 ]
 
 normal_cases: List[TestCase] = [
@@ -97,7 +97,7 @@ normal_cases: List[TestCase] = [
 ErrorMessage = str
 error_cases: List[
     Tuple[
-        PlainMessages,
+        PlainTextMessages,
         MaxPromptTokens,
         ErrorMessage,
     ]
@@ -132,7 +132,7 @@ def test_discarded_messages_without_error(
 ):
     tokenizer = Tokenizer(model="gpt-4")
     truncated_messages, discarded_messages, _used_tokens = (
-        plain_message_truncate(messages, max_prompt_tokens, tokenizer)
+        plain_text_truncate_prompt(messages, max_prompt_tokens, tokenizer)
     )
     assert (truncated_messages, discarded_messages) == response
 
@@ -147,5 +147,5 @@ def test_discarded_messages_with_error(
 ):
     tokenizer = Tokenizer(model="gpt-4")
     with pytest.raises(DialException) as e_info:
-        plain_message_truncate(messages, max_prompt_tokens, tokenizer)
+        plain_text_truncate_prompt(messages, max_prompt_tokens, tokenizer)
         assert e_info.value.message == error_message
