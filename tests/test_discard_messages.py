@@ -110,7 +110,7 @@ error_cases: List[
     (
         [],
         2,
-        "The token size of system messages (0) exceeds prompt token limit (2)",
+        "The requested maximum prompt tokens is 2. However, the system messages resulted in 3 tokens. Please reduce the length of the system messages or increase the maximum prompt tokens.",
     ),
     (
         [
@@ -120,7 +120,7 @@ error_cases: List[
             {"role": "user", "content": "This is four tokens"},
         ],
         11,
-        "The token size of system messages (27) exceeds prompt token limit (11)",
+        "The requested maximum prompt tokens is 11. However, the system messages resulted in 27 tokens. Please reduce the length of the system messages or increase the maximum prompt tokens.",
     ),
     (
         [
@@ -128,9 +128,8 @@ error_cases: List[
             {"role": "user", "content": "This is four tokens"},
         ],
         18,
-        "The token size of system messages and the last user message (19) exceeds prompt token limit (18)",
+        "The requested maximum prompt tokens is 18. However, the system messages and the last user message resulted in 19 tokens. Please reduce the length of the messages or increase the maximum prompt tokens.",
     ),
-    ([], 0, ""),
 ]
 
 
@@ -156,6 +155,7 @@ def test_discarded_messages_with_error(
     error_message: str,
 ):
     tokenizer = PlainTextTokenizer(model="gpt-4")
+
     with pytest.raises(DialException) as e_info:
         plain_text_truncate_prompt(messages, max_prompt_tokens, tokenizer)
-        assert e_info.value.message == error_message
+    assert e_info.value.message == error_message
