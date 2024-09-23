@@ -128,9 +128,7 @@ def multimodal_truncate_prompt(
 ) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
         message_holders=messages,
-        message_tokens_getter=lambda message: tokenizer.calculate_message_tokens(
-            message
-        ),
+        message_tokens_getter=tokenizer.calculate_message_tokens,
         is_system_message_getter=lambda message: message.message_raw["role"]
         == "system",
         max_prompt_tokens=max_prompt_tokens,
