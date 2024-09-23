@@ -4,16 +4,16 @@ from typing import Any, AsyncIterator, Callable, Iterable, Optional, TypeVar
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.utils.merge_chunks import merge
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import APIError, APIStatusError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.merge_chunks import merge_chunks
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 
-fix_streaming_issues_in_new_api_versions = get_env_bool(
+eliminate_empty_choices = get_env_bool(
     "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS", False
 )
 
@@ -106,7 +106,7 @@ async def generate_stream(
             n_chunks += 1
 
             if buffer_chunk is not None:
-                chunk = merge(buffer_chunk, chunk)
+                chunk = merge_chunks(buffer_chunk, chunk)
                 buffer_chunk = None
 
             choices = chunk.get("choices") or []
@@ -124,7 +124,7 @@ async def generate_stream(
             # when content filtering is enabled for a corresponding deployment.
             # The safety rating of the request is reported in this first chunk.
             # Here we withhold such a chunk and merge it later with a follow-up chunk.
-            if len(choices) == 0 and fix_streaming_issues_in_new_api_versions:
+            if len(choices) == 0 and eliminate_empty_choices:
                 buffer_chunk = chunk
             else:
                 if last_chunk is not None:
@@ -142,7 +142,7 @@ async def generate_stream(
         ).json_error()
 
     if last_chunk is not None and buffer_chunk is not None:
-        last_chunk = merge(buffer_chunk, last_chunk)
+        last_chunk = merge_chunks(buffer_chunk, last_chunk)
 
     if discarded_messages is not None:
         last_chunk = set_discarded_messages(last_chunk, discarded_messages)
