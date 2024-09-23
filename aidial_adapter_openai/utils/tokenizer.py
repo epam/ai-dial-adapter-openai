@@ -54,7 +54,7 @@ class BaseTokenizer(Generic[MessageType]):
     def calculate_request_prompt_tokens(self, messages_tokens: int):
         """
         Amount of tokens, that will be counted by API
-        is greater than actual sum of tokens of all messages by PROMPT_TOKENS
+        is greater than actual sum of tokens of all messages
         """
         return self.TOKENS_PER_REQUEST + messages_tokens
 
