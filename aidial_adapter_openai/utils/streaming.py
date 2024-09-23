@@ -1,6 +1,6 @@
 import logging
 from time import time
-from typing import Any, AsyncIterator, Callable, Optional, TypeVar
+from typing import Any, AsyncIterator, Callable, Iterable, Optional, TypeVar
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
@@ -61,84 +61,112 @@ async def generate_stream(
     stream: AsyncIterator[dict],
 ) -> AsyncIterator[dict]:
 
-    last_chunk, temp_chunk = None, None
-    stream_finished = False
-    total_content = ""
+    noop_chunk = build_chunk(
+        id=generate_id(),
+        created=generate_created(),
+        model=deployment,
+        is_stream=True,
+        message={},
+        finish_reason=None,
+    )
 
-    def finalize_finish_chunk(chunk: dict) -> None:
-        """
-        Adding additional information to a chunk that has non-null finish_reason field.
-        """
+    def set_usage(chunk: dict | None, completions: Iterable[str]) -> dict:
+        chunk = chunk or noop_chunk
+        completion_tokens = sum(map(tokenize, completions))
+        prompt_tokens = get_prompt_tokens()
+        chunk["usage"] = {
+            "completion_tokens": completion_tokens,
+            "prompt_tokens": prompt_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+        }
+        return chunk
 
-        if not chunk.get("usage"):
-            completion_tokens = tokenize(total_content)
-            prompt_tokens = get_prompt_tokens()
-            chunk["usage"] = {
-                "completion_tokens": completion_tokens,
-                "prompt_tokens": prompt_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-            }
-        if discarded_messages is not None:
-            chunk["statistics"] = {"discarded_messages": discarded_messages}
+    def set_finish_reason(chunk: dict | None, finish_reason: str) -> dict:
+        chunk = chunk or noop_chunk
+        chunk["choices"] = chunk.get("choices") or [{"index": 0, "delta": {}}]
+        chunk["choices"][0]["finish_reason"] = finish_reason
+        return chunk
+
+    def set_discarded_messages(chunk: dict | None, indices: list[int]) -> dict:
+        chunk = chunk or noop_chunk
+        chunk["statistics"] = {"discarded_messages": indices}
+        return chunk
+
+    n_chunks = 0
+    last_chunk = None
+    buffer_chunk = None
+
+    completions: dict[int, str] = {}
+    found_finish_reason = False
+    found_usage = False
+    error = None
 
     try:
         async for chunk in stream:
-            if len(chunk["choices"]) > 0:
-                if temp_chunk is not None:
-                    chunk = merge(temp_chunk, chunk)
-                    temp_chunk = None
+            n_chunks += 1
 
-                choice = chunk["choices"][0]
-                total_content += (choice.get("delta") or {}).get(
-                    "content"
-                ) or ""
+            if buffer_chunk is not None:
+                chunk = merge(buffer_chunk, chunk)
+                buffer_chunk = None
 
-                if choice["finish_reason"] is not None:
-                    stream_finished = True
-                    finalize_finish_chunk(chunk)
+            choices = chunk.get("choices") or []
 
-                yield chunk
+            for choice in choices:
+                index = choice["index"]
+                content = (choice.get("delta") or {}).get("content") or ""
+
+                completions[index] = completions.get(index, "") + content
+                found_finish_reason |= bool(choice.get("finish_reason"))
+
+            found_usage |= bool(chunk.get("usage"))
+
+            # Azure OpenAI returns an empty list of choices as a first chunk
+            # when content filtering is enabled for a corresponding deployment.
+            # The safety rating of the request is reported in this first chunk.
+            # Here we withhold such a chunk and merge it later with a follow-up chunk.
+            if len(choices) == 0 and fix_streaming_issues_in_new_api_versions:
+                buffer_chunk = chunk
             else:
-                if fix_streaming_issues_in_new_api_versions:
-                    temp_chunk = chunk
-                else:
-                    yield chunk
+                if last_chunk is not None:
+                    yield last_chunk
+                last_chunk = chunk
 
-            last_chunk = chunk
     except APIError as e:
         status_code = e.status_code if isinstance(e, APIStatusError) else 500
-        yield DialException(
+        error = DialException(
             status_code=status_code,
             message=e.message,
             type=e.type,
             param=e.param,
             code=e.code,
         ).json_error()
-        return
 
-    if not stream_finished:
-        if last_chunk is None:
+    if last_chunk is not None and buffer_chunk is not None:
+        last_chunk = merge(buffer_chunk, last_chunk)
+
+    if discarded_messages is not None:
+        last_chunk = set_discarded_messages(last_chunk, discarded_messages)
+
+    if not found_usage and (not error or completions):
+        last_chunk = set_usage(last_chunk, completions.values())
+
+    if not error:
+        if n_chunks == 0:
             logger.warning("Received 0 chunks")
-        else:
+        elif not found_finish_reason:
             logger.warning("Didn't receive chunk with the finish reason")
 
-        last_chunk = last_chunk or {}
-        id = last_chunk.get("id") or generate_id()
-        created = last_chunk.get("created") or generate_created()
-        model = last_chunk.get("model") or deployment
+        if not found_finish_reason:
+            last_chunk = set_finish_reason(last_chunk, "length")
 
-        finish_chunk = build_chunk(
-            id=id,
-            created=created,
-            model=model,
-            is_stream=True,
-            message={},
-            finish_reason="length",
-        )
+        if not found_usage:
+            last_chunk = set_usage(last_chunk, completions.values())
 
-        finalize_finish_chunk(finish_chunk)
+    if last_chunk:
+        yield last_chunk
 
-        yield finish_chunk
+    if error:
+        yield error
 
 
 def create_stage_chunk(name: str, content: str, stream: bool) -> dict:
