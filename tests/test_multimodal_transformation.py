@@ -120,7 +120,7 @@ async def test_transform_message(
     result = await transform_message(mock_file_storage, message)
 
     assert isinstance(result, MultiModalMessage)
-    assert result.message_raw["content"] == expected_content
+    assert result.raw_message["content"] == expected_content
 
 
 @pytest.mark.asyncio
@@ -153,7 +153,7 @@ async def test_transform_message_with_error(
             [
                 MultiModalMessage(
                     image_metadatas=[],
-                    message_raw={"role": "user", "content": "Hello"},
+                    raw_message={"role": "user", "content": "Hello"},
                 )
             ],
         ),
@@ -169,7 +169,7 @@ async def test_transform_message_with_error(
             [
                 MultiModalMessage(
                     image_metadatas=[],
-                    message_raw={"role": "system", "content": "Hello"},
+                    raw_message={"role": "system", "content": "Hello"},
                 ),
                 MultiModalMessage(
                     image_metadatas=[
@@ -180,7 +180,7 @@ async def test_transform_message_with_error(
                             image=ImageDataURL(type="image/jpeg", data="..."),
                         )
                     ],
-                    message_raw={
+                    raw_message={
                         "role": "user",
                         "content": [
                             {"type": "text", "text": ""},

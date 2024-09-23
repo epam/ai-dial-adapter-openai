@@ -40,7 +40,7 @@ from aidial_adapter_openai.utils.streaming import (
     map_stream,
     prepend_to_stream,
 )
-from aidial_adapter_openai.utils.tokenizer import MutliModalTokenizer
+from aidial_adapter_openai.utils.tokenizer import MultiModalTokenizer
 from aidial_adapter_openai.utils.truncate_prompt import (
     DiscardedMessages,
     TruncatedTokens,
@@ -120,16 +120,16 @@ async def predict_non_stream(
             return await response.json()
 
 
-def multimodal_truncate_prompt(
+def multi_modal_truncate_prompt(
     messages: List[MultiModalMessage],
     max_prompt_tokens: int,
     initial_prompt_tokens: int,
-    tokenizer: MutliModalTokenizer,
+    tokenizer: MultiModalTokenizer,
 ) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
-        message_holders=messages,
-        message_tokens_getter=tokenizer.calculate_message_tokens,
-        is_system_message_getter=lambda message: message.message_raw["role"]
+        messages=messages,
+        message_tokens=tokenizer.calculate_message_tokens,
+        is_system_message=lambda message: message.raw_message["role"]
         == "system",
         max_prompt_tokens=max_prompt_tokens,
         initial_prompt_tokens=initial_prompt_tokens,
@@ -144,7 +144,7 @@ async def gpt4o_chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
-    tokenizer: MutliModalTokenizer,
+    tokenizer: MultiModalTokenizer,
 ) -> Response:
     return await chat_completion(
         request,
@@ -177,7 +177,7 @@ async def gpt4_vision_chat_completion(
         is_stream,
         file_storage,
         api_version,
-        MutliModalTokenizer("gpt-4"),
+        MultiModalTokenizer("gpt-4"),
         convert_gpt4v_to_gpt4_chunk,
         GPT4V_DEFAULT_MAX_TOKENS,
     )
@@ -191,7 +191,7 @@ async def chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
-    tokenizer: MutliModalTokenizer,
+    tokenizer: MultiModalTokenizer,
     response_transformer: Callable[[dict], dict | None],
     default_max_tokens: Optional[int],
 ) -> Response:
@@ -215,7 +215,7 @@ async def chat_completion(
     max_prompt_tokens = request.pop("max_prompt_tokens", None)
     if max_prompt_tokens is not None:
         multi_modal_messages, discarded_messages, estimated_prompt_tokens = (
-            multimodal_truncate_prompt(
+            multi_modal_truncate_prompt(
                 messages=multi_modal_messages,
                 max_prompt_tokens=max_prompt_tokens,
                 initial_prompt_tokens=tokenizer.TOKENS_PER_REQUEST,
@@ -236,7 +236,7 @@ async def chat_completion(
     request = {
         **request,
         "max_tokens": request.get("max_tokens") or default_max_tokens,
-        "messages": [m.message_raw for m in multi_modal_messages],
+        "messages": [m.raw_message for m in multi_modal_messages],
     }
 
     headers = get_auth_headers(creds)

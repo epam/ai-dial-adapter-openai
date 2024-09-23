@@ -63,7 +63,7 @@ async def transform_message(
 
     return MultiModalMessage(
         image_metadatas=image_metadatas,
-        message_raw={
+        raw_message={
             **message,
             "content": content,
         },

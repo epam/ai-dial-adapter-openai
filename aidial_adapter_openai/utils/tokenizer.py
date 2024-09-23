@@ -3,7 +3,7 @@ Implemented based on the official recipe: https://cookbook.openai.com/examples/h
 """
 
 from abc import abstractmethod
-from typing import Generic, List, TypeVar
+from typing import Any, Callable, Generic, List, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
@@ -11,10 +11,10 @@ from tiktoken import Encoding, encoding_for_model
 from aidial_adapter_openai.utils.image_tokenizer import tokenize_image_by_size
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 
-TokenizeInput = TypeVar("TokenizeInput")
+MessageType = TypeVar("MessageType")
 
 
-class BaseTokenizer(Generic[TokenizeInput]):
+class BaseTokenizer(Generic[MessageType]):
     model: str
     encoding: Encoding
     TOKENS_PER_REQUEST = 3
@@ -58,7 +58,7 @@ class BaseTokenizer(Generic[TokenizeInput]):
         """
         return self.TOKENS_PER_REQUEST + messages_tokens
 
-    def calculate_prompt_tokens(self, messages: List[TokenizeInput]) -> int:
+    def calculate_prompt_tokens(self, messages: List[MessageType]) -> int:
         return self.calculate_request_prompt_tokens(
             messages_tokens=sum(map(self.calculate_message_tokens, messages))
         )
@@ -67,8 +67,44 @@ class BaseTokenizer(Generic[TokenizeInput]):
         return max_prompt_tokens - self.TOKENS_PER_REQUEST
 
     @abstractmethod
-    def calculate_message_tokens(self, message_holder: TokenizeInput) -> int:
+    def calculate_message_tokens(self, message: MessageType) -> int:
         pass
+
+
+def _process_raw_message(
+    raw_message: dict,
+    tokens_per_name: int,
+    calculate_text_tokens: Callable[[str], int],
+    handle_custom_content_part: Callable[[Any], None],
+) -> int:
+    tokens = 0
+    for key, value in raw_message.items():
+        if key == "name":
+            tokens += tokens_per_name
+
+        elif key == "content":
+            if isinstance(value, list):
+                for content_part in value:
+                    if content_part["type"] == "text":
+                        tokens += calculate_text_tokens(content_part["text"])
+                    else:
+                        handle_custom_content_part(content_part)
+
+            elif isinstance(value, str):
+                tokens += calculate_text_tokens(value)
+            else:
+                raise InternalServerError(
+                    f"Unexpected type of content in message: {value!r}"
+                )
+
+        elif key == "role":
+            if isinstance(value, str):
+                tokens += calculate_text_tokens(value)
+            else:
+                raise InternalServerError(
+                    f"Unexpected type of 'role' field in message: {value!r}"
+                )
+    return tokens
 
 
 class PlainTextTokenizer(BaseTokenizer[dict]):
@@ -77,46 +113,35 @@ class PlainTextTokenizer(BaseTokenizer[dict]):
     Calculates only textual tokens, not image tokens.
     """
 
-    def calculate_message_tokens(self, message_holder: dict) -> int:
+    def _handle_custom_content_part(self, content_part: Any):
+        raise InternalServerError(
+            f"Unexpected type of content in message: {content_part!r}"
+            f"Use MultiModalTokenizer for messages with images"
+        )
+
+    def calculate_message_tokens(self, message: dict) -> int:
+        return self.tokens_per_message + _process_raw_message(
+            raw_message=message,
+            tokens_per_name=self.tokens_per_name,
+            calculate_text_tokens=self.calculate_text_tokens,
+            handle_custom_content_part=self._handle_custom_content_part,
+        )
+
+
+class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
+    def calculate_message_tokens(self, message: MultiModalMessage) -> int:
         tokens = self.tokens_per_message
-        for key, value in message_holder.items():
-            if key == "name":
-                tokens += self.tokens_per_name
-            elif key == "content" and isinstance(value, list):
-                for submessage in value:
-                    if submessage["type"] == "text":
-                        tokens += self.calculate_text_tokens(submessage["text"])
-            elif isinstance(value, str):
-                tokens += self.calculate_text_tokens(value)
-            elif key == "content" and not isinstance(value, str):
-                raise InternalServerError(
-                    f"Unexpected type of content in message: {value!r}"
-                    f"Use MultiModalTokenizer for messages with images"
-                )
+        raw_message = message.raw_message
 
-        return tokens
-
-
-class MutliModalTokenizer(BaseTokenizer[MultiModalMessage]):
-    def calculate_message_tokens(
-        self, message_holder: MultiModalMessage
-    ) -> int:
-        tokens = self.tokens_per_message
-        message = message_holder.message_raw
-        # Processing text part of message
-        for key, value in message.items():
-            if key == "name":
-                tokens += self.tokens_per_name
-            elif key == "content" and isinstance(value, list):
-                for submessage in value:
-                    # Process text part of the message
-                    if submessage["type"] == "text":
-                        tokens += self.calculate_text_tokens(submessage["text"])
-            elif isinstance(value, str):
-                tokens += self.calculate_text_tokens(value)
+        tokens += _process_raw_message(
+            raw_message=raw_message,
+            tokens_per_name=self.tokens_per_name,
+            calculate_text_tokens=self.calculate_text_tokens,
+            handle_custom_content_part=lambda content_part: None,
+        )
 
         # Processing image parts of message
-        for metadata in message_holder.image_metadatas:
+        for metadata in message.image_metadatas:
             tokens += tokenize_image_by_size(
                 width=metadata.width,
                 height=metadata.height,

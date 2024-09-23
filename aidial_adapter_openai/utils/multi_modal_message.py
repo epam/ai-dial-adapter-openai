@@ -28,4 +28,4 @@ def create_text_content_part(text: str) -> dict:
 
 class MultiModalMessage(BaseModel):
     image_metadatas: List[ImageMetadata]
-    message_raw: dict
+    raw_message: dict

@@ -17,77 +17,82 @@ TestCase = Tuple[
 
 normal_cases: List[TestCase] = [
     (
-        [{"role": "system", "message": "This is four tokens"}],
+        [],
+        3,
+        ([], []),
+    ),
+    (
+        [{"role": "system", "content": "This is four tokens"}],
         11,
-        ([{"role": "system", "message": "This is four tokens"}], []),
+        ([{"role": "system", "content": "This is four tokens"}], []),
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-            {"role": "assistant", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+            {"role": "assistant", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         27,
         (
             [
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "assistant", "message": "This is four tokens"},
-                {"role": "user", "message": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "assistant", "content": "This is four tokens"},
+                {"role": "user", "content": "This is four tokens"},
             ],
             [1],
         ),
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-            {"role": "assistant", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+            {"role": "assistant", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         34,
         (
             [
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "assistant", "message": "This is four tokens"},
-                {"role": "user", "message": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "assistant", "content": "This is four tokens"},
+                {"role": "user", "content": "This is four tokens"},
             ],
             [1],
         ),
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-            {"role": "assistant", "message": "This is four tokens"},
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+            {"role": "assistant", "content": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         27,
         (
             [
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "user", "message": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "user", "content": "This is four tokens"},
             ],
             [1, 2],
         ),
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-            {"role": "assistant", "message": "This is four tokens"},
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+            {"role": "assistant", "content": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         35,
         (
             [
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "assistant", "message": "This is four tokens"},
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "user", "message": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "assistant", "content": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "user", "content": "This is four tokens"},
             ],
             [1],
         ),
@@ -103,19 +108,24 @@ error_cases: List[
     ]
 ] = [
     (
+        [],
+        2,
+        "The token size of system messages (0) exceeds prompt token limit (2)",
+    ),
+    (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         11,
         "The token size of system messages (27) exceeds prompt token limit (11)",
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         18,
         "The token size of system messages and the last user message (19) exceeds prompt token limit (18)",

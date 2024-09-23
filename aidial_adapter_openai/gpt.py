@@ -28,9 +28,9 @@ def plain_text_truncate_prompt(
     messages: List[dict], max_prompt_tokens: int, tokenizer: PlainTextTokenizer
 ) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
-        message_holders=messages,
-        message_tokens_getter=tokenizer.calculate_message_tokens,
-        is_system_message_getter=lambda message: message["role"] == "system",
+        messages=messages,
+        message_tokens=tokenizer.calculate_message_tokens,
+        is_system_message=lambda message: message["role"] == "system",
         max_prompt_tokens=max_prompt_tokens,
         initial_prompt_tokens=tokenizer.TOKENS_PER_REQUEST,
     )

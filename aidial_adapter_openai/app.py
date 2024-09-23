@@ -45,7 +45,7 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.tokenizer import (
-    MutliModalTokenizer,
+    MultiModalTokenizer,
     PlainTextTokenizer,
 )
 
@@ -169,7 +169,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     openai_model_name = MODEL_ALIASES.get(deployment_id, deployment_id)
     if deployment_id in GPT4O_DEPLOYMENTS:
-        tokenizer = MutliModalTokenizer(openai_model_name)
+        tokenizer = MultiModalTokenizer(openai_model_name)
         storage = create_file_storage("images", request.headers)
         return await handle_exceptions(
             gpt4o_chat_completion(
