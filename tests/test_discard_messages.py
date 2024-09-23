@@ -3,112 +3,132 @@ from typing import List, Tuple
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.utils.tokens import Tokenizer, truncate_prompt
+from aidial_adapter_openai.gpt import plain_text_truncate_prompt
+from aidial_adapter_openai.utils.tokenizer import PlainTextTokenizer
+from aidial_adapter_openai.utils.truncate_prompt import DiscardedMessages
 
-TestCase = Tuple[List[dict], int, Tuple[List[dict], List[int]] | str]
+PlainTextMessages = List[dict]
+MaxPromptTokens = int
+TestCase = Tuple[
+    PlainTextMessages,
+    MaxPromptTokens,
+    Tuple[PlainTextMessages, DiscardedMessages],
+]
 
 normal_cases: List[TestCase] = [
     (
         [],
-        0,
+        3,
         ([], []),
     ),
     (
-        [{"role": "system", "message": "This is four tokens"}],
+        [{"role": "system", "content": "This is four tokens"}],
         11,
-        ([{"role": "system", "message": "This is four tokens"}], []),
+        ([{"role": "system", "content": "This is four tokens"}], []),
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-            {"role": "assistant", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+            {"role": "assistant", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         27,
         (
             [
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "assistant", "message": "This is four tokens"},
-                {"role": "user", "message": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "assistant", "content": "This is four tokens"},
+                {"role": "user", "content": "This is four tokens"},
             ],
             [1],
         ),
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-            {"role": "assistant", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+            {"role": "assistant", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         34,
         (
             [
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "assistant", "message": "This is four tokens"},
-                {"role": "user", "message": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "assistant", "content": "This is four tokens"},
+                {"role": "user", "content": "This is four tokens"},
             ],
             [1],
         ),
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-            {"role": "assistant", "message": "This is four tokens"},
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+            {"role": "assistant", "content": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         27,
         (
             [
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "user", "message": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "user", "content": "This is four tokens"},
             ],
             [1, 2],
         ),
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-            {"role": "assistant", "message": "This is four tokens"},
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+            {"role": "assistant", "content": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         35,
         (
             [
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "assistant", "message": "This is four tokens"},
-                {"role": "system", "message": "This is four tokens"},
-                {"role": "user", "message": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "assistant", "content": "This is four tokens"},
+                {"role": "system", "content": "This is four tokens"},
+                {"role": "user", "content": "This is four tokens"},
             ],
             [1],
         ),
     ),
 ]
 
-error_cases: List[TestCase] = [
+ErrorMessage = str
+error_cases: List[
+    Tuple[
+        PlainTextMessages,
+        MaxPromptTokens,
+        ErrorMessage,
+    ]
+] = [
     (
-        [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
-        ],
-        11,
-        "The token size of system messages (27) exceeds prompt token limit (11)",
+        [],
+        2,
+        "The requested maximum prompt tokens is 2. However, the system messages resulted in 3 tokens. Please reduce the length of the system messages or increase the maximum prompt tokens.",
     ),
     (
         [
-            {"role": "system", "message": "This is four tokens"},
-            {"role": "user", "message": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
+        ],
+        11,
+        "The requested maximum prompt tokens is 11. However, the system messages resulted in 27 tokens. Please reduce the length of the system messages or increase the maximum prompt tokens.",
+    ),
+    (
+        [
+            {"role": "system", "content": "This is four tokens"},
+            {"role": "user", "content": "This is four tokens"},
         ],
         18,
-        "The token size of system messages and the last user message (19) exceeds prompt token limit (18)",
+        "The requested maximum prompt tokens is 18. However, the system messages and the last user message resulted in 19 tokens. Please reduce the length of the messages or increase the maximum prompt tokens.",
     ),
 ]
 
@@ -119,8 +139,11 @@ def test_discarded_messages_without_error(
     max_prompt_tokens: int,
     response: Tuple[List[dict], List[int]],
 ):
-    tokenizer = Tokenizer(model="gpt-4")
-    assert truncate_prompt(tokenizer, messages, max_prompt_tokens) == response
+    tokenizer = PlainTextTokenizer(model="gpt-4")
+    truncated_messages, discarded_messages, _used_tokens = (
+        plain_text_truncate_prompt(messages, max_prompt_tokens, tokenizer)
+    )
+    assert (truncated_messages, discarded_messages) == response
 
 
 @pytest.mark.parametrize(
@@ -131,7 +154,8 @@ def test_discarded_messages_with_error(
     max_prompt_tokens: int,
     error_message: str,
 ):
-    tokenizer = Tokenizer(model="gpt-4")
+    tokenizer = PlainTextTokenizer(model="gpt-4")
+
     with pytest.raises(DialException) as e_info:
-        truncate_prompt(tokenizer, messages, max_prompt_tokens)
-        assert e_info.value.message == error_message
+        plain_text_truncate_prompt(messages, max_prompt_tokens, tokenizer)
+    assert e_info.value.message == error_message
