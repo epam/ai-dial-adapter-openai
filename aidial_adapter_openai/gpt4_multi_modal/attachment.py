@@ -1,16 +1,9 @@
 import mimetypes
-from typing import List, Optional, Set, Tuple, cast
+from typing import Optional
 
 from pydantic import BaseModel
 
-from aidial_adapter_openai.gpt4_multi_modal.image_tokenizer import (
-    tokenize_image,
-)
-from aidial_adapter_openai.gpt4_multi_modal.messages import (
-    create_image_message,
-    create_text_message,
-)
-from aidial_adapter_openai.utils.image_data_url import ImageDataURL
+from aidial_adapter_openai.utils.image import ImageDataURL
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.storage import (
     FileStorage,
@@ -104,76 +97,3 @@ async def download_image(
     except Exception as e:
         logger.error(f"Failed to download the image: {e}")
         return fail("failed to download the attachment")
-
-
-async def transform_message(
-    file_storage: Optional[FileStorage], message: dict
-) -> Tuple[dict, int] | List[ImageFail]:
-    content = message.get("content", "")
-    custom_content = message.get("custom_content", {})
-    attachments = custom_content.get("attachments", [])
-
-    message = {k: v for k, v in message.items() if k != "custom_content"}
-
-    if len(attachments) == 0:
-        return message, 0
-
-    logger.debug(f"original attachments: {attachments}")
-
-    download_results: List[ImageDataURL | ImageFail] = [
-        await download_image(file_storage, attachment)
-        for attachment in attachments
-    ]
-
-    logger.debug(f"download results: {download_results}")
-
-    errors: List[ImageFail] = [
-        res for res in download_results if isinstance(res, ImageFail)
-    ]
-
-    if errors:
-        logger.error(f"download errors: {errors}")
-        return errors
-
-    image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
-
-    image_tokens: List[int] = []
-    image_messages: List[dict] = []
-
-    for image_url in image_urls:
-        tokens, detail = tokenize_image(image_url, "auto")
-        image_tokens.append(tokens)
-        image_messages.append(create_image_message(image_url, detail))
-
-    total_image_tokens = sum(image_tokens)
-
-    logger.debug(f"image tokens: {image_tokens}")
-
-    sub_messages: List[dict] = [create_text_message(content)] + image_messages
-
-    return {**message, "content": sub_messages}, total_image_tokens
-
-
-async def transform_messages(
-    file_storage: Optional[FileStorage], messages: List[dict]
-) -> Tuple[List[dict], int] | str:
-    image_tokens = 0
-    new_messages: List[dict] = []
-    errors: Set[ImageFail] = set()
-
-    for message in messages:
-        result = await transform_message(file_storage, message)
-        if isinstance(result, list):
-            errors.update(result)
-        else:
-            new_message, tokens = result
-            new_messages.append(new_message)
-            image_tokens += tokens
-
-    if errors:
-        msg = "The following file attachments failed to process:"
-        for idx, error in enumerate(errors, start=1):
-            msg += f"\n{idx}. {error.name}: {error.message}"
-        return msg
-
-    return new_messages, image_tokens
