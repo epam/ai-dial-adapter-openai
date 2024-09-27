@@ -163,6 +163,28 @@ def test_multimodal_truncate_with_system_error():
             [1],
             104,
         ),
+        # Case with empty content
+        # 3 for request + 12 for messages = 15 tokens
+        (
+            [
+                # 8 tokens
+                MultiModalMessage(
+                    image_metadatas=[],
+                    raw_message={
+                        "role": "system",
+                        "content": "this is four tokens",
+                    },
+                ),
+                # 4 tokens
+                MultiModalMessage(
+                    image_metadatas=[],
+                    raw_message={"role": "user", "content": None},
+                ),
+            ],
+            15,
+            [],
+            15,
+        ),
     ],
 )
 def test_multimodal_truncate(
