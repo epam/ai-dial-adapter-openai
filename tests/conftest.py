@@ -11,7 +11,7 @@ from aidial_adapter_openai.app import app
 @pytest.fixture
 def eliminate_empty_choices():
     with patch(
-        "aidial_adapter_openai.utils.streaming.eliminate_empty_choices", True
+        "aidial_adapter_openai.utils.streaming.ELIMINATE_EMPTY_CHOICES", True
     ):
         yield
 

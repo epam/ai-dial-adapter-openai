@@ -13,7 +13,7 @@ from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.merge_chunks import merge_chunks
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 
-eliminate_empty_choices = get_env_bool(
+ELIMINATE_EMPTY_CHOICES = get_env_bool(
     "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS", False
 )
 
@@ -124,7 +124,7 @@ async def generate_stream(
             # when content filtering is enabled for a corresponding deployment.
             # The safety rating of the request is reported in this first chunk.
             # Here we withhold such a chunk and merge it later with a follow-up chunk.
-            if len(choices) == 0 and eliminate_empty_choices:
+            if len(choices) == 0 and ELIMINATE_EMPTY_CHOICES:
                 buffer_chunk = chunk
             else:
                 if last_chunk is not None:

@@ -18,14 +18,12 @@ def merge_chunks(*chunks: _Chunk) -> _Chunk:
 
     target = chunks[0]
 
-    def _generator():
-        yield target
-        for source in chunks[1:]:
-            source = source.copy()
-            for key, value in list(source.items()):
-                if not isinstance(value, (list, dict)) and value is not None:
-                    target[key] = value
-                    del source[key]
-            yield source
+    for chunk in chunks[1:]:
+        source = chunk.copy()
+        for key, value in list(source.items()):
+            if not isinstance(value, (list, dict)) and value is not None:
+                target[key] = value
+                del source[key]
+        target = merge(target, source)
 
-    return merge(*list(_generator()))
+    return target
