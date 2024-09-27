@@ -92,6 +92,8 @@ def _process_raw_message(
 
             elif isinstance(value, str):
                 tokens += calculate_text_tokens(value)
+            elif value is None:
+                pass
             else:
                 raise InternalServerError(
                     f"Unexpected type of content in message: {value!r}"
