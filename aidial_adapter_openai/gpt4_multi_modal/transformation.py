@@ -1,4 +1,4 @@
-from typing import List, Optional, cast
+from typing import List, Optional, Tuple, TypeVar, cast
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
@@ -6,7 +6,8 @@ from pydantic import BaseModel
 
 from aidial_adapter_openai.gpt4_multi_modal.attachment import (
     ImageFail,
-    download_image,
+    download_attachment_image,
+    download_image_url,
 )
 from aidial_adapter_openai.utils.image import ImageDataURL, ImageMetadata
 from aidial_adapter_openai.utils.log_config import logger
@@ -18,61 +19,117 @@ from aidial_adapter_openai.utils.multi_modal_message import (
 from aidial_adapter_openai.utils.storage import FileStorage
 
 
-class TransformationError(BaseModel):
+class ImageProcessingFails(BaseModel):
+    class Config:
+        arbitrary_types_allowed = True
+
     image_fails: List[ImageFail]
 
 
-async def transform_message(
-    file_storage: Optional[FileStorage],
-    message: dict,
-) -> MultiModalMessage | TransformationError:
-    content = message.get("content", "")
-    custom_content = message.get("custom_content", {})
-    attachments = custom_content.get("attachments", [])
-    logger.debug(f"original attachments: {attachments}")
+def create_image_metadata(
+    arg: ImageDataURL | ImageFail,
+) -> ImageMetadata | ImageFail:
+    if isinstance(arg, ImageDataURL):
+        return ImageMetadata.from_image_data_url(arg)
+    return arg
 
-    message = {k: v for k, v in message.items() if k != "custom_content"}
 
-    download_results: List[ImageDataURL | ImageFail] = [
-        await download_image(file_storage, attachment)
-        for attachment in attachments
-    ]
+async def download_attachment_images(
+    file_storage: Optional[FileStorage], attachments: List[dict]
+) -> List[ImageMetadata | ImageFail]:
+    if attachments:
+        logger.debug(f"original attachments: {attachments}")
 
-    logger.debug(f"download results: {download_results}")
+    ret: List[ImageMetadata | ImageFail] = []
 
-    fails: List[ImageFail] = [
-        res for res in download_results if isinstance(res, ImageFail)
-    ]
-
-    if fails:
-        logger.error(f"download errors: {fails}")
-        return TransformationError(image_fails=fails)
-
-    image_urls: List[ImageDataURL] = cast(List[ImageDataURL], download_results)
-    image_metadatas = [
-        ImageMetadata.from_image_data_url(image_url) for image_url in image_urls
-    ]
-    if image_metadatas:
-        content = [create_text_content_part(content)] + [
-            create_image_content_part(
-                image=image_metadata.image,
-                detail=image_metadata.detail,
+    for attachment in attachments:
+        ret.append(
+            create_image_metadata(
+                await download_attachment_image(file_storage, attachment)
             )
-            for image_metadata in image_metadatas
-        ]
+        )
+
+    return ret
+
+
+async def download_content_images(
+    file_storage: Optional[FileStorage], content: str | list
+) -> List[ImageMetadata | ImageFail]:
+    if isinstance(content, str):
+        return []
+
+    ret: List[ImageMetadata | ImageFail] = []
+
+    for content_part in content:
+        if image_url := content_part.get("image_url", {}).get("url"):
+            ret.append(
+                create_image_metadata(
+                    await download_image_url(file_storage, image_url)
+                )
+            )
+
+    return ret
+
+
+_T = TypeVar("_T")
+
+
+def _partition_errors(
+    lst: List[_T | ImageFail],
+) -> Tuple[List[_T], List[ImageFail]]:
+    fails: List[ImageFail] = []
+    images: List[_T] = []
+
+    for elem in lst:
+        if isinstance(elem, ImageFail):
+            fails.append(elem)
+        else:
+            images.append(elem)
+
+    return images, fails
+
+
+async def transform_message(
+    file_storage: Optional[FileStorage], message: dict
+) -> MultiModalMessage | ImageProcessingFails:
+    message = message.copy()
+
+    content = message.get("content", "")
+    custom_content = message.pop("custom_content", {})
+    attachments = custom_content.get("attachments", [])
+
+    attachment_metadatas, attachment_fails = _partition_errors(
+        await download_attachment_images(file_storage, attachments)
+    )
+
+    content_metadatas, content_fails = _partition_errors(
+        await download_content_images(file_storage, content)
+    )
+
+    if image_fails := [*attachment_fails, *content_fails]:
+        logger.error(f"image processing errors: {image_fails}")
+        return ImageProcessingFails(image_fails=image_fails)
+
+    if not (image_metadatas := [*content_metadatas, *attachment_metadatas]):
+        return MultiModalMessage(image_metadatas=[], raw_message=message)
+
+    content_parts = (
+        [create_text_content_part(content)]
+        if isinstance(content, str)
+        else content
+    ) + [
+        create_image_content_part(meta.image, meta.detail)
+        for meta in attachment_metadatas
+    ]
 
     return MultiModalMessage(
         image_metadatas=image_metadatas,
-        raw_message={
-            **message,
-            "content": content,
-        },
+        raw_message={**message, "content": content_parts},
     )
 
 
 async def transform_messages(
-    file_storage: Optional[FileStorage],
-    messages: List[dict],
+    file_storage: Optional[FileStorage], messages: List[dict]
 ) -> List[MultiModalMessage] | DialException:
     transformations = [
         await transform_message(file_storage, message) for message in messages
@@ -80,7 +137,7 @@ async def transform_messages(
     all_errors = [
         error
         for error in transformations
-        if isinstance(error, TransformationError)
+        if isinstance(error, ImageProcessingFails)
     ]
 
     if all_errors:
