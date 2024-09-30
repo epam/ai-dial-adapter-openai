@@ -50,6 +50,14 @@ class ImageDataURL(BaseModel):
             data=data,
         )
 
+    @staticmethod
+    def parse_content_type(data_uri: str) -> Optional[str]:
+        pattern = r"^data:image\/([^;]+);base64,"
+        match = re.match(pattern, data_uri)
+        if match is None:
+            return None
+        return f"image/{match.group(1)}"
+
     def to_data_url(self) -> str:
         return f"data:{self.type};base64,{self.data}"
 

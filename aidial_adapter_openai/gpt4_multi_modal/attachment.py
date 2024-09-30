@@ -14,7 +14,7 @@ SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
 
 
 def guess_url_type(url: str) -> Optional[str]:
-    return mimetypes.guess_type(url)[0]
+    return ImageDataURL.parse_content_type(url) or mimetypes.guess_type(url)[0]
 
 
 def guess_attachment_type(attachment: dict) -> Optional[str]:
@@ -55,37 +55,41 @@ async def get_attachment_name(
     return "invalid attachment"
 
 
-def _check_image_type(
+def _validate_image_type(
     content_type: Optional[str], fail: Callable[[str], ImageFail]
 ) -> str:
     if content_type is None:
         raise fail("can't derive media type of the image")
+
     if content_type not in SUPPORTED_IMAGE_TYPES:
         raise fail("the image is not one of the supported types")
+
     return content_type
-
-
-def _image_url_fail(message: str) -> ImageFail:
-    return ImageFail(name="image_url", message=message)
 
 
 async def download_image_url(
     file_storage: Optional[FileStorage],
     image_link: str,
-    fail: Callable[[str], ImageFail] = _image_url_fail,
-    image_type: Optional[str] = None,
+    *,
+    override_fail: Optional[Callable[[str], ImageFail]] = None,
+    override_type: Optional[str] = None,
 ) -> ImageDataURL | ImageFail:
     """
     The image link is either a URL of the image (public of DIAL) or the base64 encoded image data.
     """
 
+    def fail(message: str) -> ImageFail:
+        return ImageFail(name="image_url", message=message)
+
     try:
+        type = _validate_image_type(
+            override_type or guess_url_type(image_link),
+            override_fail or fail,
+        )
+
         image_url = ImageDataURL.from_data_url(image_link)
         if image_url is not None:
-            _check_image_type(image_url.type, fail)
             return image_url
-
-        image_type = image_type or guess_url_type(image_link)
 
         if file_storage is not None:
             url = file_storage.attachment_link_to_url(image_link)
@@ -93,7 +97,7 @@ async def download_image_url(
         else:
             data = await download_file_as_base64(image_link)
 
-        return ImageDataURL(type=_check_image_type(image_type, fail), data=data)
+        return ImageDataURL(type=type, data=data)
 
     except ImageFail as e:
         return e
@@ -112,16 +116,17 @@ async def download_attachment_image(
         return ImageFail(name=name, message=message)
 
     try:
-        type = guess_attachment_type(attachment)
+        type = _validate_image_type(guess_attachment_type(attachment), fail)
 
         if "data" in attachment:
-            return ImageDataURL(
-                type=_check_image_type(type, fail), data=attachment["data"]
-            )
+            return ImageDataURL(type=type, data=attachment["data"])
 
         if "url" in attachment:
             return await download_image_url(
-                file_storage, attachment["url"], fail, type
+                file_storage,
+                attachment["url"],
+                override_fail=fail,
+                override_type=type,
             )
 
         raise fail("invalid attachment")
