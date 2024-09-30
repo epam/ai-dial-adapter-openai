@@ -9,7 +9,8 @@ from aidial_adapter_openai.gpt4_multi_modal.attachment import (
     download_attachment_image,
     download_image_url,
 )
-from aidial_adapter_openai.utils.image import ImageDataURL, ImageMetadata
+from aidial_adapter_openai.utils.data_url import DataURL
+from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import (
     MultiModalMessage,
@@ -27,9 +28,9 @@ class ImageProcessingFails(BaseModel):
 
 
 def create_image_metadata(
-    arg: ImageDataURL | ImageFail,
+    arg: DataURL | ImageFail,
 ) -> ImageMetadata | ImageFail:
-    if isinstance(arg, ImageDataURL):
+    if isinstance(arg, DataURL):
         return ImageMetadata.from_image_data_url(arg)
     return arg
 

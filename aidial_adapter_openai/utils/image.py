@@ -1,10 +1,11 @@
 import base64
-import re
 from io import BytesIO
-from typing import Literal, Optional
+from typing import Literal
 
 from PIL import Image
 from pydantic import BaseModel
+
+from aidial_adapter_openai.utils.data_url import DataURL
 
 DetailLevel = Literal["low", "high"]
 ImageDetail = DetailLevel | Literal["auto"]
@@ -23,60 +24,18 @@ def resolve_detail_level(
             return "high"
 
 
-class ImageDataURL(BaseModel):
-    """
-    Encoding of an image as a data URL.
-    See https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs for reference.
-    """
-
-    type: str
-    data: str
-
-    @classmethod
-    def from_data_url(cls, data_uri: str) -> Optional["ImageDataURL"]:
-        pattern = r"^data:image\/([^;]+);base64,(.+)$"
-        match = re.match(pattern, data_uri)
-        if match is None:
-            return None
-        data = match.group(2)
-
-        try:
-            base64.b64decode(data)
-        except Exception:
-            raise ValueError("Invalid base64 data")
-
-        return cls(
-            type=f"image/{match.group(1)}",
-            data=data,
-        )
-
-    @staticmethod
-    def parse_content_type(data_uri: str) -> Optional[str]:
-        pattern = r"^data:image\/([^;]+);base64,"
-        match = re.match(pattern, data_uri)
-        if match is None:
-            return None
-        return f"image/{match.group(1)}"
-
-    def to_data_url(self) -> str:
-        return f"data:{self.type};base64,{self.data}"
-
-    def __repr__(self) -> str:
-        return self.to_data_url()[:100] + "..."
-
-
 class ImageMetadata(BaseModel):
     """
     Image metadata extracted from the image data URL.
     """
 
-    image: ImageDataURL
+    image: DataURL
     width: int
     height: int
     detail: DetailLevel
 
     @classmethod
-    def from_image_data_url(cls, image: ImageDataURL) -> "ImageMetadata":
+    def from_image_data_url(cls, image: DataURL) -> "ImageMetadata":
         image_data = base64.b64decode(image.data)
         with Image.open(BytesIO(image_data)) as img:
             width, height = img.size

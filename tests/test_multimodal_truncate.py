@@ -7,7 +7,8 @@ from aidial_sdk.exceptions import (
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     multi_modal_truncate_prompt,
 )
-from aidial_adapter_openai.utils.image import ImageDataURL, ImageMetadata
+from aidial_adapter_openai.utils.data_url import DataURL
+from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.tokenizer import MultiModalTokenizer
 
@@ -30,7 +31,7 @@ def test_multimodal_truncate_with_system_and_last_user_error():
                     width=100,
                     height=100,
                     detail="low",
-                    image=ImageDataURL(type="image/jpeg", data="..."),
+                    image=DataURL(type="image/jpeg", data="..."),
                 )
             ],
             raw_message={
@@ -144,7 +145,7 @@ def test_multimodal_truncate_with_system_error():
                             width=100,
                             height=100,
                             detail="low",
-                            image=ImageDataURL(type="image/jpeg", data="..."),
+                            image=DataURL(type="image/jpeg", data="..."),
                         )
                     ],
                     raw_message={
