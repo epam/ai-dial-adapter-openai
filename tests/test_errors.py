@@ -277,7 +277,17 @@ async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
+    mock_stream.assert_response_content(
+        response,
+        assert_equal,
+        usages={
+            0: {
+                "completion_tokens": 2,
+                "prompt_tokens": 9,
+                "total_tokens": 11,
+            }
+        },
+    )
 
 
 @respx.mock
@@ -309,13 +319,17 @@ async def test_interrupted_stream(test_app: httpx.AsyncClient):
 
     assert response.status_code == 200
 
-    expected_final_chunk = single_choice_chunk(
-        delta={},
-        finish_reason="length",
-        usage={"completion_tokens": 1, "prompt_tokens": 9, "total_tokens": 10},
+    expected_stream = OpenAIStream(
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "hello"},
+            finish_reason="length",
+            usage={
+                "completion_tokens": 1,
+                "prompt_tokens": 9,
+                "total_tokens": 10,
+            },
+        )
     )
-
-    expected_stream = OpenAIStream(*mock_stream.chunks, expected_final_chunk)
     expected_stream.assert_response_content(response, assert_equal)
 
 
