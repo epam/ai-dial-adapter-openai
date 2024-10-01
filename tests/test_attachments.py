@@ -35,11 +35,8 @@ class MockFileStorage(FileStorage):
     @override
     async def download_file_as_base64(self, url: str) -> str:
         parsed_url = urlparse(url)
-        is_valid_url = bool(parsed_url.scheme) and bool(parsed_url.netloc)
-
-        if not is_valid_url:
+        if not (parsed_url.scheme and parsed_url.netloc):
             raise Exception("Not a valid URL")
-
         return "test-content"
 
 
