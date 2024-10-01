@@ -93,26 +93,27 @@ def test_guess_attachment_type(attachment, expected_type):
 @pytest.mark.parametrize(
     "attachment, expected_name",
     [
+        ({"title": "attachment title", "url": "whatever"}, "attachment title"),
         ({"url": "what"}, "what"),
         ({"url": "relative/url.gif"}, "relative/url.gif"),
         ({"data": "abcd"}, "data attachment"),
         ({"url": "http://dial-core/image.png"}, "http://dial-core/image.png"),
         ({"url": "http://dial-core/v1/image.png"}, "image.png"),
         (
-            {"url": "http://dial-core/v1/USER_BUCKET/dir1/dir2/image.png"},
+            {
+                "url": "http://dial-core/v1/files/USER_BUCKET/dir1/dir2/image.png"
+            },
             "dir1/dir2/image.png",
         ),
         (
-            {"url": "http://dial-core/v1/public/dir1/dir2/image.png"},
+            {"url": "http://dial-core/v1/files/public/dir1/dir2/image.png"},
             "dir1/dir2/image.png",
         ),
         (
-            {"url": "http://dial-core/v1/public/dir1/dir2/hello%20world.png"},
+            {
+                "url": "http://dial-core/v1/files/public/dir1/dir2/hello%20world.png"
+            },
             "'dir1/dir2/hello world.png'",
-        ),
-        (
-            {"title": "attachment title", "url": "whatever"},
-            "attachment title",
         ),
     ],
 )

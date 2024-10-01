@@ -121,6 +121,8 @@ class FileStorage:
         url = self.attachment_link_to_url(link)
         link = self._url_to_attachment_link(url)
 
+        link = link.removeprefix("files/")
+
         if link.startswith("public/"):
             bucket = "public"
         else:
