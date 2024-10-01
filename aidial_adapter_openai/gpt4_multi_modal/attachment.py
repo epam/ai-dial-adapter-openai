@@ -1,5 +1,5 @@
 import mimetypes
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from aidial_adapter_openai.utils.data_url import DataURL
 from aidial_adapter_openai.utils.log_config import logger
@@ -36,6 +36,16 @@ class ImageFail(Exception):
         self.name = name
         self.message = message
 
+    def __eq__(self, other: Any):
+        return (
+            isinstance(other, ImageFail)
+            and self.name == other.name
+            and self.message == other.message
+        )
+
+    def __repr__(self):
+        return f"ImageFail(name={self.name!r}, message={self.message!r})"
+
 
 async def get_attachment_name(
     file_storage: Optional[FileStorage], attachment: dict
@@ -48,8 +58,12 @@ async def get_attachment_name(
 
     if "url" in attachment:
         link = attachment["url"]
+        if DataURL.parse_content_type(link):
+            return "data URL"
+
         if file_storage is not None:
             return await file_storage.get_human_readable_name(link)
+
         return link
 
     return "invalid attachment"

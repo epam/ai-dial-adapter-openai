@@ -11,19 +11,10 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
 from aidial_adapter_openai.utils.data_url import DataURL
 from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
 
 TOKENS_FOR_TEXT = 10
 TOKENS_FOR_IMAGE = 20
-
-pic_1_1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
-
-pic_2_2 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNk+M/AwMDAxMDAwMDAAAAMHgEDBINhkwAAAABJRU5ErkJggg=="
-
-pic_3_3 = "iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAIAAADZSiLoAAAAF0lEQVR4nGNkYPjPwMDAwMDAxAADCBYAG10BBdmz9y8AAAAASUVORK5CYII="
-
-
-def data_url(base64: str) -> str:
-    return f"data:image/png;base64,{base64}"
 
 
 def attachment(base64: str) -> dict:
