@@ -135,17 +135,20 @@ async def transform_messages(
     transformations = [
         await transform_message(file_storage, message) for message in messages
     ]
-    all_errors = [
+
+    errors = [
         error
         for error in transformations
         if isinstance(error, ImageProcessingFails)
     ]
 
-    if all_errors:
-        image_fails = set(
-            image_fail
-            for error in all_errors
-            for image_fail in error.image_fails
+    if errors:
+        image_fails = sorted(
+            set(
+                image_fail
+                for error in errors
+                for image_fail in error.image_fails
+            )
         )
         msg = "The following file attachments failed to process:\n"
         msg += "\n".join(

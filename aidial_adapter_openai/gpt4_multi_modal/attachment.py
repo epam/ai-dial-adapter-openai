@@ -1,5 +1,6 @@
 import mimetypes
-from typing import Any, Callable, Optional
+from dataclasses import dataclass
+from typing import Callable, Optional
 
 from aidial_adapter_openai.utils.data_url import DataURL
 from aidial_adapter_openai.utils.log_config import logger
@@ -28,23 +29,10 @@ def guess_attachment_type(attachment: dict) -> Optional[str]:
     return type
 
 
+@dataclass(order=True, frozen=True, kw_only=True)
 class ImageFail(Exception):
     name: str
     message: str
-
-    def __init__(self, name: str, message: str):
-        self.name = name
-        self.message = message
-
-    def __eq__(self, other: Any):
-        return (
-            isinstance(other, ImageFail)
-            and self.name == other.name
-            and self.message == other.message
-        )
-
-    def __repr__(self):
-        return f"ImageFail(name={self.name!r}, message={self.message!r})"
 
 
 async def get_attachment_name(

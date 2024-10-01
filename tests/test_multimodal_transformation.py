@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from aidial_sdk.exceptions import HTTPException as DialException
 
 from aidial_adapter_openai.gpt4_multi_modal.attachment import ImageFail
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
@@ -112,6 +113,32 @@ async def test_transform_message(
     assert isinstance(result, MultiModalMessage)
     assert result.raw_message.get("custom_content") is None
     assert result.raw_message["content"] == expected_content
+
+
+@pytest.mark.asyncio
+async def test_transform_messages_with_error(
+    mock_file_storage, mock_download_image
+):
+    messages = [
+        {
+            "role": "user",
+            "content": "",
+            "custom_content": {"attachments": ["error1.jpg", "error2.jpg"]},
+        }
+    ]
+    mock_download_image.side_effect = lambda _, attachment: ImageFail(
+        name=attachment, message="File not found"
+    )
+    result = await transform_messages(mock_file_storage, messages)
+    assert isinstance(result, DialException)
+    assert (
+        result.message
+        == """
+The following file attachments failed to process:
+1. error1.jpg: File not found
+2. error2.jpg: File not found
+""".strip()
+    )
 
 
 @pytest.mark.asyncio
