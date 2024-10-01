@@ -147,7 +147,7 @@ async def transform_messages(
             for error in all_errors
             for image_fail in error.image_fails
         )
-        msg = "The following file attachments failed to process:"
+        msg = "The following file attachments failed to process:\n"
         msg += "\n".join(
             f"{idx}. {error.name}: {error.message}"
             for idx, error in enumerate(image_fails, start=1)

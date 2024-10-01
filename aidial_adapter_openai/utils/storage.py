@@ -12,7 +12,7 @@ from aidial_adapter_openai.utils.auth import Auth
 from aidial_adapter_openai.utils.env import get_env, get_env_bool
 from aidial_adapter_openai.utils.log_config import logger as log
 
-core_api_version = os.environ.get("CORE_API_VERSION", None)
+CORE_API_VERSION = os.getenv("CORE_API_VERSION")
 
 
 class FileMetadata(TypedDict):
@@ -104,7 +104,7 @@ class FileStorage:
         return await self.upload(filename, content_type, content)
 
     def attachment_link_to_url(self, link: str) -> str:
-        if core_api_version == "0.6":
+        if CORE_API_VERSION == "0.6":
             base_url = f"{self.dial_url}/v1/files/"
         else:
             base_url = f"{self.dial_url}/v1/"
@@ -112,7 +112,7 @@ class FileStorage:
         return urljoin(base_url, link)
 
     def _url_to_attachment_link(self, url: str) -> str:
-        if core_api_version == "0.6":
+        if CORE_API_VERSION == "0.6":
             return url.removeprefix(f"{self.dial_url}/v1/files/")
         else:
             return url.removeprefix(f"{self.dial_url}/v1/")

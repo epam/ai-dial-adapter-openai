@@ -32,9 +32,6 @@ class DataURL(BaseModel):
     def to_data_url(self) -> str:
         return f"{self._to_data_url_prefix(self.type)}{self.data}"
 
-    def __repr__(self) -> str:
-        return self.to_data_url()[:100] + "..."
-
     @staticmethod
     def parse_content_type(data_uri: str) -> Optional[str]:
         pattern = r"^data:([^;]+);base64,"
@@ -44,3 +41,6 @@ class DataURL(BaseModel):
     @staticmethod
     def _to_data_url_prefix(content_type: str) -> str:
         return f"data:{content_type};base64,"
+
+    def __repr__(self) -> str:
+        return self.to_data_url()[:100] + "..."
