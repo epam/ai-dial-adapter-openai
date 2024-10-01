@@ -8,14 +8,12 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import APIError, APIStatusError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
-from aidial_adapter_openai.utils.env import get_env_bool
+from aidial_adapter_openai.env import get_eliminate_empty_choices
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.merge_chunks import merge_chunks
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 
-ELIMINATE_EMPTY_CHOICES = get_env_bool(
-    "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS", False
-)
+ELIMINATE_EMPTY_CHOICES = get_eliminate_empty_choices()
 
 
 def generate_id() -> str:
