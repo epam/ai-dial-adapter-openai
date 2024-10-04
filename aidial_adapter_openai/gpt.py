@@ -10,7 +10,6 @@ from aidial_adapter_openai.utils.parsers import chat_completions_parser
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     chunk_to_dict,
-    create_server_response,
     debug_print,
     generate_stream,
     map_stream,
@@ -73,7 +72,7 @@ async def gpt_chat_completion(
     )
 
     if isinstance(upstream_response, AsyncIterator):
-        response = generate_stream(
+        return generate_stream(
             get_prompt_tokens=lambda: prompt_tokens
             or tokenizer.calculate_prompt_tokens(data["messages"]),
             tokenize=tokenizer.calculate_text_tokens,
@@ -88,5 +87,4 @@ async def gpt_chat_completion(
                 "statistics": {"discarded_messages": discarded_messages}
             }
         debug_print("response", response)
-
-    return create_server_response(response)
+        return response

@@ -7,11 +7,7 @@ from fastapi.responses import JSONResponse
 
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.storage import FileStorage
-from aidial_adapter_openai.utils.streaming import (
-    build_chunk,
-    create_server_response,
-    generate_id,
-)
+from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
 
 IMG_USAGE = {
     "prompt_tokens": 0,
@@ -137,9 +133,9 @@ async def chat_completion(
         await move_attachments_data_to_storage(custom_content, file_storage)
 
     if is_stream:
-        response = generate_stream(id, created, custom_content)
+        return generate_stream(id, created, custom_content)
     else:
-        response = build_chunk(
+        return build_chunk(
             id,
             "stop",
             {"role": "assistant", "content": "", **custom_content},
@@ -147,5 +143,3 @@ async def chat_completion(
             False,
             usage=IMG_USAGE,
         )
-
-    return create_server_response(response)

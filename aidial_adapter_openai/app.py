@@ -44,6 +44,7 @@ from aidial_adapter_openai.utils.parsers import (
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.storage import create_file_storage
+from aidial_adapter_openai.utils.streaming import create_server_response
 from aidial_adapter_openai.utils.tokenizer import (
     MultiModalTokenizer,
     PlainTextTokenizer,
@@ -104,6 +105,15 @@ def get_api_version(request: Request):
 
 @app.post("/openai/deployments/{deployment_id:path}/chat/completions")
 async def chat_completion(deployment_id: str, request: Request):
+    async def func():
+        return create_server_response(
+            await run_chat_completion(deployment_id, request)
+        )
+
+    return await handle_exceptions(func())
+
+
+async def run_chat_completion(deployment_id: str, request: Request):
     data = await parse_body(request)
 
     # Azure OpenAI deployments ignore "model" request field,
@@ -116,7 +126,7 @@ async def chat_completion(deployment_id: str, request: Request):
     # The same goes for /embeddings endpoint.
     data["model"] = deployment_id
 
-    is_stream = data.get("stream", False)
+    is_stream = bool(data.get("stream"))
 
     creds = await get_credentials(request)
     api_version = get_api_version(request)
@@ -124,14 +134,12 @@ async def chat_completion(deployment_id: str, request: Request):
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     if completions_endpoint := completions_parser.parse(upstream_endpoint):
-        return await handle_exceptions(
-            completion(
-                data,
-                completions_endpoint,
-                creds,
-                api_version,
-                deployment_id,
-            )
+        return await completion(
+            data,
+            completions_endpoint,
+            creds,
+            api_version,
+            deployment_id,
         )
 
     if deployment_id in DALLE3_DEPLOYMENTS:
@@ -146,14 +154,10 @@ async def chat_completion(deployment_id: str, request: Request):
         )
 
     if deployment_id in MISTRAL_DEPLOYMENTS:
-        return await handle_exceptions(
-            mistral_chat_completion(data, upstream_endpoint, creds)
-        )
+        return await mistral_chat_completion(data, upstream_endpoint, creds)
 
     if deployment_id in DATABRICKS_DEPLOYMENTS:
-        return await handle_exceptions(
-            databricks_chat_completion(data, upstream_endpoint, creds)
-        )
+        return await databricks_chat_completion(data, upstream_endpoint, creds)
 
     if deployment_id in GPT4_VISION_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
@@ -171,29 +175,25 @@ async def chat_completion(deployment_id: str, request: Request):
     if deployment_id in GPT4O_DEPLOYMENTS:
         tokenizer = MultiModalTokenizer(openai_model_name)
         storage = create_file_storage("images", request.headers)
-        return await handle_exceptions(
-            gpt4o_chat_completion(
-                data,
-                deployment_id,
-                upstream_endpoint,
-                creds,
-                is_stream,
-                storage,
-                api_version,
-                tokenizer,
-            )
-        )
-
-    tokenizer = PlainTextTokenizer(model=openai_model_name)
-    return await handle_exceptions(
-        gpt_chat_completion(
+        return await gpt4o_chat_completion(
             data,
             deployment_id,
             upstream_endpoint,
             creds,
+            is_stream,
+            storage,
             api_version,
             tokenizer,
         )
+
+    tokenizer = PlainTextTokenizer(model=openai_model_name)
+    return await gpt_chat_completion(
+        data,
+        deployment_id,
+        upstream_endpoint,
+        creds,
+        api_version,
+        tokenizer,
     )
 
 

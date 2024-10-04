@@ -236,7 +236,7 @@ def block_response_to_streaming_chunk(response: dict) -> dict:
 
 
 def create_server_response(
-    response: AsyncIterator[dict] | dict | BaseModel,
+    response: AsyncIterator[dict] | dict | BaseModel | Response,
 ) -> Response:
 
     if isinstance(response, AsyncIterator):
@@ -248,7 +248,10 @@ def create_server_response(
     if isinstance(response, dict):
         return JSONResponse(response)
 
-    return JSONResponse(response.dict())
+    if isinstance(response, BaseModel):
+        return JSONResponse(response.dict())
+
+    return response
 
 
 T = TypeVar("T")

@@ -13,7 +13,6 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     build_chunk,
-    create_server_response,
     debug_print,
     map_stream,
 )
@@ -49,13 +48,13 @@ async def chat_completion(
     deployment_id: str,
 ):
 
-    if data.get("n", 1) > 1:  # type: ignore
+    if data.get("n") or 1 > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
     client = endpoint.get_client({**creds, "api_version": api_version})
 
-    messages = data.get("messages", [])
-    if len(messages) == 0:
+    messages = data.get("messages") or []
+    if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
     prompt = messages[-1].get("content") or ""
@@ -73,15 +72,13 @@ async def chat_completion(
     )
 
     if isinstance(upstream_response, AsyncStream):
-        response = map_stream(
+        return map_stream(
             lambda item: convert_to_chat_completions_response(
                 item, is_stream=True
             ),
             upstream_response,
         )
     else:
-        response = convert_to_chat_completions_response(
+        return convert_to_chat_completions_response(
             upstream_response, is_stream=False
         )
-
-    return create_server_response(response)

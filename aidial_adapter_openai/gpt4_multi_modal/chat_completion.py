@@ -32,7 +32,6 @@ from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
     create_response_from_chunk,
-    create_server_response,
     create_stage_chunk,
     generate_stream,
     map_stream,
@@ -143,7 +142,7 @@ async def gpt4o_chat_completion(
     file_storage: Optional[FileStorage],
     api_version: str,
     tokenizer: MultiModalTokenizer,
-) -> Response:
+):
     return await chat_completion(
         request,
         deployment,
@@ -166,7 +165,7 @@ async def gpt4_vision_chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
-) -> Response:
+):
     return await chat_completion(
         request,
         deployment,
@@ -192,7 +191,7 @@ async def chat_completion(
     tokenizer: MultiModalTokenizer,
     response_transformer: Callable[[dict], dict | None],
     default_max_tokens: Optional[int],
-) -> Response:
+):
     if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
@@ -250,7 +249,7 @@ async def chat_completion(
             logger.debug(f"chunk: {chunk}")
             return chunk
 
-        response = map_stream(
+        return map_stream(
             debug_print,
             generate_stream(
                 get_prompt_tokens=lambda: estimated_prompt_tokens,
@@ -297,4 +296,4 @@ async def chat_completion(
                 f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
             )
 
-    return create_server_response(response)
+        return response

@@ -10,11 +10,7 @@ from aidial_adapter_openai.utils.parsers import (
     chat_completions_parser,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
-from aidial_adapter_openai.utils.streaming import (
-    chunk_to_dict,
-    create_server_response,
-    map_stream,
-)
+from aidial_adapter_openai.utils.streaming import chunk_to_dict, map_stream
 
 
 async def chat_completion(
@@ -29,8 +25,6 @@ async def chat_completion(
     )
 
     if isinstance(upstream_response, AsyncStream):
-        response = map_stream(chunk_to_dict, upstream_response)
+        return map_stream(chunk_to_dict, upstream_response)
     else:
-        response = upstream_response
-
-    return create_server_response(response)
+        return upstream_response
