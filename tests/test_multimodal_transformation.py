@@ -134,9 +134,9 @@ async def test_transform_messages_with_error(
     assert (
         result.message
         == """
-The following file attachments failed to process:
-1. error1.jpg: File not found
-2. error2.jpg: File not found
+The following files failed to process:
+1. error1.jpg: file not found
+2. error2.jpg: file not found
 """.strip()
     )
 

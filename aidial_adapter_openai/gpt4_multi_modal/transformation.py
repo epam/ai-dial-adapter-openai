@@ -18,6 +18,7 @@ from aidial_adapter_openai.utils.multi_modal_message import (
     create_text_content_part,
 )
 from aidial_adapter_openai.utils.storage import FileStorage
+from aidial_adapter_openai.utils.text import decapitalize
 
 
 class ImageProcessingFails(BaseModel):
@@ -150,9 +151,9 @@ async def transform_messages(
                 for image_fail in error.image_fails
             )
         )
-        msg = "The following file attachments failed to process:\n"
+        msg = "The following files failed to process:\n"
         msg += "\n".join(
-            f"{idx}. {error.name}: {error.message}"
+            f"{idx}. {error.name}: {decapitalize(error.message)}"
             for idx, error in enumerate(image_fails, start=1)
         )
         return InvalidRequestError(message=msg, display_message=msg)
