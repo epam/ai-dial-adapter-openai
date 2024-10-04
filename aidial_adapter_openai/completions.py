@@ -1,7 +1,6 @@
 from typing import Any, Dict
 
 from aidial_sdk.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
 from openai import AsyncStream
 from openai.types import Completion
 
@@ -12,9 +11,9 @@ from aidial_adapter_openai.utils.parsers import (
     OpenAIEndpoint,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
-from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
     build_chunk,
+    create_server_response,
     debug_print,
     map_stream,
 )
@@ -48,7 +47,7 @@ async def chat_completion(
     creds: OpenAICreds,
     api_version: str,
     deployment_id: str,
-) -> Any:
+):
 
     if data.get("n", 1) > 1:  # type: ignore
         raise RequestValidationError("The deployment doesn't support n > 1")
@@ -67,24 +66,22 @@ async def chat_completion(
         prompt = template.format(prompt=prompt)
 
     del data["messages"]
-    response = await call_with_extra_body(
+
+    upstream_response = await call_with_extra_body(
         client.completions.create,
         {"prompt": prompt, **data},
     )
 
-    if isinstance(response, AsyncStream):
-        return StreamingResponse(
-            to_openai_sse_stream(
-                map_stream(
-                    lambda item: convert_to_chat_completions_response(
-                        item, is_stream=True
-                    ),
-                    response,
-                )
+    if isinstance(upstream_response, AsyncStream):
+        response = map_stream(
+            lambda item: convert_to_chat_completions_response(
+                item, is_stream=True
             ),
-            media_type="text/event-stream",
+            upstream_response,
         )
     else:
-        return JSONResponse(
-            convert_to_chat_completions_response(response, is_stream=False)
+        response = convert_to_chat_completions_response(
+            upstream_response, is_stream=False
         )
+
+    return create_server_response(response)

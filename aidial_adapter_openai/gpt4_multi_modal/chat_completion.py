@@ -14,7 +14,7 @@ from typing import (
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response
 
 from aidial_adapter_openai.gpt4_multi_modal.attachment import (
     SUPPORTED_FILE_EXTS,
@@ -28,13 +28,11 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.sse_stream import (
-    parse_openai_sse_stream,
-    to_openai_sse_stream,
-)
+from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
     create_response_from_chunk,
+    create_server_response,
     create_stage_chunk,
     generate_stream,
     map_stream,
@@ -242,9 +240,9 @@ async def chat_completion(
     headers = get_auth_headers(creds)
 
     if is_stream:
-        response = await predict_stream(api_url, headers, request)
-        if isinstance(response, Response):
-            return response
+        upstream_response = await predict_stream(api_url, headers, request)
+        if isinstance(upstream_response, Response):
+            return upstream_response
 
         T = TypeVar("T")
 
@@ -252,23 +250,18 @@ async def chat_completion(
             logger.debug(f"chunk: {chunk}")
             return chunk
 
-        return StreamingResponse(
-            to_openai_sse_stream(
-                map_stream(
-                    debug_print,
-                    generate_stream(
-                        get_prompt_tokens=lambda: estimated_prompt_tokens,
-                        tokenize=tokenizer.calculate_text_tokens,
-                        deployment=deployment,
-                        discarded_messages=discarded_messages,
-                        stream=map_stream(
-                            response_transformer,
-                            parse_openai_sse_stream(response),
-                        ),
-                    ),
-                )
+        response = map_stream(
+            debug_print,
+            generate_stream(
+                get_prompt_tokens=lambda: estimated_prompt_tokens,
+                tokenize=tokenizer.calculate_text_tokens,
+                deployment=deployment,
+                discarded_messages=discarded_messages,
+                stream=map_stream(
+                    response_transformer,
+                    parse_openai_sse_stream(upstream_response),
+                ),
             ),
-            media_type="text/event-stream",
         )
     else:
         response = await predict_non_stream(api_url, headers, request)
@@ -304,4 +297,4 @@ async def chat_completion(
                 f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
             )
 
-        return JSONResponse(content=response)
+    return create_server_response(response)

@@ -1,7 +1,6 @@
-from typing import List, Tuple, cast
+from typing import AsyncIterator, List, Tuple, cast
 
 from aidial_sdk.exceptions import InvalidRequestError
-from fastapi.responses import StreamingResponse
 from openai import AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
@@ -9,9 +8,9 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import chat_completions_parser
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
-from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
     chunk_to_dict,
+    create_server_response,
     debug_print,
     generate_stream,
     map_stream,
@@ -69,27 +68,25 @@ async def gpt_chat_completion(
     client = chat_completions_parser.parse(upstream_endpoint).get_client(
         {**creds, "api_version": api_version}
     )
-    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
+    upstream_response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
         await call_with_extra_body(client.chat.completions.create, data)
     )
 
-    if isinstance(response, AsyncStream):
-        return StreamingResponse(
-            to_openai_sse_stream(
-                generate_stream(
-                    get_prompt_tokens=lambda: prompt_tokens
-                    or tokenizer.calculate_prompt_tokens(data["messages"]),
-                    tokenize=tokenizer.calculate_text_tokens,
-                    deployment=deployment_id,
-                    discarded_messages=discarded_messages,
-                    stream=map_stream(chunk_to_dict, response),
-                ),
-            ),
-            media_type="text/event-stream",
+    if isinstance(upstream_response, AsyncIterator):
+        response = generate_stream(
+            get_prompt_tokens=lambda: prompt_tokens
+            or tokenizer.calculate_prompt_tokens(data["messages"]),
+            tokenize=tokenizer.calculate_text_tokens,
+            deployment=deployment_id,
+            discarded_messages=discarded_messages,
+            stream=map_stream(chunk_to_dict, upstream_response),
         )
     else:
-        resp = response.to_dict()
+        response = upstream_response.to_dict()
         if discarded_messages is not None:
-            resp |= {"statistics": {"discarded_messages": discarded_messages}}
-        debug_print("response", resp)
-        return resp
+            response |= {
+                "statistics": {"discarded_messages": discarded_messages}
+            }
+        debug_print("response", response)
+
+    return create_server_response(response)
