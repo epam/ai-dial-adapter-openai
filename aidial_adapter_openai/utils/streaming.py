@@ -219,13 +219,6 @@ def create_response_from_chunk(
     )
 
 
-def block_response_to_streaming_response(block: dict) -> AsyncIterator[dict]:
-    async def stream():
-        yield block_response_to_streaming_chunk(block)
-
-    return stream()
-
-
 def block_response_to_streaming_chunk(response: dict) -> dict:
     response["object"] = "chat.completion.chunk"
     for choice in response.get("choices") or []:
@@ -236,20 +229,36 @@ def block_response_to_streaming_chunk(response: dict) -> dict:
 
 
 def create_server_response(
+    emulate_stream: bool,
     response: AsyncIterator[dict] | dict | BaseModel | Response,
 ) -> Response:
 
-    if isinstance(response, AsyncIterator):
+    def block_to_stream(block: dict) -> AsyncIterator[dict]:
+        async def stream():
+            yield block_response_to_streaming_chunk(block)
+
+        return stream()
+
+    def stream_to_response(stream: AsyncIterator[dict]) -> Response:
         return StreamingResponse(
-            to_openai_sse_stream(response),
+            to_openai_sse_stream(stream),
             media_type="text/event-stream",
         )
 
+    def block_to_response(block: dict) -> Response:
+        if emulate_stream:
+            return stream_to_response(block_to_stream(block))
+        else:
+            return JSONResponse(response)
+
+    if isinstance(response, AsyncIterator):
+        return stream_to_response(response)
+
     if isinstance(response, dict):
-        return JSONResponse(response)
+        return block_to_response(response)
 
     if isinstance(response, BaseModel):
-        return JSONResponse(response.dict())
+        return block_to_response(response.dict())
 
     return response
 

@@ -25,6 +25,7 @@ from aidial_adapter_openai.env import (
     GPT4O_DEPLOYMENTS,
     MISTRAL_DEPLOYMENTS,
     MODEL_ALIASES,
+    NON_STREAMING_DEPLOYMENTS,
 )
 from aidial_adapter_openai.gpt import gpt_chat_completion
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
@@ -105,16 +106,30 @@ def get_api_version(request: Request):
 
 @app.post("/openai/deployments/{deployment_id:path}/chat/completions")
 async def chat_completion(deployment_id: str, request: Request):
+
     async def func():
+        data = await parse_body(request)
+
+        is_stream = bool(data.get("stream"))
+
+        emulate_streaming = (
+            deployment_id in NON_STREAMING_DEPLOYMENTS and is_stream
+        )
+
+        if emulate_streaming:
+            data["stream"] = False
+
         return create_server_response(
-            await run_chat_completion(deployment_id, request)
+            emulate_streaming,
+            await run_chat_completion(deployment_id, data, is_stream, request),
         )
 
     return await handle_exceptions(func())
 
 
-async def run_chat_completion(deployment_id: str, request: Request):
-    data = await parse_body(request)
+async def run_chat_completion(
+    deployment_id: str, data: dict, is_stream: bool, request: Request
+):
 
     # Azure OpenAI deployments ignore "model" request field,
     # since the deployment id is already encoded in the endpoint path.
@@ -125,8 +140,6 @@ async def run_chat_completion(deployment_id: str, request: Request):
     # Therefore, we provide the "model" field for all deployments here.
     # The same goes for /embeddings endpoint.
     data["model"] = deployment_id
-
-    is_stream = bool(data.get("stream"))
 
     creds = await get_credentials(request)
     api_version = get_api_version(request)
