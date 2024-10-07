@@ -2,11 +2,11 @@ from typing import List
 
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.data_url import DataURL
 from aidial_adapter_openai.utils.image import ImageDetail, ImageMetadata
+from aidial_adapter_openai.utils.resource import Resource
 
 
-def create_image_content_part(image: DataURL, detail: ImageDetail) -> dict:
+def create_image_content_part(image: Resource, detail: ImageDetail) -> dict:
     return {
         "type": "image_url",
         "image_url": {

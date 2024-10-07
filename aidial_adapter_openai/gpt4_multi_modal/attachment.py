@@ -2,8 +2,8 @@ import mimetypes
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from aidial_adapter_openai.utils.data_url import DataURL
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.storage import (
     FileStorage,
     download_file_as_base64,
@@ -15,7 +15,10 @@ SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
 
 
 def guess_url_type(url: str) -> Optional[str]:
-    return DataURL.parse_content_type(url) or mimetypes.guess_type(url)[0]
+    return (
+        Resource.parse_data_url_content_type(url)
+        or mimetypes.guess_type(url)[0]
+    )
 
 
 def guess_attachment_type(attachment: dict) -> Optional[str]:
@@ -46,7 +49,7 @@ async def get_attachment_name(
 
     if "url" in attachment:
         link = attachment["url"]
-        if DataURL.parse_content_type(link):
+        if Resource.parse_data_url_content_type(link):
             return "data URL"
 
         if file_storage is not None:
@@ -75,7 +78,7 @@ async def download_image_url(
     *,
     override_fail: Optional[Callable[[str], ImageFail]] = None,
     override_type: Optional[str] = None,
-) -> DataURL | ImageFail:
+) -> Resource | ImageFail:
     """
     The image link is either a URL of the image (public of DIAL) or the base64 encoded image data.
     """
@@ -89,7 +92,7 @@ async def download_image_url(
             override_fail or fail,
         )
 
-        image_url = DataURL.from_data_url(image_link)
+        image_url = Resource.from_data_url(image_link)
         if image_url is not None:
             return image_url
 
@@ -99,7 +102,7 @@ async def download_image_url(
         else:
             data = await download_file_as_base64(image_link)
 
-        return DataURL(type=type, data=data)
+        return Resource.from_base64(type=type, data_base64=data)
 
     except ImageFail as e:
         return e
@@ -111,7 +114,7 @@ async def download_image_url(
 
 async def download_attachment_image(
     file_storage: Optional[FileStorage], attachment: dict
-) -> DataURL | ImageFail:
+) -> Resource | ImageFail:
     name = await get_attachment_name(file_storage, attachment)
 
     def fail(message: str) -> ImageFail:
@@ -121,7 +124,9 @@ async def download_attachment_image(
         type = _validate_image_type(guess_attachment_type(attachment), fail)
 
         if "data" in attachment:
-            return DataURL(type=type, data=attachment["data"])
+            return Resource.from_base64(
+                type=type, data_base64=attachment["data"]
+            )
 
         if "url" in attachment:
             return await download_image_url(

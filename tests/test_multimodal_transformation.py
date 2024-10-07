@@ -9,9 +9,9 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     transform_message,
     transform_messages,
 )
-from aidial_adapter_openai.utils.data_url import DataURL
 from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.resource import Resource
 from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
 
 TOKENS_FOR_TEXT = 10
@@ -23,7 +23,7 @@ def attachment(base64: str) -> dict:
 
 
 def image_metadata(base64: str, w: int, h: int) -> ImageMetadata:
-    image = DataURL.from_data_url(data_url(base64))
+    image = Resource.from_data_url(data_url(base64))
     assert image is not None
     return ImageMetadata(width=w, height=h, detail="low", image=image)
 

@@ -1,3 +1,4 @@
+import base64
 from urllib.parse import urlparse
 
 import pytest
@@ -12,7 +13,7 @@ from aidial_adapter_openai.gpt4_multi_modal.attachment import (
     guess_url_type,
 )
 from aidial_adapter_openai.utils.auth import Auth
-from aidial_adapter_openai.utils.data_url import DataURL
+from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.storage import Bucket, FileStorage
 from tests.utils.images import data_url, pic_1_1
 
@@ -36,8 +37,8 @@ class MockFileStorage(FileStorage):
     async def download_file_as_base64(self, url: str) -> str:
         parsed_url = urlparse(url)
         if not (parsed_url.scheme and parsed_url.netloc):
-            raise Exception("Not a valid URL")
-        return "test-content"
+            raise RuntimeError("Not a valid URL")
+        return base64.b64encode("test-content".encode()).decode("ascii")
 
 
 @pytest.mark.parametrize(
@@ -125,14 +126,14 @@ async def test_get_attachment_name(attachment, expected_name):
 @pytest.mark.parametrize(
     "url, expected_result",
     [
-        (data_url(pic_1_1), DataURL.from_data_url(data_url(pic_1_1))),
+        (data_url(pic_1_1), Resource.from_data_url(data_url(pic_1_1))),
         (
             "data:image/png;base65,abcd",
             ImageFail(name="image_url", message="failed to download the image"),
         ),
         (
             "http://example.com/image.png",
-            DataURL(type="image/png", data="test-content"),
+            Resource(type="image/png", data=b"test-content"),
         ),
         (
             "http://example.com/doc.pdf",
@@ -158,7 +159,7 @@ async def test_download_image_url(url, expected_result):
 @pytest.mark.parametrize(
     "url, expected_result",
     [
-        ({"url": data_url(pic_1_1)}, DataURL.from_data_url(data_url(pic_1_1))),
+        ({"url": data_url(pic_1_1)}, Resource.from_data_url(data_url(pic_1_1))),
         (
             {"title": "attachment title"},
             ImageFail(
@@ -175,7 +176,7 @@ async def test_download_image_url(url, expected_result):
         ),
         (
             {"data": pic_1_1, "type": "image/png"},
-            DataURL.from_data_url(data_url(pic_1_1)),
+            Resource.from_data_url(data_url(pic_1_1)),
         ),
         (
             {"data": pic_1_1, "type": "image/bmp"},
@@ -194,7 +195,7 @@ async def test_download_image_url(url, expected_result):
         ),
         (
             {"url": "http://example.com/image.png"},
-            DataURL(type="image/png", data="test-content"),
+            Resource(type="image/png", data=b"test-content"),
         ),
         (
             {"url": "http://example.com/doc.pdf"},
