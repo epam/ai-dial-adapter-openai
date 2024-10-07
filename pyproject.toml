@@ -16,9 +16,6 @@ repository = "https://github.com/epam/ai-dial-adapter-openai"
 [tool.poetry.scripts]
 clean = "scripts.clean:main"
 
-[pytest]
-env_files = [".env"]
-
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 fastapi = "0.109.2"
@@ -37,7 +34,6 @@ aidial-sdk = {version = "^0.13.0", extras = ["telemetry"]}
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
 pytest-asyncio = "0.21.1"
-python-dotenv = "1.0.0"
 respx = "^0.21.1"
 
 [tool.poetry.group.lint.dependencies]
