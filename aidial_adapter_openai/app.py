@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from typing import Awaitable, TypeVar
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
@@ -7,7 +6,13 @@ from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
-from openai import APIConnectionError, APIStatusError, APITimeoutError
+from openai import (
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    APITimeoutError,
+    OpenAIError,
+)
 
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.dalle3 import (
@@ -65,34 +70,6 @@ app = FastAPI(lifespan=lifespan)
 init_telemetry(app, TelemetryConfig())
 configure_loggers()
 
-T = TypeVar("T")
-
-
-async def handle_exceptions(call: Awaitable[T]) -> T | Response:
-    try:
-        return await call
-    except APIStatusError as e:
-        r = e.response
-        return Response(
-            content=r.content,
-            status_code=r.status_code,
-            headers=r.headers,
-        )
-    except APITimeoutError:
-        raise DialException(
-            status_code=504,
-            type="timeout",
-            message="Request timed out",
-            display_message="Request timed out. Please try again later.",
-        )
-    except APIConnectionError:
-        raise DialException(
-            status_code=502,
-            type="connection",
-            message="Error communicating with OpenAI",
-            display_message="OpenAI server is not responsive. Please try again later.",
-        )
-
 
 def get_api_version(request: Request):
     api_version = request.query_params.get("api-version", "")
@@ -107,27 +84,22 @@ def get_api_version(request: Request):
 @app.post("/openai/deployments/{deployment_id:path}/chat/completions")
 async def chat_completion(deployment_id: str, request: Request):
 
-    async def func():
-        data = await parse_body(request)
+    data = await parse_body(request)
 
-        is_stream = bool(data.get("stream"))
+    is_stream = bool(data.get("stream"))
 
-        emulate_streaming = (
-            deployment_id in NON_STREAMING_DEPLOYMENTS and is_stream
-        )
+    emulate_streaming = deployment_id in NON_STREAMING_DEPLOYMENTS and is_stream
 
-        if emulate_streaming:
-            data["stream"] = False
+    if emulate_streaming:
+        data["stream"] = False
 
-        return create_server_response(
-            emulate_streaming,
-            await run_chat_completion(deployment_id, data, is_stream, request),
-        )
-
-    return await handle_exceptions(func())
+    return create_server_response(
+        emulate_streaming,
+        await call_chat_completion(deployment_id, data, is_stream, request),
+    )
 
 
-async def run_chat_completion(
+async def call_chat_completion(
     deployment_id: str, data: dict, is_stream: bool, request: Request
 ):
 
@@ -225,13 +197,48 @@ async def embedding(deployment_id: str, request: Request):
         {**creds, "api_version": api_version}
     )
 
-    return await handle_exceptions(
-        call_with_extra_body(client.embeddings.create, data)
-    )
+    return await call_with_extra_body(client.embeddings.create, data)
+
+
+@app.exception_handler(OpenAIError)
+def openai_exception_handler(request: Request, e: DialException):
+    if isinstance(e, APIStatusError):
+        r = e.response
+        return Response(
+            content=r.content,
+            status_code=r.status_code,
+            headers=r.headers,
+        )
+
+    if isinstance(e, APITimeoutError):
+        raise DialException(
+            status_code=504,
+            type="timeout",
+            message="Request timed out",
+            display_message="Request timed out. Please try again later.",
+        )
+
+    if isinstance(e, APIConnectionError):
+        raise DialException(
+            status_code=502,
+            type="connection",
+            message="Error communicating with OpenAI",
+            display_message="OpenAI server is not responsive. Please try again later.",
+        )
+
+    if isinstance(e, APIError):
+        raise DialException(
+            status_code=getattr(e, "status_code", None) or 500,
+            message=e.message,
+            type=e.type,
+            code=e.code,
+            param=e.param,
+            display_message=None,
+        )
 
 
 @app.exception_handler(DialException)
-def exception_handler(request: Request, exc: DialException):
+def dial_exception_handler(request: Request, exc: DialException):
     return exc.to_fastapi_response()
 
 
