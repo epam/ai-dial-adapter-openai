@@ -66,19 +66,17 @@ async def chat_completion(
 
     del data["messages"]
 
-    upstream_response = await call_with_extra_body(
+    response = await call_with_extra_body(
         client.completions.create,
         {"prompt": prompt, **data},
     )
 
-    if isinstance(upstream_response, AsyncStream):
+    if isinstance(response, AsyncStream):
         return map_stream(
             lambda item: convert_to_chat_completions_response(
                 item, is_stream=True
             ),
-            upstream_response,
+            response,
         )
     else:
-        return convert_to_chat_completions_response(
-            upstream_response, is_stream=False
-        )
+        return convert_to_chat_completions_response(response, is_stream=False)

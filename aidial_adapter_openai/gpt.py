@@ -67,24 +67,22 @@ async def gpt_chat_completion(
     client = chat_completions_parser.parse(upstream_endpoint).get_client(
         {**creds, "api_version": api_version}
     )
-    upstream_response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
+    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
         await call_with_extra_body(client.chat.completions.create, data)
     )
 
-    if isinstance(upstream_response, AsyncIterator):
+    if isinstance(response, AsyncIterator):
         return generate_stream(
             get_prompt_tokens=lambda: prompt_tokens
             or tokenizer.calculate_prompt_tokens(data["messages"]),
             tokenize=tokenizer.calculate_text_tokens,
             deployment=deployment_id,
             discarded_messages=discarded_messages,
-            stream=map_stream(chunk_to_dict, upstream_response),
+            stream=map_stream(chunk_to_dict, response),
         )
     else:
-        response = upstream_response.to_dict()
+        rest = response.to_dict()
         if discarded_messages is not None:
-            response |= {
-                "statistics": {"discarded_messages": discarded_messages}
-            }
-        debug_print("response", response)
-        return response
+            rest |= {"statistics": {"discarded_messages": discarded_messages}}
+        debug_print("response", rest)
+        return rest

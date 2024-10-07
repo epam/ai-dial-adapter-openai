@@ -20,11 +20,11 @@ async def chat_completion(
         cast(OpenAIParams, creds)
     )
 
-    upstream_response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
+    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
         await call_with_extra_body(client.chat.completions.create, data)
     )
 
-    if isinstance(upstream_response, AsyncStream):
-        return map_stream(chunk_to_dict, upstream_response)
+    if isinstance(response, AsyncStream):
+        return map_stream(chunk_to_dict, response)
     else:
-        return upstream_response
+        return response

@@ -239,9 +239,9 @@ async def chat_completion(
     headers = get_auth_headers(creds)
 
     if is_stream:
-        upstream_response = await predict_stream(api_url, headers, request)
-        if isinstance(upstream_response, Response):
-            return upstream_response
+        response = await predict_stream(api_url, headers, request)
+        if isinstance(response, Response):
+            return response
 
         T = TypeVar("T")
 
@@ -258,7 +258,7 @@ async def chat_completion(
                 discarded_messages=discarded_messages,
                 stream=map_stream(
                     response_transformer,
-                    parse_openai_sse_stream(upstream_response),
+                    parse_openai_sse_stream(response),
                 ),
             ),
         )
