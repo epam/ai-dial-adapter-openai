@@ -175,11 +175,11 @@ async def test_download_image_url(url, expected_result):
             ),
         ),
         (
-            {"data": pic_1_1, "type": "image/png"},
+            {"data": pic_1_1.data_base64, "type": "image/png"},
             Resource.from_data_url(data_url(pic_1_1)),
         ),
         (
-            {"data": pic_1_1, "type": "image/bmp"},
+            {"data": pic_1_1.data_base64, "type": "image/bmp"},
             ImageFail(
                 name="data attachment",
                 message="the image is not one of the supported types",

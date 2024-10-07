@@ -18,20 +18,18 @@ TOKENS_FOR_TEXT = 10
 TOKENS_FOR_IMAGE = 20
 
 
-def attachment(base64: str) -> dict:
-    return {"type": "image/png", "data": base64}
+def attachment(resource: Resource) -> dict:
+    return {"type": "image/png", "data": resource.data_base64}
 
 
-def image_metadata(base64: str, w: int, h: int) -> ImageMetadata:
-    image = Resource.from_data_url(data_url(base64))
-    assert image is not None
-    return ImageMetadata(width=w, height=h, detail="low", image=image)
+def image_metadata(resource: Resource, w: int, h: int) -> ImageMetadata:
+    return ImageMetadata(width=w, height=h, detail="low", image=resource)
 
 
-def image_url(base64: str) -> dict:
+def image_url(resource: Resource) -> dict:
     return {
         "type": "image_url",
-        "image_url": {"url": data_url(base64), "detail": "low"},
+        "image_url": {"url": data_url(resource), "detail": "low"},
     }
 
 
