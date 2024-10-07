@@ -23,6 +23,9 @@ COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: Dict[str, str] = json.loads(
     os.getenv("COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES") or "{}"
 )
 DALLE3_AZURE_API_VERSION = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
+NON_STREAMING_DEPLOYMENTS = parse_deployment_list(
+    os.getenv("NON_STREAMING_DEPLOYMENTS")
+)
 
 
 def get_eliminate_empty_choices() -> bool:

@@ -397,10 +397,45 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_correct_upstream_url(test_app: httpx.AsyncClient):
+async def test_no_request_response_validation(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).respond(status_code=400, content="whatever")
+    ).respond(
+        status_code=200, json={"messages": "string", "extra_response": "string"}
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Test content",
+                    "extra_mesage": "string",
+                }
+            ],
+            "extra_request": "string",
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+            "Content-Type": "application/pdf",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "messages": "string",
+        "extra_response": "string",
+    }
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_status_error_from_upstream(test_app: httpx.AsyncClient):
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(status_code=400, content="Bad request")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -412,7 +447,61 @@ async def test_correct_upstream_url(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 400
-    assert response.content == b"whatever"
+    assert response.content == b"Bad request"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_timeout_error_from_upstream(test_app: httpx.AsyncClient):
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).mock(side_effect=httpx.ReadTimeout("Timeout error"))
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={"messages": [{"role": "user", "content": "Test content"}]},
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 504
+    assert response.json() == {
+        "error": {
+            "message": "Request timed out",
+            "type": "timeout",
+            "code": "504",
+            "display_message": "Request timed out. Please try again later.",
+        }
+    }
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_connection_error_from_upstream(test_app: httpx.AsyncClient):
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).mock(side_effect=httpx.ConnectError("Connection error"))
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={"messages": [{"role": "user", "content": "Test content"}]},
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "error": {
+            "message": "Error communicating with OpenAI",
+            "type": "connection",
+            "code": "502",
+            "display_message": "OpenAI server is not responsive. Please try again later.",
+        }
+    }
 
 
 @respx.mock

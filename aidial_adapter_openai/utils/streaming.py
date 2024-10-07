@@ -7,6 +7,7 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import APIError, APIStatusError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from pydantic import BaseModel
 
 from aidial_adapter_openai.env import get_eliminate_empty_choices
 from aidial_adapter_openai.utils.log_config import logger
@@ -216,6 +217,50 @@ def create_response_from_chunk(
         to_openai_sse_stream(generator()),
         media_type="text/event-stream",
     )
+
+
+def block_response_to_streaming_chunk(response: dict) -> dict:
+    response["object"] = "chat.completion.chunk"
+    for choice in response.get("choices") or []:
+        if message := choice.get("message"):
+            choice["delta"] = message
+            del choice["message"]
+    return response
+
+
+def create_server_response(
+    emulate_stream: bool,
+    response: AsyncIterator[dict] | dict | BaseModel | Response,
+) -> Response:
+
+    def block_to_stream(block: dict) -> AsyncIterator[dict]:
+        async def stream():
+            yield block_response_to_streaming_chunk(block)
+
+        return stream()
+
+    def stream_to_response(stream: AsyncIterator[dict]) -> Response:
+        return StreamingResponse(
+            to_openai_sse_stream(stream),
+            media_type="text/event-stream",
+        )
+
+    def block_to_response(block: dict) -> Response:
+        if emulate_stream:
+            return stream_to_response(block_to_stream(block))
+        else:
+            return JSONResponse(response)
+
+    if isinstance(response, AsyncIterator):
+        return stream_to_response(response)
+
+    if isinstance(response, dict):
+        return block_to_response(response)
+
+    if isinstance(response, BaseModel):
+        return block_to_response(response.dict())
+
+    return response
 
 
 T = TypeVar("T")
