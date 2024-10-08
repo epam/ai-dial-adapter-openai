@@ -1,13 +1,15 @@
-from typing import List, Optional, Tuple, TypeVar, cast
+from dataclasses import dataclass
+from typing import List, Set, cast
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from aidial_adapter_openai.gpt4_multi_modal.attachment import (
-    ImageFail,
-    download_attachment_image,
-    download_image_url,
+    AttachmentResource,
+    DialResource,
+    URLResource,
+    ValidationError,
 )
 from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.log_config import logger
@@ -20,143 +22,135 @@ from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.text import decapitalize
 
+# Officially supported image types by GPT-4 Vision, GPT-4o
+SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
 
-class ImageProcessingFails(BaseModel):
+
+@dataclass(order=True, frozen=True)
+class ProcessingError:
+    name: str
+    message: str
+
+
+class ResourceProcessor(BaseModel):
     class Config:
+        # For ProcessingError
         arbitrary_types_allowed = True
 
-    image_fails: List[ImageFail]
+    file_storage: FileStorage | None
+    errors: Set[ProcessingError] = Field(default_factory=set)
 
-
-def create_image_metadata(
-    arg: Resource | ImageFail,
-) -> ImageMetadata | ImageFail:
-    if isinstance(arg, Resource):
-        return ImageMetadata.from_image_data_url(arg)
-    return arg
-
-
-async def download_attachment_images(
-    file_storage: Optional[FileStorage], attachments: List[dict]
-) -> List[ImageMetadata | ImageFail]:
-    if attachments:
-        logger.debug(f"original attachments: {attachments}")
-
-    ret: List[ImageMetadata | ImageFail] = []
-
-    for attachment in attachments:
-        ret.append(
-            create_image_metadata(
-                await download_attachment_image(file_storage, attachment)
-            )
-        )
-
-    return ret
-
-
-async def download_content_images(
-    file_storage: Optional[FileStorage], content: str | list
-) -> List[ImageMetadata | ImageFail]:
-    if isinstance(content, str):
-        return []
-
-    ret: List[ImageMetadata | ImageFail] = []
-
-    for content_part in content:
-        if image_url := content_part.get("image_url", {}).get("url"):
-            ret.append(
-                create_image_metadata(
-                    await download_image_url(file_storage, image_url)
-                )
-            )
-
-    return ret
-
-
-_T = TypeVar("_T")
-
-
-def _partition_errors(
-    lst: List[_T | ImageFail],
-) -> Tuple[List[_T], List[ImageFail]]:
-    fails: List[ImageFail] = []
-    images: List[_T] = []
-
-    for elem in lst:
-        if isinstance(elem, ImageFail):
-            fails.append(elem)
+    def collect_resource(
+        self, meta: List[ImageMetadata], result: Resource | ProcessingError
+    ):
+        if isinstance(result, ProcessingError):
+            self.errors.add(result)
         else:
-            images.append(elem)
+            meta.append(ImageMetadata.from_resource(result))
 
-    return images, fails
+    async def try_download_resource(
+        self, dial_resource: DialResource
+    ) -> Resource | ProcessingError:
+        try:
+            resource = await dial_resource.download(self.file_storage)
 
+            if resource.type not in SUPPORTED_IMAGE_TYPES:
+                raise ValidationError(
+                    f"The {dial_resource.entity_name} is not one of the supported types"
+                )
 
-async def transform_message(
-    file_storage: Optional[FileStorage], message: dict
-) -> MultiModalMessage | ImageProcessingFails:
-    message = message.copy()
-
-    content = message.get("content", "")
-    custom_content = message.pop("custom_content", {})
-    attachments = custom_content.get("attachments", [])
-
-    attachment_metadatas, attachment_fails = _partition_errors(
-        await download_attachment_images(file_storage, attachments)
-    )
-
-    content_metadatas, content_fails = _partition_errors(
-        await download_content_images(file_storage, content)
-    )
-
-    if image_fails := [*attachment_fails, *content_fails]:
-        logger.error(f"image processing errors: {image_fails}")
-        return ImageProcessingFails(image_fails=image_fails)
-
-    if not (image_metadatas := [*content_metadatas, *attachment_metadatas]):
-        return MultiModalMessage(image_metadatas=[], raw_message=message)
-
-    content_parts = (
-        [create_text_content_part(content)]
-        if isinstance(content, str)
-        else content
-    ) + [
-        create_image_content_part(meta.image, meta.detail)
-        for meta in attachment_metadatas
-    ]
-
-    return MultiModalMessage(
-        image_metadatas=image_metadatas,
-        raw_message={**message, "content": content_parts},
-    )
-
-
-async def transform_messages(
-    file_storage: Optional[FileStorage], messages: List[dict]
-) -> List[MultiModalMessage] | DialException:
-    transformations = [
-        await transform_message(file_storage, message) for message in messages
-    ]
-
-    errors = [
-        error
-        for error in transformations
-        if isinstance(error, ImageProcessingFails)
-    ]
-
-    if errors:
-        image_fails = sorted(
-            set(
-                image_fail
-                for error in errors
-                for image_fail in error.image_fails
+        except Exception as e:
+            logger.error(
+                f"Failed to download {dial_resource.entity_name}: {str(e)}"
             )
-        )
-        msg = "The following files failed to process:\n"
-        msg += "\n".join(
-            f"{idx}. {error.name}: {decapitalize(error.message)}"
-            for idx, error in enumerate(image_fails, start=1)
-        )
-        return InvalidRequestError(message=msg, display_message=msg)
 
-    transformations = cast(List[MultiModalMessage], transformations)
-    return transformations
+            name = await dial_resource.get_resource_name(self.file_storage)
+            message = (
+                e.message
+                if isinstance(e, ValidationError)
+                else f"Failed to download the {dial_resource.entity_name}"
+            )
+            return ProcessingError(name=name, message=message)
+
+        return resource
+
+    async def download_attachment_images(
+        self, attachments: List[dict]
+    ) -> List[ImageMetadata]:
+        if attachments:
+            logger.debug(f"original attachments: {attachments}")
+
+        ret: List[ImageMetadata] = []
+
+        for attachment in attachments:
+            dial_resource = AttachmentResource.from_dict(
+                attachment=attachment, entity_name="image attachment"
+            )
+            result = await self.try_download_resource(dial_resource)
+            self.collect_resource(ret, result)
+
+        return ret
+
+    async def download_content_images(
+        self, content: str | list
+    ) -> List[ImageMetadata]:
+        if isinstance(content, str):
+            return []
+
+        ret: List[ImageMetadata] = []
+
+        for content_part in content:
+            if image_url := content_part.get("image_url", {}).get("url"):
+                dial_resource = URLResource(url=image_url, entity_name="image")
+                result = await self.try_download_resource(dial_resource)
+                self.collect_resource(ret, result)
+
+        return ret
+
+    async def transform_message(self, message: dict) -> MultiModalMessage:
+        message = message.copy()
+
+        content = message.get("content", "")
+        custom_content = message.pop("custom_content", {})
+        attachments = custom_content.get("attachments", [])
+
+        attachment_meta = await self.download_attachment_images(attachments)
+        content_meta = await self.download_content_images(content)
+        meta = [*content_meta, *attachment_meta]
+
+        if not meta:
+            return MultiModalMessage(image_metadatas=[], raw_message=message)
+
+        content_parts = (
+            [create_text_content_part(content)]
+            if isinstance(content, str)
+            else content
+        ) + [
+            create_image_content_part(meta.image, meta.detail)
+            for meta in attachment_meta
+        ]
+
+        return MultiModalMessage(
+            image_metadatas=meta,
+            raw_message={**message, "content": content_parts},
+        )
+
+    async def transform_messages(
+        self, messages: List[dict]
+    ) -> List[MultiModalMessage] | DialException:
+        transformations = [
+            await self.transform_message(message) for message in messages
+        ]
+
+        if self.errors:
+            image_fails = sorted(list(self.errors))  # type: ignore
+            msg = "The following files failed to process:\n"
+            msg += "\n".join(
+                f"{idx}. {error.name}: {decapitalize(error.message)}"
+                for idx, error in enumerate(image_fails, start=1)
+            )
+            return InvalidRequestError(message=msg, display_message=msg)
+
+        transformations = cast(List[MultiModalMessage], transformations)
+        return transformations

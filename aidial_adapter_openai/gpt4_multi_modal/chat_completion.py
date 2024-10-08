@@ -16,14 +16,12 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from aidial_adapter_openai.gpt4_multi_modal.attachment import (
-    SUPPORTED_FILE_EXTS,
-)
 from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
     convert_gpt4v_to_gpt4_chunk,
 )
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    transform_messages,
+    SUPPORTED_FILE_EXTS,
+    ResourceProcessor,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.log_config import logger
@@ -204,7 +202,10 @@ async def chat_completion(
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
 
-    transform_result = await transform_messages(file_storage, messages)
+    transform_result = await ResourceProcessor(
+        file_storage=file_storage
+    ).transform_messages(messages)
+
     if isinstance(transform_result, DialException):
         logger.error(f"Failed to prepare request: {transform_result.message}")
         chunk = create_stage_chunk("Usage", USAGE, is_stream)

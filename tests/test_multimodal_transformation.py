@@ -1,18 +1,15 @@
-from unittest.mock import AsyncMock, patch
-
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.gpt4_multi_modal.attachment import ImageFail
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    ImageProcessingFails,
-    transform_message,
-    transform_messages,
+    ProcessingError,
+    ResourceProcessor,
 )
 from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.resource import Resource
 from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
+from tests.utils.storage import MockFileStorage
 
 TOKENS_FOR_TEXT = 10
 TOKENS_FOR_IMAGE = 20
@@ -38,16 +35,8 @@ def text(text: str) -> dict:
 
 
 @pytest.fixture
-def mock_file_storage():
-    return AsyncMock()
-
-
-@pytest.fixture
-def mock_download_image():
-    with patch(
-        "aidial_adapter_openai.gpt4_multi_modal.transformation.download_attachment_image"
-    ) as mock:
-        yield mock
+def mock_resource_processor():
+    return ResourceProcessor(file_storage=MockFileStorage())
 
 
 @pytest.mark.parametrize(
@@ -101,12 +90,12 @@ def mock_download_image():
 )
 @pytest.mark.asyncio
 async def test_transform_message(
-    mock_file_storage,
+    mock_resource_processor,
     message,
     expected_tokens,
     expected_content,
 ):
-    result = await transform_message(mock_file_storage, message)
+    result = await mock_resource_processor.transform_message(message)
 
     assert isinstance(result, MultiModalMessage)
     assert result.raw_message.get("custom_content") is None
@@ -114,50 +103,46 @@ async def test_transform_message(
 
 
 @pytest.mark.asyncio
-async def test_transform_messages_with_error(
-    mock_file_storage, mock_download_image
-):
+async def test_transform_messages_with_error(mock_resource_processor):
     messages = [
         {
             "role": "user",
             "content": "",
-            "custom_content": {"attachments": ["error1.jpg", "error2.jpg"]},
+            "custom_content": {
+                "attachments": [
+                    {"url": "not_found1.jpg"},
+                    {"url": "not_found2.jpg"},
+                ]
+            },
         }
     ]
-    mock_download_image.side_effect = lambda _, attachment: ImageFail(
-        name=attachment, message="File not found"
-    )
-    result = await transform_messages(mock_file_storage, messages)
+
+    result = await mock_resource_processor.transform_messages(messages)
+
     assert isinstance(result, DialException)
     assert (
         result.message
         == """
 The following files failed to process:
-1. error1.jpg: file not found
-2. error2.jpg: file not found
+1. not_found1.jpg: file not found
+2. not_found2.jpg: file not found
 """.strip()
     )
 
 
 @pytest.mark.asyncio
-async def test_transform_message_with_error(
-    mock_file_storage, mock_download_image
-):
+async def test_transform_message_with_error(mock_resource_processor):
     message = {
         "role": "user",
         "content": "",
-        "custom_content": {"attachments": ["error.jpg"]},
+        "custom_content": {"attachments": [{"url": "not_found.jpg"}]},
     }
-    mock_download_image.return_value = ImageFail(
-        name="error.jpg", message="File not found"
-    )
-    result = await transform_message(mock_file_storage, message)
-    assert isinstance(result, ImageProcessingFails)
-    assert result.image_fails
-    assert len(result.image_fails) == 1
-    image_fail = result.image_fails[0]
-    assert isinstance(image_fail, ImageFail)
-    assert image_fail.name == "error.jpg"
+    await mock_resource_processor.transform_message(message)
+    assert mock_resource_processor.errors
+    assert len(mock_resource_processor.errors) == 1
+    image_fail = list(mock_resource_processor.errors)[0]
+    assert isinstance(image_fail, ProcessingError)
+    assert image_fail.name == "not_found.jpg"
     assert image_fail.message == "File not found"
 
 
@@ -295,9 +280,9 @@ async def test_transform_message_with_error(
 )
 @pytest.mark.asyncio
 async def test_transform_messages(
-    mock_file_storage,
+    mock_resource_processor,
     messages,
     expected_transformations,
 ):
-    result = await transform_messages(mock_file_storage, messages)
+    result = await mock_resource_processor.transform_messages(messages)
     assert result == expected_transformations

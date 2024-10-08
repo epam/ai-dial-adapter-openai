@@ -7,6 +7,7 @@ from typing import Mapping, Optional, TypedDict
 from urllib.parse import unquote, urljoin
 
 import aiohttp
+from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.auth import Auth
 from aidial_adapter_openai.utils.env import get_env, get_env_bool
@@ -27,18 +28,12 @@ class Bucket(TypedDict):
     appdata: str | None
 
 
-class FileStorage:
+class FileStorage(BaseModel):
     dial_url: str
     upload_dir: str
     auth: Auth
 
-    bucket: Optional[Bucket]
-
-    def __init__(self, dial_url: str, upload_dir: str, auth: Auth):
-        self.dial_url = dial_url
-        self.upload_dir = upload_dir
-        self.auth = auth
-        self.bucket = None
+    bucket: Optional[Bucket] = None
 
     async def _get_bucket(self, session: aiohttp.ClientSession) -> Bucket:
         if self.bucket is None:
@@ -137,7 +132,6 @@ class FileStorage:
         headers: Mapping[str, str] = {}
         if url.startswith(self.dial_url):
             headers = self.auth.headers
-
         return await download_file_as_base64(url, headers)
 
 

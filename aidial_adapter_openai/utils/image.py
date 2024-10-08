@@ -34,7 +34,7 @@ class ImageMetadata(BaseModel):
     detail: DetailLevel
 
     @classmethod
-    def from_image_data_url(cls, image: Resource) -> "ImageMetadata":
+    def from_resource(cls, image: Resource) -> "ImageMetadata":
         with Image.open(BytesIO(image.data)) as img:
             width, height = img.size
 

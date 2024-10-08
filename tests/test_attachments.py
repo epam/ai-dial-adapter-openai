@@ -1,46 +1,19 @@
-import base64
-from urllib.parse import urlparse
-
 import pytest
-from typing_extensions import override
 
 from aidial_adapter_openai.gpt4_multi_modal.attachment import (
-    ImageFail,
-    download_attachment_image,
-    download_image_url,
-    get_attachment_name,
-    guess_attachment_type,
-    guess_url_type,
+    AttachmentResource,
+    URLResource,
 )
-from aidial_adapter_openai.utils.auth import Auth
+from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+    ProcessingError,
+    ResourceProcessor,
+)
 from aidial_adapter_openai.utils.resource import Resource
-from aidial_adapter_openai.utils.storage import Bucket, FileStorage
 from tests.utils.images import data_url, pic_1_1
+from tests.utils.storage import MockFileStorage
 
 
-class MockFileStorage(FileStorage):
-    def __init__(self):
-        super().__init__(
-            dial_url="http://dial-core",
-            upload_dir="upload_dir",
-            auth=Auth(name="api-key", value="dummy-api-key"),
-        )
-
-    @override
-    async def _get_bucket(self, session) -> Bucket:
-        return {
-            "bucket": "APP_BUCKET",
-            "appdata": "USER_BUCKET/appdata/test-application",
-        }
-
-    @override
-    async def download_file_as_base64(self, url: str) -> str:
-        parsed_url = urlparse(url)
-        if not (parsed_url.scheme and parsed_url.netloc):
-            raise RuntimeError("Not a valid URL")
-        return base64.b64encode("test-content".encode()).decode("ascii")
-
-
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "url,expected_type",
     [
@@ -60,10 +33,11 @@ class MockFileStorage(FileStorage):
         ),
     ],
 )
-def test_guess_url_type(url, expected_type):
-    assert guess_url_type(url) == expected_type
+async def test_guess_url_type(url, expected_type):
+    assert await URLResource(url=url).guess_content_type() == expected_type
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "attachment, expected_type",
     [
@@ -83,8 +57,11 @@ def test_guess_url_type(url, expected_type):
         ),
     ],
 )
-def test_guess_attachment_type(attachment, expected_type):
-    assert guess_attachment_type(attachment) == expected_type
+async def test_guess_attachment_type(attachment, expected_type):
+    assert (
+        await AttachmentResource(attachment=attachment).guess_content_type()
+        == expected_type
+    )
 
 
 @pytest.mark.asyncio
@@ -117,7 +94,9 @@ def test_guess_attachment_type(attachment, expected_type):
 )
 async def test_get_attachment_name(attachment, expected_name):
     assert (
-        await get_attachment_name(MockFileStorage(), attachment)
+        await AttachmentResource(attachment=attachment).get_resource_name(
+            MockFileStorage()
+        )
         == expected_name
     )
 
@@ -128,8 +107,11 @@ async def test_get_attachment_name(attachment, expected_name):
     [
         (data_url(pic_1_1), Resource.from_data_url(data_url(pic_1_1))),
         (
-            "data:image/png;base65,abcd",
-            ImageFail(name="image_url", message="failed to download the image"),
+            "data:image/png;base65," + 1000 * "0",
+            ProcessingError(
+                name="data:image/png;base65,0000000000000000000000000000...",
+                message="Not a valid URL",
+            ),
         ),
         (
             "http://example.com/image.png",
@@ -137,61 +119,62 @@ async def test_get_attachment_name(attachment, expected_name):
         ),
         (
             "http://example.com/doc.pdf",
-            ImageFail(
-                name="image_url",
-                message="the image is not one of the supported types",
+            ProcessingError(
+                name="http://example.com/doc.pdf",
+                message="The image is not one of the supported types",
             ),
         ),
         (
             "http://example.com/file.exotic_ext",
-            ImageFail(
-                name="image_url",
-                message="can't derive media type of the image",
+            ProcessingError(
+                name="http://example.com/file.exotic_ext",
+                message="Can't derive content type of the image",
             ),
         ),
     ],
 )
 async def test_download_image_url(url, expected_result):
-    assert await download_image_url(MockFileStorage(), url) == expected_result
+    resource = URLResource(url=url, entity_name="image")
+    processor = ResourceProcessor(file_storage=MockFileStorage())
+    assert await processor.try_download_resource(resource) == expected_result
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "url, expected_result",
+    "attachment, expected_result",
     [
         ({"url": data_url(pic_1_1)}, Resource.from_data_url(data_url(pic_1_1))),
         (
             {"title": "attachment title"},
-            ImageFail(
+            ProcessingError(
                 name="attachment title",
-                message="can't derive media type of the image",
+                message="Can't derive content type of the image",
             ),
         ),
         (
-            {"url": data_url(pic_1_1), "type": "image/bmp"},
-            ImageFail(
-                name="data URL",
-                message="the image is not one of the supported types",
+            {"type": "image/bmp", "url": data_url(pic_1_1)},
+            ProcessingError(
+                name="data URL (image/bmp)",
+                message="The image is not one of the supported types",
             ),
         ),
         (
-            {"data": pic_1_1.data_base64, "type": "image/png"},
+            {"type": "image/png", "data": pic_1_1.data_base64},
             Resource.from_data_url(data_url(pic_1_1)),
         ),
         (
-            {"data": pic_1_1.data_base64, "type": "image/bmp"},
-            ImageFail(
-                name="data attachment",
-                message="the image is not one of the supported types",
+            {"type": "image/bmp", "data": pic_1_1.data_base64},
+            ProcessingError(
+                name="data image",
+                message="The image is not one of the supported types",
             ),
         ),
         (
             {"url": "data:image/png;base65,abcd"},
-            ImageFail(name="image_url", message="failed to download the image"),
-        ),
-        (
-            {"url": "data:image/png;base65,abcd"},
-            ImageFail(name="image_url", message="failed to download the image"),
+            ProcessingError(
+                name="data:image/png;base65,abcd",
+                message="Not a valid URL",
+            ),
         ),
         (
             {"url": "http://example.com/image.png"},
@@ -199,29 +182,30 @@ async def test_download_image_url(url, expected_result):
         ),
         (
             {"url": "http://example.com/doc.pdf"},
-            ImageFail(
+            ProcessingError(
                 name="http://example.com/doc.pdf",
-                message="the image is not one of the supported types",
+                message="The image is not one of the supported types",
             ),
         ),
         (
             {"title": "PDF Document", "url": "http://example.com/doc.pdf"},
-            ImageFail(
+            ProcessingError(
                 name="PDF Document",
-                message="the image is not one of the supported types",
+                message="The image is not one of the supported types",
             ),
         ),
         (
             {"url": "http://example.com/file.exotic_ext"},
-            ImageFail(
+            ProcessingError(
                 name="http://example.com/file.exotic_ext",
-                message="can't derive media type of the image",
+                message="Can't derive content type of the image",
             ),
         ),
     ],
 )
-async def test_download_attachment_image(url, expected_result):
-    assert (
-        await download_attachment_image(MockFileStorage(), url)
-        == expected_result
+async def test_download_attachment_image(attachment: dict, expected_result):
+    resource = AttachmentResource.from_dict(
+        attachment=attachment, entity_name="image"
     )
+    processor = ResourceProcessor(file_storage=MockFileStorage())
+    assert await processor.try_download_resource(resource) == expected_result

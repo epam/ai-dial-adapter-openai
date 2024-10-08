@@ -1,146 +1,183 @@
 import mimetypes
-from dataclasses import dataclass
-from typing import Callable, Optional
+from abc import ABC, abstractmethod
+from typing import List
 
-from aidial_adapter_openai.utils.log_config import logger
+from aidial_sdk.chat_completion import Attachment
+from pydantic import BaseModel, Field, root_validator
+
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.storage import (
     FileStorage,
     download_file_as_base64,
 )
-
-# Officially supported image types by GPT-4 Vision, GPT-4o
-SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
+from aidial_adapter_openai.utils.text import truncate_string
 
 
-def guess_url_type(url: str) -> Optional[str]:
-    return (
-        Resource.parse_data_url_content_type(url)
-        or mimetypes.guess_type(url)[0]
-    )
-
-
-def guess_attachment_type(attachment: dict) -> Optional[str]:
-    type = attachment.get("type")
-
-    if type is None or "octet-stream" in type:
-        # It's an arbitrary binary file. Trying to guess the type from the URL.
-        if (url := attachment.get("url")) and (url_type := guess_url_type(url)):
-            return url_type
-
-    return type
-
-
-@dataclass(order=True, frozen=True, kw_only=True)
-class ImageFail(Exception):
-    name: str
+class ValidationError(Exception):
     message: str
 
-
-async def get_attachment_name(
-    file_storage: Optional[FileStorage], attachment: dict
-) -> str:
-    if title := attachment.get("title"):
-        return title
-
-    if "data" in attachment:
-        return attachment.get("title") or "data attachment"
-
-    if "url" in attachment:
-        link = attachment["url"]
-        if Resource.parse_data_url_content_type(link):
-            return "data URL"
-
-        if file_storage is not None:
-            return await file_storage.get_human_readable_name(link)
-
-        return link
-
-    return "invalid attachment"
+    def __init__(self, message: str):
+        self.message = message
 
 
-def _validate_image_type(
-    content_type: Optional[str], fail: Callable[[str], ImageFail]
-) -> str:
-    if content_type is None:
-        raise fail("can't derive media type of the image")
-
-    if content_type not in SUPPORTED_IMAGE_TYPES:
-        raise fail("the image is not one of the supported types")
-
-    return content_type
+class MissingContentType(ValidationError):
+    pass
 
 
-async def download_image_url(
-    file_storage: Optional[FileStorage],
-    image_link: str,
-    *,
-    override_fail: Optional[Callable[[str], ImageFail]] = None,
-    override_type: Optional[str] = None,
-) -> Resource | ImageFail:
-    """
-    The image link is either a URL of the image (public of DIAL) or the base64 encoded image data.
-    """
+class UnsupportedContentType(ValidationError):
+    supported_types: List[str]
 
-    def fail(message: str) -> ImageFail:
-        return ImageFail(name="image_url", message=message)
+    def __init__(self, message: str, supported_types: List[str]):
+        super().__init__(message)
+        self.supported_types = supported_types
 
-    try:
-        type = _validate_image_type(
-            override_type or guess_url_type(image_link),
-            override_fail or fail,
+
+class DialResource(ABC, BaseModel):
+    entity_name: str = Field(default=None)
+    supported_content_types: List[str] | None = Field(default=None)
+
+    @abstractmethod
+    async def download(self, storage: FileStorage | None) -> Resource: ...
+
+    @abstractmethod
+    async def guess_content_type(self) -> str | None: ...
+
+    @abstractmethod
+    async def get_resource_name(self, storage: FileStorage | None) -> str: ...
+
+    async def get_content_type(self) -> str:
+        type = await self.guess_content_type()
+
+        if not type:
+            raise MissingContentType(
+                f"Can't derive content type of the {self.entity_name}"
+            )
+
+        if (
+            self.supported_content_types is not None
+            and type not in self.supported_content_types
+        ):
+            raise UnsupportedContentType(
+                f"The {self.entity_name} is not one of the supported types",
+                self.supported_content_types,
+            )
+
+        return type
+
+
+class URLResource(DialResource):
+    url: str
+    content_type: str | None = None
+
+    @root_validator
+    def validator(cls, values):
+        values["entity_name"] = values.get("entity_name") or "URL"
+        return values
+
+    async def download(self, storage: FileStorage | None) -> Resource:
+        type = await self.get_content_type()
+        data = await _download_url_as_base64(storage, self.url)
+        return Resource.from_base64(type=type, data_base64=data)
+
+    async def guess_content_type(self) -> str | None:
+        return (
+            self.content_type
+            or Resource.parse_data_url_content_type(self.url)
+            or mimetypes.guess_type(self.url)[0]
         )
 
-        image_url = Resource.from_data_url(image_link)
-        if image_url is not None:
-            return image_url
+    def is_data_url(self) -> bool:
+        return Resource.parse_data_url_content_type(self.url) is not None
 
-        if file_storage is not None:
-            url = file_storage.attachment_link_to_url(image_link)
-            data = await file_storage.download_file_as_base64(url)
+    async def get_resource_name(self, storage: FileStorage | None) -> str:
+        if self.is_data_url():
+            return f"data URL ({await self.guess_content_type()})"
+
+        name = self.url
+        if storage is not None:
+            name = await storage.get_human_readable_name(self.url)
+
+        return truncate_string(name, n=50)
+
+
+class AttachmentResource(DialResource):
+    attachment: Attachment
+
+    @root_validator
+    def validator(cls, values):
+        values["entity_name"] = values.get("entity_name") or "attachment"
+        return values
+
+    @classmethod
+    def from_dict(cls, attachment: dict, entity_name: str | None = None):
+        attachment_obj = Attachment.parse_obj(attachment)
+
+        # Working around the issue of defaulting missing type to a markdown:
+        if "type" not in attachment:
+            attachment_obj.type = None
+
+        return cls(
+            attachment=attachment_obj,
+            entity_name=entity_name,  # type: ignore
+        )
+
+    async def download(self, storage: FileStorage | None) -> Resource:
+        type = await self.get_content_type()
+
+        if self.attachment.data:
+            data = self.attachment.data
+        elif self.attachment.url:
+            data = await _download_url_as_base64(storage, self.attachment.url)
         else:
-            data = await download_file_as_base64(image_link)
+            raise ValidationError(f"Invalid {self.entity_name}")
 
         return Resource.from_base64(type=type, data_base64=data)
 
-    except ImageFail as e:
-        return e
+    def create_url_resource(self, url: str) -> URLResource:
+        return URLResource(
+            url=url,
+            content_type=self.effective_content_type,
+            entity_name=self.entity_name,
+        )
 
-    except Exception as e:
-        logger.error(f"Failed to download the image: {e}")
-        return fail("failed to download the image")
+    @property
+    def effective_content_type(self) -> str | None:
+        if (
+            self.attachment.type is None
+            or "octet-stream" in self.attachment.type
+        ):
+            return None
+        return self.attachment.type
 
+    async def guess_content_type(self) -> str | None:
+        if url := self.attachment.url:
+            type = await self.create_url_resource(url).guess_content_type()
+            if type:
+                return type
 
-async def download_attachment_image(
-    file_storage: Optional[FileStorage], attachment: dict
-) -> Resource | ImageFail:
-    name = await get_attachment_name(file_storage, attachment)
+        return self.attachment.type
 
-    def fail(message: str) -> ImageFail:
-        return ImageFail(name=name, message=message)
+    async def get_resource_name(self, storage: FileStorage | None) -> str:
+        if title := self.attachment.title:
+            return title
 
-    try:
-        type = _validate_image_type(guess_attachment_type(attachment), fail)
-
-        if "data" in attachment:
-            return Resource.from_base64(
-                type=type, data_base64=attachment["data"]
+        if self.attachment.data:
+            return f"data {self.entity_name}"
+        elif url := self.attachment.url:
+            return await self.create_url_resource(url).get_resource_name(
+                storage
             )
+        else:
+            raise ValidationError(f"Invalid {self.entity_name}")
 
-        if "url" in attachment:
-            return await download_image_url(
-                file_storage,
-                attachment["url"],
-                override_fail=fail,
-                override_type=type,
-            )
 
-        raise fail("invalid attachment")
+async def _download_url_as_base64(
+    file_storage: FileStorage | None, url: str
+) -> str:
+    if (resource := Resource.from_data_url(url)) is not None:
+        return resource.data_base64
 
-    except ImageFail as e:
-        return e
-
-    except Exception as e:
-        logger.error(f"Failed to download the attachment: {e}")
-        return fail("failed to download the attachment")
+    if file_storage:
+        return await file_storage.download_file_as_base64(url)
+    else:
+        return await download_file_as_base64(url)
