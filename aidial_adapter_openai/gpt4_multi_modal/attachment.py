@@ -1,3 +1,4 @@
+import base64
 import mimetypes
 from abc import ABC, abstractmethod
 from typing import List
@@ -6,10 +7,7 @@ from aidial_sdk.chat_completion import Attachment
 from pydantic import BaseModel, Field, root_validator, validator
 
 from aidial_adapter_openai.utils.resource import Resource
-from aidial_adapter_openai.utils.storage import (
-    FileStorage,
-    download_file_as_base64,
-)
+from aidial_adapter_openai.utils.storage import FileStorage, download_file
 from aidial_adapter_openai.utils.text import truncate_string
 
 
@@ -76,8 +74,8 @@ class URLResource(DialResource):
 
     async def download(self, storage: FileStorage | None) -> Resource:
         type = await self.get_content_type()
-        data = await _download_url_as_base64(storage, self.url)
-        return Resource.from_base64(type=type, data_base64=data)
+        data = await _download_url(storage, self.url)
+        return Resource(type=type, data=data)
 
     async def guess_content_type(self) -> str | None:
         return (
@@ -122,13 +120,13 @@ class AttachmentResource(DialResource):
         type = await self.get_content_type()
 
         if self.attachment.data:
-            data = self.attachment.data
+            data = base64.b64decode(self.attachment.data)
         elif self.attachment.url:
-            data = await _download_url_as_base64(storage, self.attachment.url)
+            data = await _download_url(storage, self.attachment.url)
         else:
             raise ValidationError(f"Invalid {self.entity_name}")
 
-        return Resource.from_base64(type=type, data_base64=data)
+        return Resource(type=type, data=data)
 
     def create_url_resource(self, url: str) -> URLResource:
         return URLResource(
@@ -168,13 +166,11 @@ class AttachmentResource(DialResource):
             raise ValidationError(f"Invalid {self.entity_name}")
 
 
-async def _download_url_as_base64(
-    file_storage: FileStorage | None, url: str
-) -> str:
+async def _download_url(file_storage: FileStorage | None, url: str) -> bytes:
     if (resource := Resource.from_data_url(url)) is not None:
-        return resource.data_base64
+        return resource.data
 
     if file_storage:
-        return await file_storage.download_file_as_base64(url)
+        return await file_storage.download_file(url)
     else:
-        return await download_file_as_base64(url)
+        return await download_file(url)

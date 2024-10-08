@@ -16,7 +16,7 @@ TOKENS_FOR_IMAGE = 20
 
 
 def attachment(resource: Resource) -> dict:
-    return {"type": "image/png", "data": resource.data_base64}
+    return {"type": resource.type, "data": resource.data_base64}
 
 
 def image_metadata(resource: Resource, w: int, h: int) -> ImageMetadata:

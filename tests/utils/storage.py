@@ -1,4 +1,3 @@
-import base64
 from urllib.parse import urlparse
 
 from typing_extensions import override
@@ -24,10 +23,10 @@ class MockFileStorage(FileStorage):
         }
 
     @override
-    async def download_file_as_base64(self, url: str) -> str:
+    async def download_file(self, url: str) -> bytes:
         parsed_url = urlparse(url)
         if "not_found" in url:
             raise ValidationError("File not found")
         if not (parsed_url.scheme and parsed_url.netloc):
             raise ValidationError("Not a valid URL")
-        return base64.b64encode("test-content".encode()).decode("ascii")
+        return b"test-content"

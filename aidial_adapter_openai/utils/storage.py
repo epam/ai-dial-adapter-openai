@@ -128,25 +128,18 @@ class FileStorage(BaseModel):
         decoded_link = unquote(link)
         return link if link == decoded_link else repr(decoded_link)
 
-    async def download_file_as_base64(self, url: str) -> str:
+    async def download_file(self, url: str) -> bytes:
         headers: Mapping[str, str] = {}
         if url.startswith(self.dial_url):
             headers = self.auth.headers
-        return await download_file_as_base64(url, headers)
+        return await download_file(url, headers)
 
 
-async def _download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
+async def download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             response.raise_for_status()
             return await response.read()
-
-
-async def download_file_as_base64(
-    url: str, headers: Mapping[str, str] = {}
-) -> str:
-    bytes = await _download_file(url, headers)
-    return base64.b64encode(bytes).decode("ascii")
 
 
 def _compute_hash_digest(file_content: str) -> str:
