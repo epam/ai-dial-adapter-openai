@@ -14,7 +14,7 @@ from typing import (
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
@@ -27,10 +27,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.sse_stream import (
-    parse_openai_sse_stream,
-    to_openai_sse_stream,
-)
+from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
     create_response_from_chunk,
     create_stage_chunk,
@@ -143,7 +140,7 @@ async def gpt4o_chat_completion(
     file_storage: Optional[FileStorage],
     api_version: str,
     tokenizer: MultiModalTokenizer,
-) -> Response:
+):
     return await chat_completion(
         request,
         deployment,
@@ -166,7 +163,7 @@ async def gpt4_vision_chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
-) -> Response:
+):
     return await chat_completion(
         request,
         deployment,
@@ -192,7 +189,7 @@ async def chat_completion(
     tokenizer: MultiModalTokenizer,
     response_transformer: Callable[[dict], dict | None],
     default_max_tokens: Optional[int],
-) -> Response:
+):
     if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
@@ -253,23 +250,18 @@ async def chat_completion(
             logger.debug(f"chunk: {chunk}")
             return chunk
 
-        return StreamingResponse(
-            to_openai_sse_stream(
-                map_stream(
-                    debug_print,
-                    generate_stream(
-                        get_prompt_tokens=lambda: estimated_prompt_tokens,
-                        tokenize=tokenizer.calculate_text_tokens,
-                        deployment=deployment,
-                        discarded_messages=discarded_messages,
-                        stream=map_stream(
-                            response_transformer,
-                            parse_openai_sse_stream(response),
-                        ),
-                    ),
-                )
+        return map_stream(
+            debug_print,
+            generate_stream(
+                get_prompt_tokens=lambda: estimated_prompt_tokens,
+                tokenize=tokenizer.calculate_text_tokens,
+                deployment=deployment,
+                discarded_messages=discarded_messages,
+                stream=map_stream(
+                    response_transformer,
+                    parse_openai_sse_stream(response),
+                ),
             ),
-            media_type="text/event-stream",
         )
     else:
         response = await predict_non_stream(api_url, headers, request)
@@ -305,4 +297,4 @@ async def chat_completion(
                 f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
             )
 
-        return JSONResponse(content=response)
+        return response

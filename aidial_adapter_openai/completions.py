@@ -1,7 +1,6 @@
 from typing import Any, Dict
 
 from aidial_sdk.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
 from openai import AsyncStream
 from openai.types import Completion
 
@@ -12,7 +11,6 @@ from aidial_adapter_openai.utils.parsers import (
     OpenAIEndpoint,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
-from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
     build_chunk,
     debug_print,
@@ -48,15 +46,15 @@ async def chat_completion(
     creds: OpenAICreds,
     api_version: str,
     deployment_id: str,
-) -> Any:
+):
 
-    if data.get("n", 1) > 1:  # type: ignore
+    if data.get("n") or 1 > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
     client = endpoint.get_client({**creds, "api_version": api_version})
 
-    messages = data.get("messages", [])
-    if len(messages) == 0:
+    messages = data.get("messages") or []
+    if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
     prompt = messages[-1].get("content") or ""
@@ -67,24 +65,18 @@ async def chat_completion(
         prompt = template.format(prompt=prompt)
 
     del data["messages"]
+
     response = await call_with_extra_body(
         client.completions.create,
         {"prompt": prompt, **data},
     )
 
     if isinstance(response, AsyncStream):
-        return StreamingResponse(
-            to_openai_sse_stream(
-                map_stream(
-                    lambda item: convert_to_chat_completions_response(
-                        item, is_stream=True
-                    ),
-                    response,
-                )
+        return map_stream(
+            lambda item: convert_to_chat_completions_response(
+                item, is_stream=True
             ),
-            media_type="text/event-stream",
+            response,
         )
     else:
-        return JSONResponse(
-            convert_to_chat_completions_response(response, is_stream=False)
-        )
+        return convert_to_chat_completions_response(response, is_stream=False)
