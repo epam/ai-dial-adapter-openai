@@ -16,6 +16,7 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
     convert_gpt4v_to_gpt4_chunk,
 )
@@ -30,7 +31,6 @@ from aidial_adapter_openai.utils.sse_stream import (
     parse_openai_sse_stream,
     to_openai_sse_stream,
 )
-from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import (
     create_response_from_chunk,
     create_stage_chunk,

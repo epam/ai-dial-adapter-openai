@@ -6,8 +6,8 @@ from typing import List
 from aidial_sdk.chat_completion import Attachment
 from pydantic import BaseModel, Field, root_validator, validator
 
+from aidial_adapter_openai.dial_api.storage import FileStorage, download_file
 from aidial_adapter_openai.utils.resource import Resource
-from aidial_adapter_openai.utils.storage import FileStorage, download_file
 from aidial_adapter_openai.utils.text import truncate_string
 
 

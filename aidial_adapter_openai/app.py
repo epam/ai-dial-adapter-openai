@@ -16,6 +16,7 @@ from aidial_adapter_openai.dalle3 import (
 from aidial_adapter_openai.databricks import (
     chat_completion as databricks_chat_completion,
 )
+from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.env import (
     API_VERSIONS_MAPPING,
     DALLE3_AZURE_API_VERSION,
@@ -43,7 +44,6 @@ from aidial_adapter_openai.utils.parsers import (
     parse_body,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
-from aidial_adapter_openai.utils.storage import create_file_storage
 from aidial_adapter_openai.utils.tokenizer import (
     MultiModalTokenizer,
     PlainTextTokenizer,

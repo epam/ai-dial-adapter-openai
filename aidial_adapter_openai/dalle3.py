@@ -5,9 +5,9 @@ from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
-from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
 
 IMG_USAGE = {

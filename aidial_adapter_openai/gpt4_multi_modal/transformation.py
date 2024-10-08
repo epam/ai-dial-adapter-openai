@@ -11,6 +11,7 @@ from aidial_adapter_openai.dial_api.resource import (
     URLResource,
     ValidationError,
 )
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import (
@@ -19,7 +20,6 @@ from aidial_adapter_openai.utils.multi_modal_message import (
     create_text_content_part,
 )
 from aidial_adapter_openai.utils.resource import Resource
-from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.text import decapitalize
 
 # Officially supported image types by GPT-4 Vision, GPT-4o
