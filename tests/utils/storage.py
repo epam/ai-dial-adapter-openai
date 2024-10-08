@@ -23,9 +23,9 @@ class MockFileStorage(FileStorage):
         }
 
     @override
-    async def download_file(self, url: str) -> bytes:
-        parsed_url = urlparse(url)
-        if "not_found" in url:
+    async def download_file(self, link: str) -> bytes:
+        parsed_url = urlparse(link)
+        if "not_found" in link:
             raise ValidationError("File not found")
         if not (parsed_url.scheme and parsed_url.netloc):
             raise ValidationError("Not a valid URL")

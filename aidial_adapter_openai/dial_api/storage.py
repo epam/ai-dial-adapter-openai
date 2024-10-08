@@ -112,6 +112,13 @@ class FileStorage(BaseModel):
         else:
             return url.removeprefix(f"{self.dial_url}/v1/")
 
+    async def download_file(self, link: str) -> bytes:
+        url = self.attachment_link_to_url(link)
+        headers: Mapping[str, str] = {}
+        if url.lower().startswith(self.dial_url.lower()):
+            headers = self.auth.headers
+        return await download_file(url, headers)
+
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
         link = self._url_to_attachment_link(url)
@@ -127,12 +134,6 @@ class FileStorage(BaseModel):
         link = link.removeprefix(f"{bucket}/")
         decoded_link = unquote(link)
         return link if link == decoded_link else repr(decoded_link)
-
-    async def download_file(self, url: str) -> bytes:
-        headers: Mapping[str, str] = {}
-        if url.startswith(self.dial_url):
-            headers = self.auth.headers
-        return await download_file(url, headers)
 
 
 async def download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
