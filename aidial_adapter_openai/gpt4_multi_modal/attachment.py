@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from aidial_sdk.chat_completion import Attachment
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, root_validator, validator
 
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.storage import (
@@ -34,7 +34,7 @@ class UnsupportedContentType(ValidationError):
 
 class DialResource(ABC, BaseModel):
     entity_name: str = Field(default=None)
-    supported_content_types: List[str] | None = Field(default=None)
+    supported_types: List[str] | None = Field(default=None)
 
     @abstractmethod
     async def download(self, storage: FileStorage | None) -> Resource: ...
@@ -54,12 +54,12 @@ class DialResource(ABC, BaseModel):
             )
 
         if (
-            self.supported_content_types is not None
-            and type not in self.supported_content_types
+            self.supported_types is not None
+            and type not in self.supported_types
         ):
             raise UnsupportedContentType(
                 f"The {self.entity_name} is not one of the supported types",
-                self.supported_content_types,
+                self.supported_types,
             )
 
         return type
@@ -103,23 +103,20 @@ class URLResource(DialResource):
 class AttachmentResource(DialResource):
     attachment: Attachment
 
-    @root_validator
+    @validator("attachment", pre=True)
+    def parse_attachment(cls, value):
+        if isinstance(value, dict):
+            attachment = Attachment.parse_obj(value)
+            # Working around the issue of defaulting missing type to a markdown:
+            if "type" not in value:
+                attachment.type = None
+            return attachment
+        return value
+
+    @root_validator(pre=True)
     def validator(cls, values):
         values["entity_name"] = values.get("entity_name") or "attachment"
         return values
-
-    @classmethod
-    def from_dict(cls, attachment: dict, entity_name: str | None = None):
-        attachment_obj = Attachment.parse_obj(attachment)
-
-        # Working around the issue of defaulting missing type to a markdown:
-        if "type" not in attachment:
-            attachment_obj.type = None
-
-        return cls(
-            attachment=attachment_obj,
-            entity_name=entity_name,  # type: ignore
-        )
 
     async def download(self, storage: FileStorage | None) -> Resource:
         type = await self.get_content_type()

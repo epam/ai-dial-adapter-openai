@@ -54,12 +54,6 @@ class ResourceProcessor(BaseModel):
     ) -> Resource | ProcessingError:
         try:
             resource = await dial_resource.download(self.file_storage)
-
-            if resource.type not in SUPPORTED_IMAGE_TYPES:
-                raise ValidationError(
-                    f"The {dial_resource.entity_name} is not one of the supported types"
-                )
-
         except Exception as e:
             logger.error(
                 f"Failed to download {dial_resource.entity_name}: {str(e)}"
@@ -84,8 +78,10 @@ class ResourceProcessor(BaseModel):
         ret: List[ImageMetadata] = []
 
         for attachment in attachments:
-            dial_resource = AttachmentResource.from_dict(
-                attachment=attachment, entity_name="image attachment"
+            dial_resource = AttachmentResource(
+                attachment=attachment,  # type: ignore
+                entity_name="image attachment",
+                supported_types=SUPPORTED_IMAGE_TYPES,
             )
             result = await self.try_download_resource(dial_resource)
             self.collect_resource(ret, result)
@@ -102,7 +98,11 @@ class ResourceProcessor(BaseModel):
 
         for content_part in content:
             if image_url := content_part.get("image_url", {}).get("url"):
-                dial_resource = URLResource(url=image_url, entity_name="image")
+                dial_resource = URLResource(
+                    url=image_url,
+                    entity_name="image",
+                    supported_types=SUPPORTED_IMAGE_TYPES,
+                )
                 result = await self.try_download_resource(dial_resource)
                 self.collect_resource(ret, result)
 

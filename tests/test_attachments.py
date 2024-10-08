@@ -134,7 +134,11 @@ async def test_get_attachment_name(attachment, expected_name):
     ],
 )
 async def test_download_image_url(url, expected_result):
-    resource = URLResource(url=url, entity_name="image")
+    resource = URLResource(
+        url=url,
+        entity_name="image",
+        supported_types=["image/png"],
+    )
     processor = ResourceProcessor(file_storage=MockFileStorage())
     assert await processor.try_download_resource(resource) == expected_result
 
@@ -204,8 +208,10 @@ async def test_download_image_url(url, expected_result):
     ],
 )
 async def test_download_attachment_image(attachment: dict, expected_result):
-    resource = AttachmentResource.from_dict(
-        attachment=attachment, entity_name="image"
+    resource = AttachmentResource(
+        attachment=attachment,  # type: ignore
+        entity_name="image",
+        supported_types=["image/png"],
     )
     processor = ResourceProcessor(file_storage=MockFileStorage())
     assert await processor.try_download_resource(resource) == expected_result
