@@ -5,8 +5,8 @@ from aidial_adapter_openai.dial_api.resource import (
     URLResource,
 )
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    ProcessingError,
     ResourceProcessor,
+    TransformationError,
 )
 from aidial_adapter_openai.utils.resource import Resource
 from tests.utils.images import data_url, pic_1_1
@@ -108,7 +108,7 @@ async def test_get_attachment_name(attachment, expected_name):
         (data_url(pic_1_1), Resource.from_data_url(data_url(pic_1_1))),
         (
             "data:image/png;base65," + 1000 * "0",
-            ProcessingError(
+            TransformationError(
                 name="data:image/png;base65,0000000000000000000000000000...",
                 message="Not a valid URL",
             ),
@@ -119,14 +119,14 @@ async def test_get_attachment_name(attachment, expected_name):
         ),
         (
             "http://example.com/doc.pdf",
-            ProcessingError(
+            TransformationError(
                 name="http://example.com/doc.pdf",
                 message="The image is not one of the supported types",
             ),
         ),
         (
             "http://example.com/file.exotic_ext",
-            ProcessingError(
+            TransformationError(
                 name="http://example.com/file.exotic_ext",
                 message="Can't derive content type of the image",
             ),
@@ -150,14 +150,14 @@ async def test_download_image_url(url, expected_result):
         ({"url": data_url(pic_1_1)}, Resource.from_data_url(data_url(pic_1_1))),
         (
             {"title": "attachment title"},
-            ProcessingError(
+            TransformationError(
                 name="attachment title",
                 message="Can't derive content type of the image",
             ),
         ),
         (
             {"type": "image/bmp", "url": data_url(pic_1_1)},
-            ProcessingError(
+            TransformationError(
                 name="data URL (image/bmp)",
                 message="The image is not one of the supported types",
             ),
@@ -168,14 +168,14 @@ async def test_download_image_url(url, expected_result):
         ),
         (
             {"type": "image/bmp", "data": pic_1_1.data_base64},
-            ProcessingError(
+            TransformationError(
                 name="data image",
                 message="The image is not one of the supported types",
             ),
         ),
         (
             {"url": "data:image/png;base65,abcd"},
-            ProcessingError(
+            TransformationError(
                 name="data:image/png;base65,abcd",
                 message="Not a valid URL",
             ),
@@ -186,21 +186,21 @@ async def test_download_image_url(url, expected_result):
         ),
         (
             {"url": "http://example.com/doc.pdf"},
-            ProcessingError(
+            TransformationError(
                 name="http://example.com/doc.pdf",
                 message="The image is not one of the supported types",
             ),
         ),
         (
             {"title": "PDF Document", "url": "http://example.com/doc.pdf"},
-            ProcessingError(
+            TransformationError(
                 name="PDF Document",
                 message="The image is not one of the supported types",
             ),
         ),
         (
             {"url": "http://example.com/file.exotic_ext"},
-            ProcessingError(
+            TransformationError(
                 name="http://example.com/file.exotic_ext",
                 message="Can't derive content type of the image",
             ),

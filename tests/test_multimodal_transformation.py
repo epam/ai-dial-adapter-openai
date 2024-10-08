@@ -2,8 +2,8 @@ import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    ProcessingError,
     ResourceProcessor,
+    TransformationError,
 )
 from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
@@ -141,7 +141,7 @@ async def test_transform_message_with_error(mock_resource_processor):
     assert mock_resource_processor.errors
     assert len(mock_resource_processor.errors) == 1
     image_fail = list(mock_resource_processor.errors)[0]
-    assert isinstance(image_fail, ProcessingError)
+    assert isinstance(image_fail, TransformationError)
     assert image_fail.name == "not_found.jpg"
     assert image_fail.message == "File not found"
 

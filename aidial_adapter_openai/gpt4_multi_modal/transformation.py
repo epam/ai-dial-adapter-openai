@@ -28,30 +28,29 @@ SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
 
 
 @dataclass(order=True, frozen=True)
-class ProcessingError:
+class TransformationError:
     name: str
     message: str
 
 
 class ResourceProcessor(BaseModel):
     class Config:
-        # For ProcessingError
-        arbitrary_types_allowed = True
+        arbitrary_types_allowed = True  # for errors
 
     file_storage: FileStorage | None
-    errors: Set[ProcessingError] = Field(default_factory=set)
+    errors: Set[TransformationError] = Field(default_factory=set)
 
     def collect_resource(
-        self, meta: List[ImageMetadata], result: Resource | ProcessingError
+        self, meta: List[ImageMetadata], result: Resource | TransformationError
     ):
-        if isinstance(result, ProcessingError):
+        if isinstance(result, TransformationError):
             self.errors.add(result)
         else:
             meta.append(ImageMetadata.from_resource(result))
 
     async def try_download_resource(
         self, dial_resource: DialResource
-    ) -> Resource | ProcessingError:
+    ) -> Resource | TransformationError:
         try:
             resource = await dial_resource.download(self.file_storage)
         except Exception as e:
@@ -65,7 +64,7 @@ class ResourceProcessor(BaseModel):
                 if isinstance(e, ValidationError)
                 else f"Failed to download the {dial_resource.entity_name}"
             )
-            return ProcessingError(name=name, message=message)
+            return TransformationError(name=name, message=message)
 
         return resource
 
