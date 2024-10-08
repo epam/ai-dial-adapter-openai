@@ -5,7 +5,7 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel, Field
 
-from aidial_adapter_openai.gpt4_multi_modal.attachment import (
+from aidial_adapter_openai.dial_api.resource import (
     AttachmentResource,
     DialResource,
     URLResource,

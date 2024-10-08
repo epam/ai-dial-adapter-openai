@@ -2,7 +2,7 @@ from urllib.parse import urlparse
 
 from typing_extensions import override
 
-from aidial_adapter_openai.gpt4_multi_modal.attachment import ValidationError
+from aidial_adapter_openai.dial_api.resource import ValidationError
 from aidial_adapter_openai.utils.auth import Auth
 from aidial_adapter_openai.utils.storage import Bucket, FileStorage
 

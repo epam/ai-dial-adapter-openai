@@ -1,6 +1,6 @@
 import pytest
 
-from aidial_adapter_openai.gpt4_multi_modal.attachment import (
+from aidial_adapter_openai.dial_api.resource import (
     AttachmentResource,
     URLResource,
 )
