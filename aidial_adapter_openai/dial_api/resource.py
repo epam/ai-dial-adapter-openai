@@ -19,11 +19,11 @@ class ValidationError(Exception):
         super().__init__(message)
 
 
-class MissingContentType(ValidationError):
+class MissingContentTypeError(ValidationError):
     pass
 
 
-class UnsupportedContentType(ValidationError):
+class UnsupportedContentTypeError(ValidationError):
     type: str
     supported_types: List[str]
 
@@ -50,7 +50,7 @@ class DialResource(ABC, BaseModel):
         type = await self.guess_content_type()
 
         if not type:
-            raise MissingContentType(
+            raise MissingContentTypeError(
                 f"Can't derive content type of the {self.entity_name}"
             )
 
@@ -58,7 +58,7 @@ class DialResource(ABC, BaseModel):
             self.supported_types is not None
             and type not in self.supported_types
         ):
-            raise UnsupportedContentType(
+            raise UnsupportedContentTypeError(
                 message=f"The {self.entity_name} is not one of the supported types",
                 type=type,
                 supported_types=self.supported_types,
