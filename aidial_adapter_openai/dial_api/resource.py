@@ -107,7 +107,9 @@ def parse_attachment(attachment_dict: dict) -> Attachment:
     The helper parses a dictionary to an attachment object.
 
     Unfortunately, DIAL SDK defaults a missing content type to
-    `text/markdown`. This helper works around this issue.
+    `text/markdown`: https://github.com/epam/ai-dial-sdk/blob/2835107e950c89645a2b619fecba2518fa2d7bb1/aidial_sdk/chat_completion/request.py#L22
+
+    This helper works around this issue.
     """
     attachment = Attachment.parse_obj(attachment_dict)
     if "type" not in attachment_dict:
