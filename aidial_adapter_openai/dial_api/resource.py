@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from aidial_sdk.chat_completion import Attachment
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field, root_validator
 
 from aidial_adapter_openai.dial_api.storage import FileStorage, download_file
 from aidial_adapter_openai.utils.resource import Resource
@@ -102,18 +102,21 @@ class URLResource(DialResource):
         return truncate_string(name, n=50)
 
 
+def parse_attachment(attachment_dict: dict) -> Attachment:
+    """
+    The helper parses a dictionary to an attachment object.
+
+    Unfortunately, DIAL SDK defaults a missing content type to
+    `text/markdown`. This helper works around this issue.
+    """
+    attachment = Attachment.parse_obj(attachment_dict)
+    if "type" not in attachment_dict:
+        attachment.type = None
+    return attachment
+
+
 class AttachmentResource(DialResource):
     attachment: Attachment
-
-    @validator("attachment", pre=True)
-    def parse_attachment(cls, value):
-        if isinstance(value, dict):
-            attachment = Attachment.parse_obj(value)
-            # Working around the issue of defaulting missing type to a markdown:
-            if "type" not in value:
-                attachment.type = None
-            return attachment
-        return value
 
     @root_validator(pre=True)
     def validator(cls, values):

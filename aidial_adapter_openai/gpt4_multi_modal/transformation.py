@@ -10,6 +10,7 @@ from aidial_adapter_openai.dial_api.resource import (
     DialResource,
     URLResource,
     ValidationError,
+    parse_attachment,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.image import ImageMetadata
@@ -78,7 +79,7 @@ class ResourceProcessor(BaseModel):
 
         for attachment in attachments:
             dial_resource = AttachmentResource(
-                attachment=attachment,  # type: ignore
+                attachment=parse_attachment(attachment),
                 entity_name="image attachment",
                 supported_types=SUPPORTED_IMAGE_TYPES,
             )

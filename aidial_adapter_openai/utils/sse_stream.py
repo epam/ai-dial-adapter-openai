@@ -22,7 +22,7 @@ async def parse_openai_sse_stream(
 ) -> AsyncIterator[dict]:
     async for line in stream:
         try:
-            payload = line.decode("utf-8-sig").lstrip()  # type: ignore
+            payload = line.decode("utf-8-sig").lstrip()
         except Exception:
             yield runtime_server_error(
                 "Can't decode chunk to a string"

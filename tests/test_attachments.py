@@ -3,6 +3,7 @@ import pytest
 from aidial_adapter_openai.dial_api.resource import (
     AttachmentResource,
     URLResource,
+    parse_attachment,
 )
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     ResourceProcessor,
@@ -209,7 +210,7 @@ async def test_download_image_url(url, expected_result):
 )
 async def test_download_attachment_image(attachment: dict, expected_result):
     resource = AttachmentResource(
-        attachment=attachment,  # type: ignore
+        attachment=parse_attachment(attachment),
         entity_name="image",
         supported_types=["image/png"],
     )
