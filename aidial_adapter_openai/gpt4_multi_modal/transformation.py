@@ -143,7 +143,7 @@ class ResourceProcessor(BaseModel):
         ]
 
         if self.errors:
-            image_fails = sorted(list(self.errors))  # type: ignore
+            image_fails = sorted(list(self.errors))
             msg = "The following files failed to process:\n"
             msg += "\n".join(
                 f"{idx}. {error.name}: {decapitalize(error.message)}"
