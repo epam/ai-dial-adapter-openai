@@ -18,7 +18,7 @@ clean = "scripts.clean:main"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-fastapi = "0.109.2"
+fastapi = "0.115.2"
 openai = "1.33.0"
 tiktoken = "0.7.0"
 uvicorn = "0.23"
