@@ -7,12 +7,13 @@ from typing import Mapping, Optional, TypedDict
 from urllib.parse import unquote, urljoin
 
 import aiohttp
+from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.auth import Auth
 from aidial_adapter_openai.utils.env import get_env, get_env_bool
 from aidial_adapter_openai.utils.log_config import logger as log
 
-core_api_version = os.environ.get("CORE_API_VERSION", None)
+CORE_API_VERSION = os.getenv("CORE_API_VERSION")
 
 
 class FileMetadata(TypedDict):
@@ -27,18 +28,12 @@ class Bucket(TypedDict):
     appdata: str | None
 
 
-class FileStorage:
+class FileStorage(BaseModel):
     dial_url: str
     upload_dir: str
     auth: Auth
 
-    bucket: Optional[Bucket]
-
-    def __init__(self, dial_url: str, upload_dir: str, auth: Auth):
-        self.dial_url = dial_url
-        self.upload_dir = upload_dir
-        self.auth = auth
-        self.bucket = None
+    bucket: Optional[Bucket] = None
 
     async def _get_bucket(self, session: aiohttp.ClientSession) -> Bucket:
         if self.bucket is None:
@@ -104,7 +99,7 @@ class FileStorage:
         return await self.upload(filename, content_type, content)
 
     def attachment_link_to_url(self, link: str) -> str:
-        if core_api_version == "0.6":
+        if CORE_API_VERSION == "0.6":
             base_url = f"{self.dial_url}/v1/files/"
         else:
             base_url = f"{self.dial_url}/v1/"
@@ -112,14 +107,23 @@ class FileStorage:
         return urljoin(base_url, link)
 
     def _url_to_attachment_link(self, url: str) -> str:
-        if core_api_version == "0.6":
+        if CORE_API_VERSION == "0.6":
             return url.removeprefix(f"{self.dial_url}/v1/files/")
         else:
             return url.removeprefix(f"{self.dial_url}/v1/")
 
+    async def download_file(self, link: str) -> bytes:
+        url = self.attachment_link_to_url(link)
+        headers: Mapping[str, str] = {}
+        if url.lower().startswith(self.dial_url.lower()):
+            headers = self.auth.headers
+        return await download_file(url, headers)
+
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
         link = self._url_to_attachment_link(url)
+
+        link = link.removeprefix("files/")
 
         if link.startswith("public/"):
             bucket = "public"
@@ -131,26 +135,12 @@ class FileStorage:
         decoded_link = unquote(link)
         return link if link == decoded_link else repr(decoded_link)
 
-    async def download_file_as_base64(self, url: str) -> str:
-        headers: Mapping[str, str] = {}
-        if url.startswith(self.dial_url):
-            headers = self.auth.headers
 
-        return await download_file_as_base64(url, headers)
-
-
-async def _download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
+async def download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             response.raise_for_status()
             return await response.read()
-
-
-async def download_file_as_base64(
-    url: str, headers: Mapping[str, str] = {}
-) -> str:
-    bytes = await _download_file(url, headers)
-    return base64.b64encode(bytes).decode("ascii")
 
 
 def _compute_hash_digest(file_content: str) -> str:

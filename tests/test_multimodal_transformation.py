@@ -1,45 +1,42 @@
-from unittest.mock import AsyncMock, patch
-
 import pytest
+from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.gpt4_multi_modal.attachment import ImageFail
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+    ResourceProcessor,
     TransformationError,
-    transform_message,
-    transform_messages,
 )
-from aidial_adapter_openai.utils.image import ImageDataURL, ImageMetadata
+from aidial_adapter_openai.utils.image import ImageMetadata
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.resource import Resource
+from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
+from tests.utils.storage import MockFileStorage
 
 TOKENS_FOR_TEXT = 10
 TOKENS_FOR_IMAGE = 20
 
 
-@pytest.fixture
-def mock_file_storage():
-    return AsyncMock()
+def attachment(resource: Resource) -> dict:
+    return {"type": resource.type, "data": resource.data_base64}
+
+
+def image_metadata(resource: Resource, w: int, h: int) -> ImageMetadata:
+    return ImageMetadata(width=w, height=h, detail="low", image=resource)
+
+
+def image_url(resource: Resource) -> dict:
+    return {
+        "type": "image_url",
+        "image_url": {"url": data_url(resource), "detail": "low"},
+    }
+
+
+def text(text: str) -> dict:
+    return {"type": "text", "text": text}
 
 
 @pytest.fixture
-def mock_download_image():
-    with patch(
-        "aidial_adapter_openai.gpt4_multi_modal.transformation.download_image"
-    ) as mock:
-        yield mock
-
-
-@pytest.fixture
-def mock_image_metadata():
-    with patch(
-        "aidial_adapter_openai.gpt4_multi_modal.transformation.ImageMetadata.from_image_data_url"
-    ) as mock:
-        mock.return_value = ImageMetadata(
-            width=100,
-            height=100,
-            detail="high",
-            image=ImageDataURL(type="image/jpeg", data="..."),
-        )
-        yield mock
+def mock_resource_processor():
+    return ResourceProcessor(file_storage=MockFileStorage())
 
 
 @pytest.mark.parametrize(
@@ -62,18 +59,12 @@ def mock_image_metadata():
             {
                 "role": "user",
                 "content": "",
-                "custom_content": {"attachments": ["image1.jpg"]},
+                "custom_content": {"attachments": [attachment(pic_1_1)]},
             },
             TOKENS_FOR_TEXT + TOKENS_FOR_IMAGE,
             [
-                {"type": "text", "text": ""},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": "data:image/jpeg;base64,...",
-                        "detail": "high",
-                    },
-                },
+                text(""),
+                image_url(pic_1_1),
             ],
         ),
         # Message with multiple images
@@ -81,67 +72,77 @@ def mock_image_metadata():
             {
                 "role": "user",
                 "content": "test with multiple images",
-                "custom_content": {"attachments": ["image1.jpg", "image2.jpg"]},
+                "custom_content": {
+                    "attachments": [
+                        attachment(pic_1_1),
+                        attachment(pic_2_2),
+                    ]
+                },
             },
             TOKENS_FOR_TEXT + 2 * TOKENS_FOR_IMAGE,
             [
-                {"type": "text", "text": "test with multiple images"},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": "data:image/jpeg;base64,...",
-                        "detail": "high",
-                    },
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": "data:image/jpeg;base64,...",
-                        "detail": "high",
-                    },
-                },
+                text("test with multiple images"),
+                image_url(pic_1_1),
+                image_url(pic_2_2),
             ],
         ),
     ],
 )
 @pytest.mark.asyncio
 async def test_transform_message(
-    mock_file_storage,
-    mock_download_image,
-    mock_image_metadata,
+    mock_resource_processor,
     message,
     expected_tokens,
     expected_content,
 ):
-    mock_download_image.return_value = ImageDataURL(
-        type="image/jpeg", data="..."
-    )
-
-    result = await transform_message(mock_file_storage, message)
+    result = await mock_resource_processor.transform_message(message)
 
     assert isinstance(result, MultiModalMessage)
+    assert result.raw_message.get("custom_content") is None
     assert result.raw_message["content"] == expected_content
 
 
 @pytest.mark.asyncio
-async def test_transform_message_with_error(
-    mock_file_storage, mock_download_image
-):
+async def test_transform_messages_with_error(mock_resource_processor):
+    messages = [
+        {
+            "role": "user",
+            "content": "",
+            "custom_content": {
+                "attachments": [
+                    {"url": "not_found1.jpg"},
+                    {"url": "not_found2.jpg"},
+                ]
+            },
+        }
+    ]
+
+    result = await mock_resource_processor.transform_messages(messages)
+
+    assert isinstance(result, DialException)
+    assert (
+        result.message
+        == """
+The following files failed to process:
+1. not_found1.jpg: file not found
+2. not_found2.jpg: file not found
+""".strip()
+    )
+
+
+@pytest.mark.asyncio
+async def test_transform_message_with_error(mock_resource_processor):
     message = {
         "role": "user",
         "content": "",
-        "custom_content": {"attachments": ["error.jpg"]},
+        "custom_content": {"attachments": [{"url": "not_found.jpg"}]},
     }
-    mock_download_image.return_value = ImageFail(
-        name="error.jpg", message="File not found"
-    )
-    result = await transform_message(mock_file_storage, message)
-    assert isinstance(result, TransformationError)
-    assert result.image_fails
-    assert len(result.image_fails) == 1
-    image_fail = result.image_fails[0]
-    assert isinstance(image_fail, ImageFail)
-    assert image_fail.name == "error.jpg"
+    await mock_resource_processor.transform_message(message)
+    assert mock_resource_processor.errors
+    assert len(mock_resource_processor.errors) == 1
+    image_fail = list(mock_resource_processor.errors)[0]
+    assert isinstance(image_fail, TransformationError)
+    assert image_fail.name == "not_found.jpg"
     assert image_fail.message == "File not found"
 
 
@@ -163,7 +164,7 @@ async def test_transform_message_with_error(
                 {
                     "role": "user",
                     "content": "",
-                    "custom_content": {"attachments": ["image1.jpg"]},
+                    "custom_content": {"attachments": [attachment(pic_1_1)]},
                 },
             ],
             [
@@ -172,43 +173,116 @@ async def test_transform_message_with_error(
                     raw_message={"role": "system", "content": "Hello"},
                 ),
                 MultiModalMessage(
+                    image_metadatas=[image_metadata(pic_1_1, 1, 1)],
+                    raw_message={
+                        "role": "user",
+                        "content": [text(""), image_url(pic_1_1)],
+                    },
+                ),
+            ],
+        ),
+        # No images, extra message field
+        (
+            [
+                {"role": "system", "content": "Hello"},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "User",
+                            "extra_field": "extra_value",
+                        }
+                    ],
+                },
+            ],
+            [
+                MultiModalMessage(
+                    image_metadatas=[],
+                    raw_message={"role": "system", "content": "Hello"},
+                ),
+                MultiModalMessage(
+                    image_metadatas=[],
+                    raw_message={
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "User",
+                                "extra_field": "extra_value",
+                            }
+                        ],
+                    },
+                ),
+            ],
+        ),
+        # Content image
+        (
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        text("User"),
+                        image_url(pic_1_1),
+                    ],
+                },
+            ],
+            [
+                MultiModalMessage(
+                    image_metadatas=[image_metadata(pic_1_1, 1, 1)],
+                    raw_message={
+                        "role": "user",
+                        "content": [
+                            text("User"),
+                            image_url(pic_1_1),
+                        ],
+                    },
+                )
+            ],
+        ),
+        # Content image + attachment images
+        (
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        image_url(pic_1_1),
+                        text("User"),
+                    ],
+                    "custom_content": {
+                        "attachments": [
+                            attachment(pic_2_2),
+                            attachment(pic_3_3),
+                        ]
+                    },
+                },
+            ],
+            [
+                MultiModalMessage(
                     image_metadatas=[
-                        ImageMetadata(
-                            width=100,
-                            height=100,
-                            detail="high",
-                            image=ImageDataURL(type="image/jpeg", data="..."),
-                        )
+                        image_metadata(pic_1_1, 1, 1),
+                        image_metadata(pic_2_2, 2, 2),
+                        image_metadata(pic_3_3, 3, 3),
                     ],
                     raw_message={
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": ""},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": "data:image/jpeg;base64,...",
-                                    "detail": "high",
-                                },
-                            },
+                            image_url(pic_1_1),
+                            text("User"),
+                            image_url(pic_2_2),
+                            image_url(pic_3_3),
                         ],
                     },
-                ),
+                )
             ],
         ),
     ],
 )
 @pytest.mark.asyncio
 async def test_transform_messages(
-    mock_image_metadata,
-    mock_file_storage,
-    mock_download_image,
+    mock_resource_processor,
     messages,
     expected_transformations,
 ):
-    mock_download_image.return_value = ImageDataURL(
-        type="image/jpeg", data="..."
-    )
-    result = await transform_messages(mock_file_storage, messages)
-
+    result = await mock_resource_processor.transform_messages(messages)
     assert result == expected_transformations

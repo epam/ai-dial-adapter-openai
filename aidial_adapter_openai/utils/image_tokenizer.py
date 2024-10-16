@@ -10,21 +10,18 @@ from typing import assert_never
 
 from PIL import Image
 
-from aidial_adapter_openai.utils.image import (
-    ImageDataURL,
-    ImageDetail,
-    resolve_detail_level,
-)
+from aidial_adapter_openai.utils.image import ImageDetail, resolve_detail_level
+from aidial_adapter_openai.utils.resource import Resource
 
 
 def tokenize_image_data_url(image_data: str, detail: ImageDetail) -> int:
-    parsed_image_data = ImageDataURL.from_data_url(image_data)
+    parsed_image_data = Resource.from_data_url(image_data)
     if not parsed_image_data:
         raise ValueError(f"Invalid image data URL {parsed_image_data!r}")
     return tokenize_image(parsed_image_data, detail)
 
 
-def tokenize_image(image: ImageDataURL, detail: ImageDetail) -> int:
+def tokenize_image(image: Resource, detail: ImageDetail) -> int:
     image_data = base64.b64decode(image.data)
     with Image.open(BytesIO(image_data)) as img:
         width, height = img.size
