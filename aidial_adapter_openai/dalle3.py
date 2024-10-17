@@ -3,11 +3,10 @@ from typing import Any, AsyncIterator, Optional
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse
 
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
-from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
-from aidial_adapter_openai.utils.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
 
 IMG_USAGE = {
@@ -111,7 +110,7 @@ async def chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
-) -> Response:
+):
     if data.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
@@ -133,19 +132,14 @@ async def chat_completion(
     if file_storage is not None:
         await move_attachments_data_to_storage(custom_content, file_storage)
 
-    if not is_stream:
-        return JSONResponse(
-            content=build_chunk(
-                id,
-                "stop",
-                {"role": "assistant", "content": "", **custom_content},
-                created,
-                False,
-                usage=IMG_USAGE,
-            )
-        )
+    if is_stream:
+        return generate_stream(id, created, custom_content)
     else:
-        return StreamingResponse(
-            to_openai_sse_stream(generate_stream(id, created, custom_content)),
-            media_type="text/event-stream",
+        return build_chunk(
+            id,
+            "stop",
+            {"role": "assistant", "content": "", **custom_content},
+            created,
+            False,
+            usage=IMG_USAGE,
         )

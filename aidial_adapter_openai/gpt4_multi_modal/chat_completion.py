@@ -6,29 +6,28 @@ from typing import (
     Dict,
     List,
     Optional,
+    Tuple,
     TypeVar,
     cast,
 )
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from aidial_sdk.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, Response
 
-from aidial_adapter_openai.gpt4_multi_modal.download import (
-    SUPPORTED_FILE_EXTS,
-    transform_messages,
-)
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
     convert_gpt4v_to_gpt4_chunk,
 )
+from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+    SUPPORTED_FILE_EXTS,
+    ResourceProcessor,
+)
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import (
-    parse_openai_sse_stream,
-    to_openai_sse_stream,
-)
-from aidial_adapter_openai.utils.storage import FileStorage
+from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
     create_response_from_chunk,
     create_stage_chunk,
@@ -36,7 +35,12 @@ from aidial_adapter_openai.utils.streaming import (
     map_stream,
     prepend_to_stream,
 )
-from aidial_adapter_openai.utils.tokens import Tokenizer
+from aidial_adapter_openai.utils.tokenizer import MultiModalTokenizer
+from aidial_adapter_openai.utils.truncate_prompt import (
+    DiscardedMessages,
+    TruncatedTokens,
+    truncate_prompt,
+)
 
 # The built-in default max_tokens is 16 tokens,
 # which is too small for most image-to-text use cases.
@@ -111,6 +115,22 @@ async def predict_non_stream(
             return await response.json()
 
 
+def multi_modal_truncate_prompt(
+    messages: List[MultiModalMessage],
+    max_prompt_tokens: int,
+    initial_prompt_tokens: int,
+    tokenizer: MultiModalTokenizer,
+) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
+    return truncate_prompt(
+        messages=messages,
+        message_tokens=tokenizer.calculate_message_tokens,
+        is_system_message=lambda message: message.raw_message["role"]
+        == "system",
+        max_prompt_tokens=max_prompt_tokens,
+        initial_prompt_tokens=initial_prompt_tokens,
+    )
+
+
 async def gpt4o_chat_completion(
     request: Any,
     deployment: str,
@@ -119,8 +139,8 @@ async def gpt4o_chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
-    tokenizer: Tokenizer,
-) -> Response:
+    tokenizer: MultiModalTokenizer,
+):
     return await chat_completion(
         request,
         deployment,
@@ -143,7 +163,7 @@ async def gpt4_vision_chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
-) -> Response:
+):
     return await chat_completion(
         request,
         deployment,
@@ -152,7 +172,7 @@ async def gpt4_vision_chat_completion(
         is_stream,
         file_storage,
         api_version,
-        Tokenizer("gpt-4"),
+        MultiModalTokenizer("gpt-4"),
         convert_gpt4v_to_gpt4_chunk,
         GPT4V_DEFAULT_MAX_TOKENS,
     )
@@ -166,11 +186,10 @@ async def chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
-    tokenizer: Tokenizer,
+    tokenizer: MultiModalTokenizer,
     response_transformer: Callable[[dict], dict | None],
-    default_max_tokens: int | None,
-) -> Response:
-
+    default_max_tokens: Optional[int],
+):
     if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
@@ -180,26 +199,42 @@ async def chat_completion(
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
 
-    result = await transform_messages(file_storage, messages)
+    transform_result = await ResourceProcessor(
+        file_storage=file_storage
+    ).transform_messages(messages)
 
-    if isinstance(result, str):
-        logger.error(f"Failed to prepare request: {result}")
-
+    if isinstance(transform_result, DialException):
+        logger.error(f"Failed to prepare request: {transform_result.message}")
         chunk = create_stage_chunk("Usage", USAGE, is_stream)
+        return create_response_from_chunk(chunk, transform_result, is_stream)
 
-        exc = InvalidRequestError(message=result, display_message=result)
-
-        return create_response_from_chunk(chunk, exc, is_stream)
-
-    new_messages, prompt_image_tokens = result
-
-    prompt_text_tokens = tokenizer.calculate_prompt_tokens(messages)
-    estimated_prompt_tokens = prompt_text_tokens + prompt_image_tokens
+    multi_modal_messages = transform_result
+    discarded_messages = None
+    max_prompt_tokens = request.pop("max_prompt_tokens", None)
+    if max_prompt_tokens is not None:
+        multi_modal_messages, discarded_messages, estimated_prompt_tokens = (
+            multi_modal_truncate_prompt(
+                messages=multi_modal_messages,
+                max_prompt_tokens=max_prompt_tokens,
+                initial_prompt_tokens=tokenizer.TOKENS_PER_REQUEST,
+                tokenizer=tokenizer,
+            )
+        )
+        logger.debug(
+            f"prompt tokens after truncation: {estimated_prompt_tokens}"
+        )
+    else:
+        estimated_prompt_tokens = tokenizer.calculate_prompt_tokens(
+            multi_modal_messages
+        )
+        logger.debug(
+            f"prompt tokens without truncation: {estimated_prompt_tokens}"
+        )
 
     request = {
         **request,
         "max_tokens": request.get("max_tokens") or default_max_tokens,
-        "messages": new_messages,
+        "messages": [m.raw_message for m in multi_modal_messages],
     }
 
     headers = get_auth_headers(creds)
@@ -215,23 +250,18 @@ async def chat_completion(
             logger.debug(f"chunk: {chunk}")
             return chunk
 
-        return StreamingResponse(
-            to_openai_sse_stream(
-                map_stream(
-                    debug_print,
-                    generate_stream(
-                        get_prompt_tokens=lambda: estimated_prompt_tokens,
-                        tokenize=tokenizer.calculate_tokens,
-                        deployment=deployment,
-                        discarded_messages=None,
-                        stream=map_stream(
-                            response_transformer,
-                            parse_openai_sse_stream(response),
-                        ),
-                    ),
-                )
+        return map_stream(
+            debug_print,
+            generate_stream(
+                get_prompt_tokens=lambda: estimated_prompt_tokens,
+                tokenize=tokenizer.calculate_text_tokens,
+                deployment=deployment,
+                discarded_messages=discarded_messages,
+                stream=map_stream(
+                    response_transformer,
+                    parse_openai_sse_stream(response),
+                ),
             ),
-            media_type="text/event-stream",
         )
     else:
         response = await predict_non_stream(api_url, headers, request)
@@ -249,6 +279,11 @@ async def chat_completion(
         content = response["choices"][0]["message"].get("content") or ""
         usage = response["usage"]
 
+        if discarded_messages:
+            response |= {
+                "statistics": {"discarded_messages": discarded_messages}
+            }
+
         actual_prompt_tokens = usage["prompt_tokens"]
         if actual_prompt_tokens != estimated_prompt_tokens:
             logger.warning(
@@ -256,10 +291,10 @@ async def chat_completion(
             )
 
         actual_completion_tokens = usage["completion_tokens"]
-        estimated_completion_tokens = tokenizer.calculate_tokens(content)
+        estimated_completion_tokens = tokenizer.calculate_text_tokens(content)
         if actual_completion_tokens != estimated_completion_tokens:
             logger.warning(
                 f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
             )
 
-        return JSONResponse(content=response)
+        return response
