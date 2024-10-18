@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aidial-adapter-openai"
-version = "0.15.0rc"
+version = "0.16.0rc"
 description = "DIAL adapter for OpenAI"
 authors = ["EPAM RAIL <SpecialEPM-DIALDevTeam@epam.com>"]
 homepage = "https://epam-rail.com"
@@ -18,7 +18,7 @@ clean = "scripts.clean:main"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-fastapi = "0.109.2"
+fastapi = "0.115.2"
 openai = "1.33.0"
 tiktoken = "0.7.0"
 uvicorn = "0.23"
