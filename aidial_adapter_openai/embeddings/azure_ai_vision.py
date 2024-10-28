@@ -1,10 +1,10 @@
 """
 Adapter for multi-modal embeddings provided by Azure AI Vision service.
 
-1. REST API: https://learn.microsoft.com/en-gb/rest/api/computervision/image-retrieval/vectorize-image?view=rest-computervision-v4.0-preview%20(2023-04-01)&tabs=HTTP
+1. Conceptual overview:  https://aka.ms/image-retrieval
 2. How-to article: https://learn.microsoft.com/en-us/azure/ai-services/computer-vision/how-to/image-retrieval?tabs=python
-3. General overview: https://learn.microsoft.com/en-us/azure/ai-services/computer-vision/concept-image-retrieval
-4. As a plug-in for Azure Search service: https://learn.microsoft.com/en-gb/azure/search/vector-search-vectorizer-ai-services-vision
+3. REST API (image url, binary image, text): https://learn.microsoft.com/en-gb/rest/api/computervision/image-retrieval?view=rest-computervision-v4.0-preview%20(2023-04-01)
+4. A plug-in for Azure Search service: https://learn.microsoft.com/en-gb/azure/search/vector-search-vectorizer-ai-services-vision
 5. Example of usage in a RAG: https://github.com/Azure-Samples/azure-search-openai-demo/blob/0946893fe904cab1e89de2a38c4421e38d508608/app/backend/prepdocslib/embeddings.py#L226-L260
 
 Note that currently there is no Python SDK for this API.
@@ -15,6 +15,7 @@ Input requirements:
 1. The file size of the image must be less than 20 megabytes (MB).
 2. The dimensions of the image must be greater than 10 x 10 pixels and less than 16,000 x 16,000 pixels.
 3. The text string must be between (inclusive) one word and 70 words.
+4. Supported media types: "application/octet-stream", "image/jpeg", "image/gif", "image/tiff", "image/bmp", "image/png"
 
 Output characteristics:
 
@@ -24,6 +25,9 @@ Output characteristics:
 Limitations:
 
 1. Batching isn't supported.
+
+Note that when both "url" and "text" fields are sent in a request,
+the "text" field is ignored.
 """
 
 import asyncio
@@ -41,6 +45,7 @@ from aidial_adapter_openai.dial_api.resource import AttachmentResource
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.resource import Resource
 
 # The latest Image Analysis API offers two models:
 # * version 2023-04-15 which supports text search in many languages,
@@ -77,32 +82,33 @@ async def embeddings(
 ) -> EmbeddingResponse:
     input = EmbeddingsRequest.parse_obj(data)
 
-    async def on_text(text: str) -> str | bytes:
+    async def on_text(text: str) -> str:
         return text
 
-    async def on_attachment(attachment: Attachment) -> str | bytes:
-        resource = await AttachmentResource(attachment=attachment).download(
+    async def on_attachment(attachment: Attachment) -> Resource:
+        return await AttachmentResource(attachment=attachment).download(
             file_storage
         )
-        return resource.data
 
-    inputs: AsyncIterator[str | bytes] = collect_embedding_inputs(
+    inputs_iter: AsyncIterator[str | Resource] = collect_embedding_inputs(
         input,
         on_text=on_text,
         on_attachment=on_attachment,
     )
 
-    async def _get_embedding(input: str | bytes) -> VectorizeResponse:
+    inputs: List[str | Resource] = [input async for input in inputs_iter]
+
+    async def _get_embedding(input: str | Resource) -> VectorizeResponse:
         if isinstance(input, str):
             return await _get_text_embedding(creds, endpoint, input)
-        elif isinstance(input, bytes):
+        elif isinstance(input, Resource):
             return await _get_image_embedding(creds, endpoint, input)
         else:
             assert_never(input)
 
-    tasks: List[asyncio.Task[VectorizeResponse]] = []
-    async for input in inputs:
-        tasks.append(asyncio.create_task(_get_embedding(input)))
+    tasks: List[asyncio.Task[VectorizeResponse]] = [
+        asyncio.create_task(_get_embedding(input)) for input in inputs
+    ]
 
     responses = await asyncio.gather(*tasks)
     vectors = [
@@ -116,14 +122,15 @@ async def embeddings(
 
 
 async def _get_image_embedding(
-    creds: OpenAICreds, endpoint: str, file: bytes
+    creds: OpenAICreds, endpoint: str, resource: Resource
 ) -> VectorizeResponse:
     resp = await get_http_client().post(
         url=endpoint.rstrip("/") + "/computervision/retrieval:vectorizeImage",
-        # NOTE: when both "text" and "url" fields are provided,
-        # the "text" field is ignored.
-        files={"file": file},
-        headers=_get_auth_headers(creds),
+        content=resource.data,
+        headers={
+            **_get_auth_headers(creds),
+            "content-type": resource.type,
+        },
         params=_VERSION_PARAMS,
     )
 
