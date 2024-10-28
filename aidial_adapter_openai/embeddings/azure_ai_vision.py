@@ -116,7 +116,8 @@ async def embeddings(
         for idx, r in enumerate(responses)
     ]
 
-    usage = Usage(prompt_tokens=0, total_tokens=len(vectors))
+    n = len(vectors)
+    usage = Usage(prompt_tokens=n, total_tokens=n)
 
     return EmbeddingResponse(model=deployment, data=vectors, usage=usage)
 
