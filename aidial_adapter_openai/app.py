@@ -22,8 +22,15 @@ from aidial_adapter_openai.databricks import (
     chat_completion as databricks_chat_completion,
 )
 from aidial_adapter_openai.dial_api.storage import create_file_storage
+from aidial_adapter_openai.embeddings.azure_ai_vision import (
+    embeddings as azure_ai_vision_embeddings,
+)
+from aidial_adapter_openai.embeddings.openai import (
+    embeddings as openai_embeddings,
+)
 from aidial_adapter_openai.env import (
     API_VERSIONS_MAPPING,
+    AZURE_AI_VISION_DEPLOYMENTS,
     DALLE3_AZURE_API_VERSION,
     DALLE3_DEPLOYMENTS,
     DATABRICKS_DEPLOYMENTS,
@@ -44,12 +51,7 @@ from aidial_adapter_openai.mistral import (
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
-from aidial_adapter_openai.utils.parsers import (
-    completions_parser,
-    embeddings_parser,
-    parse_body,
-)
-from aidial_adapter_openai.utils.reflection import call_with_extra_body
+from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
 from aidial_adapter_openai.utils.streaming import create_server_response
 from aidial_adapter_openai.utils.tokenizer import (
     MultiModalTokenizer,
@@ -193,11 +195,13 @@ async def embedding(deployment_id: str, request: Request):
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
-    client = embeddings_parser.parse(upstream_endpoint).get_client(
-        {**creds, "api_version": api_version}
-    )
+    if deployment_id in AZURE_AI_VISION_DEPLOYMENTS:
+        storage = create_file_storage("images", request.headers)
+        return await azure_ai_vision_embeddings(
+            creds, deployment_id, upstream_endpoint, storage, data
+        )
 
-    return await call_with_extra_body(client.embeddings.create, data)
+    return await openai_embeddings(creds, upstream_endpoint, api_version, data)
 
 
 @app.exception_handler(OpenAIError)
