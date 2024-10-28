@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 
+import pydantic
+from aidial_sdk._errors import pydantic_validation_exception_handler
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
 from aidial_sdk.telemetry.init import init_telemetry
@@ -239,6 +241,11 @@ def openai_exception_handler(request: Request, e: DialException):
             param=e.param,
             display_message=None,
         )
+
+
+@app.exception_handler(pydantic.ValidationError)
+def pydantic_exception_handler(request: Request, exc: pydantic.ValidationError):
+    return pydantic_validation_exception_handler(request, exc)
 
 
 @app.exception_handler(DialException)
