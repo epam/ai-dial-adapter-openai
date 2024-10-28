@@ -119,7 +119,7 @@ async def _get_image_embedding(
     creds: OpenAICreds, endpoint: str, file: bytes
 ) -> VectorizeResponse:
     resp = await get_http_client().post(
-        url=endpoint + ":vectorizeImage",
+        url=endpoint.rstrip("/") + "/computervision/retrieval:vectorizeImage",
         # NOTE: when both "text" and "url" fields are provided,
         # the "text" field is ignored.
         files={"file": file},
@@ -135,7 +135,7 @@ async def _get_text_embedding(
     creds: OpenAICreds, endpoint: str, text: str
 ) -> VectorizeResponse:
     resp = await get_http_client().post(
-        url=endpoint + ":vectorizeText",
+        url=endpoint.rstrip("/") + "/computervision/retrieval:vectorizeText",
         json={"text": text},
         headers=_get_auth_headers(creds),
         params=_VERSION_PARAMS,
