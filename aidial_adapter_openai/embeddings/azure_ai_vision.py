@@ -114,8 +114,8 @@ async def embeddings(
         headers=_get_auth_headers(creds),
     ) as session:
         tasks = [
-            asyncio.create_task(_get_embedding(session, input))
-            for input in inputs
+            asyncio.create_task(_get_embedding(session, input_))
+            for input_ in inputs
         ]
 
         responses = await asyncio.gather(*tasks)
