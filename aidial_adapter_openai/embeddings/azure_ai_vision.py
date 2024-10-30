@@ -33,9 +33,11 @@ the "text" field is ignored.
 import asyncio
 from typing import AsyncIterator, List, assert_never
 
+import aiohttp
 from aidial_sdk.chat_completion.request import Attachment
 from aidial_sdk.embeddings.request import EmbeddingsRequest
 from aidial_sdk.embeddings.response import Embedding, EmbeddingResponse, Usage
+from aidial_sdk.exceptions import HTTPException as DialException
 from pydantic import BaseModel
 
 from aidial_adapter_openai.dial_api.embedding_inputs import (
@@ -44,7 +46,6 @@ from aidial_adapter_openai.dial_api.embedding_inputs import (
 from aidial_adapter_openai.dial_api.resource import AttachmentResource
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.resource import Resource
 
 # The latest Image Analysis API offers two models:
@@ -98,19 +99,27 @@ async def embeddings(
 
     inputs: List[str | Resource] = [input async for input in inputs_iter]
 
-    async def _get_embedding(input: str | Resource) -> VectorizeResponse:
+    async def _get_embedding(
+        session: aiohttp.ClientSession, input: str | Resource
+    ) -> VectorizeResponse:
         if isinstance(input, str):
-            return await _get_text_embedding(creds, endpoint, input)
+            return await _get_text_embedding(session, endpoint, input)
         elif isinstance(input, Resource):
-            return await _get_image_embedding(creds, endpoint, input)
+            return await _get_image_embedding(session, endpoint, input)
         else:
             assert_never(input)
 
-    tasks: List[asyncio.Task[VectorizeResponse]] = [
-        asyncio.create_task(_get_embedding(input)) for input in inputs
-    ]
+    async with aiohttp.ClientSession(
+        raise_for_status=_error_handler,
+        headers=_get_auth_headers(creds),
+    ) as session:
+        tasks = [
+            asyncio.create_task(_get_embedding(session, input))
+            for input in inputs
+        ]
 
-    responses = await asyncio.gather(*tasks)
+        responses = await asyncio.gather(*tasks)
+
     vectors = [
         Embedding(embedding=r.vector, index=idx)
         for idx, r in enumerate(responses)
@@ -123,31 +132,49 @@ async def embeddings(
 
 
 async def _get_image_embedding(
-    creds: OpenAICreds, endpoint: str, resource: Resource
+    session: aiohttp.ClientSession,
+    endpoint: str,
+    resource: Resource,
 ) -> VectorizeResponse:
-    resp = await get_http_client().post(
+    resp = await session.post(
         url=endpoint.rstrip("/") + "/computervision/retrieval:vectorizeImage",
-        content=resource.data,
-        headers={
-            **_get_auth_headers(creds),
-            "content-type": resource.type,
-        },
         params=_VERSION_PARAMS,
+        headers={"content-type": resource.type},
+        data=resource.data,
     )
 
-    resp.raise_for_status()
-    return VectorizeResponse.parse_obj(resp.json())
+    return VectorizeResponse.parse_obj(await resp.json())
 
 
 async def _get_text_embedding(
-    creds: OpenAICreds, endpoint: str, text: str
+    session: aiohttp.ClientSession,
+    endpoint: str,
+    text: str,
 ) -> VectorizeResponse:
-    resp = await get_http_client().post(
+    resp = await session.post(
         url=endpoint.rstrip("/") + "/computervision/retrieval:vectorizeText",
-        json={"text": text},
-        headers=_get_auth_headers(creds),
         params=_VERSION_PARAMS,
+        json={"text": text},
     )
 
-    resp.raise_for_status()
-    return VectorizeResponse.parse_obj(resp.json())
+    return VectorizeResponse.parse_obj(await resp.json())
+
+
+async def _error_handler(response: aiohttp.ClientResponse) -> None:
+    # The Azure AI Vision service returns error responses in a format similar to the OpenAI error format
+    if not response.ok:
+        body = await response.json()
+        error = body.get("error") or {}
+
+        message = error.get("message") or response.reason or "Unknown Error"
+        code = error.get("code")
+        type = error.get("type")
+        param = error.get("param")
+
+        raise DialException(
+            message=message,
+            status_code=response.status,
+            type=type,
+            param=param,
+            code=code,
+        )
