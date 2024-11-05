@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Literal, assert_never
+from typing import Literal, Optional, assert_never
 
 from PIL import Image
 from pydantic import BaseModel
@@ -36,7 +36,9 @@ class ImageMetadata(BaseModel):
     detail: DetailLevel
 
     @classmethod
-    def from_resource(cls, image: Resource) -> "ImageMetadata":
+    def from_resource(
+        cls, image: Resource, detail: Optional[ImageDetail]
+    ) -> "ImageMetadata":
         with Image.open(BytesIO(image.data)) as img:
             width, height = img.size
 
@@ -44,5 +46,5 @@ class ImageMetadata(BaseModel):
             image=image,
             width=width,
             height=height,
-            detail=resolve_detail_level(width, height, "auto"),
+            detail=resolve_detail_level(width, height, detail or "auto"),
         )

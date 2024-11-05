@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Set, cast
+from typing import List, Optional, Set, cast
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
@@ -13,7 +13,7 @@ from aidial_adapter_openai.dial_api.resource import (
     parse_attachment,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.image import ImageMetadata
+from aidial_adapter_openai.utils.image import ImageDetail, ImageMetadata
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import (
     MultiModalMessage,
@@ -42,12 +42,15 @@ class ResourceProcessor(BaseModel):
     errors: Set[TransformationError] = Field(default_factory=set)
 
     def collect_resource(
-        self, meta: List[ImageMetadata], result: Resource | TransformationError
+        self,
+        meta: List[ImageMetadata],
+        result: Resource | TransformationError,
+        detail: Optional[ImageDetail],
     ):
         if isinstance(result, TransformationError):
             self.errors.add(result)
         else:
-            meta.append(ImageMetadata.from_resource(result))
+            meta.append(ImageMetadata.from_resource(result, detail))
 
     async def try_download_resource(
         self, dial_resource: DialResource
@@ -84,7 +87,7 @@ class ResourceProcessor(BaseModel):
                 supported_types=SUPPORTED_IMAGE_TYPES,
             )
             result = await self.try_download_resource(dial_resource)
-            self.collect_resource(ret, result)
+            self.collect_resource(ret, result, None)
 
         return ret
 
@@ -98,13 +101,17 @@ class ResourceProcessor(BaseModel):
 
         for content_part in content:
             if image_url := content_part.get("image_url", {}).get("url"):
+                image_detail = content_part.get("detail")
+                if image_detail not in [None, "auto", "low", "high"]:
+                    raise ValidationError("Unexpected image detail")
+
                 dial_resource = URLResource(
                     url=image_url,
                     entity_name="image",
                     supported_types=SUPPORTED_IMAGE_TYPES,
                 )
                 result = await self.try_download_resource(dial_resource)
-                self.collect_resource(ret, result)
+                self.collect_resource(ret, result, image_detail)
 
         return ret
 
