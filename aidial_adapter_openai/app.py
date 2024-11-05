@@ -37,6 +37,8 @@ from aidial_adapter_openai.env import (
     DALLE3_DEPLOYMENTS,
     DATABRICKS_DEPLOYMENTS,
     GPT4_VISION_DEPLOYMENTS,
+    GPT4O_DEPLOYMENTS,
+    GPT4O_MINI_DEPLOYMENTS,
     MISTRAL_DEPLOYMENTS,
     MODEL_ALIASES,
     NON_STREAMING_DEPLOYMENTS,
@@ -107,6 +109,15 @@ async def call_chat_completion(
     deployment_id: str, data: dict, is_stream: bool, request: Request
 ):
 
+    logger.debug(f"deployment_id: {deployment_id}")
+    logger.debug(f"data: {data}")
+    logger.debug(f"is_stream: {is_stream}")
+    logger.debug(f"request: {request}")
+
+    logger.debug(f"GPT4O_DEPLOYMENTS = {GPT4O_DEPLOYMENTS}")
+    logger.debug(f"GPT4O_MINI_DEPLOYMENTS = {GPT4O_MINI_DEPLOYMENTS}")
+    logger.debug(f"GPT4_VISION_DEPLOYMENTS = {GPT4_VISION_DEPLOYMENTS}")
+
     # Azure OpenAI deployments ignore "model" request field,
     # since the deployment id is already encoded in the endpoint path.
     # This is not the case for non-Azure OpenAI deployments, so
@@ -151,6 +162,8 @@ async def call_chat_completion(
     text_tokenizer_model = MODEL_ALIASES.get(deployment_id, deployment_id)
 
     if image_tokenizer := get_image_tokenizer(deployment_id):
+        logger.debug(f"image tokenizer: {image_tokenizer}")
+
         storage = create_file_storage("images", request.headers)
 
         if deployment_id in GPT4_VISION_DEPLOYMENTS:
@@ -179,6 +192,8 @@ async def call_chat_completion(
                 api_version,
                 tokenizer,
             )
+
+    logger.debug("plain gpt catch-all")
 
     tokenizer = PlainTextTokenizer(model=text_tokenizer_model)
     return await gpt_chat_completion(
