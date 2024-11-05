@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Literal
+from typing import Literal, assert_never
 
 from PIL import Image
 from pydantic import BaseModel
@@ -21,6 +21,8 @@ def resolve_detail_level(
             return "low"
         case "high":
             return "high"
+        case _:
+            assert_never(detail)
 
 
 class ImageMetadata(BaseModel):

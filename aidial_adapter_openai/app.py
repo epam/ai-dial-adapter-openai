@@ -37,7 +37,6 @@ from aidial_adapter_openai.env import (
     DALLE3_DEPLOYMENTS,
     DATABRICKS_DEPLOYMENTS,
     GPT4_VISION_DEPLOYMENTS,
-    GPT4O_DEPLOYMENTS,
     MISTRAL_DEPLOYMENTS,
     MODEL_ALIASES,
     NON_STREAMING_DEPLOYMENTS,
@@ -52,6 +51,7 @@ from aidial_adapter_openai.mistral import (
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
 from aidial_adapter_openai.utils.streaming import create_server_response
@@ -148,34 +148,39 @@ async def call_chat_completion(
     if deployment_id in DATABRICKS_DEPLOYMENTS:
         return await databricks_chat_completion(data, upstream_endpoint, creds)
 
-    if deployment_id in GPT4_VISION_DEPLOYMENTS:
-        storage = create_file_storage("images", request.headers)
-        return await gpt4_vision_chat_completion(
-            data,
-            deployment_id,
-            upstream_endpoint,
-            creds,
-            is_stream,
-            storage,
-            api_version,
-        )
+    text_tokenizer_model = MODEL_ALIASES.get(deployment_id, deployment_id)
 
-    openai_model_name = MODEL_ALIASES.get(deployment_id, deployment_id)
-    if deployment_id in GPT4O_DEPLOYMENTS:
-        tokenizer = MultiModalTokenizer(openai_model_name)
+    if image_tokenizer := get_image_tokenizer(deployment_id):
         storage = create_file_storage("images", request.headers)
-        return await gpt4o_chat_completion(
-            data,
-            deployment_id,
-            upstream_endpoint,
-            creds,
-            is_stream,
-            storage,
-            api_version,
-            tokenizer,
-        )
 
-    tokenizer = PlainTextTokenizer(model=openai_model_name)
+        if deployment_id in GPT4_VISION_DEPLOYMENTS:
+            tokenizer = MultiModalTokenizer("gpt-4", image_tokenizer)
+            return await gpt4_vision_chat_completion(
+                data,
+                deployment_id,
+                upstream_endpoint,
+                creds,
+                is_stream,
+                storage,
+                api_version,
+                tokenizer,
+            )
+        else:
+            tokenizer = MultiModalTokenizer(
+                text_tokenizer_model, image_tokenizer
+            )
+            return await gpt4o_chat_completion(
+                data,
+                deployment_id,
+                upstream_endpoint,
+                creds,
+                is_stream,
+                storage,
+                api_version,
+                tokenizer,
+            )
+
+    tokenizer = PlainTextTokenizer(model=text_tokenizer_model)
     return await gpt_chat_completion(
         data,
         deployment_id,

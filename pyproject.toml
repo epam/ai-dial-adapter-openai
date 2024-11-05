@@ -47,6 +47,8 @@ flake8 = "6.0.0"
 
 [tool.poetry.group.dev.dependencies]
 nox = "^2023.4.22"
+# Required for `make serve` which loads .env file
+python-dotenv = "^1.0.1"
 
 [tool.pytest.ini_options]
 # muting warnings coming from opentelemetry and pkg_resources packages

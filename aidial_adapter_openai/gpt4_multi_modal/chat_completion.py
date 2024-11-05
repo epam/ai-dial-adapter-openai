@@ -163,6 +163,7 @@ async def gpt4_vision_chat_completion(
     is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
+    tokenizer: MultiModalTokenizer,
 ):
     return await chat_completion(
         request,
@@ -172,7 +173,7 @@ async def gpt4_vision_chat_completion(
         is_stream,
         file_storage,
         api_version,
-        MultiModalTokenizer("gpt-4"),
+        tokenizer,
         convert_gpt4v_to_gpt4_chunk,
         GPT4V_DEFAULT_MAX_TOKENS,
     )

@@ -8,11 +8,12 @@ from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     multi_modal_truncate_prompt,
 )
 from aidial_adapter_openai.utils.image import ImageMetadata
+from aidial_adapter_openai.utils.image_tokenizer import GPT4O_IMAGE_TOKENIZER
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.tokenizer import MultiModalTokenizer
 
-tokenizer = MultiModalTokenizer("gpt-4o")
+tokenizer = MultiModalTokenizer("gpt-4o", GPT4O_IMAGE_TOKENIZER)
 
 
 def test_multimodal_truncate_with_system_and_last_user_error():

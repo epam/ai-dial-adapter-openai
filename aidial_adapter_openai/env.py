@@ -16,6 +16,9 @@ DATABRICKS_DEPLOYMENTS = parse_deployment_list(
     os.getenv("DATABRICKS_DEPLOYMENTS")
 )
 GPT4O_DEPLOYMENTS = parse_deployment_list(os.getenv("GPT4O_DEPLOYMENTS"))
+GPT4O_MINI_DEPLOYMENTS = parse_deployment_list(
+    os.getenv("GPT4O_MINI_DEPLOYMENTS")
+)
 API_VERSIONS_MAPPING: Dict[str, str] = json.loads(
     os.getenv("API_VERSIONS_MAPPING", "{}")
 )

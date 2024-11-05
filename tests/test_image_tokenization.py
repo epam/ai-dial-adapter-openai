@@ -3,7 +3,7 @@ from typing import List, Tuple
 import pytest
 
 from aidial_adapter_openai.utils.image import ImageDetail
-from aidial_adapter_openai.utils.image_tokenizer import tokenize_image_by_size
+from aidial_adapter_openai.utils.image_tokenizer import GPT4O_IMAGE_TOKENIZER
 
 test_cases: List[Tuple[int, int, ImageDetail, int]] = [
     (1, 1, "auto", 85),
@@ -25,8 +25,8 @@ test_cases: List[Tuple[int, int, ImageDetail, int]] = [
 
 @pytest.mark.parametrize("width, height, detail, expected_tokens", test_cases)
 def test_tokenize(width, height, detail, expected_tokens):
-    tokens1 = tokenize_image_by_size(width, height, detail)
-    tokens2 = tokenize_image_by_size(height, width, detail)
+    tokens1 = GPT4O_IMAGE_TOKENIZER.tokenize(width, height, detail)
+    tokens2 = GPT4O_IMAGE_TOKENIZER.tokenize(height, width, detail)
 
     assert tokens1 == expected_tokens
     assert tokens2 == expected_tokens

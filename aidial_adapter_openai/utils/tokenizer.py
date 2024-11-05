@@ -8,7 +8,7 @@ from typing import Any, Callable, Generic, List, TypeVar
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
 
-from aidial_adapter_openai.utils.image_tokenizer import tokenize_image_by_size
+from aidial_adapter_openai.utils.image_tokenizer import ImageTokenizer
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 
 MessageType = TypeVar("MessageType")
@@ -131,6 +131,12 @@ class PlainTextTokenizer(BaseTokenizer[dict]):
 
 
 class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
+    image_tokenizer: ImageTokenizer
+
+    def __init__(self, model: str, image_tokenizer: ImageTokenizer):
+        super().__init__(model)
+        self.image_tokenizer = image_tokenizer
+
     def calculate_message_tokens(self, message: MultiModalMessage) -> int:
         tokens = self.tokens_per_message
         raw_message = message.raw_message
@@ -144,7 +150,7 @@ class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
 
         # Processing image parts of message
         for metadata in message.image_metadatas:
-            tokens += tokenize_image_by_size(
+            tokens += self.image_tokenizer.tokenize(
                 width=metadata.width,
                 height=metadata.height,
                 detail=metadata.detail,
