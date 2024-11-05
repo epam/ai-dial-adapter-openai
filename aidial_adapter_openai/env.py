@@ -26,6 +26,9 @@ DALLE3_AZURE_API_VERSION = os.getenv("DALLE3_AZURE_API_VERSION", "2024-02-01")
 NON_STREAMING_DEPLOYMENTS = parse_deployment_list(
     os.getenv("NON_STREAMING_DEPLOYMENTS")
 )
+AZURE_AI_VISION_DEPLOYMENTS = parse_deployment_list(
+    os.getenv("AZURE_AI_VISION_DEPLOYMENTS")
+)
 
 
 def get_eliminate_empty_choices() -> bool:
