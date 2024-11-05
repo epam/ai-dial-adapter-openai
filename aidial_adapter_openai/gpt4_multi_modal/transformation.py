@@ -101,7 +101,7 @@ class ResourceProcessor(BaseModel):
 
         for content_part in content:
             if image_url := content_part.get("image_url", {}).get("url"):
-                image_detail = content_part.get("detail")
+                image_detail = content_part.get("image_url", {}).get("detail")
                 if image_detail not in [None, "auto", "low", "high"]:
                     raise ValidationError("Unexpected image detail")
 
