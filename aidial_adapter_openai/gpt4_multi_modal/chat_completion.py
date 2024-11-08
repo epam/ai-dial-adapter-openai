@@ -229,7 +229,7 @@ async def chat_completion(
         )
     else:
         estimated_prompt_tokens = tokenizer.tokenize_request(
-            multi_modal_messages
+            request, multi_modal_messages
         )
         logger.debug(
             f"prompt tokens without truncation: {estimated_prompt_tokens}"

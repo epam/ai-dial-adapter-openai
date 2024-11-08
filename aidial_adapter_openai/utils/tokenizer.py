@@ -44,27 +44,28 @@ class BaseTokenizer(Generic[MessageType]):
     def tokenize_response(self, resp: ChatCompletionResponse) -> int:
         return sum(map(self._tokenize_response_message, resp.messages))
 
-    def _tokenize_response_message(self, message: Any) -> int:
-        def _tokenize(obj: Any) -> int:
-            if not obj:
-                return 0
+    def _tokenize_object(self, obj: Any) -> int:
+        if not obj:
+            return 0
 
-            # OpenAI doesn't reveal tokenize algo for tools calls and function calls.
-            # An approximation is used instead - tokens in the string repr of the objects.
-            text = (
-                obj
-                if isinstance(obj, str)
-                else json.dumps(obj, separators=(",", ":"))
-            )
-            return self.tokenize_text(text)
+        # OpenAI doesn't reveal tokenization algorithm for tools calls and function calls.
+        # An approximation is used instead - token count in the string repr of the objects.
+        text = (
+            obj
+            if isinstance(obj, str)
+            else json.dumps(obj, separators=(",", ":"))
+        )
+        return self.tokenize_text(text)
+
+    def _tokenize_response_message(self, message: Any) -> int:
 
         tokens = 0
 
         for key in ["content", "refusal", "function"]:
-            tokens += _tokenize(message.get(key))
+            tokens += self._tokenize_object(message.get(key))
 
         for tool_call in message.get("tool_calls") or []:
-            tokens += _tokenize(tool_call.get("function"))
+            tokens += self._tokenize_object(tool_call.get("function"))
 
         return tokens
 
@@ -86,10 +87,24 @@ class BaseTokenizer(Generic[MessageType]):
             return -1
         return 1
 
-    def tokenize_request(self, messages: List[MessageType]) -> int:
-        return self.TOKENS_PER_REQUEST + sum(
-            map(self.tokenize_request_message, messages)
-        )
+    def tokenize_request(
+        self,
+        original_request: dict,
+        messages: List[MessageType],
+    ) -> int:
+        tokens = self.TOKENS_PER_REQUEST
+
+        if original_request.get("function_call") != "none":
+            for func in original_request.get("function") or []:
+                tokens += self._tokenize_object(func)
+
+        if original_request.get("tool_choice") != "none":
+            for tool in original_request.get("tools") or []:
+                tokens += self._tokenize_object(tool.get("function"))
+
+        tokens += sum(map(self.tokenize_request_message, messages))
+
+        return tokens
 
     @abstractmethod
     def tokenize_request_message(self, message: MessageType) -> int:

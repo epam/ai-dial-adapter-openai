@@ -35,7 +35,7 @@ def plain_text_truncate_prompt(
 
 
 async def gpt_chat_completion(
-    data: dict,
+    request: dict,
     deployment_id: str,
     upstream_endpoint: str,
     creds: OpenAICreds,
@@ -44,8 +44,8 @@ async def gpt_chat_completion(
 ):
     discarded_messages = None
     estimated_prompt_tokens = None
-    if "max_prompt_tokens" in data:
-        max_prompt_tokens = data["max_prompt_tokens"]
+    if "max_prompt_tokens" in request:
+        max_prompt_tokens = request["max_prompt_tokens"]
         if not isinstance(max_prompt_tokens, int):
             raise InvalidRequestError(
                 f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
@@ -54,11 +54,11 @@ async def gpt_chat_completion(
             raise InvalidRequestError(
                 f"'{max_prompt_tokens}' is less than the minimum of 1 - 'max_prompt_tokens'",
             )
-        del data["max_prompt_tokens"]
+        del request["max_prompt_tokens"]
 
-        data["messages"], discarded_messages, estimated_prompt_tokens = (
+        request["messages"], discarded_messages, estimated_prompt_tokens = (
             plain_text_truncate_prompt(
-                messages=cast(List[dict], data["messages"]),
+                messages=cast(List[dict], request["messages"]),
                 max_prompt_tokens=max_prompt_tokens,
                 tokenizer=tokenizer,
             )
@@ -68,13 +68,13 @@ async def gpt_chat_completion(
         {**creds, "api_version": api_version}
     )
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
-        await call_with_extra_body(client.chat.completions.create, data)
+        await call_with_extra_body(client.chat.completions.create, request)
     )
 
     if isinstance(response, AsyncIterator):
         return generate_stream(
             get_prompt_tokens=lambda: estimated_prompt_tokens
-            or tokenizer.tokenize_request(data["messages"]),
+            or tokenizer.tokenize_request(request, request["messages"]),
             tokenize_response=tokenizer.tokenize_response,
             deployment=deployment_id,
             discarded_messages=discarded_messages,
