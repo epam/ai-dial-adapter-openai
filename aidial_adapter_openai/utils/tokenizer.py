@@ -2,6 +2,7 @@
 Implemented based on the official recipe: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
 """
 
+import json
 from abc import abstractmethod
 from typing import Any, Callable, Generic, List, TypeVar
 
@@ -32,6 +33,30 @@ class BaseTokenizer(Generic[MessageType]):
 
     def calculate_text_tokens(self, text: str) -> int:
         return len(self.encoding.encode(text))
+
+    def calculate_completion_tokens(self, message: Any) -> int:
+        def _calculate_tokens(obj: Any) -> int:
+            if not obj:
+                return 0
+
+            # OpenAI doesn't reveal tokenize algo for tools calls and function calls.
+            # An approximation is used instead - tokens of the string repr of the objects.
+            text = (
+                obj
+                if isinstance(obj, str)
+                else json.dumps(obj, separators=(",", ":"))
+            )
+            return self.calculate_text_tokens(text)
+
+        tokens = 0
+
+        for key in ["content", "refusal", "function"]:
+            tokens += _calculate_tokens(message.get(key))
+
+        for tool_call in message.get("tool_calls") or []:
+            tokens += _calculate_tokens(tool_call.get("function"))
+
+        return tokens
 
     @property
     def tokens_per_message(self) -> int:

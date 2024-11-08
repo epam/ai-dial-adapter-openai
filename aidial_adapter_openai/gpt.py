@@ -43,7 +43,7 @@ async def gpt_chat_completion(
     tokenizer: PlainTextTokenizer,
 ):
     discarded_messages = None
-    prompt_tokens = None
+    estimated_prompt_tokens = None
     if "max_prompt_tokens" in data:
         max_prompt_tokens = data["max_prompt_tokens"]
         if not isinstance(max_prompt_tokens, int):
@@ -56,7 +56,7 @@ async def gpt_chat_completion(
             )
         del data["max_prompt_tokens"]
 
-        data["messages"], discarded_messages, prompt_tokens = (
+        data["messages"], discarded_messages, estimated_prompt_tokens = (
             plain_text_truncate_prompt(
                 messages=cast(List[dict], data["messages"]),
                 max_prompt_tokens=max_prompt_tokens,
@@ -73,9 +73,9 @@ async def gpt_chat_completion(
 
     if isinstance(response, AsyncIterator):
         return generate_stream(
-            get_prompt_tokens=lambda: prompt_tokens
+            get_prompt_tokens=lambda: estimated_prompt_tokens
             or tokenizer.calculate_prompt_tokens(data["messages"]),
-            tokenize=tokenizer.calculate_text_tokens,
+            tokenize_completion_tokens=tokenizer.calculate_completion_tokens,
             deployment=deployment_id,
             discarded_messages=discarded_messages,
             stream=map_stream(chunk_to_dict, response),

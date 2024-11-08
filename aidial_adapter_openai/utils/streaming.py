@@ -1,6 +1,6 @@
 import logging
 from time import time
-from typing import Any, AsyncIterator, Callable, Iterable, Optional, TypeVar
+from typing import Any, AsyncIterator, Callable, List, Optional, TypeVar
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
@@ -57,7 +57,7 @@ def build_chunk(
 async def generate_stream(
     *,
     get_prompt_tokens: Callable[[], int],
-    tokenize: Callable[[str], int],
+    tokenize_completion_tokens: Callable[[Any], int],
     deployment: str,
     discarded_messages: Optional[list[int]],
     stream: AsyncIterator[dict],
@@ -72,9 +72,9 @@ async def generate_stream(
         finish_reason=None,
     )
 
-    def set_usage(chunk: dict | None, completions: Iterable[str]) -> dict:
+    def set_usage(chunk: dict | None, messages: List[Any]) -> dict:
         chunk = chunk or noop_chunk
-        completion_tokens = sum(map(tokenize, completions))
+        completion_tokens = sum(map(tokenize_completion_tokens, messages))
         prompt_tokens = get_prompt_tokens()
         chunk["usage"] = {
             "completion_tokens": completion_tokens,
@@ -96,13 +96,13 @@ async def generate_stream(
 
     last_chunk = None
     buffer_chunk = None
-    snapshot = ChatCompletionStreamingChunk()
+    response_snapshot = ChatCompletionStreamingChunk()
 
     error = None
 
     try:
         async for chunk in stream:
-            snapshot.merge(chunk)
+            response_snapshot.merge(chunk)
 
             if buffer_chunk is not None:
                 chunk = merge_chat_completion_chunks(chunk, buffer_chunk)
@@ -137,14 +137,14 @@ async def generate_stream(
     if discarded_messages is not None:
         last_chunk = set_discarded_messages(last_chunk, discarded_messages)
 
-    completions = [msg.get("content") or "" for msg in snapshot.messages]
-    found_finish_reason = any(True for _ in snapshot.finish_reasons)
+    messages = list(response_snapshot.messages)
+    found_finish_reason = any(True for _ in response_snapshot.finish_reasons)
 
-    if snapshot.usage is None and (not error or completions):
-        last_chunk = set_usage(last_chunk, completions)
+    if response_snapshot.usage is None and (not error or messages):
+        last_chunk = set_usage(last_chunk, messages)
 
     if not error:
-        if snapshot.is_empty:
+        if response_snapshot.is_empty:
             logger.warning("Received 0 chunks")
         elif not found_finish_reason:
             logger.warning("Didn't receive chunk with the finish reason")
@@ -152,8 +152,8 @@ async def generate_stream(
         if not found_finish_reason:
             last_chunk = set_finish_reason(last_chunk, "length")
 
-        if snapshot.usage is None:
-            last_chunk = set_usage(last_chunk, completions)
+        if response_snapshot.usage is None:
+            last_chunk = set_usage(last_chunk, messages)
 
     if last_chunk:
         yield last_chunk

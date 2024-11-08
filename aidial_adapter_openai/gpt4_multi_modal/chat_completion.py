@@ -255,7 +255,7 @@ async def chat_completion(
             debug_print,
             generate_stream(
                 get_prompt_tokens=lambda: estimated_prompt_tokens,
-                tokenize=tokenizer.calculate_text_tokens,
+                tokenize_completion_tokens=tokenizer.calculate_completion_tokens,
                 deployment=deployment,
                 discarded_messages=discarded_messages,
                 stream=map_stream(

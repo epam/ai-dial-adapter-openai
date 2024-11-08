@@ -14,7 +14,7 @@ class ChatCompletionResponse(BaseModel):
 
     @property
     def is_empty(self) -> bool:
-        return bool(self.resp)
+        return self.resp == {}
 
     @property
     def finish_reasons(self) -> Iterable[Any]:
