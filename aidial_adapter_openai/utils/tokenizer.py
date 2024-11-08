@@ -19,6 +19,10 @@ MessageType = TypeVar("MessageType")
 
 
 class BaseTokenizer(Generic[MessageType]):
+    """
+    Tokenizer for chat completion requests and responses.
+    """
+
     model: str
     encoding: Encoding
     TOKENS_PER_REQUEST = 3
@@ -34,17 +38,13 @@ class BaseTokenizer(Generic[MessageType]):
                 "or declare it as a model which doesn't require tokenization through tiktoken.",
             ) from e
 
-    def calculate_text_tokens(self, text: str) -> int:
+    def tokenize_text(self, text: str) -> int:
         return len(self.encoding.encode(text))
 
-    def calculate_chat_completion_response_tokens(
-        self, resp: ChatCompletionResponse
-    ) -> int:
-        return sum(
-            map(self._calculate_chat_completion_message_tokens, resp.messages)
-        )
+    def tokenize_response(self, resp: ChatCompletionResponse) -> int:
+        return sum(map(self._tokenize_response_message, resp.messages))
 
-    def _calculate_chat_completion_message_tokens(self, message: Any) -> int:
+    def _tokenize_response_message(self, message: Any) -> int:
         def _tokenize(obj: Any) -> int:
             if not obj:
                 return 0
@@ -56,7 +56,7 @@ class BaseTokenizer(Generic[MessageType]):
                 if isinstance(obj, str)
                 else json.dumps(obj, separators=(",", ":"))
             )
-            return self.calculate_text_tokens(text)
+            return self.tokenize_text(text)
 
         tokens = 0
 
@@ -69,7 +69,7 @@ class BaseTokenizer(Generic[MessageType]):
         return tokens
 
     @property
-    def tokens_per_message(self) -> int:
+    def _tokens_per_request_message(self) -> int:
         """
         Tokens, that are counter for each message, regardless of its content
         """
@@ -78,7 +78,7 @@ class BaseTokenizer(Generic[MessageType]):
         return 3
 
     @property
-    def tokens_per_name(self) -> int:
+    def _tokens_per_request_message_name(self) -> int:
         """
         Tokens, that are counter for "name" field in message, if it's present
         """
@@ -86,23 +86,13 @@ class BaseTokenizer(Generic[MessageType]):
             return -1
         return 1
 
-    def calculate_request_prompt_tokens(self, messages_tokens: int):
-        """
-        Amount of tokens, that will be counted by API
-        is greater than actual sum of tokens of all messages
-        """
-        return self.TOKENS_PER_REQUEST + messages_tokens
-
-    def calculate_prompt_tokens(self, messages: List[MessageType]) -> int:
-        return self.calculate_request_prompt_tokens(
-            messages_tokens=sum(map(self.calculate_message_tokens, messages))
+    def tokenize_request(self, messages: List[MessageType]) -> int:
+        return self.TOKENS_PER_REQUEST + sum(
+            map(self.tokenize_request_message, messages)
         )
 
-    def available_message_tokens(self, max_prompt_tokens: int):
-        return max_prompt_tokens - self.TOKENS_PER_REQUEST
-
     @abstractmethod
-    def calculate_message_tokens(self, message: MessageType) -> int:
+    def tokenize_request_message(self, message: MessageType) -> int:
         pass
 
 
@@ -156,11 +146,11 @@ class PlainTextTokenizer(BaseTokenizer[dict]):
             f"Use MultiModalTokenizer for messages with images"
         )
 
-    def calculate_message_tokens(self, message: dict) -> int:
-        return self.tokens_per_message + _process_raw_message(
+    def tokenize_request_message(self, message: dict) -> int:
+        return self._tokens_per_request_message + _process_raw_message(
             raw_message=message,
-            tokens_per_name=self.tokens_per_name,
-            calculate_text_tokens=self.calculate_text_tokens,
+            tokens_per_name=self._tokens_per_request_message_name,
+            calculate_text_tokens=self.tokenize_text,
             handle_custom_content_part=self._handle_custom_content_part,
         )
 
@@ -172,14 +162,14 @@ class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
         super().__init__(model)
         self.image_tokenizer = image_tokenizer
 
-    def calculate_message_tokens(self, message: MultiModalMessage) -> int:
-        tokens = self.tokens_per_message
+    def tokenize_request_message(self, message: MultiModalMessage) -> int:
+        tokens = self._tokens_per_request_message
         raw_message = message.raw_message
 
         tokens += _process_raw_message(
             raw_message=raw_message,
-            tokens_per_name=self.tokens_per_name,
-            calculate_text_tokens=self.calculate_text_tokens,
+            tokens_per_name=self._tokens_per_request_message_name,
+            calculate_text_tokens=self.tokenize_text,
             handle_custom_content_part=lambda content_part: None,
         )
 

@@ -58,7 +58,7 @@ def build_chunk(
 async def generate_stream(
     *,
     get_prompt_tokens: Callable[[], int],
-    tokenize_chat_completion_response: Callable[[ChatCompletionResponse], int],
+    tokenize_response: Callable[[ChatCompletionResponse], int],
     deployment: str,
     discarded_messages: Optional[list[int]],
     stream: AsyncIterator[dict],
@@ -74,7 +74,7 @@ async def generate_stream(
     )
 
     def set_usage(chunk: dict | None, resp: ChatCompletionResponse) -> dict:
-        completion_tokens = tokenize_chat_completion_response(resp)
+        completion_tokens = tokenize_response(resp)
         prompt_tokens = get_prompt_tokens()
 
         chunk = chunk or empty_chunk

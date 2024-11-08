@@ -126,7 +126,7 @@ def multi_modal_truncate_prompt(
 ) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
         messages=messages,
-        message_tokens=tokenizer.calculate_message_tokens,
+        message_tokens=tokenizer.tokenize_request_message,
         is_system_message=lambda message: message.raw_message["role"]
         == "system",
         max_prompt_tokens=max_prompt_tokens,
@@ -228,7 +228,7 @@ async def chat_completion(
             f"prompt tokens after truncation: {estimated_prompt_tokens}"
         )
     else:
-        estimated_prompt_tokens = tokenizer.calculate_prompt_tokens(
+        estimated_prompt_tokens = tokenizer.tokenize_request(
             multi_modal_messages
         )
         logger.debug(
@@ -258,7 +258,7 @@ async def chat_completion(
             debug_print,
             generate_stream(
                 get_prompt_tokens=lambda: estimated_prompt_tokens,
-                tokenize_chat_completion_response=tokenizer.calculate_chat_completion_response_tokens,
+                tokenize_response=tokenizer.tokenize_response,
                 deployment=deployment,
                 discarded_messages=discarded_messages,
                 stream=map_stream(
@@ -293,10 +293,8 @@ async def chat_completion(
                 )
 
             actual_completion_tokens = usage["completion_tokens"]
-            estimated_completion_tokens = (
-                tokenizer.calculate_chat_completion_response_tokens(
-                    ChatCompletionBlock(resp=response)
-                )
+            estimated_completion_tokens = tokenizer.tokenize_response(
+                ChatCompletionBlock(resp=response)
             )
             if actual_completion_tokens != estimated_completion_tokens:
                 logger.warning(

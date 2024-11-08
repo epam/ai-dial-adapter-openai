@@ -27,7 +27,7 @@ def plain_text_truncate_prompt(
 ) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
         messages=messages,
-        message_tokens=tokenizer.calculate_message_tokens,
+        message_tokens=tokenizer.tokenize_request_message,
         is_system_message=lambda message: message["role"] == "system",
         max_prompt_tokens=max_prompt_tokens,
         initial_prompt_tokens=tokenizer.TOKENS_PER_REQUEST,
@@ -74,8 +74,8 @@ async def gpt_chat_completion(
     if isinstance(response, AsyncIterator):
         return generate_stream(
             get_prompt_tokens=lambda: estimated_prompt_tokens
-            or tokenizer.calculate_prompt_tokens(data["messages"]),
-            tokenize_chat_completion_response=tokenizer.calculate_chat_completion_response_tokens,
+            or tokenizer.tokenize_request(data["messages"]),
+            tokenize_response=tokenizer.tokenize_response,
             deployment=deployment_id,
             discarded_messages=discarded_messages,
             stream=map_stream(chunk_to_dict, response),
