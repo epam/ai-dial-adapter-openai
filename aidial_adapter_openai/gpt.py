@@ -75,7 +75,7 @@ async def gpt_chat_completion(
         return generate_stream(
             get_prompt_tokens=lambda: estimated_prompt_tokens
             or tokenizer.calculate_prompt_tokens(data["messages"]),
-            tokenize_completion_tokens=tokenizer.calculate_completion_tokens,
+            tokenize_chat_completion_response=tokenizer.calculate_chat_completion_response_tokens,
             deployment=deployment_id,
             discarded_messages=discarded_messages,
             stream=map_stream(chunk_to_dict, response),

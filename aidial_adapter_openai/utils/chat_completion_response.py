@@ -23,20 +23,28 @@ class ChatCompletionResponse(BaseModel):
                 yield reason
 
     @property
+    def has_finish_reason(self) -> bool:
+        return len(list(self.finish_reasons)) > 0
+
+    @property
     def messages(self) -> Iterable[Any]:
         for choice in self.resp.get("choices") or []:
             if (message := choice.get(self.message_key)) is not None:
                 yield message
 
+    @property
+    def has_messages(self) -> bool:
+        return len(list(self.messages)) > 0
+
 
 class ChatCompletionBlock(ChatCompletionResponse):
-    def __init__(self):
-        super().__init__(message_key="message")
+    def __init__(self, **kwargs):
+        super().__init__(message_key="message", **kwargs)
 
 
 class ChatCompletionStreamingChunk(ChatCompletionResponse):
-    def __init__(self):
-        super().__init__(message_key="delta")
+    def __init__(self, **kwargs):
+        super().__init__(message_key="delta", **kwargs)
 
     def merge(self, chunk: dict) -> Self:
         self.resp = merge_chat_completion_chunks(self.resp, chunk)

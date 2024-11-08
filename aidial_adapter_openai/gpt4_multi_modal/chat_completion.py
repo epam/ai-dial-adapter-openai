@@ -25,6 +25,9 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     ResourceProcessor,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
+from aidial_adapter_openai.utils.chat_completion_response import (
+    ChatCompletionBlock,
+)
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
@@ -255,7 +258,7 @@ async def chat_completion(
             debug_print,
             generate_stream(
                 get_prompt_tokens=lambda: estimated_prompt_tokens,
-                tokenize_completion_tokens=tokenizer.calculate_completion_tokens,
+                tokenize_chat_completion_response=tokenizer.calculate_chat_completion_response_tokens,
                 deployment=deployment,
                 discarded_messages=discarded_messages,
                 stream=map_stream(
@@ -277,25 +280,27 @@ async def chat_completion(
                 type="invalid_response_error",
             )
 
-        content = response["choices"][0]["message"].get("content") or ""
-        usage = response["usage"]
-
         if discarded_messages:
             response |= {
                 "statistics": {"discarded_messages": discarded_messages}
             }
 
-        actual_prompt_tokens = usage["prompt_tokens"]
-        if actual_prompt_tokens != estimated_prompt_tokens:
-            logger.warning(
-                f"Estimated prompt tokens ({estimated_prompt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
-            )
+        if usage := response.get("usage"):
+            actual_prompt_tokens = usage["prompt_tokens"]
+            if actual_prompt_tokens != estimated_prompt_tokens:
+                logger.warning(
+                    f"Estimated prompt tokens ({estimated_prompt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
+                )
 
-        actual_completion_tokens = usage["completion_tokens"]
-        estimated_completion_tokens = tokenizer.calculate_text_tokens(content)
-        if actual_completion_tokens != estimated_completion_tokens:
-            logger.warning(
-                f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
+            actual_completion_tokens = usage["completion_tokens"]
+            estimated_completion_tokens = (
+                tokenizer.calculate_chat_completion_response_tokens(
+                    ChatCompletionBlock(resp=response)
+                )
             )
+            if actual_completion_tokens != estimated_completion_tokens:
+                logger.warning(
+                    f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
+                )
 
         return response

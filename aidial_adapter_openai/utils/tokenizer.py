@@ -9,6 +9,9 @@ from typing import Any, Callable, Generic, List, TypeVar
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
 
+from aidial_adapter_openai.utils.chat_completion_response import (
+    ChatCompletionResponse,
+)
 from aidial_adapter_openai.utils.image_tokenizer import ImageTokenizer
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 
@@ -34,13 +37,20 @@ class BaseTokenizer(Generic[MessageType]):
     def calculate_text_tokens(self, text: str) -> int:
         return len(self.encoding.encode(text))
 
-    def calculate_completion_tokens(self, message: Any) -> int:
-        def _calculate_tokens(obj: Any) -> int:
+    def calculate_chat_completion_response_tokens(
+        self, resp: ChatCompletionResponse
+    ) -> int:
+        return sum(
+            map(self._calculate_chat_completion_message_tokens, resp.messages)
+        )
+
+    def _calculate_chat_completion_message_tokens(self, message: Any) -> int:
+        def _tokenize(obj: Any) -> int:
             if not obj:
                 return 0
 
             # OpenAI doesn't reveal tokenize algo for tools calls and function calls.
-            # An approximation is used instead - tokens of the string repr of the objects.
+            # An approximation is used instead - tokens in the string repr of the objects.
             text = (
                 obj
                 if isinstance(obj, str)
@@ -51,10 +61,10 @@ class BaseTokenizer(Generic[MessageType]):
         tokens = 0
 
         for key in ["content", "refusal", "function"]:
-            tokens += _calculate_tokens(message.get(key))
+            tokens += _tokenize(message.get(key))
 
         for tool_call in message.get("tool_calls") or []:
-            tokens += _calculate_tokens(tool_call.get("function"))
+            tokens += _tokenize(tool_call.get("function"))
 
         return tokens
 
