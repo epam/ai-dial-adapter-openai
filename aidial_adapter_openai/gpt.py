@@ -23,14 +23,17 @@ from aidial_adapter_openai.utils.truncate_prompt import (
 
 
 def plain_text_truncate_prompt(
-    messages: List[dict], max_prompt_tokens: int, tokenizer: PlainTextTokenizer
+    request: dict,
+    messages: List[dict],
+    max_prompt_tokens: int,
+    tokenizer: PlainTextTokenizer,
 ) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
         messages=messages,
         message_tokens=tokenizer.tokenize_request_message,
         is_system_message=lambda message: message["role"] == "system",
         max_prompt_tokens=max_prompt_tokens,
-        initial_prompt_tokens=tokenizer.TOKENS_PER_REQUEST,
+        initial_prompt_tokens=tokenizer.tokenize_request(request, []),
     )
 
 
@@ -58,6 +61,7 @@ async def gpt_chat_completion(
 
         request["messages"], discarded_messages, estimated_prompt_tokens = (
             plain_text_truncate_prompt(
+                request=request,
                 messages=cast(List[dict], request["messages"]),
                 max_prompt_tokens=max_prompt_tokens,
                 tokenizer=tokenizer,

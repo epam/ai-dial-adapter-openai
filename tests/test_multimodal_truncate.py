@@ -45,7 +45,7 @@ def test_multimodal_truncate_with_system_and_last_user_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemAndLastUserError):
-        multi_modal_truncate_prompt(transformations, 15, 0, tokenizer)
+        multi_modal_truncate_prompt({}, transformations, 15, tokenizer)
 
 
 def test_multimodal_truncate_with_system_error():
@@ -57,7 +57,7 @@ def test_multimodal_truncate_with_system_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemError):
-        multi_modal_truncate_prompt(transformations, 9, 3, tokenizer)
+        multi_modal_truncate_prompt({}, transformations, 9, tokenizer)
 
 
 @pytest.mark.parametrize(
@@ -194,9 +194,9 @@ def test_multimodal_truncate(
 ):
     truncated, actual_discarded_messages, actual_used_tokens = (
         multi_modal_truncate_prompt(
+            {},
             transformations,
             max_prompt_tokens,
-            initial_prompt_tokens=3,
             tokenizer=tokenizer,
         )
     )

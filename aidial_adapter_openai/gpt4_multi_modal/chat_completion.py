@@ -119,9 +119,9 @@ async def predict_non_stream(
 
 
 def multi_modal_truncate_prompt(
+    request: dict,
     messages: List[MultiModalMessage],
     max_prompt_tokens: int,
-    initial_prompt_tokens: int,
     tokenizer: MultiModalTokenizer,
 ) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
@@ -130,7 +130,7 @@ def multi_modal_truncate_prompt(
         is_system_message=lambda message: message.raw_message["role"]
         == "system",
         max_prompt_tokens=max_prompt_tokens,
-        initial_prompt_tokens=initial_prompt_tokens,
+        initial_prompt_tokens=tokenizer.tokenize_request(request, []),
     )
 
 
@@ -218,9 +218,9 @@ async def chat_completion(
     if max_prompt_tokens is not None:
         multi_modal_messages, discarded_messages, estimated_prompt_tokens = (
             multi_modal_truncate_prompt(
+                request=request,
                 messages=multi_modal_messages,
                 max_prompt_tokens=max_prompt_tokens,
-                initial_prompt_tokens=tokenizer.TOKENS_PER_REQUEST,
                 tokenizer=tokenizer,
             )
         )

@@ -141,7 +141,7 @@ def test_discarded_messages_without_error(
 ):
     tokenizer = PlainTextTokenizer(model="gpt-4")
     truncated_messages, discarded_messages, _used_tokens = (
-        plain_text_truncate_prompt(messages, max_prompt_tokens, tokenizer)
+        plain_text_truncate_prompt({}, messages, max_prompt_tokens, tokenizer)
     )
     assert (truncated_messages, discarded_messages) == response
 
@@ -157,5 +157,5 @@ def test_discarded_messages_with_error(
     tokenizer = PlainTextTokenizer(model="gpt-4")
 
     with pytest.raises(DialException) as e_info:
-        plain_text_truncate_prompt(messages, max_prompt_tokens, tokenizer)
+        plain_text_truncate_prompt({}, messages, max_prompt_tokens, tokenizer)
     assert e_info.value.message == error_message

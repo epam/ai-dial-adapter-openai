@@ -88,9 +88,7 @@ class BaseTokenizer(Generic[MessageType]):
         return 1
 
     def tokenize_request(
-        self,
-        original_request: dict,
-        messages: List[MessageType],
+        self, original_request: dict, messages: List[MessageType]
     ) -> int:
         tokens = self.TOKENS_PER_REQUEST
 
