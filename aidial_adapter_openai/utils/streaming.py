@@ -4,14 +4,17 @@ from typing import Any, AsyncIterator, Callable, Iterable, Optional, TypeVar
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.utils.merge_chunks import merge_chat_completion_chunks
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import APIError, APIStatusError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel
 
 from aidial_adapter_openai.env import get_eliminate_empty_choices
+from aidial_adapter_openai.utils.chat_completion_response import (
+    ChatCompletionStreamingChunk,
+)
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.merge_chunks import merge_chunks
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 
 ELIMINATE_EMPTY_CHOICES = get_eliminate_empty_choices()
@@ -91,33 +94,21 @@ async def generate_stream(
         chunk["statistics"] = {"discarded_messages": indices}
         return chunk
 
-    n_chunks = 0
     last_chunk = None
     buffer_chunk = None
+    snapshot = ChatCompletionStreamingChunk()
 
-    completions: dict[int, str] = {}
-    found_finish_reason = False
-    found_usage = False
     error = None
 
     try:
         async for chunk in stream:
-            n_chunks += 1
+            snapshot.merge(chunk)
 
             if buffer_chunk is not None:
-                chunk = merge_chunks(buffer_chunk, chunk)
+                chunk = merge_chat_completion_chunks(chunk, buffer_chunk)
                 buffer_chunk = None
 
             choices = chunk.get("choices") or []
-
-            for choice in choices:
-                index = choice["index"]
-                content = (choice.get("delta") or {}).get("content") or ""
-
-                completions[index] = completions.get(index, "") + content
-                found_finish_reason |= bool(choice.get("finish_reason"))
-
-            found_usage |= bool(chunk.get("usage"))
 
             # Azure OpenAI returns an empty list of choices as a first chunk
             # when content filtering is enabled for a corresponding deployment.
@@ -141,16 +132,19 @@ async def generate_stream(
         ).json_error()
 
     if last_chunk is not None and buffer_chunk is not None:
-        last_chunk = merge_chunks(buffer_chunk, last_chunk)
+        last_chunk = merge_chat_completion_chunks(last_chunk, buffer_chunk)
 
     if discarded_messages is not None:
         last_chunk = set_discarded_messages(last_chunk, discarded_messages)
 
-    if not found_usage and (not error or completions):
-        last_chunk = set_usage(last_chunk, completions.values())
+    completions = [msg.get("content") or "" for msg in snapshot.messages]
+    found_finish_reason = any(True for _ in snapshot.finish_reasons)
+
+    if snapshot.usage is None and (not error or completions):
+        last_chunk = set_usage(last_chunk, completions)
 
     if not error:
-        if n_chunks == 0:
+        if snapshot.is_empty:
             logger.warning("Received 0 chunks")
         elif not found_finish_reason:
             logger.warning("Didn't receive chunk with the finish reason")
@@ -158,8 +152,8 @@ async def generate_stream(
         if not found_finish_reason:
             last_chunk = set_finish_reason(last_chunk, "length")
 
-        if not found_usage:
-            last_chunk = set_usage(last_chunk, completions.values())
+        if snapshot.usage is None:
+            last_chunk = set_usage(last_chunk, completions)
 
     if last_chunk:
         yield last_chunk
