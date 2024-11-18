@@ -134,7 +134,7 @@ def _process_raw_message(
                 pass
             else:
                 raise InternalServerError(
-                    f"Unexpected type of content in message: {value!r}"
+                    f"Unexpected type of content in message: {type(value)}"
                 )
 
         elif key == "role":
@@ -142,7 +142,7 @@ def _process_raw_message(
                 tokens += calculate_text_tokens(value)
             else:
                 raise InternalServerError(
-                    f"Unexpected type of 'role' field in message: {value!r}"
+                    f"Unexpected type of 'role' field in message: {type(value)}"
                 )
     return tokens
 
@@ -154,8 +154,9 @@ class PlainTextTokenizer(BaseTokenizer[dict]):
     """
 
     def _handle_custom_content_part(self, content_part: Any):
+        short_content_part = str(content_part)[:100]
         raise InternalServerError(
-            f"Unexpected type of content in message: {content_part!r}"
+            f"Unexpected type of content in message: {short_content_part!r}"
             f"Use MultiModalTokenizer for messages with images"
         )
 
