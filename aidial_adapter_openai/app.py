@@ -215,10 +215,16 @@ async def embedding(deployment_id: str, request: Request):
 def openai_exception_handler(request: Request, e: DialException):
     if isinstance(e, APIStatusError):
         r = e.response
+        headers = r.headers
+
+        # Avoid encoding the error message when the original response was encoded.
+        if "Content-Encoding" in headers:
+            del headers["Content-Encoding"]
+
         return Response(
             content=r.content,
             status_code=r.status_code,
-            headers=r.headers,
+            headers=headers,
         )
 
     if isinstance(e, APITimeoutError):
