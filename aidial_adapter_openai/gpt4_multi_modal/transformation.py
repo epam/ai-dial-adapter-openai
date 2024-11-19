@@ -100,27 +100,28 @@ class ResourceProcessor(BaseModel):
         ret: List[ImageMetadata] = []
 
         for content_part in content:
-            if image_url := content_part.get("image_url", {}).get("url"):
-                image_detail = content_part.get("image_url", {}).get("detail")
-                if image_detail not in [None, "auto", "low", "high"]:
+            image_url = content_part.get("image_url")
+            if image_url and (url := image_url.get("url")):
+                detail = image_url.get("detail")
+                if detail not in [None, "auto", "low", "high"]:
                     raise ValidationError("Unexpected image detail")
 
                 dial_resource = URLResource(
-                    url=image_url,
+                    url=url,
                     entity_name="image",
                     supported_types=SUPPORTED_IMAGE_TYPES,
                 )
                 result = await self.try_download_resource(dial_resource)
-                self.collect_resource(ret, result, image_detail)
+                self.collect_resource(ret, result, detail)
 
         return ret
 
     async def transform_message(self, message: dict) -> MultiModalMessage:
         message = message.copy()
 
-        content = message.get("content", "")
-        custom_content = message.pop("custom_content", {})
-        attachments = custom_content.get("attachments", [])
+        content = message.get("content") or ""
+        custom_content = message.pop("custom_content", None) or {}
+        attachments = custom_content.get("attachments") or []
 
         attachment_meta = await self.download_attachment_images(attachments)
         content_meta = await self.download_content_images(content)
