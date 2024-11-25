@@ -1,17 +1,21 @@
 import logging
 from time import time
-from typing import Any, AsyncIterator, Callable, Iterable, Optional, TypeVar
+from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.utils.merge_chunks import merge_chat_completion_chunks
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai import APIError, APIStatusError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel
 
 from aidial_adapter_openai.env import get_eliminate_empty_choices
+from aidial_adapter_openai.utils.chat_completion_response import (
+    ChatCompletionResponse,
+    ChatCompletionStreamingChunk,
+)
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.merge_chunks import merge_chunks
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 
 ELIMINATE_EMPTY_CHOICES = get_eliminate_empty_choices()
@@ -54,13 +58,13 @@ def build_chunk(
 async def generate_stream(
     *,
     get_prompt_tokens: Callable[[], int],
-    tokenize: Callable[[str], int],
+    tokenize_response: Callable[[ChatCompletionResponse], int],
     deployment: str,
     discarded_messages: Optional[list[int]],
     stream: AsyncIterator[dict],
 ) -> AsyncIterator[dict]:
 
-    noop_chunk = build_chunk(
+    empty_chunk = build_chunk(
         id=generate_id(),
         created=generate_created(),
         model=deployment,
@@ -69,10 +73,11 @@ async def generate_stream(
         finish_reason=None,
     )
 
-    def set_usage(chunk: dict | None, completions: Iterable[str]) -> dict:
-        chunk = chunk or noop_chunk
-        completion_tokens = sum(map(tokenize, completions))
+    def set_usage(chunk: dict | None, resp: ChatCompletionResponse) -> dict:
+        completion_tokens = tokenize_response(resp)
         prompt_tokens = get_prompt_tokens()
+
+        chunk = chunk or empty_chunk
         chunk["usage"] = {
             "completion_tokens": completion_tokens,
             "prompt_tokens": prompt_tokens,
@@ -81,43 +86,31 @@ async def generate_stream(
         return chunk
 
     def set_finish_reason(chunk: dict | None, finish_reason: str) -> dict:
-        chunk = chunk or noop_chunk
+        chunk = chunk or empty_chunk
         chunk["choices"] = chunk.get("choices") or [{"index": 0, "delta": {}}]
         chunk["choices"][0]["finish_reason"] = finish_reason
         return chunk
 
     def set_discarded_messages(chunk: dict | None, indices: list[int]) -> dict:
-        chunk = chunk or noop_chunk
+        chunk = chunk or empty_chunk
         chunk["statistics"] = {"discarded_messages": indices}
         return chunk
 
-    n_chunks = 0
     last_chunk = None
     buffer_chunk = None
+    response_snapshot = ChatCompletionStreamingChunk()
 
-    completions: dict[int, str] = {}
-    found_finish_reason = False
-    found_usage = False
     error = None
 
     try:
         async for chunk in stream:
-            n_chunks += 1
+            response_snapshot.merge(chunk)
 
             if buffer_chunk is not None:
-                chunk = merge_chunks(buffer_chunk, chunk)
+                chunk = merge_chat_completion_chunks(chunk, buffer_chunk)
                 buffer_chunk = None
 
             choices = chunk.get("choices") or []
-
-            for choice in choices:
-                index = choice["index"]
-                content = (choice.get("delta") or {}).get("content") or ""
-
-                completions[index] = completions.get(index, "") + content
-                found_finish_reason |= bool(choice.get("finish_reason"))
-
-            found_usage |= bool(chunk.get("usage"))
 
             # Azure OpenAI returns an empty list of choices as a first chunk
             # when content filtering is enabled for a corresponding deployment.
@@ -141,25 +134,29 @@ async def generate_stream(
         ).json_error()
 
     if last_chunk is not None and buffer_chunk is not None:
-        last_chunk = merge_chunks(buffer_chunk, last_chunk)
+        last_chunk = merge_chat_completion_chunks(last_chunk, buffer_chunk)
 
     if discarded_messages is not None:
         last_chunk = set_discarded_messages(last_chunk, discarded_messages)
 
-    if not found_usage and (not error or completions):
-        last_chunk = set_usage(last_chunk, completions.values())
+    if response_snapshot.usage is None and (
+        not error or response_snapshot.has_messages
+    ):
+        last_chunk = set_usage(last_chunk, response_snapshot)
 
     if not error:
-        if n_chunks == 0:
+        has_finish_reason = response_snapshot.has_finish_reason
+
+        if response_snapshot.is_empty:
             logger.warning("Received 0 chunks")
-        elif not found_finish_reason:
+        elif not has_finish_reason:
             logger.warning("Didn't receive chunk with the finish reason")
 
-        if not found_finish_reason:
+        if not has_finish_reason:
             last_chunk = set_finish_reason(last_chunk, "length")
 
-        if not found_usage:
-            last_chunk = set_usage(last_chunk, completions.values())
+        if response_snapshot.usage is None:
+            last_chunk = set_usage(last_chunk, response_snapshot)
 
     if last_chunk:
         yield last_chunk
