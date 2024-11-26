@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from typing import Annotated
 
 import pydantic
 from aidial_sdk._errors import pydantic_validation_exception_handler
@@ -6,7 +7,7 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import Response
 from openai import (
     APIConnectionError,
@@ -16,6 +17,7 @@ from openai import (
     OpenAIError,
 )
 
+from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,
@@ -30,17 +32,6 @@ from aidial_adapter_openai.embeddings.azure_ai_vision import (
 from aidial_adapter_openai.embeddings.openai import (
     embeddings as openai_embeddings,
 )
-from aidial_adapter_openai.env import (
-    API_VERSIONS_MAPPING,
-    AZURE_AI_VISION_DEPLOYMENTS,
-    DALLE3_AZURE_API_VERSION,
-    DALLE3_DEPLOYMENTS,
-    DATABRICKS_DEPLOYMENTS,
-    GPT4_VISION_DEPLOYMENTS,
-    MISTRAL_DEPLOYMENTS,
-    MODEL_ALIASES,
-    NON_STREAMING_DEPLOYMENTS,
-)
 from aidial_adapter_openai.gpt import gpt_chat_completion
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     gpt4_vision_chat_completion,
@@ -51,7 +42,10 @@ from aidial_adapter_openai.mistral import (
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.http_client import get_http_client
-from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
+from aidial_adapter_openai.utils.image_tokenizer import (
+    ImageTokenizer,
+    get_image_tokenizer,
+)
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
 from aidial_adapter_openai.utils.streaming import create_server_response
@@ -68,16 +62,35 @@ async def lifespan(app: FastAPI):
     await get_http_client().aclose()
 
 
-app = FastAPI(lifespan=lifespan)
+def create_app(
+    app_config: ApplicationConfig | None = None,
+    to_init_telemetry: bool = True,
+    to_configure_loggers: bool = True,
+) -> FastAPI:
+    app = FastAPI(lifespan=lifespan)
+
+    if app_config is None:
+        app_config = ApplicationConfig.from_env()
+
+    app.state.app_config = app_config
+
+    if to_init_telemetry:
+        init_telemetry(app, TelemetryConfig())
+
+    if to_configure_loggers:
+        configure_loggers()
+
+    return app
 
 
-init_telemetry(app, TelemetryConfig())
-configure_loggers()
+def get_app_config(request: Request) -> ApplicationConfig:
+    return request.app.state.app_config
 
 
-def get_api_version(request: Request):
+def get_api_version(request: Request) -> str:
     api_version = request.query_params.get("api-version", "")
-    api_version = API_VERSIONS_MAPPING.get(api_version, api_version)
+    app_config = get_app_config(request)
+    api_version = app_config.API_VERSIONS_MAPPING.get(api_version, api_version)
 
     if api_version == "":
         raise InvalidRequestError("api-version is a required query parameter")
@@ -85,26 +98,52 @@ def get_api_version(request: Request):
     return api_version
 
 
+def _get_image_tokenizer(
+    deployment_id: str, app_config: ApplicationConfig
+) -> ImageTokenizer:
+    image_tokenizer = get_image_tokenizer(deployment_id, app_config)
+    if not image_tokenizer:
+        raise RuntimeError(
+            f"No image tokenizer found for deployment {deployment_id}"
+        )
+    return image_tokenizer
+
+
+app = create_app()
+
+
 @app.post("/openai/deployments/{deployment_id:path}/chat/completions")
-async def chat_completion(deployment_id: str, request: Request):
+async def chat_completion(
+    deployment_id: str,
+    request: Request,
+    app_config: Annotated[ApplicationConfig, Depends(get_app_config)],
+):
 
     data = await parse_body(request)
 
     is_stream = bool(data.get("stream"))
 
-    emulate_streaming = deployment_id in NON_STREAMING_DEPLOYMENTS and is_stream
+    emulate_streaming = (
+        deployment_id in app_config.NON_STREAMING_DEPLOYMENTS and is_stream
+    )
 
     if emulate_streaming:
         data["stream"] = False
 
     return create_server_response(
         emulate_streaming,
-        await call_chat_completion(deployment_id, data, is_stream, request),
+        await call_chat_completion(
+            deployment_id, data, is_stream, request, app_config
+        ),
     )
 
 
 async def call_chat_completion(
-    deployment_id: str, data: dict, is_stream: bool, request: Request
+    deployment_id: str,
+    data: dict,
+    is_stream: bool,
+    request: Request,
+    app_config: ApplicationConfig,
 ):
 
     # Azure OpenAI deployments ignore "model" request field,
@@ -129,9 +168,9 @@ async def call_chat_completion(
             creds,
             api_version,
             deployment_id,
+            app_config,
         )
-
-    if deployment_id in DALLE3_DEPLOYMENTS:
+    if deployment_id in app_config.DALLE3_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
         return await dalle3_chat_completion(
             data,
@@ -139,46 +178,52 @@ async def call_chat_completion(
             creds,
             is_stream,
             storage,
-            DALLE3_AZURE_API_VERSION,
+            app_config.DALLE3_AZURE_API_VERSION,
         )
 
-    if deployment_id in MISTRAL_DEPLOYMENTS:
+    if deployment_id in app_config.MISTRAL_DEPLOYMENTS:
         return await mistral_chat_completion(data, upstream_endpoint, creds)
 
-    if deployment_id in DATABRICKS_DEPLOYMENTS:
+    if deployment_id in app_config.DATABRICKS_DEPLOYMENTS:
         return await databricks_chat_completion(data, upstream_endpoint, creds)
 
-    text_tokenizer_model = MODEL_ALIASES.get(deployment_id, deployment_id)
+    text_tokenizer_model = app_config.MODEL_ALIASES.get(
+        deployment_id, deployment_id
+    )
 
-    if image_tokenizer := get_image_tokenizer(deployment_id):
-        storage = create_file_storage("images", request.headers)
+    if deployment_id in app_config.GPT4_VISION_DEPLOYMENTS:
+        tokenizer = MultiModalTokenizer(
+            "gpt-4", _get_image_tokenizer(deployment_id, app_config)
+        )
+        return await gpt4_vision_chat_completion(
+            data,
+            deployment_id,
+            upstream_endpoint,
+            creds,
+            is_stream,
+            create_file_storage("images", request.headers),
+            api_version,
+            tokenizer,
+        )
 
-        if deployment_id in GPT4_VISION_DEPLOYMENTS:
-            tokenizer = MultiModalTokenizer("gpt-4", image_tokenizer)
-            return await gpt4_vision_chat_completion(
-                data,
-                deployment_id,
-                upstream_endpoint,
-                creds,
-                is_stream,
-                storage,
-                api_version,
-                tokenizer,
-            )
-        else:
-            tokenizer = MultiModalTokenizer(
-                text_tokenizer_model, image_tokenizer
-            )
-            return await gpt4o_chat_completion(
-                data,
-                deployment_id,
-                upstream_endpoint,
-                creds,
-                is_stream,
-                storage,
-                api_version,
-                tokenizer,
-            )
+    if deployment_id in (
+        *app_config.GPT4O_DEPLOYMENTS,
+        *app_config.GPT4O_MINI_DEPLOYMENTS,
+    ):
+        tokenizer = MultiModalTokenizer(
+            text_tokenizer_model,
+            _get_image_tokenizer(deployment_id, app_config),
+        )
+        return await gpt4o_chat_completion(
+            data,
+            deployment_id,
+            upstream_endpoint,
+            creds,
+            is_stream,
+            create_file_storage("images", request.headers),
+            api_version,
+            tokenizer,
+        )
 
     tokenizer = PlainTextTokenizer(model=text_tokenizer_model)
     return await gpt_chat_completion(
@@ -192,7 +237,11 @@ async def call_chat_completion(
 
 
 @app.post("/openai/deployments/{deployment_id:path}/embeddings")
-async def embedding(deployment_id: str, request: Request):
+async def embedding(
+    deployment_id: str,
+    request: Request,
+    app_config: Annotated[ApplicationConfig, Depends(get_app_config)],
+):
     data = await parse_body(request)
 
     # See note for /chat/completions endpoint
@@ -202,7 +251,7 @@ async def embedding(deployment_id: str, request: Request):
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
-    if deployment_id in AZURE_AI_VISION_DEPLOYMENTS:
+    if deployment_id in app_config.AZURE_AI_VISION_DEPLOYMENTS:
         storage = create_file_storage("images", request.headers)
         return await azure_ai_vision_embeddings(
             creds, deployment_id, upstream_endpoint, storage, data

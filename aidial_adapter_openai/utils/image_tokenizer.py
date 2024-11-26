@@ -8,11 +8,7 @@ from typing import List, Tuple, assert_never
 
 from pydantic import BaseModel
 
-from aidial_adapter_openai.env import (
-    GPT4_VISION_DEPLOYMENTS,
-    GPT4O_DEPLOYMENTS,
-    GPT4O_MINI_DEPLOYMENTS,
-)
+from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.image import ImageDetail, resolve_detail_level
 
 
@@ -58,14 +54,18 @@ GPT4O_MINI_IMAGE_TOKENIZER = ImageTokenizer(
     low_detail_tokens=2833, tokens_per_tile=5667
 )
 
-_TOKENIZERS: List[Tuple[ImageTokenizer, List[str]]] = [
-    (GPT4O_IMAGE_TOKENIZER, GPT4O_DEPLOYMENTS),
-    (GPT4O_MINI_IMAGE_TOKENIZER, GPT4O_MINI_DEPLOYMENTS),
-    (GPT4_VISION_IMAGE_TOKENIZER, GPT4_VISION_DEPLOYMENTS),
-]
 
-
-def get_image_tokenizer(deployment_id: str) -> ImageTokenizer | None:
+def get_image_tokenizer(
+    deployment_id: str, app_config: ApplicationConfig
+) -> ImageTokenizer | None:
+    _TOKENIZERS: List[Tuple[ImageTokenizer, List[str]]] = [
+        (GPT4O_IMAGE_TOKENIZER, app_config.GPT4O_DEPLOYMENTS),
+        (GPT4O_MINI_IMAGE_TOKENIZER, app_config.GPT4O_MINI_DEPLOYMENTS),
+        (
+            GPT4_VISION_IMAGE_TOKENIZER,
+            app_config.GPT4_VISION_DEPLOYMENTS,
+        ),
+    ]
     for tokenizer, ids in _TOKENIZERS:
         if deployment_id in ids:
             return tokenizer

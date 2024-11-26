@@ -4,7 +4,7 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncStream
 from openai.types import Completion
 
-from aidial_adapter_openai.env import COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES
+from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
@@ -46,6 +46,7 @@ async def chat_completion(
     creds: OpenAICreds,
     api_version: str,
     deployment_id: str,
+    app_config: ApplicationConfig,
 ):
 
     if data.get("n") or 1 > 1:
@@ -60,7 +61,9 @@ async def chat_completion(
     prompt = messages[-1].get("content") or ""
 
     if (
-        template := COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES.get(deployment_id)
+        template := app_config.COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES.get(
+            deployment_id
+        )
     ) is not None:
         prompt = template.format(prompt=prompt)
 
