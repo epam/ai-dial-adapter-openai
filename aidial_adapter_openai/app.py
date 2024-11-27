@@ -7,14 +7,13 @@ from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI
 from openai import OpenAIError
 
+import aidial_adapter_openai.routers as routers
 from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.exception_handlers import (
     dial_exception_handler,
     openai_exception_handler,
     pydantic_exception_handler,
 )
-from aidial_adapter_openai.routers.chat_completion import chat_completion
-from aidial_adapter_openai.routers.embeddings import embedding
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.request import set_app_config
@@ -39,13 +38,12 @@ def create_app(
 
     configure_loggers()
 
-    @app.get("/health")
-    def health():
-        return {"status": "ok"}
-
-    app.post("/openai/deployments/{deployment_id:path}/embeddings")(embedding)
+    app.get("/health")(routers.health)
+    app.post("/openai/deployments/{deployment_id:path}/embeddings")(
+        routers.embedding
+    )
     app.post("/openai/deployments/{deployment_id:path}/chat/completions")(
-        chat_completion
+        routers.chat_completion
     )
     app.exception_handler(OpenAIError)(openai_exception_handler)
     app.exception_handler(pydantic.ValidationError)(pydantic_exception_handler)
