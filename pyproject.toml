@@ -31,7 +31,7 @@ aiohttp = "^3.10.11"
 numpy = "^1.26.0"
 pillow = "^10.3.0"
 azure-identity = "^1.16.1"
-aidial-sdk = {version = "^0.13.0", extras = ["telemetry"]}
+aidial-sdk = {version = "^0.15.0", extras = ["telemetry"]}
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
