@@ -20,6 +20,7 @@ from aidial_adapter_openai.routers.chat_completion import chat_completion
 from aidial_adapter_openai.routers.embeddings import embedding
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
+from aidial_adapter_openai.utils.request import set_app_config
 
 
 @asynccontextmanager
@@ -84,11 +85,7 @@ def create_app(
     to_init_telemetry: bool = True,
 ) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
-
-    if app_config is None:
-        app_config = ApplicationConfig.from_env()
-
-    app.state.app_config = app_config
+    set_app_config(app, app_config or ApplicationConfig.from_env())
 
     if to_init_telemetry:
         init_telemetry(app, TelemetryConfig())
