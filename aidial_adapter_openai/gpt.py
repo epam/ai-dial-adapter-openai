@@ -44,6 +44,7 @@ async def gpt_chat_completion(
     creds: OpenAICreds,
     api_version: str,
     tokenizer: PlainTextTokenizer,
+    eliminate_empty_choices: bool,
 ):
     discarded_messages = None
     estimated_prompt_tokens = None
@@ -83,6 +84,7 @@ async def gpt_chat_completion(
             deployment=deployment_id,
             discarded_messages=discarded_messages,
             stream=map_stream(chunk_to_dict, response),
+            eliminate_empty_choices=eliminate_empty_choices,
         )
     else:
         rest = response.to_dict()

@@ -143,6 +143,7 @@ async def gpt4o_chat_completion(
     file_storage: Optional[FileStorage],
     api_version: str,
     tokenizer: MultiModalTokenizer,
+    eliminate_empty_choices: bool,
 ):
     return await chat_completion(
         request,
@@ -155,6 +156,7 @@ async def gpt4o_chat_completion(
         tokenizer,
         lambda x: x,
         None,
+        eliminate_empty_choices,
     )
 
 
@@ -167,6 +169,7 @@ async def gpt4_vision_chat_completion(
     file_storage: Optional[FileStorage],
     api_version: str,
     tokenizer: MultiModalTokenizer,
+    eliminate_empty_choices: bool,
 ):
     return await chat_completion(
         request,
@@ -179,6 +182,7 @@ async def gpt4_vision_chat_completion(
         tokenizer,
         convert_gpt4v_to_gpt4_chunk,
         GPT4V_DEFAULT_MAX_TOKENS,
+        eliminate_empty_choices,
     )
 
 
@@ -193,6 +197,7 @@ async def chat_completion(
     tokenizer: MultiModalTokenizer,
     response_transformer: Callable[[dict], dict | None],
     default_max_tokens: Optional[int],
+    eliminate_empty_choices: bool,
 ):
     if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
@@ -265,6 +270,7 @@ async def chat_completion(
                     response_transformer,
                     parse_openai_sse_stream(response),
                 ),
+                eliminate_empty_choices=eliminate_empty_choices,
             ),
         )
     else:

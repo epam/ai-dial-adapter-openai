@@ -4,7 +4,7 @@ Tokenization of images as specified at
 """
 
 import math
-from typing import List, Tuple, assert_never
+from typing import assert_never
 
 from pydantic import BaseModel
 
@@ -57,19 +57,17 @@ GPT4O_MINI_IMAGE_TOKENIZER = ImageTokenizer(
 
 def get_image_tokenizer(
     deployment_id: str, app_config: ApplicationConfig
-) -> ImageTokenizer | None:
-    _TOKENIZERS: List[Tuple[ImageTokenizer, List[str]]] = [
-        (GPT4O_IMAGE_TOKENIZER, app_config.GPT4O_DEPLOYMENTS),
-        (GPT4O_MINI_IMAGE_TOKENIZER, app_config.GPT4O_MINI_DEPLOYMENTS),
-        (
-            GPT4_VISION_IMAGE_TOKENIZER,
-            app_config.GPT4_VISION_DEPLOYMENTS,
-        ),
-    ]
-    for tokenizer, ids in _TOKENIZERS:
-        if deployment_id in ids:
-            return tokenizer
-    return None
+) -> ImageTokenizer:
+    if deployment_id in app_config.GPT4O_DEPLOYMENTS:
+        return GPT4O_IMAGE_TOKENIZER
+    elif deployment_id in app_config.GPT4O_MINI_DEPLOYMENTS:
+        return GPT4O_MINI_IMAGE_TOKENIZER
+    elif deployment_id in app_config.GPT4_VISION_DEPLOYMENTS:
+        return GPT4_VISION_IMAGE_TOKENIZER
+    else:
+        raise RuntimeError(
+            f"No image tokenizer found for deployment {deployment_id}"
+        )
 
 
 def _fit_longest(width: int, height: int, size: int) -> tuple[int, int]:
