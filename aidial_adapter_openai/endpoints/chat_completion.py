@@ -35,7 +35,6 @@ from aidial_adapter_openai.utils.tokenizer import (
 
 
 async def call_chat_completion(
-    deployment_type: ChatCompletionDeploymentType,
     deployment_id: str,
     data: dict,
     is_stream: bool,
@@ -67,6 +66,10 @@ async def call_chat_completion(
             deployment_id,
             app_config,
         )
+
+    deployment_type = app_config.get_chat_completion_deployment_type(
+        deployment_id
+    )
     match deployment_type:
         case ChatCompletionDeploymentType.DALLE3:
             storage = create_file_storage("images", request.headers)
@@ -140,9 +143,6 @@ async def chat_completion(deployment_id: str, request: Request):
     app_config = get_request_app_config(request)
     data = await parse_body(request)
 
-    deployment_type = app_config.get_chat_completion_deployment_type(
-        deployment_id
-    )
     is_stream = bool(data.get("stream"))
 
     emulate_streaming = (
@@ -155,6 +155,6 @@ async def chat_completion(deployment_id: str, request: Request):
     return create_server_response(
         emulate_streaming,
         await call_chat_completion(
-            deployment_type, deployment_id, data, is_stream, request, app_config
+            deployment_id, data, is_stream, request, app_config
         ),
     )
