@@ -2,12 +2,12 @@ from contextlib import asynccontextmanager
 
 import pydantic
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.telemetry.init import init_telemetry
+from aidial_sdk.telemetry.init import init_telemetry as sdk_init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
 from fastapi import FastAPI
 from openai import OpenAIError
 
-import aidial_adapter_openai.routers as routers
+import aidial_adapter_openai.endpoints as endpoints
 from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.exception_handlers import (
     dial_exception_handler,
@@ -28,22 +28,22 @@ async def lifespan(app: FastAPI):
 
 def create_app(
     app_config: ApplicationConfig | None = None,
-    to_init_telemetry: bool = True,
+    init_telemetry: bool = True,
 ) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     set_app_config(app, app_config or ApplicationConfig.from_env())
 
-    if to_init_telemetry:
-        init_telemetry(app, TelemetryConfig())
+    if init_telemetry:
+        sdk_init_telemetry(app, TelemetryConfig())
 
     configure_loggers()
 
-    app.get("/health")(routers.health)
+    app.get("/health")(endpoints.health)
     app.post("/openai/deployments/{deployment_id:path}/embeddings")(
-        routers.embedding
+        endpoints.embedding
     )
     app.post("/openai/deployments/{deployment_id:path}/chat/completions")(
-        routers.chat_completion
+        endpoints.chat_completion
     )
     app.exception_handler(OpenAIError)(openai_exception_handler)
     app.exception_handler(pydantic.ValidationError)(pydantic_exception_handler)

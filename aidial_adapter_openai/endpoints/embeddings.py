@@ -1,8 +1,5 @@
-from typing import Annotated
+from fastapi import Request
 
-from fastapi import Depends, Request
-
-from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.embeddings.azure_ai_vision import (
     embeddings as azure_ai_vision_embeddings,
@@ -18,11 +15,8 @@ from aidial_adapter_openai.utils.request import (
 )
 
 
-async def embedding(
-    deployment_id: str,
-    request: Request,
-    app_config: Annotated[ApplicationConfig, Depends(get_request_app_config)],
-):
+async def embedding(deployment_id: str, request: Request):
+    app_config = get_request_app_config(request)
     data = await parse_body(request)
 
     # See note for /chat/completions endpoint

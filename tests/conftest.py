@@ -7,9 +7,9 @@ from aidial_adapter_openai.app import create_app
 from aidial_adapter_openai.utils.request import get_app_config
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 def _app_instance():
-    return create_app(to_init_telemetry=False)
+    return create_app(init_telemetry=False)
 
 
 @pytest_asyncio.fixture
