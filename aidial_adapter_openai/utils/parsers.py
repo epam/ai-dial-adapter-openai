@@ -110,7 +110,3 @@ async def parse_body(request: Request) -> Dict[str, Any]:
         raise InvalidRequestError(str(data) + " is not of type 'object'")
 
     return data
-
-
-def parse_deployment_list(deployments: str | None) -> List[str]:
-    return list(map(str.strip, (deployments or "").split(",")))

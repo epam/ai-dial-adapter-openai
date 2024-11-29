@@ -8,7 +8,6 @@ from aidial_adapter_openai.constant import ChatCompletionDeploymentType
 from aidial_adapter_openai.utils.env import get_env_bool
 from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.parsers import parse_deployment_list
 
 
 class ApplicationConfig(BaseModel):
@@ -47,7 +46,10 @@ class ApplicationConfig(BaseModel):
     @classmethod
     def from_env(cls) -> "ApplicationConfig":
         def _parse_env_deployments(deployments_key: str) -> List[str] | None:
-            return parse_deployment_list(os.getenv(deployments_key)) or None
+            deployments_value = os.getenv(deployments_key)
+            if deployments_value is None:
+                return None
+            return list(map(str.strip, (deployments_value).split(",")))
 
         def _parse_env_dict(key: str) -> Dict[str, str] | None:
             value = os.getenv(key)
