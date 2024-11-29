@@ -1,7 +1,7 @@
 import re
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, TypedDict
 
 from aidial_sdk.exceptions import InvalidRequestError
 from fastapi import Request
