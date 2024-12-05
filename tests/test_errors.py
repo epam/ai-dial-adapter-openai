@@ -506,6 +506,52 @@ async def test_connection_error_from_upstream(test_app: httpx.AsyncClient):
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_unexpected_multi_modal_input_streaming(
+    test_app: httpx.AsyncClient,
+):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(delta={"role": "assistant"}),
+        single_choice_chunk(delta={"content": "Test response"}),
+        single_choice_chunk(delta={}, finish_reason="stop"),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content=mock_stream.to_content(),
+        content_type="text/event-stream",
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "stream": True,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": "http://example.com/image.png"
+                            },
+                        }
+                    ],
+                }
+            ],
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+    mock_stream.assert_response_content(response, assert_equal)
+
+
+@pytest.mark.asyncio
 async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",

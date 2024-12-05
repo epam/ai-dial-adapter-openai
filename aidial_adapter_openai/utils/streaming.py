@@ -72,15 +72,23 @@ async def generate_stream(
     )
 
     def set_usage(chunk: dict | None, resp: ChatCompletionResponse) -> dict:
-        completion_tokens = tokenize_response(resp)
-        prompt_tokens = get_prompt_tokens()
-
         chunk = chunk or empty_chunk
-        chunk["usage"] = {
-            "completion_tokens": completion_tokens,
-            "prompt_tokens": prompt_tokens,
-            "total_tokens": prompt_tokens + completion_tokens,
-        }
+
+        # Do not fail the whole response if tokenization has failed
+        try:
+            completion_tokens = tokenize_response(resp)
+            prompt_tokens = get_prompt_tokens()
+        except Exception as e:
+            logger.exception(
+                f"caught exception while tokenization: {type(e).__module__}.{type(e).__name__}. "
+                "The tokenization has failed, therefore, the usage won't be reported."
+            )
+        else:
+            chunk["usage"] = {
+                "completion_tokens": completion_tokens,
+                "prompt_tokens": prompt_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            }
         return chunk
 
     def set_finish_reason(chunk: dict | None, finish_reason: str) -> dict:
