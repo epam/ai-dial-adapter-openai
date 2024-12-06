@@ -1,0 +1,40 @@
+[
+    {
+        "deployment_id": "gpt-4o-2024-05-13",
+        "deployment_type": "GPT4O",
+        "upstream_endpoint": "https://your-azure-endpoint.openai.azure.com/openai/deployments/gpt-4o-2024-05-13/chat/completions",
+        "upstream_api_key": "your-api-key"
+    },
+    {
+        "deployment_id": "gpt-4o-mini-2024-07-18",
+        "deployment_type": "GPT4O_MINI",
+        "upstream_endpoint": "https://your-azure-endpoint.openai.azure.com/openai/deployments/gpt-4o-mini-2024-07-18/chat/completions",
+        "upstream_api_key": "your-api-key"
+    },
+    {
+        "deployment_id": "gpt-4-vision-preview",
+        "deployment_type": "GPT4_VISION",
+        "upstream_endpoint": "https://your-azure-endpoint.openai.azure.com/openai/deployments/gpt-4-vision-preview/chat/completions",
+        "upstream_api_key": "your-api-key"
+    },
+    {
+        "deployment_id": "databricks-endpoint",
+        "deployment_type": "DATABRICKS",
+        "upstream_endpoint": "https://your-databricks-endpoint.cloud.databricks.com/serving-endpoints/chat/completions",
+        "upstream_api_key": "your-databricks-api-key"
+    },
+    {
+        "deployment_id": "mistral-endpoint",
+        "deployment_type": "MISTRAL",
+        "upstream_endpoint": "https://your-databricks-endpoint.cloud.databricks.com/serving-endpoints/chat/completions",
+        "upstream_api_key": "your-databricks-api-key"
+    },
+    {
+        "deployment_id": "gpt-4-0613",
+        "deployment_type": "GPT_TEXT_ONLY",
+        "upstream_endpoint": "https://your-azure-endpoint.openai.azure.com/openai/deployments/gpt-4-0613/chat/completions",
+        "upstream_api_key": "your-api-key"
+    }
+]
+
+
