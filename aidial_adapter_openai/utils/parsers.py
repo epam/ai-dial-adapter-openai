@@ -1,7 +1,7 @@
 import re
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, TypedDict
 
 from aidial_sdk.exceptions import InvalidRequestError
 from fastapi import Request
@@ -110,7 +110,3 @@ async def parse_body(request: Request) -> Dict[str, Any]:
         raise InvalidRequestError(str(data) + " is not of type 'object'")
 
     return data
-
-
-def parse_deployment_list(deployments: str | None) -> List[str]:
-    return list(map(str.strip, (deployments or "").split(",")))

@@ -4,15 +4,11 @@ Tokenization of images as specified at
 """
 
 import math
-from typing import List, Tuple, assert_never
+from typing import Literal, assert_never
 
 from pydantic import BaseModel
 
-from aidial_adapter_openai.env import (
-    GPT4_VISION_DEPLOYMENTS,
-    GPT4O_DEPLOYMENTS,
-    GPT4O_MINI_DEPLOYMENTS,
-)
+from aidial_adapter_openai.constant import ChatCompletionDeploymentType
 from aidial_adapter_openai.utils.image import ImageDetail, resolve_detail_level
 
 
@@ -58,18 +54,25 @@ GPT4O_MINI_IMAGE_TOKENIZER = ImageTokenizer(
     low_detail_tokens=2833, tokens_per_tile=5667
 )
 
-_TOKENIZERS: List[Tuple[ImageTokenizer, List[str]]] = [
-    (GPT4O_IMAGE_TOKENIZER, GPT4O_DEPLOYMENTS),
-    (GPT4O_MINI_IMAGE_TOKENIZER, GPT4O_MINI_DEPLOYMENTS),
-    (GPT4_VISION_IMAGE_TOKENIZER, GPT4_VISION_DEPLOYMENTS),
+MultiModalDeployments = Literal[
+    ChatCompletionDeploymentType.GPT4O,
+    ChatCompletionDeploymentType.GPT4O_MINI,
+    ChatCompletionDeploymentType.GPT4_VISION,
 ]
 
 
-def get_image_tokenizer(deployment_id: str) -> ImageTokenizer | None:
-    for tokenizer, ids in _TOKENIZERS:
-        if deployment_id in ids:
-            return tokenizer
-    return None
+def get_image_tokenizer(
+    deployment_type: MultiModalDeployments,
+) -> ImageTokenizer:
+    match deployment_type:
+        case ChatCompletionDeploymentType.GPT4O:
+            return GPT4O_IMAGE_TOKENIZER
+        case ChatCompletionDeploymentType.GPT4O_MINI:
+            return GPT4O_MINI_IMAGE_TOKENIZER
+        case ChatCompletionDeploymentType.GPT4_VISION:
+            return GPT4_VISION_IMAGE_TOKENIZER
+        case _:
+            assert_never(deployment_type)
 
 
 def _fit_longest(width: int, height: int, size: int) -> tuple[int, int]:

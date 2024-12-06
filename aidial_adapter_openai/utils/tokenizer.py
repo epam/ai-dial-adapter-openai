@@ -14,6 +14,7 @@ from aidial_adapter_openai.utils.chat_completion_response import (
 )
 from aidial_adapter_openai.utils.image_tokenizer import ImageTokenizer
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.text import truncate_string
 
 MessageType = TypeVar("MessageType")
 
@@ -154,10 +155,11 @@ class PlainTextTokenizer(BaseTokenizer[dict]):
     """
 
     def _handle_custom_content_part(self, content_part: Any):
-        short_content_part = str(content_part)[:100]
+        short_content_str = truncate_string(str(content_part), 100)
         raise InternalServerError(
-            f"Unexpected type of content in message: {short_content_part!r}"
-            f"Use MultiModalTokenizer for messages with images"
+            f"Unexpected non-textural content part in the request: {short_content_str!r}. "
+            f"The deployment only supports plain text messages. "
+            f"Declare the deployment as a multi-modal one in the OpenAI adapter configuration to avoid the error."
         )
 
     def tokenize_request_message(self, message: dict) -> int:

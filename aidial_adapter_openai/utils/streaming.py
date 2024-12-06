@@ -10,15 +10,12 @@ from openai import APIError, APIStatusError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel
 
-from aidial_adapter_openai.env import get_eliminate_empty_choices
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
     ChatCompletionStreamingChunk,
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
-
-ELIMINATE_EMPTY_CHOICES = get_eliminate_empty_choices()
 
 
 def generate_id() -> str:
@@ -62,6 +59,7 @@ async def generate_stream(
     deployment: str,
     discarded_messages: Optional[list[int]],
     stream: AsyncIterator[dict],
+    eliminate_empty_choices: bool,
 ) -> AsyncIterator[dict]:
 
     empty_chunk = build_chunk(
@@ -74,15 +72,23 @@ async def generate_stream(
     )
 
     def set_usage(chunk: dict | None, resp: ChatCompletionResponse) -> dict:
-        completion_tokens = tokenize_response(resp)
-        prompt_tokens = get_prompt_tokens()
-
         chunk = chunk or empty_chunk
-        chunk["usage"] = {
-            "completion_tokens": completion_tokens,
-            "prompt_tokens": prompt_tokens,
-            "total_tokens": prompt_tokens + completion_tokens,
-        }
+
+        # Do not fail the whole response if tokenization has failed
+        try:
+            completion_tokens = tokenize_response(resp)
+            prompt_tokens = get_prompt_tokens()
+        except Exception as e:
+            logger.exception(
+                f"caught exception while tokenization: {type(e).__module__}.{type(e).__name__}. "
+                "The tokenization has failed, therefore, the usage won't be reported."
+            )
+        else:
+            chunk["usage"] = {
+                "completion_tokens": completion_tokens,
+                "prompt_tokens": prompt_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            }
         return chunk
 
     def set_finish_reason(chunk: dict | None, finish_reason: str) -> dict:
@@ -116,7 +122,7 @@ async def generate_stream(
             # when content filtering is enabled for a corresponding deployment.
             # The safety rating of the request is reported in this first chunk.
             # Here we withhold such a chunk and merge it later with a follow-up chunk.
-            if len(choices) == 0 and ELIMINATE_EMPTY_CHOICES:
+            if len(choices) == 0 and eliminate_empty_choices:
                 buffer_chunk = chunk
             else:
                 if last_chunk is not None:
