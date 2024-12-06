@@ -252,7 +252,7 @@ def create_server_response(
         if emulate_stream:
             return stream_to_response(block_to_stream(block))
         else:
-            return JSONResponse(response)
+            return JSONResponse(block)
 
     if isinstance(response, AsyncIterator):
         return stream_to_response(response)
