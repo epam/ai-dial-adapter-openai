@@ -10,3 +10,4 @@ dist
 .vscode/launch.json
 .pytest_cache
 ~*
+integration_test_config.json

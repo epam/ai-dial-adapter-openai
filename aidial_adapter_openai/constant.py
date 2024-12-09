@@ -1,11 +1,11 @@
-from enum import StrEnum, auto
+from enum import StrEnum
 
 
 class ChatCompletionDeploymentType(StrEnum):
-    DALLE3 = auto()
-    MISTRAL = auto()
-    DATABRICKS = auto()
-    GPT4_VISION = auto()
-    GPT4O = auto()
-    GPT4O_MINI = auto()
-    GPT_TEXT_ONLY = auto()
+    DALLE3 = "DALLE3"
+    MISTRAL = "MISTRAL"
+    DATABRICKS = "DATABRICKS"
+    GPT4_VISION = "GPT4_VISION"
+    GPT4O = "GPT4O"
+    GPT4O_MINI = "GPT4O_MINI"
+    GPT_TEXT_ONLY = "GPT_TEXT_ONLY"

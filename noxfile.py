@@ -37,4 +37,11 @@ def format(session: nox.Session):
 def test(session: nox.Session):
     """Runs unit tests"""
     session.run("poetry", "install", external=True)
-    session.run("pytest", "tests/")
+    session.run("pytest", "tests/", "--ignore=tests/integration_tests")
+
+
+@nox.session
+def integration_test(session: nox.Session):
+    """Runs integration tests. You need a"""
+    session.run("poetry", "install", external=True)
+    session.run("pytest", "tests/integration_tests")

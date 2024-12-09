@@ -29,6 +29,9 @@ format: install
 test: install
 	poetry run nox -s test -- $(ARGS)
 
+integration_test: install
+	poetry run nox -s integration_test -- $(ARGS)
+
 docker_serve:
 	docker build --platform $(PLATFORM) -t $(IMAGE_NAME):dev .
 	docker run --platform $(PLATFORM) --env-file ./.env --rm -p $(PORT):5000 $(IMAGE_NAME):dev

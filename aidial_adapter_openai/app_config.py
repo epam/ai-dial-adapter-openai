@@ -25,23 +25,31 @@ class ApplicationConfig(BaseModel):
     NON_STREAMING_DEPLOYMENTS: List[str] = []
     ELIMINATE_EMPTY_CHOICES: bool = False
 
+    DEPLOYMENT_TYPE_MAP = {
+        ChatCompletionDeploymentType.DALLE3: "DALLE3_DEPLOYMENTS",
+        ChatCompletionDeploymentType.GPT4_VISION: "GPT4_VISION_DEPLOYMENTS",
+        ChatCompletionDeploymentType.MISTRAL: "MISTRAL_DEPLOYMENTS",
+        ChatCompletionDeploymentType.DATABRICKS: "DATABRICKS_DEPLOYMENTS",
+        ChatCompletionDeploymentType.GPT4O: "GPT4O_DEPLOYMENTS",
+        ChatCompletionDeploymentType.GPT4O_MINI: "GPT4O_MINI_DEPLOYMENTS",
+    }
+
     def get_chat_completion_deployment_type(
         self, deployment_id: str
     ) -> ChatCompletionDeploymentType:
-        if deployment_id in self.DALLE3_DEPLOYMENTS:
-            return ChatCompletionDeploymentType.DALLE3
-        elif deployment_id in self.GPT4_VISION_DEPLOYMENTS:
-            return ChatCompletionDeploymentType.GPT4_VISION
-        elif deployment_id in self.MISTRAL_DEPLOYMENTS:
-            return ChatCompletionDeploymentType.MISTRAL
-        elif deployment_id in self.DATABRICKS_DEPLOYMENTS:
-            return ChatCompletionDeploymentType.DATABRICKS
-        elif deployment_id in self.GPT4O_DEPLOYMENTS:
-            return ChatCompletionDeploymentType.GPT4O
-        elif deployment_id in self.GPT4O_MINI_DEPLOYMENTS:
-            return ChatCompletionDeploymentType.GPT4O_MINI
-        else:
-            return ChatCompletionDeploymentType.GPT_TEXT_ONLY
+        for deployment_type, attr_name in self.DEPLOYMENT_TYPE_MAP.items():
+            if deployment_id in getattr(self, attr_name):
+                return deployment_type
+        return ChatCompletionDeploymentType.GPT_TEXT_ONLY
+
+    def add_deployment(
+        self, deployment_id: str, deployment_type: ChatCompletionDeploymentType
+    ):
+        if deployment_type == ChatCompletionDeploymentType.GPT_TEXT_ONLY:
+            return
+        attr_name = self.DEPLOYMENT_TYPE_MAP[deployment_type]
+        assert attr_name is not None
+        getattr(self, attr_name).append(deployment_id)
 
     @classmethod
     def from_env(cls) -> "ApplicationConfig":

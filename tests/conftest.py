@@ -1,15 +1,30 @@
+import os
+
 import httpx
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport
+from openai import AsyncAzureOpenAI
 
 from aidial_adapter_openai.app import create_app
+from aidial_adapter_openai.utils.http_client import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.request import get_app_config
+from tests.integration_tests.base import DeploymentConfig, TestDeployments
+
+TEST_DEPLOYMENTS_CONFIG_PATH = os.getenv(
+    "INTEGRATION_TEST_DEPLOYMENTS_CONFIG_PATH",
+    "tests/integration_tests/integration_test_config.json",
+)
 
 
 @pytest.fixture
 def _app_instance():
-    return create_app(init_telemetry=False)
+    return create_app(
+        init_telemetry=False,
+        app_config=TestDeployments.from_config(
+            TEST_DEPLOYMENTS_CONFIG_PATH
+        ).app_config,
+    )
 
 
 @pytest_asyncio.fixture
@@ -17,6 +32,7 @@ async def test_app(_app_instance):
     async with httpx.AsyncClient(
         transport=ASGITransport(app=_app_instance),
         base_url="http://test-app.com",
+        timeout=DEFAULT_TIMEOUT,
     ) as client:
         yield client
 
@@ -27,3 +43,20 @@ def eliminate_empty_choices(_app_instance):
     app_config.ELIMINATE_EMPTY_CHOICES = True
     yield
     app_config.ELIMINATE_EMPTY_CHOICES = False
+
+
+@pytest.fixture
+def get_openai_client(test_app: httpx.AsyncClient):
+    def _get_client(deployment_config: DeploymentConfig) -> AsyncAzureOpenAI:
+        return AsyncAzureOpenAI(
+            azure_endpoint=str(test_app.base_url),
+            azure_deployment=deployment_config.deployment_id,
+            api_version="2024-02-01",
+            api_key="dummy_key",
+            max_retries=5,
+            timeout=30,
+            http_client=test_app,
+            default_headers=deployment_config.upstream_headers,
+        )
+
+    yield _get_client

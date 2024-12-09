@@ -37,6 +37,7 @@ aidial-sdk = {version = "^0.16.0", extras = ["telemetry"]}
 pytest = "7.4.0"
 pytest-asyncio = "0.21.1"
 respx = "^0.21.1"
+pytest-xdist = "^3.5.0"
 
 [tool.poetry.group.lint.dependencies]
 pyright = "1.1.324"
@@ -51,6 +52,7 @@ nox = "^2023.4.22"
 python-dotenv = "^1.0.1"
 
 [tool.pytest.ini_options]
+addopts="-n=auto"
 # muting warnings coming from opentelemetry and pkg_resources packages
 filterwarnings = [
     "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies",
