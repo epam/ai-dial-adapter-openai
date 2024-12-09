@@ -19,11 +19,16 @@ TEST_DEPLOYMENTS_CONFIG_PATH = os.getenv(
 
 @pytest.fixture
 def _app_instance():
+    try:
+        deployments_config = TestDeployments.from_config(
+            TEST_DEPLOYMENTS_CONFIG_PATH
+        )
+    except FileNotFoundError:
+        deployments_config = TestDeployments(deployments=[])
+
     return create_app(
         init_telemetry=False,
-        app_config=TestDeployments.from_config(
-            TEST_DEPLOYMENTS_CONFIG_PATH
-        ).app_config,
+        app_config=deployments_config.app_config,
     )
 
 
