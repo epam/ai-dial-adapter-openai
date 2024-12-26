@@ -1,5 +1,6 @@
 import json
-from typing import Any, Callable
+from typing import Any, AsyncIterable, AsyncIterator, Callable
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -436,10 +437,38 @@ async def test_status_error_from_upstream(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 400
-    assert response.content == b"Bad request"
+    assert response.text == "Bad request"
 
 
 @respx.mock
+@pytest.mark.asyncio
+async def test_status_error_from_upstream_with_headers(
+    test_app: httpx.AsyncClient,
+):
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=429,
+        content="Too many requests",
+        headers={"Retry-After": "42"},
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={"messages": [{"role": "user", "content": "Test content"}]},
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 429
+    assert response.text == "Too many requests"
+    assert response.headers["Retry-After"] == "42"
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_timeout_error_from_upstream(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
@@ -466,7 +495,10 @@ async def test_timeout_error_from_upstream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-async def test_connection_error_from_upstream(test_app: httpx.AsyncClient):
+@pytest.mark.asyncio
+async def test_connection_error_from_upstream_non_streaming(
+    test_app: httpx.AsyncClient,
+):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
     ).mock(side_effect=httpx.ConnectError("Connection error"))
@@ -492,6 +524,140 @@ async def test_connection_error_from_upstream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
+@pytest.mark.asyncio
+async def test_connection_error_from_upstream_streaming(
+    test_app: httpx.AsyncClient,
+):
+    async def mock_stream() -> AsyncIterable[bytes]:
+        yield b'data: {"message": "first chunk"}\n\n'
+        yield b'data: {"message": "second chunk"}\n\n'
+        raise httpx.ConnectError("Connection error")
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "stream": True,
+            "messages": [{"role": "user", "content": "Test content"}],
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.text == "\n\n".join(
+        [
+            'data: {"message":"first chunk"}',
+            'data: {"message":"second chunk"}',
+            'data: {"error":{"message":"Connection error","type":"internal_server_error","code":"500"}}',
+            "data: [DONE]",
+            "",
+        ]
+    )
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_adapter_internal_error(
+    test_app: httpx.AsyncClient,
+):
+    async def mock_generate_stream(stream: AsyncIterator[dict], **kwargs):
+        yield await stream.__anext__()
+        raise ValueError("failed generating the stream")
+
+    with patch(
+        "aidial_adapter_openai.gpt.generate_stream",
+        side_effect=mock_generate_stream,
+    ):
+
+        async def mock_stream() -> AsyncIterable[bytes]:
+            yield b'data: {"message": "first chunk"}\n\n'
+            yield b'data: {"message": "second chunk"}\n\n'
+            yield b"data: [DONE]"
+
+        respx.post(
+            "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+        ).respond(
+            status_code=200,
+            content_type="text/event-stream",
+            content=mock_stream(),
+        )
+
+        response = await test_app.post(
+            "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+            json={
+                "stream": True,
+                "messages": [{"role": "user", "content": "Test content"}],
+            },
+            headers={
+                "X-UPSTREAM-KEY": "TEST_API_KEY",
+                "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.text == "\n\n".join(
+            [
+                'data: {"message":"first chunk"}',
+                'data: {"error":{"message":"failed generating the stream","type":"internal_server_error","code":"500"}}',
+                "data: [DONE]",
+                "",
+            ]
+        )
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_invalid_chunk_stream_from_upstream(
+    test_app: httpx.AsyncClient,
+):
+    async def mock_stream() -> AsyncIterable[bytes]:
+        yield b"data: chunk1\n\n"
+        yield b"data: chunk2\n\n"
+        yield b"data: [DONE]\n\n"
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "stream": True,
+            "messages": [{"role": "user", "content": "Test content"}],
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.text == "\n\n".join(
+        [
+            # OpenAI is unable to parse SSE entry with invalid JSON and fails with the following error:
+            'data: {"error":{"message":"Expecting value: line 1 column 1 (char 0)","type":"internal_server_error","code":"500"}}',
+            "data: [DONE]",
+            "",
+        ]
+    )
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_unexpected_multi_modal_input_streaming(
     test_app: httpx.AsyncClient,
 ):

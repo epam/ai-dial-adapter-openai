@@ -262,14 +262,14 @@ async def chat_completion(
         return map_stream(
             debug_print,
             generate_stream(
-                get_prompt_tokens=lambda: estimated_prompt_tokens,
-                tokenize_response=tokenizer.tokenize_response,
-                deployment=deployment,
-                discarded_messages=discarded_messages,
                 stream=map_stream(
                     response_transformer,
                     parse_openai_sse_stream(response),
                 ),
+                get_prompt_tokens=lambda: estimated_prompt_tokens,
+                tokenize_response=tokenizer.tokenize_response,
+                deployment=deployment,
+                discarded_messages=discarded_messages,
                 eliminate_empty_choices=eliminate_empty_choices,
             ),
         )

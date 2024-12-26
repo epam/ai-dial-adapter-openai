@@ -78,12 +78,12 @@ async def gpt_chat_completion(
 
     if isinstance(response, AsyncIterator):
         return generate_stream(
+            stream=map_stream(chunk_to_dict, response),
             get_prompt_tokens=lambda: estimated_prompt_tokens
             or tokenizer.tokenize_request(request, request["messages"]),
             tokenize_response=tokenizer.tokenize_response,
             deployment=deployment_id,
             discarded_messages=discarded_messages,
-            stream=map_stream(chunk_to_dict, response),
             eliminate_empty_choices=eliminate_empty_choices,
         )
     else:

@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 
-import pydantic
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry as sdk_init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
@@ -9,11 +8,7 @@ from openai import OpenAIError
 
 import aidial_adapter_openai.endpoints as endpoints
 from aidial_adapter_openai.app_config import ApplicationConfig
-from aidial_adapter_openai.exception_handlers import (
-    dial_exception_handler,
-    openai_exception_handler,
-    pydantic_exception_handler,
-)
+from aidial_adapter_openai.exception_handlers import adapter_exception_handler
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.request import set_app_config
@@ -45,9 +40,9 @@ def create_app(
     app.post("/openai/deployments/{deployment_id:path}/chat/completions")(
         endpoints.chat_completion
     )
-    app.exception_handler(OpenAIError)(openai_exception_handler)
-    app.exception_handler(pydantic.ValidationError)(pydantic_exception_handler)
-    app.exception_handler(DialException)(dial_exception_handler)
+
+    for exc_class in [OpenAIError, DialException]:
+        app.add_exception_handler(exc_class, adapter_exception_handler)
 
     return app
 

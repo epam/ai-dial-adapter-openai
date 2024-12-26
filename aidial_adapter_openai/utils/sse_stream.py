@@ -3,6 +3,9 @@ from typing import Any, AsyncIterator, Mapping
 
 from aidial_sdk.exceptions import runtime_server_error
 
+from aidial_adapter_openai.exception_handlers import to_adapter_exception
+from aidial_adapter_openai.utils.log_config import logger
+
 DATA_PREFIX = "data: "
 OPENAI_END_MARKER = "[DONE]"
 
@@ -53,6 +56,19 @@ async def parse_openai_sse_stream(
 async def to_openai_sse_stream(
     stream: AsyncIterator[dict],
 ) -> AsyncIterator[str]:
-    async for chunk in stream:
-        yield format_chunk(chunk)
+    try:
+        async for chunk in stream:
+            yield format_chunk(chunk)
+    except Exception as e:
+        logger.exception(
+            f"caught exception while streaming: {type(e).__module__}.{type(e).__name__}"
+        )
+
+        adapter_exception = to_adapter_exception(e)
+        logger.error(
+            f"converted to the adapter exception: {adapter_exception!r}"
+        )
+
+        yield format_chunk(adapter_exception.json_error())
+
     yield END_CHUNK
