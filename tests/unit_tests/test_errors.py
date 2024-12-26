@@ -40,7 +40,6 @@ def mock_response(
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_single_chunk_token_counting(test_app: httpx.AsyncClient):
     # The adapter tolerates top-level extra fields
     # and passes it further to the upstream endpoint.
@@ -86,7 +85,6 @@ async def test_single_chunk_token_counting(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_top_level_extra_field(test_app: httpx.AsyncClient):
     # The adapter tolerates top-level extra fields
     # and passes it further to the upstream endpoint.
@@ -127,7 +125,6 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_nested_extra_field(test_app: httpx.AsyncClient):
     # The adapter tolerates nested extra fields
     # and passes it further to the upstream endpoint.
@@ -169,7 +166,6 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_missing_api_version(test_app: httpx.AsyncClient):
 
     response = await test_app.post(
@@ -195,7 +191,6 @@ async def test_missing_api_version(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_error_during_streaming_stopped(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(finish_reason="stop", delta={"role": "assistant"}),
@@ -243,7 +238,6 @@ async def test_error_during_streaming_stopped(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant", "content": "hello "}),
@@ -291,7 +285,6 @@ async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_interrupted_stream(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant", "content": "hello"}),
@@ -334,7 +327,6 @@ async def test_interrupted_stream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_zero_chunk_stream(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream()
 
@@ -373,7 +365,6 @@ async def test_zero_chunk_stream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -396,7 +387,6 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_no_request_response_validation(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
@@ -431,7 +421,6 @@ async def test_no_request_response_validation(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_status_error_from_upstream(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
@@ -451,7 +440,6 @@ async def test_status_error_from_upstream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_timeout_error_from_upstream(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
@@ -478,7 +466,6 @@ async def test_timeout_error_from_upstream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_connection_error_from_upstream(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
@@ -505,7 +492,6 @@ async def test_connection_error_from_upstream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_unexpected_multi_modal_input_streaming(
     test_app: httpx.AsyncClient,
 ):
@@ -551,7 +537,6 @@ async def test_unexpected_multi_modal_input_streaming(
     mock_stream.assert_response_content(response, assert_equal)
 
 
-@pytest.mark.asyncio
 async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",

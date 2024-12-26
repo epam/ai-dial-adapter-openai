@@ -88,7 +88,6 @@ def mock_resource_processor():
         ),
     ],
 )
-@pytest.mark.asyncio
 async def test_transform_message(
     mock_resource_processor,
     message,
@@ -102,7 +101,6 @@ async def test_transform_message(
     assert result.raw_message["content"] == expected_content
 
 
-@pytest.mark.asyncio
 async def test_transform_messages_with_error(mock_resource_processor):
     messages = [
         {
@@ -130,7 +128,6 @@ The following files failed to process:
     )
 
 
-@pytest.mark.asyncio
 async def test_transform_message_with_error(mock_resource_processor):
     message = {
         "role": "user",
@@ -278,7 +275,6 @@ async def test_transform_message_with_error(mock_resource_processor):
         ),
     ],
 )
-@pytest.mark.asyncio
 async def test_transform_messages(
     mock_resource_processor,
     messages,

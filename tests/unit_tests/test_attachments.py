@@ -14,7 +14,6 @@ from tests.utils.images import data_url, pic_1_1
 from tests.utils.storage import MockFileStorage
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "url,expected_type",
     [
@@ -38,7 +37,6 @@ async def test_guess_url_type(url, expected_type):
     assert await URLResource(url=url).guess_content_type() == expected_type
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "attachment, expected_type",
     [
@@ -65,7 +63,6 @@ async def test_guess_attachment_type(attachment, expected_type):
     )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "attachment, expected_name",
     [
@@ -102,7 +99,6 @@ async def test_get_attachment_name(attachment, expected_name):
     )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "url, expected_result",
     [
@@ -144,7 +140,6 @@ async def test_download_image_url(url, expected_result):
     assert await processor.try_download_resource(resource) == expected_result
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "attachment, expected_result",
     [

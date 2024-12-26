@@ -52,7 +52,6 @@ def create_test_cases(
     ],
     ids=lambda tc: tc.get_id(),
 )
-@pytest.mark.asyncio
 async def test_chat_completion(
     test_case: TestCase,
     get_openai_client,

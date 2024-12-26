@@ -10,7 +10,6 @@ def assert_equal(actual, expected):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_streaming_computed_tokens(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant"}),
@@ -53,7 +52,6 @@ async def test_streaming_computed_tokens(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_streaming_inherited_tokens(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant"}),
@@ -94,7 +92,6 @@ async def test_streaming_inherited_tokens(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_include_usage(test_app: httpx.AsyncClient):
     # Emulating the steam returned by OpenAI when stream_options.include_usage=True
     upstream_response = OpenAIStream(
@@ -136,7 +133,6 @@ async def test_include_usage(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_include_usage_stream_issues(
     eliminate_empty_choices, test_app: httpx.AsyncClient
 ):
