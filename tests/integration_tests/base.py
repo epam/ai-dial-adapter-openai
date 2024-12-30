@@ -154,6 +154,9 @@ class TestCase:
         return "/".join(parts)
 
 
+TestSuiteBuilder = Callable[["TestSuite"], None]
+
+
 @dataclass
 class TestSuite:
     __test__ = False
@@ -203,14 +206,11 @@ class TestSuite:
         cls,
         deployment_config: DeploymentConfig,
         streaming: bool,
-        case_builder: Callable[["TestSuite"], None],
+        case_builder: TestSuiteBuilder,
     ) -> "TestSuite":
         suite = cls(deployment_config, streaming)
         case_builder(suite)
         return suite
-
-
-TestSuiteBuilder = Callable[["TestSuite"], None]
 
 
 def exclude_deployments(deployment_types: List[ChatCompletionDeploymentType]):
