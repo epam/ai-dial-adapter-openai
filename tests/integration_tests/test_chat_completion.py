@@ -8,7 +8,9 @@ from openai import APIError
 
 from tests.integration_tests.base import TestCase, TestSuite, TestSuiteBuilder
 from tests.integration_tests.chat_completion_suites.text import (
-    _test_multi_system_messages,
+    _test_databricks_multi_system,
+    _test_mistral_stop_sequence,
+    _test_multi_system,
     _test_stop_sequence,
     _test_text_common,
 )
@@ -45,7 +47,9 @@ def create_test_cases(
         [
             _test_text_common,
             _test_stop_sequence,
-            _test_multi_system_messages,
+            _test_mistral_stop_sequence,
+            _test_multi_system,
+            _test_databricks_multi_system,
             _test_tools_common,
             _test_vision_common,
         ]
