@@ -2,7 +2,7 @@ import functools
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterator, List
+from typing import Any, Callable, Dict, Iterator, List, Self
 
 from openai import NOT_GIVEN, NotGiven
 from openai.types.chat import (
@@ -14,10 +14,33 @@ from pydantic import BaseModel
 
 from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from tests.utils.openai import ChatCompletionResult, ExpectedException
 
 
+class UpstreamConfig(ExtraAllowedModel):
+    endpoint: str
+    key: str
+
+
+class ModelConfig(ExtraAllowedModel):
+    upstreams: List[UpstreamConfig]
+
+
+class CoreConfig(ExtraAllowedModel):
+    models: Dict[str, ModelConfig]
+
+    @classmethod
+    def from_config(cls, config_path: str):
+        with open(config_path, "r") as f:
+            test_config = json.load(f)
+
+        return cls(**test_config)
+
+
 class DeploymentConfig(BaseModel):
+    test_deployment_id: str
+
     deployment_id: str
     deployment_type: ChatCompletionDeploymentType
     upstream_endpoint: str
@@ -30,28 +53,50 @@ class DeploymentConfig(BaseModel):
             "X-UPSTREAM-ENDPOINT": self.upstream_endpoint,
         }
 
+    @classmethod
+    def create_deployments(
+        cls, core_config: CoreConfig, app_config: ApplicationConfig
+    ) -> List[Self]:
+        configs = []
+        for model_name, model_config in core_config.models.items():
+            deployment_type = app_config.get_chat_completion_deployment_type(
+                model_name
+            )
+            for upstream_index, upstream_config in enumerate(
+                model_config.upstreams
+            ):
+                test_deployment_id = f"{deployment_type.value}_{model_name}"
+                if len(model_config.upstreams) > 1:
+                    test_deployment_id += f"_{upstream_index}"
+                configs.append(
+                    cls(
+                        test_deployment_id=test_deployment_id,
+                        deployment_id=model_name,
+                        deployment_type=deployment_type,
+                        upstream_endpoint=upstream_config.endpoint,
+                        upstream_api_key=upstream_config.key,
+                    )
+                )
+        return configs
+
 
 class TestDeployments(BaseModel):
     __test__ = False
     deployments: list[DeploymentConfig]
+    app_config: ApplicationConfig
 
     @classmethod
     def from_config(cls, config_path: str):
-        with open(config_path, "r") as f:
-            test_configs = json.load(f)
+        app_config = ApplicationConfig.from_env()
+
+        core_config = CoreConfig.from_config(config_path)
 
         return cls(
-            deployments=[DeploymentConfig(**config) for config in test_configs]
+            app_config=app_config,
+            deployments=DeploymentConfig.create_deployments(
+                core_config, app_config
+            ),
         )
-
-    @property
-    def app_config(self) -> ApplicationConfig:
-        config = ApplicationConfig()
-        for deployment in self.deployments:
-            config.add_deployment(
-                deployment.deployment_id, deployment.deployment_type
-            )
-        return config
 
 
 def sanitize_id_part(value: Any) -> str:
@@ -93,7 +138,7 @@ class TestCase:
     def get_id(self):
         parts = [
             sanitize_id_part(self.name),
-            f"{sanitize_id_part(self.deployment_config.deployment_id)}",
+            f"{sanitize_id_part(self.deployment_config.test_deployment_id)}",
             f"stream:{sanitize_id_part(self.streaming)}",
         ]
 

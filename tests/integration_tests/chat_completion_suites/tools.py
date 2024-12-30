@@ -41,7 +41,6 @@ def supports_parallel_tool_calls(deployment_type: ChatCompletionDeploymentType):
 
 def supports_functions(deployment_type: ChatCompletionDeploymentType):
     return deployment_type not in [
-        ChatCompletionDeploymentType.MISTRAL,
         ChatCompletionDeploymentType.DATABRICKS,
     ]
 
@@ -50,6 +49,7 @@ def supports_functions(deployment_type: ChatCompletionDeploymentType):
     [
         ChatCompletionDeploymentType.GPT4_VISION,
         ChatCompletionDeploymentType.DALLE3,
+        ChatCompletionDeploymentType.MISTRAL,
     ]
 )
 def tools_common(s: TestSuite) -> None:

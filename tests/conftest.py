@@ -7,6 +7,7 @@ from httpx import ASGITransport
 from openai import AsyncAzureOpenAI
 
 from aidial_adapter_openai.app import create_app
+from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.http_client import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.request import get_app_config
 from tests.integration_tests.base import DeploymentConfig, TestDeployments
@@ -17,14 +18,16 @@ TEST_DEPLOYMENTS_CONFIG_PATH = os.getenv(
 )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def _app_instance():
     try:
         deployments_config = TestDeployments.from_config(
             TEST_DEPLOYMENTS_CONFIG_PATH
         )
     except FileNotFoundError:
-        deployments_config = TestDeployments(deployments=[])
+        deployments_config = TestDeployments(
+            deployments=[], app_config=ApplicationConfig()
+        )
 
     return create_app(
         init_telemetry=False,

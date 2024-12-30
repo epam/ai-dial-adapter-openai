@@ -1,5 +1,4 @@
 import httpx
-import pytest
 import respx
 
 from tests.utils.stream import OpenAIStream, chunk, single_choice_chunk

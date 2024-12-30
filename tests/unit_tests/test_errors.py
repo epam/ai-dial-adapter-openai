@@ -3,7 +3,6 @@ from typing import Any, AsyncIterable, AsyncIterator, Callable
 from unittest.mock import patch
 
 import httpx
-import pytest
 import respx
 from respx.types import SideEffectTypes
 
@@ -441,7 +440,6 @@ async def test_status_error_from_upstream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_status_error_from_upstream_with_headers(
     test_app: httpx.AsyncClient,
 ):
@@ -468,7 +466,6 @@ async def test_status_error_from_upstream_with_headers(
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_timeout_error_from_upstream(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
@@ -495,7 +492,6 @@ async def test_timeout_error_from_upstream(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_connection_error_from_upstream_non_streaming(
     test_app: httpx.AsyncClient,
 ):
@@ -524,7 +520,6 @@ async def test_connection_error_from_upstream_non_streaming(
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_connection_error_from_upstream_streaming(
     test_app: httpx.AsyncClient,
 ):
@@ -566,7 +561,6 @@ async def test_connection_error_from_upstream_streaming(
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_adapter_internal_error(
     test_app: httpx.AsyncClient,
 ):
@@ -616,7 +610,6 @@ async def test_adapter_internal_error(
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_invalid_chunk_stream_from_upstream(
     test_app: httpx.AsyncClient,
 ):
@@ -657,7 +650,6 @@ async def test_invalid_chunk_stream_from_upstream(
 
 
 @respx.mock
-@pytest.mark.asyncio
 async def test_unexpected_multi_modal_input_streaming(
     test_app: httpx.AsyncClient,
 ):
