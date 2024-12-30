@@ -2,7 +2,6 @@ import os
 
 import httpx
 import pytest
-import pytest_asyncio
 from httpx import ASGITransport
 from openai import AsyncAzureOpenAI
 
@@ -35,7 +34,7 @@ def _app_instance():
     )
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def test_app(_app_instance):
     async with httpx.AsyncClient(
         transport=ASGITransport(app=_app_instance),
