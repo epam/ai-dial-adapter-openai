@@ -1,15 +1,11 @@
 from openai import BadRequestError, UnprocessableEntityError
 
 from aidial_adapter_openai.constant import ChatCompletionDeploymentType
-from tests.integration_tests.base import (
-    TestSuite,
-    exclude_deployments,
-    include_deployments,
-)
+from tests.integration_tests.base import TestSuite
 from tests.utils.openai import ExpectedException, ai, sys, user
 
 
-def _test_text_common(s: TestSuite) -> None:
+def build_text_common(s: TestSuite) -> None:
     # Basic dialog tests
     s.test_case(
         name="dialog recall",
@@ -84,56 +80,47 @@ def _test_text_common(s: TestSuite) -> None:
     )
 
 
-@include_deployments([ChatCompletionDeploymentType.MISTRAL])
-def _test_mistral_stop_sequence(s: TestSuite) -> None:
+def build_stop_sequence(s: TestSuite) -> None:
+    if s.deployment_type == ChatCompletionDeploymentType.MISTRAL:
+        # Mistral just ignores stop sequence
+
+        def expected(s) -> bool:
+            return "john" in s.content.lower()
+
+    else:
+
+        def expected(s) -> bool:
+            return "john" not in s.content.lower()
+
     s.test_case(
         name="stop sequence",
         stop=["John", "john"],
         messages=[user('Reply with "Hello John Doe"')],
-        expected=(
-            # Mistral just ignores stop sequence
-            lambda s: "john"
-            in s.content.lower()
-        ),
+        expected=expected,
     )
 
 
-@exclude_deployments([ChatCompletionDeploymentType.MISTRAL])
-def _test_stop_sequence(s: TestSuite) -> None:
-    s.test_case(
-        name="stop sequence",
-        stop=["John", "john"],
-        messages=[user('Reply with "Hello John Doe"')],
-        expected=lambda s: "john" not in s.content.lower(),
-    )
+def build_multi_system(s: TestSuite) -> None:
+    messages = [
+        sys("act as a helpful assistant"),
+        sys("act as a calculator"),
+        user("2+5=?"),
+    ]
 
-
-@include_deployments([ChatCompletionDeploymentType.DATABRICKS])
-def _test_databricks_multi_system(s: TestSuite) -> None:
-    s.test_case(
-        name="many system",
-        messages=[
-            sys("act as a helpful assistant"),
-            sys("act as a calculator"),
-            user("2+5=?"),
-        ],
-        # Databricks does not allow multiple system messages
-        expected=ExpectedException(
-            type=BadRequestError,
-            message=("Chat message input roles must alternate"),
-            status_code=400,
-        ),
-    )
-
-
-@exclude_deployments([ChatCompletionDeploymentType.DATABRICKS])
-def _test_multi_system(s: TestSuite) -> None:
-    s.test_case(
-        name="many system",
-        messages=[
-            sys("act as a helpful assistant"),
-            sys("act as a calculator"),
-            user("2+5=?"),
-        ],
-        expected=lambda s: "7" in s.content.lower(),
-    )
+    if s.deployment_type == ChatCompletionDeploymentType.DATABRICKS:
+        s.test_case(
+            name="many system",
+            messages=messages,
+            # Databricks does not allow multiple system messages
+            expected=ExpectedException(
+                type=BadRequestError,
+                message=("Chat message input roles must alternate"),
+                status_code=400,
+            ),
+        )
+    else:
+        s.test_case(
+            name="many system",
+            messages=messages,
+            expected=lambda s: "7" in s.content.lower(),
+        )

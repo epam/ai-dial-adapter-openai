@@ -8,17 +8,15 @@ from openai import APIError
 
 from tests.integration_tests.base import TestCase, TestSuite, TestSuiteBuilder
 from tests.integration_tests.chat_completion_suites.text import (
-    _test_databricks_multi_system,
-    _test_mistral_stop_sequence,
-    _test_multi_system,
-    _test_stop_sequence,
-    _test_text_common,
+    build_multi_system,
+    build_stop_sequence,
+    build_text_common,
 )
 from tests.integration_tests.chat_completion_suites.tools import (
-    _test_tools_common,
+    build_tools_common,
 )
 from tests.integration_tests.chat_completion_suites.vision import (
-    _test_vision_common,
+    build_vision_common,
 )
 from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
 from tests.utils.openai import (
@@ -45,13 +43,11 @@ def create_test_cases(
     "test_case",
     create_test_cases(
         [
-            _test_text_common,
-            _test_stop_sequence,
-            _test_mistral_stop_sequence,
-            _test_multi_system,
-            _test_databricks_multi_system,
-            _test_tools_common,
-            _test_vision_common,
+            build_text_common,
+            build_stop_sequence,
+            build_multi_system,
+            build_tools_common,
+            build_vision_common,
         ]
     ),
     ids=lambda tc: tc.get_id(),

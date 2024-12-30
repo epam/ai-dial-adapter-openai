@@ -11,7 +11,7 @@ from tests.utils.openai import user_with_attachment_url, user_with_image_url
         ChatCompletionDeploymentType.GPT4_VISION,
     ]
 )
-def _test_vision_common(s: TestSuite) -> None:
+def build_vision_common(s: TestSuite) -> None:
     s.test_case(
         name="image_in_content_parts",
         messages=[
