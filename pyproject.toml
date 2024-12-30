@@ -8,9 +8,7 @@ documentation = "https://epam-rail.com/dial_api"
 license = "Apache-2.0"
 readme = "README.md"
 keywords = ["ai"]
-classifiers = [
-    "Topic :: Software Development :: Libraries :: Python Modules"
-]
+classifiers = ["Topic :: Software Development :: Libraries :: Python Modules"]
 repository = "https://github.com/epam/ai-dial-adapter-openai"
 
 [tool.poetry.scripts]
@@ -31,13 +29,13 @@ aiohttp = "^3.10.11"
 numpy = "^1.26.0"
 pillow = "^10.3.0"
 azure-identity = "^1.16.1"
-aidial-sdk = {version = "^0.16.0", extras = ["telemetry"]}
+aidial-sdk = { version = "^0.16.0", extras = ["telemetry"] }
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
 pytest-asyncio = "0.21.1"
-respx = "^0.21.1"
 pytest-xdist = "^3.5.0"
+respx = "^0.21.1"
 
 [tool.poetry.group.lint.dependencies]
 pyright = "1.1.324"
@@ -55,20 +53,15 @@ python-dotenv = "^1.0.1"
 addopts = "-n=auto --asyncio-mode=auto"
 # muting warnings coming from opentelemetry and pkg_resources packages
 filterwarnings = [
-    "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies",
-    "ignore::DeprecationWarning:pkg_resources"
+  "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies",
+  "ignore::DeprecationWarning:pkg_resources",
 ]
 
 [tool.pyright]
 typeCheckingMode = "basic"
 reportUnusedVariable = "error"
 reportIncompatibleMethodOverride = "error"
-exclude = [
-    ".git",
-    ".venv",
-    ".nox",
-    "**/__pycache__"
-]
+exclude = [".git", ".venv", ".nox", "**/__pycache__"]
 
 [tool.black]
 line-length = 80
@@ -91,7 +84,4 @@ remove_all_unused_imports = true
 in_place = true
 recursive = true
 quiet = true
-exclude = [
-    "\\.venv",
-    "\\.nox",
-]
+exclude = ["\\.venv", "\\.nox"]
