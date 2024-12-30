@@ -80,7 +80,7 @@ def text_common(s: TestSuite) -> None:
     )
 
 
-# Mistral do not work properly with stop sequence
+# Mistral does not work properly with stop sequence
 @exclude_deployments(deployment_types=[ChatCompletionDeploymentType.MISTRAL])
 def text_mistral_excluded(s: TestSuite) -> None:
     s.test_case(
