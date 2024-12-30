@@ -77,7 +77,7 @@ async def test_chat_completion(
                     test_case.temperature,
                 )
             except APIError as e:
-                # Somehow, randomly through test, even loop is closing
+                # Somehow, randomly through test, event loop is closing
                 if e.message == "Event loop is closed":
                     logger.warning("Event loop is closed, retrying...")
                     continue
