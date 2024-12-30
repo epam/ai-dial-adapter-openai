@@ -91,7 +91,7 @@ def text_stop_sequence(s: TestSuite) -> None:
     )
 
 
-# Databricks do not allow consecutive system messages
+# Databricks does not allow multiple system messages
 @exclude_deployments(deployment_types=[ChatCompletionDeploymentType.DATABRICKS])
 def test_multi_system_messages(s: TestSuite) -> None:
     s.test_case(
