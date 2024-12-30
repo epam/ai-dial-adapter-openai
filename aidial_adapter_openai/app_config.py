@@ -50,7 +50,6 @@ class ApplicationConfig(BaseModel):
         if deployment_type == ChatCompletionDeploymentType.GPT_TEXT_ONLY:
             return
         config_getter = self.DEPLOYMENT_TYPE_MAP[deployment_type]
-        assert config_getter is not None
         config_getter(self).append(deployment_id)
 
     @classmethod
