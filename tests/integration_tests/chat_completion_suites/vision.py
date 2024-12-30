@@ -15,16 +15,22 @@ def vision_common(s: TestSuite) -> None:
     s.test_case(
         name="image_in_content_parts",
         messages=[
-            user_with_image_url("What is this image?", SAMPLE_DOG_RESOURCE),
+            user_with_image_url(
+                "What animal is on image? Answer in one word",
+                SAMPLE_DOG_RESOURCE,
+            ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
+        max_tokens=800,
     )
     s.test_case(
         name="image_in_custom_content",
         messages=[
             user_with_attachment_url(
-                "What is this image?", SAMPLE_DOG_RESOURCE
+                "What animal is on image? Answer in one word",
+                SAMPLE_DOG_RESOURCE,
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
+        max_tokens=800,
     )
