@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import List
+from typing import Generator, List
 
 import pytest
 from openai import APIError
@@ -29,30 +29,29 @@ logger = logging.getLogger(__name__)
 
 
 def create_test_cases(
-    test_case_builder: TestSuiteBuilder,
-) -> List[TestCase]:
-
-    return [
-        test_case
-        for streaming in (False, True)
+    builders: List[TestSuiteBuilder],
+) -> Generator[TestCase, None, None]:
+    for streaming in (False, True):
         for deployment in TestDeployments.from_config(
             TEST_DEPLOYMENTS_CONFIG_PATH
-        ).deployments
-        for test_case in TestSuite.create(
-            deployment, streaming, test_case_builder
-        )
-    ]
+        ).deployments:
+            suite = TestSuite(deployment, streaming)
+            for builder in builders:
+                builder(suite)
+            yield from suite
 
 
 @pytest.mark.parametrize(
     "test_case",
-    [
-        *create_test_cases(text_common),
-        *create_test_cases(text_stop_sequence),
-        *create_test_cases(text_multi_system_messages),
-        *create_test_cases(tools_common),
-        *create_test_cases(vision_common),
-    ],
+    create_test_cases(
+        [
+            text_common,
+            text_stop_sequence,
+            text_multi_system_messages,
+            tools_common,
+            vision_common,
+        ]
+    ),
     ids=lambda tc: tc.get_id(),
 )
 async def test_chat_completion(
