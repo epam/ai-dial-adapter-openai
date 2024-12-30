@@ -5,7 +5,6 @@ from typing import List
 import pytest
 from openai import APIError
 
-from tests.conftest import TEST_DEPLOYMENTS_CONFIG_PATH
 from tests.integration_tests.base import (
     TestCase,
     TestDeployments,
@@ -19,6 +18,7 @@ from tests.integration_tests.chat_completion_suites.text import (
 )
 from tests.integration_tests.chat_completion_suites.tools import tools_common
 from tests.integration_tests.chat_completion_suites.vision import vision_common
+from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG_PATH
 from tests.utils.openai import (
     ChatCompletionResult,
     ExpectedException,
@@ -35,7 +35,6 @@ def create_test_cases(
     return [
         test_case
         for streaming in (False, True)
-        # for streaming in (True, False)
         for deployment in TestDeployments.from_config(
             TEST_DEPLOYMENTS_CONFIG_PATH
         ).deployments

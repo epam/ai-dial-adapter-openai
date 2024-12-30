@@ -1,6 +1,5 @@
 import functools
 import json
-import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterator, List, Self
 
@@ -65,9 +64,9 @@ class DeploymentConfig(BaseModel):
             for upstream_index, upstream_config in enumerate(
                 model_config.upstreams
             ):
-                test_deployment_id = f"{deployment_type.value}_{model_name}"
+                test_deployment_id = f"{deployment_type.value}__{model_name}"
                 if len(model_config.upstreams) > 1:
-                    test_deployment_id += f"_{upstream_index}"
+                    test_deployment_id += f"_upstream_{upstream_index}"
                 configs.append(
                     cls(
                         test_deployment_id=test_deployment_id,
@@ -108,9 +107,9 @@ def sanitize_id_part(value: Any) -> str:
     if value is None:
         return "none"
 
-    value_str = str(value).lower()
+    value_str = str(value)
     sanitized = "".join(c if c.isalnum() else "_" for c in value_str)
-    return re.sub("_+", "_", sanitized.strip("_"))
+    return sanitized.strip("_")
 
 
 @dataclass

@@ -1,5 +1,3 @@
-import os
-
 import httpx
 import pytest
 from httpx import ASGITransport
@@ -10,11 +8,7 @@ from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.http_client import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.request import get_app_config
 from tests.integration_tests.base import DeploymentConfig, TestDeployments
-
-TEST_DEPLOYMENTS_CONFIG_PATH = os.getenv(
-    "INTEGRATION_TEST_DEPLOYMENTS_CONFIG_PATH",
-    "tests/integration_tests/integration_test_config.json",
-)
+from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG_PATH
 
 
 @pytest.fixture(scope="session")

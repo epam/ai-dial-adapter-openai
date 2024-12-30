@@ -1,5 +1,4 @@
 import json
-import re
 from typing import Any, AsyncGenerator, Callable, List
 
 from aidial_sdk.utils.streaming import merge_chunks
@@ -146,11 +145,6 @@ def tool_response(id: str, content: str) -> ChatCompletionToolMessageParam:
 
 def function_to_tool(function: FunctionDefinition) -> ChatCompletionToolParam:
     return {"type": "function", "function": function}
-
-
-def sanitize_test_name(name: str) -> str:
-    name2 = "".join(c if c.isalnum() else "_" for c in name.lower())
-    return re.sub("_+", "_", name2)
 
 
 class ChatCompletionResult(BaseModel):
