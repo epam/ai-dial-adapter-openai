@@ -148,7 +148,7 @@ class TestCase:
         if self.n and self.n != 1:
             parts.append(f"n:{sanitize_id_part(self.n)}")
         if self.temperature and self.temperature != 0.0:
-            parts.append(f"temp::{sanitize_id_part(self.temperature)}")
+            parts.append(f"temp:{sanitize_id_part(self.temperature)}")
 
         return "/".join(parts)
 
