@@ -80,7 +80,7 @@ def text_common(s: TestSuite) -> None:
     )
 
 
-# Mistral does not work properly with stop sequence
+# Mistral just ignores stop sequence
 @exclude_deployments(deployment_types=[ChatCompletionDeploymentType.MISTRAL])
 def text_stop_sequence(s: TestSuite) -> None:
     s.test_case(
@@ -93,7 +93,7 @@ def text_stop_sequence(s: TestSuite) -> None:
 
 # Databricks does not allow multiple system messages
 @exclude_deployments(deployment_types=[ChatCompletionDeploymentType.DATABRICKS])
-def test_multi_system_messages(s: TestSuite) -> None:
+def text_multi_system_messages(s: TestSuite) -> None:
     s.test_case(
         name="many system",
         messages=[
