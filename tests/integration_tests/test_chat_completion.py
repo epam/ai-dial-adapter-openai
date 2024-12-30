@@ -13,9 +13,9 @@ from tests.integration_tests.base import (
     TestSuiteBuilder,
 )
 from tests.integration_tests.chat_completion_suites.text import (
+    test_multi_system_messages,
     text_common,
-    text_databricks_excluded,
-    text_mistral_excluded,
+    text_stop_sequence,
 )
 from tests.integration_tests.chat_completion_suites.tools import tools_common
 from tests.integration_tests.chat_completion_suites.vision import vision_common
@@ -49,8 +49,8 @@ def create_test_cases(
     "test_case",
     [
         *create_test_cases(text_common),
-        *create_test_cases(text_mistral_excluded),
-        *create_test_cases(text_databricks_excluded),
+        *create_test_cases(text_stop_sequence),
+        *create_test_cases(test_multi_system_messages),
         *create_test_cases(tools_common),
         *create_test_cases(vision_common),
     ],
