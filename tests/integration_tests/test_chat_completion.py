@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from typing import Generator, List
@@ -5,12 +6,7 @@ from typing import Generator, List
 import pytest
 from openai import APIError
 
-from tests.integration_tests.base import (
-    TestCase,
-    TestDeployments,
-    TestSuite,
-    TestSuiteBuilder,
-)
+from tests.integration_tests.base import TestCase, TestSuite, TestSuiteBuilder
 from tests.integration_tests.chat_completion_suites.text import (
     text_common,
     text_multi_system_messages,
@@ -18,7 +14,7 @@ from tests.integration_tests.chat_completion_suites.text import (
 )
 from tests.integration_tests.chat_completion_suites.tools import tools_common
 from tests.integration_tests.chat_completion_suites.vision import vision_common
-from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG_PATH
+from tests.integration_tests.constants import TEST_DEPLOYMENT_CONFIG
 from tests.utils.openai import (
     ChatCompletionResult,
     ExpectedException,
@@ -32,9 +28,7 @@ def create_test_cases(
     builders: List[TestSuiteBuilder],
 ) -> Generator[TestCase, None, None]:
     for streaming in (False, True):
-        for deployment in TestDeployments.from_config(
-            TEST_DEPLOYMENTS_CONFIG_PATH
-        ).deployments:
+        for deployment in TEST_DEPLOYMENT_CONFIG.deployments:
             suite = TestSuite(deployment, streaming)
             for builder in builders:
                 builder(suite)
@@ -78,6 +72,7 @@ async def test_chat_completion(
             except APIError as e:
                 # Somehow, randomly through test, event loop is closing
                 if e.message == "Event loop is closed":
+                    await asyncio.sleep(5)
                     logger.warning("Event loop is closed, retrying...")
                     continue
                 else:
