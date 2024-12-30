@@ -1,11 +1,11 @@
 from openai import BadRequestError, UnprocessableEntityError
 
 from aidial_adapter_openai.constant import ChatCompletionDeploymentType
-from tests.integration_tests.base import TestSuite, exclude_deployments
+from tests.integration_tests.base import TestSuite
 from tests.utils.openai import ExpectedException, ai, sys, user
 
 
-def text_common(s: TestSuite) -> None:
+def _test_text_common(s: TestSuite) -> None:
     # Basic dialog tests
     s.test_case(
         name="dialog recall",
@@ -80,20 +80,23 @@ def text_common(s: TestSuite) -> None:
     )
 
 
-# Mistral just ignores stop sequence
-@exclude_deployments(deployment_types=[ChatCompletionDeploymentType.MISTRAL])
-def text_stop_sequence(s: TestSuite) -> None:
+def _test_stop_sequence(s: TestSuite) -> None:
     s.test_case(
         name="stop sequence",
         stop=["John", "john"],
-        messages=[user('Reply with "Hello John"')],
-        expected=lambda s: "john" not in s.content.lower(),
+        messages=[user('Reply with "Hello John Doe"')],
+        expected=(
+            lambda e: (
+                "john" not in e.content.lower()
+                if s.deployment_type != ChatCompletionDeploymentType.MISTRAL
+                # Mistral just ignores stop sequence
+                else "john" in e.content.lower()
+            )
+        ),
     )
 
 
-# Databricks does not allow multiple system messages
-@exclude_deployments(deployment_types=[ChatCompletionDeploymentType.DATABRICKS])
-def text_multi_system_messages(s: TestSuite) -> None:
+def _test_multi_system_messages(s: TestSuite) -> None:
     s.test_case(
         name="many system",
         messages=[
@@ -101,5 +104,14 @@ def text_multi_system_messages(s: TestSuite) -> None:
             sys("act as a calculator"),
             user("2+5=?"),
         ],
-        expected=lambda s: "7" in s.content.lower(),
+        expected=(
+            (lambda s: "7" in s.content.lower())
+            if s.deployment_type != ChatCompletionDeploymentType.DATABRICKS
+            # Databricks does not allow multiple system messages
+            else ExpectedException(
+                type=BadRequestError,
+                message=("Chat message input roles must alternate"),
+                status_code=400,
+            )
+        ),
     )

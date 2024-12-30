@@ -52,7 +52,7 @@ def supports_functions(deployment_type: ChatCompletionDeploymentType):
         ChatCompletionDeploymentType.MISTRAL,
     ]
 )
-def tools_common(s: TestSuite) -> None:
+def _test_tools_common(s: TestSuite) -> None:
     if supports_parallel_tool_calls(s.deployment_type):
         city_config = [[("Glasgow", 15)], [("Glasgow", 15), ("London", 20)]]
     else:

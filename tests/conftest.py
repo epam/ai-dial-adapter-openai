@@ -7,14 +7,14 @@ from aidial_adapter_openai.app import create_app
 from aidial_adapter_openai.utils.http_client import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.request import get_app_config
 from tests.integration_tests.base import DeploymentConfig
-from tests.integration_tests.constants import TEST_DEPLOYMENT_CONFIG
+from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
 
 
 @pytest.fixture(scope="session")
 def _app_instance():
     return create_app(
         init_telemetry=False,
-        app_config=TEST_DEPLOYMENT_CONFIG.app_config,
+        app_config=TEST_DEPLOYMENTS_CONFIG.app_config,
     )
 
 

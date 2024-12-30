@@ -16,10 +16,10 @@ TEST_DEPLOYMENTS_CONFIG_PATH = os.getenv(
     "tests/integration_tests/integration_test_config.json",
 )
 try:
-    TEST_DEPLOYMENT_CONFIG = TestDeployments.from_config(
+    TEST_DEPLOYMENTS_CONFIG = TestDeployments.from_config(
         TEST_DEPLOYMENTS_CONFIG_PATH
     )
 except FileNotFoundError:
-    TEST_DEPLOYMENT_CONFIG = TestDeployments(
+    TEST_DEPLOYMENTS_CONFIG = TestDeployments(
         deployments=[], app_config=ApplicationConfig()
     )

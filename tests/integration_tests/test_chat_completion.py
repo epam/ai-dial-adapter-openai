@@ -8,13 +8,17 @@ from openai import APIError
 
 from tests.integration_tests.base import TestCase, TestSuite, TestSuiteBuilder
 from tests.integration_tests.chat_completion_suites.text import (
-    text_common,
-    text_multi_system_messages,
-    text_stop_sequence,
+    _test_multi_system_messages,
+    _test_stop_sequence,
+    _test_text_common,
 )
-from tests.integration_tests.chat_completion_suites.tools import tools_common
-from tests.integration_tests.chat_completion_suites.vision import vision_common
-from tests.integration_tests.constants import TEST_DEPLOYMENT_CONFIG
+from tests.integration_tests.chat_completion_suites.tools import (
+    _test_tools_common,
+)
+from tests.integration_tests.chat_completion_suites.vision import (
+    _test_vision_common,
+)
+from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
 from tests.utils.openai import (
     ChatCompletionResult,
     ExpectedException,
@@ -28,7 +32,7 @@ def create_test_cases(
     builders: List[TestSuiteBuilder],
 ) -> Generator[TestCase, None, None]:
     for streaming in (False, True):
-        for deployment in TEST_DEPLOYMENT_CONFIG.deployments:
+        for deployment in TEST_DEPLOYMENTS_CONFIG.deployments:
             suite = TestSuite(deployment, streaming)
             for builder in builders:
                 builder(suite)
@@ -39,11 +43,11 @@ def create_test_cases(
     "test_case",
     create_test_cases(
         [
-            text_common,
-            text_stop_sequence,
-            text_multi_system_messages,
-            tools_common,
-            vision_common,
+            _test_text_common,
+            _test_stop_sequence,
+            _test_multi_system_messages,
+            _test_tools_common,
+            _test_vision_common,
         ]
     ),
     ids=lambda tc: tc.get_id(),
