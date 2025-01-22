@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict
+from typing import Any, MutableMapping
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi.responses import Response as FastAPIResponse
@@ -8,14 +8,14 @@ from fastapi.responses import Response as FastAPIResponse
 class ResponseWrapper(Exception):
     content: Any
     status_code: int
-    headers: Dict[str, str] | None
+    headers: MutableMapping[str, str] | None
 
     def __init__(
         self,
         *,
         content: Any,
         status_code: int,
-        headers: Dict[str, str] | None,
+        headers: MutableMapping[str, str] | None,
     ) -> None:
         super().__init__(str(content))
         self.content = content
@@ -51,7 +51,7 @@ AdapterException = ResponseWrapper | DialException
 
 
 def _parse_dial_exception(
-    *, status_code: int, headers: Dict[str, str], content: Any
+    *, status_code: int, headers: MutableMapping[str, str], content: Any
 ) -> DialException | None:
     if isinstance(content, str):
         try:
@@ -60,6 +60,11 @@ def _parse_dial_exception(
             return None
     else:
         obj = content
+
+    # The content length is invalidated as soon as
+    # the original content is lost
+    if "Content-Length" in headers:
+        del headers["Content-Length"]
 
     if (
         isinstance(obj, dict)
@@ -79,14 +84,14 @@ def _parse_dial_exception(
             param=param,
             code=code,
             display_message=display_message,
-            headers=headers,
+            headers=dict(headers.items()),
         )
 
     return None
 
 
 def parse_adapter_exception(
-    *, status_code: int, headers: Dict[str, str], content: Any
+    *, status_code: int, headers: MutableMapping[str, str], content: Any
 ) -> AdapterException:
     return _parse_dial_exception(
         status_code=status_code, headers=headers, content=content

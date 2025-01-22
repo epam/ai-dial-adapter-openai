@@ -9,6 +9,7 @@ from aidial_adapter_openai.utils.adapter_exception import (
     ResponseWrapper,
     parse_adapter_exception,
 )
+from aidial_adapter_openai.utils.log_config import logger
 
 
 def to_adapter_exception(exc: Exception) -> AdapterException:
@@ -32,7 +33,7 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
 
         return parse_adapter_exception(
             status_code=r.status_code,
-            headers=dict(httpx_headers.items()),
+            headers=httpx_headers,
             content=r.text,
         )
 
@@ -71,6 +72,12 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
 
 
 def adapter_exception_handler(
-    request: FastAPIRequest, exc: Exception
+    request: FastAPIRequest, e: Exception
 ) -> FastAPIResponse:
-    return to_adapter_exception(exc).to_fastapi_response()
+    adapter_exception = to_adapter_exception(e)
+
+    logger.error(
+        f"Caught exception: {type(e).__module__}.{type(e).__name__}. "
+        f"Converted to the adapter exception: {adapter_exception!r}"
+    )
+    return adapter_exception.to_fastapi_response()

@@ -60,13 +60,11 @@ async def to_openai_sse_stream(
         async for chunk in stream:
             yield format_chunk(chunk)
     except Exception as e:
-        logger.exception(
-            f"caught exception while streaming: {type(e).__module__}.{type(e).__name__}"
-        )
-
         adapter_exception = to_adapter_exception(e)
-        logger.error(
-            f"converted to the adapter exception: {adapter_exception!r}"
+
+        logger.exception(
+            f"Caught exception while streaming: {type(e).__module__}.{type(e).__name__}. "
+            f"Converted to the adapter exception: {adapter_exception!r}"
         )
 
         yield format_chunk(adapter_exception.json_error())

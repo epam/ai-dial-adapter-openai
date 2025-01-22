@@ -50,7 +50,7 @@ def create_test_cases(
             build_vision_common,
         ]
     ),
-    ids=lambda tc: tc.get_id(),
+    ids=lambda tc: tc.get_id() if isinstance(tc, TestCase) else "na",
 )
 async def test_chat_completion(
     test_case: TestCase,

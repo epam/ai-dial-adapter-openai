@@ -26,13 +26,18 @@ def mock_response(
     status_code: int,
     content_type: str,
     content: str,
+    *,
     check_request: Callable[[httpx.Request], None] = lambda _: None,
+    extra_headers: dict[str, str] = {},
 ) -> SideEffectTypes:
     def side_effect(request: httpx.Request):
         check_request(request)
         return httpx.Response(
             status_code=status_code,
-            headers={"content-type": content_type},
+            headers={
+                "content-type": content_type,
+                **extra_headers,
+            },
             content=content,
         )
 
@@ -517,6 +522,51 @@ async def test_connection_error_from_upstream_non_streaming(
             "display_message": "OpenAI server is not responsive. Please try again later.",
         }
     }
+
+
+@respx.mock
+async def test_content_length_of_response_error(test_app: httpx.AsyncClient):
+    upstream_response = """
+{
+    "error": {
+        "message": "Bad request",
+
+        "code": "400"
+
+    }
+}
+"""
+    upstream_response_content_length = str(len(upstream_response))
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).mock(
+        side_effect=mock_response(
+            400,
+            "application/json",
+            upstream_response,
+            extra_headers={"content-length": upstream_response_content_length},
+        )
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={"messages": [{"role": "user", "content": "Test content"}]},
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    expected_response = json.dumps(
+        json.loads(upstream_response), separators=(",", ":")
+    )
+    expected_content_length = str(len(expected_response))
+
+    assert response.status_code == 400
+    assert response.text == expected_response
+    assert response.headers["content-length"] == expected_content_length
+    assert upstream_response_content_length != expected_content_length
 
 
 @respx.mock
