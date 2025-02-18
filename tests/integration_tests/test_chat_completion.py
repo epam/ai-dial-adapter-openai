@@ -54,9 +54,9 @@ def create_test_cases(
 )
 async def test_chat_completion(
     test_case: TestCase,
-    get_openai_client,
+    create_openai_client,
 ):
-    client = get_openai_client(test_case.deployment_config)
+    client = create_openai_client(test_case.deployment_config)
 
     async def run_chat_completion() -> ChatCompletionResult:
         for _ in range(3):

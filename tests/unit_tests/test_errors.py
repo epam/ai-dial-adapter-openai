@@ -3,9 +3,14 @@ from typing import Any, AsyncIterable, AsyncIterator, Callable
 from unittest.mock import patch
 
 import httpx
+import pytest
 import respx
+from aioresponses import aioresponses
 from respx.types import SideEffectTypes
 
+from aidial_adapter_openai.app_config import ApplicationConfig
+from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from tests.conftest import create_test_client
 from tests.utils.dictionary import exclude_keys
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
@@ -769,3 +774,38 @@ async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
 
     assert response.status_code == 400
     assert response.json() == expected_response
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_error_from_gpt_multi_modal(stream: bool):
+    app_config = (
+        ApplicationConfig()
+        .add_deployment("app", ChatCompletionDeploymentType.GPT4O)
+        .map_to_tiktoken_model("app", "gpt-4")
+    )
+
+    with aioresponses() as aio_mock:
+        aio_mock.add(
+            method="POST",
+            url="http://test-upstream/?api-version=2023-03-15-preview",
+            body="Something went wrong",
+            status=500,
+            headers={"Content-Type": "text/plain"},
+        )
+
+        async with create_test_client(app_config=app_config) as http_client:
+
+            response = await http_client.post(
+                "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
+                json={
+                    "messages": [{"role": "user", "content": "test"}],
+                    "stream": stream,
+                },
+                headers={
+                    "X-UPSTREAM-KEY": "dummy-upstream-api-key",
+                    "X-UPSTREAM-ENDPOINT": "http://test-upstream",
+                },
+            )
+
+            assert response.status_code == 500
+            assert response.content == b"Something went wrong"
