@@ -46,11 +46,17 @@ class ApplicationConfig(BaseModel):
 
     def add_deployment(
         self, deployment_id: str, deployment_type: ChatCompletionDeploymentType
-    ):
-        if deployment_type == ChatCompletionDeploymentType.GPT_TEXT_ONLY:
-            return
-        config_getter = self.DEPLOYMENT_TYPE_MAP[deployment_type]
-        config_getter(self).append(deployment_id)
+    ) -> "ApplicationConfig":
+        if deployment_type != ChatCompletionDeploymentType.GPT_TEXT_ONLY:
+            config_getter = self.DEPLOYMENT_TYPE_MAP[deployment_type]
+            config_getter(self).append(deployment_id)
+        return self
+
+    def map_to_tiktoken_model(
+        self, deployment_id: str, tiktoken_model: str
+    ) -> "ApplicationConfig":
+        self.MODEL_ALIASES[deployment_id] = tiktoken_model
+        return self
 
     @classmethod
     def from_env(cls) -> "ApplicationConfig":

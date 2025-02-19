@@ -14,7 +14,7 @@ from typing import (
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
@@ -69,6 +69,9 @@ async def transpose_stream(
     first_chunk: Optional[bytes] = None
     async for chunk in stream:
         if isinstance(chunk, Response):
+            # Exhaust the stream
+            async for _ in stream:
+                pass
             return chunk
         else:
             first_chunk = chunk
@@ -94,26 +97,27 @@ async def predict_stream_raw(
         async with session.post(
             api_url, json=request, headers=headers
         ) as response:
-            if response.status != 200:
-                yield JSONResponse(
-                    status_code=response.status, content=await response.json()
+            if not response.ok:
+                yield Response(
+                    status_code=response.status,
+                    content=await response.content.read(),
                 )
-                return
-
-            async for line in response.content:
-                yield line
+            else:
+                async for line in response.content:
+                    yield line
 
 
 async def predict_non_stream(
     api_url: str, headers: Dict[str, str], request: Any
-) -> dict | JSONResponse:
+) -> dict | Response:
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url, json=request, headers=headers
         ) as response:
-            if response.status != 200:
-                return JSONResponse(
-                    status_code=response.status, content=await response.json()
+            if not response.ok:
+                return Response(
+                    status_code=response.status,
+                    content=await response.content.read(),
                 )
             return await response.json()
 

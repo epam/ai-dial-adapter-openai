@@ -1,9 +1,12 @@
+import contextlib
+
 import httpx
 import pytest
 from httpx import ASGITransport
 from openai import AsyncAzureOpenAI
 
 from aidial_adapter_openai.app import create_app
+from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.http_client import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.request import get_app_config
 from tests.integration_tests.base import DeploymentConfig
@@ -36,9 +39,20 @@ def eliminate_empty_choices(_app_instance):
     app_config.ELIMINATE_EMPTY_CHOICES = False
 
 
+@contextlib.asynccontextmanager
+async def create_test_client(app_config: ApplicationConfig):
+    app = create_app(init_telemetry=False, app_config=app_config)
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),  # type: ignore
+        base_url="http://test-app.com",
+        timeout=DEFAULT_TIMEOUT,
+    ) as client:
+        yield client
+
+
 @pytest.fixture
-def get_openai_client(test_app: httpx.AsyncClient):
-    def _get_client(deployment_config: DeploymentConfig) -> AsyncAzureOpenAI:
+def create_openai_client(test_app: httpx.AsyncClient):
+    def _create_client(deployment_config: DeploymentConfig) -> AsyncAzureOpenAI:
         return AsyncAzureOpenAI(
             azure_endpoint=str(test_app.base_url),
             azure_deployment=deployment_config.deployment_id,
@@ -50,4 +64,4 @@ def get_openai_client(test_app: httpx.AsyncClient):
             default_headers=deployment_config.upstream_headers,
         )
 
-    yield _get_client
+    yield _create_client
