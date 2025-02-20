@@ -24,7 +24,8 @@ def configure_loggers():
     logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
     # Setting up log levels
-    for name in ["aidial_adapter_openai", "uvicorn"]:
+    # FIXME: urllib3 is added temporarily
+    for name in ["aidial_adapter_openai", "uvicorn", "urllib3"]:
         logging.getLogger(name).setLevel(LOG_LEVEL)
 
     # Configuring the root logger
