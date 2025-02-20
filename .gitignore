@@ -11,3 +11,4 @@ dist
 .pytest_cache
 ~*
 integration_test_config.json
+.python-version
