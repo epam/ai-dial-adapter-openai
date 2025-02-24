@@ -3,7 +3,7 @@ from typing import Any, AsyncIterator, Literal, Optional
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import RequestValidationError
-from aidial_sdk.pydantic_v1 import BaseModel, Field
+from aidial_sdk.pydantic_v1 import BaseModel, Field, StrictStr
 from fastapi.responses import JSONResponse
 
 from aidial_adapter_openai.dial_api.request import get_configuration
@@ -19,16 +19,19 @@ IMG_USAGE = {
 
 
 class Dalle3Config(BaseModel):
-    quality: Optional[Literal["standard", "hd"] | str] = Field(
+    class Config:
+        extra = "allow"
+
+    quality: Optional[Literal["standard", "hd"] | StrictStr] = Field(
         default=None,
         description="The quality of the image that will be generated.",
     )
 
-    size: Optional[Literal["1024x1024", "1792x1024", "1024x1792"] | str] = (
-        Field(default=None, description="The size of the generated images.")
-    )
+    size: Optional[
+        Literal["1024x1024", "1792x1024", "1024x1792"] | StrictStr
+    ] = Field(default=None, description="The size of the generated images.")
 
-    style: Optional[Literal["vivid", "natural"] | str] = Field(
+    style: Optional[Literal["vivid", "natural"] | StrictStr] = Field(
         default=None, description="The style of the generated images."
     )
 

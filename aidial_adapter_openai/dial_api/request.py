@@ -1,6 +1,6 @@
 from typing import Any, Type, TypeVar
 
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import RequestValidationError
 from aidial_sdk.pydantic_v1 import BaseModel, ValidationError
 
 _T = TypeVar("_T", bound=BaseModel)
@@ -16,4 +16,8 @@ def get_configuration(cls: Type[_T], data: Any) -> _T | None:
     try:
         return cls.parse_obj(conf)
     except ValidationError as e:
-        raise InvalidRequestError(f"Invalid configuration: {e!r}")
+        error = e.errors()[0]
+        path = ".".join(map(str, error["loc"]))
+        msg = f"Invalid request. Path: 'custom_field.configuration.{path}', error: {error['msg']}"
+
+        raise RequestValidationError(msg)
