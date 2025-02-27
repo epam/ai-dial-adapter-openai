@@ -1,10 +1,12 @@
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Literal, Optional
 
 import aiohttp
 from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import RequestValidationError
+from aidial_sdk.pydantic_v1 import BaseModel, Field, StrictStr
 from fastapi.responses import JSONResponse
 
+from aidial_adapter_openai.dial_api.request import get_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
@@ -16,13 +18,35 @@ IMG_USAGE = {
 }
 
 
+class Dalle3Config(BaseModel):
+    class Config:
+        extra = "allow"
+
+    quality: Optional[Literal["standard", "hd"] | StrictStr] = Field(
+        default=None,
+        description="The quality of the image that will be generated.",
+    )
+
+    size: Optional[
+        Literal["1024x1024", "1792x1024", "1024x1792"] | StrictStr
+    ] = Field(default=None, description="The size of the generated images.")
+
+    style: Optional[Literal["vivid", "natural"] | StrictStr] = Field(
+        default=None, description="The style of the generated images."
+    )
+
+
 async def generate_image(
-    api_url: str, creds: OpenAICreds, user_prompt: str
+    api_url: str, creds: OpenAICreds, config: Dalle3Config, user_prompt: str
 ) -> JSONResponse | Any:
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url,
-            json={"prompt": user_prompt, "response_format": "b64_json"},
+            json={
+                "prompt": user_prompt,
+                "response_format": "b64_json",
+                **config.dict(exclude_none=True),
+            },
             headers=get_auth_headers(creds),
         ) as response:
             status_code = response.status
@@ -116,7 +140,9 @@ async def chat_completion(
 
     api_url = f"{upstream_endpoint}?api-version={api_version}"
     user_prompt = get_user_prompt(data)
-    model_response = await generate_image(api_url, creds, user_prompt)
+
+    config = get_configuration(Dalle3Config, data) or Dalle3Config()
+    model_response = await generate_image(api_url, creds, config, user_prompt)
 
     if isinstance(model_response, JSONResponse):
         return model_response

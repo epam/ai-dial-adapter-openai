@@ -40,6 +40,9 @@ def create_app(
     app.post("/openai/deployments/{deployment_id:path}/chat/completions")(
         endpoints.chat_completion
     )
+    app.get("/openai/deployments/{deployment_id:path}/configuration")(
+        endpoints.configuration
+    )
 
     for exc_class in [OpenAIError, DialException]:
         app.add_exception_handler(exc_class, adapter_exception_handler)
