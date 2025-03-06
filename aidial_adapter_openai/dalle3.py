@@ -1,14 +1,13 @@
 from typing import Any, AsyncIterator, Literal, Optional
 
-import aiohttp
-from aidial_sdk.exceptions import HTTPException as DIALException
-from aidial_sdk.exceptions import RequestValidationError
+from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from aidial_sdk.pydantic_v1 import BaseModel, Field, StrictStr
-from fastapi.responses import JSONResponse
+from openai.types.image import Image
 
 from aidial_adapter_openai.dial_api.request import get_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
+from aidial_adapter_openai.utils.auth import OpenAICreds
+from aidial_adapter_openai.utils.parsers import image_gen_parser
 from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
 
 IMG_USAGE = {
@@ -36,64 +35,39 @@ class Dalle3Config(BaseModel):
     )
 
 
-async def generate_image(
-    api_url: str, creds: OpenAICreds, config: Dalle3Config, user_prompt: str
-) -> JSONResponse | Any:
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            api_url,
-            json={
-                "prompt": user_prompt,
-                "response_format": "b64_json",
-                **config.dict(exclude_none=True),
-            },
-            headers=get_auth_headers(creds),
-        ) as response:
-            status_code = response.status
+def create_custom_content(image: Image) -> Any:
+    attachments = []
 
-            data = await response.json()
+    if revised_prompt := image.revised_prompt:
+        attachments.append({"title": "Revised prompt", "data": revised_prompt})
 
-            if status_code == 200:
-                return data
+    if (data := image.b64_json) is None:
+        raise InternalServerError(
+            "The model didn't return the base64 encoding of an image"
+        )
 
-            if "error" in data:
-                error = data["error"]
+    attachments.append({"title": "Image", "type": "image/png", "data": data})
 
-                if error.get("code") in [
-                    "content_policy_violation",
-                    "contentFilter",
-                ]:
-                    error["code"] = "content_filter"
-
-                return DIALException(
-                    status_code=status_code,
-                    message=error.get("message"),
-                    type=error.get("type"),
-                    param=error.get("param"),
-                    code=error.get("code"),
-                ).to_fastapi_response()
-            else:
-                return JSONResponse(content=data, status_code=status_code)
-
-
-def build_custom_content(base64_image: str, revised_prompt: str) -> Any:
-    return {
-        "custom_content": {
-            "attachments": [
-                {"title": "Revised prompt", "data": revised_prompt},
-                {"title": "Image", "type": "image/png", "data": base64_image},
-            ]
-        },
-        "content": "",
-    }
+    return {"custom_content": {"attachments": attachments}}
 
 
 async def generate_stream(
-    id: str, created: int, custom_content: Any
+    id: str, created: int, message_content: Any
 ) -> AsyncIterator[dict]:
     yield build_chunk(id, None, {"role": "assistant"}, created, True)
-    yield build_chunk(id, None, custom_content, created, True)
+    yield build_chunk(id, None, message_content, created, True)
     yield build_chunk(id, "stop", {}, created, True, usage=IMG_USAGE)
+
+
+def generate_response(id: str, created: int, message_content: Any) -> dict:
+    return build_chunk(
+        id,
+        "stop",
+        {"role": "assistant", **message_content},
+        created,
+        False,
+        usage=IMG_USAGE,
+    )
 
 
 def get_user_prompt(data: Any) -> str:
@@ -138,34 +112,35 @@ async def chat_completion(
     if data.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
-    api_url = f"{upstream_endpoint}?api-version={api_version}"
+    client = image_gen_parser.parse(upstream_endpoint).get_client(
+        {**creds, "api_version": api_version}
+    )
+
     user_prompt = get_user_prompt(data)
 
     config = get_configuration(Dalle3Config, data) or Dalle3Config()
-    model_response = await generate_image(api_url, creds, config, user_prompt)
 
-    if isinstance(model_response, JSONResponse):
-        return model_response
+    model_response = await client.images.generate(
+        prompt=user_prompt,
+        response_format="b64_json",
+        extra_body=config.dict(exclude_none=True),
+    )
 
-    base64_image = model_response["data"][0]["b64_json"]
-    revised_prompt = model_response["data"][0]["revised_prompt"]
+    if len(model_response.data) < 1:
+        raise InternalServerError("The model didn't return an image")
 
-    id = generate_id()
-    created = model_response["created"]
+    image = model_response.data[0]
 
-    custom_content = build_custom_content(base64_image, revised_prompt)
+    custom_content = create_custom_content(image)
+    message_content = {"content": "", **custom_content}
 
     if file_storage is not None:
         await move_attachments_data_to_storage(custom_content, file_storage)
 
+    id = generate_id()
+    created = model_response.created
+
     if is_stream:
-        return generate_stream(id, created, custom_content)
+        return generate_stream(id, created, message_content)
     else:
-        return build_chunk(
-            id,
-            "stop",
-            {"role": "assistant", "content": "", **custom_content},
-            created,
-            False,
-            usage=IMG_USAGE,
-        )
+        return generate_response(id, created, message_content)

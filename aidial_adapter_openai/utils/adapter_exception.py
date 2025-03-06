@@ -6,18 +6,18 @@ from fastapi.responses import Response as FastAPIResponse
 
 
 class ResponseWrapper(Exception):
-    content: Any
+    content: str
     status_code: int
     headers: MutableMapping[str, str] | None
 
     def __init__(
         self,
         *,
-        content: Any,
+        content: str,
         status_code: int,
         headers: MutableMapping[str, str] | None,
     ) -> None:
-        super().__init__(str(content))
+        super().__init__(content)
         self.content = content
         self.status_code = status_code
         self.headers = headers
@@ -41,8 +41,8 @@ class ResponseWrapper(Exception):
     def json_error(self) -> dict:
         return {
             "error": {
-                "message": str(self.content),
-                "code": int(self.status_code),
+                "message": self.content,
+                "code": self.status_code,
             }
         }
 
@@ -77,6 +77,11 @@ def _parse_dial_exception(
         param = error.get("param")
         display_message = error.get("display_message")
 
+        # DALL-E3 content filter code for DALL-E3 is different
+        # from the GPT content filter code.
+        if code == "content_policy_violation":
+            code = "content_filter"
+
         return DialException(
             status_code=status_code,
             message=message,
@@ -96,5 +101,5 @@ def parse_adapter_exception(
     return _parse_dial_exception(
         status_code=status_code, headers=headers, content=content
     ) or ResponseWrapper(
-        status_code=status_code, headers=headers, content=content
+        status_code=status_code, headers=headers, content=str(content)
     )
