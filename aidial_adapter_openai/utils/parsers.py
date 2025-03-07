@@ -94,6 +94,7 @@ class CompletionsParser(BaseModel):
 
 
 chat_completions_parser = EndpointParser(name="chat/completions")
+image_gen_parser = EndpointParser(name="images/generations")
 embeddings_parser = EndpointParser(name="embeddings")
 completions_parser = CompletionsParser()
 

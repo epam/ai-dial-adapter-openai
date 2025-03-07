@@ -18,7 +18,7 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
         return exc
 
     if isinstance(exc, APIStatusError):
-        # Non-streaming errors reported by `openai` library via this exception
+        # Non-streaming errors are reported by `openai` library via this exception
         r = exc.response
         httpx_headers = r.headers
 
@@ -54,7 +54,7 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
         )
 
     if isinstance(exc, APIError):
-        # Streaming errors reported by `openai` library via this exception
+        # Streaming errors are reported by `openai` library via this exception
         status_code: int = 500
         if exc.code:
             try:
