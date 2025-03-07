@@ -40,11 +40,13 @@ def eliminate_empty_choices(_app_instance):
 
 
 @contextlib.asynccontextmanager
-async def create_test_client(app_config: ApplicationConfig):
+async def create_test_client(
+    app_config: ApplicationConfig, *, base_url: str = "http://test-app.com"
+):
     app = create_app(init_telemetry=False, app_config=app_config)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app),  # type: ignore
-        base_url="http://test-app.com",
+        base_url=base_url,
         timeout=DEFAULT_TIMEOUT,
     ) as client:
         yield client
