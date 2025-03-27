@@ -224,7 +224,9 @@ def block_response_to_streaming_chunk(response: dict) -> dict:
 
 
 def create_server_response(
-    emulate_stream: bool,
+    *,
+    emulate_streaming: bool,
+    headers: dict[str, str],
     response: AsyncIterator[dict] | dict | BaseModel | Response,
 ) -> Response:
 
@@ -238,13 +240,14 @@ def create_server_response(
         return StreamingResponse(
             to_openai_sse_stream(stream),
             media_type="text/event-stream",
+            headers=headers,
         )
 
     def block_to_response(block: dict) -> Response:
-        if emulate_stream:
+        if emulate_streaming:
             return stream_to_response(block_to_stream(block))
         else:
-            return JSONResponse(block)
+            return JSONResponse(block, headers=headers)
 
     if isinstance(response, AsyncIterator):
         return stream_to_response(response)

@@ -21,6 +21,7 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.caching import get_headers_for_caching
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
 from aidial_adapter_openai.utils.request import (
@@ -153,8 +154,9 @@ async def chat_completion(deployment_id: str, request: Request):
         data["stream"] = False
 
     return create_server_response(
-        emulate_streaming,
-        await call_chat_completion(
+        emulate_streaming=emulate_streaming,
+        headers=get_headers_for_caching(request.headers, data),
+        response=await call_chat_completion(
             deployment_id, data, is_stream, request, app_config
         ),
     )
