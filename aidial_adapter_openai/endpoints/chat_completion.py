@@ -28,10 +28,7 @@ from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
 )
-from aidial_adapter_openai.utils.streaming import (
-    AppResponse,
-    create_server_response,
-)
+from aidial_adapter_openai.utils.streaming import create_server_response
 from aidial_adapter_openai.utils.tokenizer import (
     MultiModalTokenizer,
     PlainTextTokenizer,
@@ -44,7 +41,7 @@ async def call_chat_completion(
     is_stream: bool,
     request: Request,
     app_config: ApplicationConfig,
-) -> AppResponse:
+):
 
     # Azure OpenAI deployments ignore "model" request field,
     # since the deployment id is already encoded in the endpoint path.
@@ -166,8 +163,8 @@ async def chat_completion(deployment_id: str, request: Request):
         data["stream"] = False
 
     return create_server_response(
-        emulate_streaming=emulate_streaming,
-        response=await call_chat_completion(
+        emulate_streaming,
+        await call_chat_completion(
             deployment_id, data, is_stream, request, app_config
         ),
     )

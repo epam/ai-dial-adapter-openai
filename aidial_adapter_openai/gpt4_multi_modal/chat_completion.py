@@ -37,7 +37,6 @@ from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
-    AppResponse,
     ResponseWithHeaders,
     create_response_from_chunk,
     create_stage_chunk,
@@ -156,7 +155,7 @@ async def gpt4o_chat_completion(
     api_version: str,
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
-) -> AppResponse:
+):
     return await _chat_completion(
         request,
         request_headers,
@@ -184,7 +183,7 @@ async def gpt4_vision_chat_completion(
     api_version: str,
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
-) -> AppResponse:
+):
     return await _chat_completion(
         request,
         request_headers,
@@ -214,7 +213,7 @@ async def _chat_completion(
     response_transformer: Callable[[dict], dict | None],
     default_max_tokens: Optional[int],
     eliminate_empty_choices: bool,
-) -> AppResponse:
+):
     if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 

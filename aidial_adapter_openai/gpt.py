@@ -14,7 +14,6 @@ from aidial_adapter_openai.utils.caching import (
 from aidial_adapter_openai.utils.parsers import chat_completions_parser
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
-    AppResponse,
     ResponseWithHeaders,
     chunk_to_dict,
     debug_print,
@@ -53,7 +52,7 @@ async def gpt_chat_completion(
     api_version: str,
     tokenizer: PlainTextTokenizer,
     eliminate_empty_choices: bool,
-) -> AppResponse:
+):
     discarded_messages = None
     estimated_prompt_tokens = None
     if "max_prompt_tokens" in request:

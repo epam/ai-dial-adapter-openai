@@ -258,7 +258,7 @@ AppResponse = ResponseWithHeaders[_BaseResponse] | _BaseResponse | Response
 
 
 def create_server_response(
-    *, emulate_streaming: bool, response: AppResponse
+    emulate_streaming: bool, response: AppResponse
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
         body = response.body
