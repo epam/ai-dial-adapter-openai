@@ -22,6 +22,7 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
 from aidial_adapter_openai.utils.request import (
     get_api_version,
@@ -55,6 +56,7 @@ async def call_chat_completion(
     api_version = get_api_version(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+    logger.debug(f"upstream endpoint: {upstream_endpoint}")
 
     if completions_endpoint := completions_parser.parse(upstream_endpoint):
         return await completion(

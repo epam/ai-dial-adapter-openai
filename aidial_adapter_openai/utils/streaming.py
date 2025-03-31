@@ -1,10 +1,21 @@
 import logging
 from time import time
-from typing import Any, AsyncIterator, Callable, Generic, Optional, TypeVar
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Generic,
+    List,
+    Optional,
+    TypeVar,
+)
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.utils.merge_chunks import merge_chat_completion_chunks
+from aidial_sdk.utils.merge_chunks import (
+    cleanup_indices,
+    merge_chat_completion_chunks,
+)
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel
@@ -220,6 +231,17 @@ def block_response_to_streaming_chunk(response: dict) -> dict:
         if message := choice.get("message"):
             choice["delta"] = message
             del choice["message"]
+    return response
+
+
+def streaming_chunks_to_block_response(chunks: List[dict]) -> dict:
+    response = merge_chat_completion_chunks(*chunks)
+    response["object"] = "chat.completion"
+
+    for choice in response.get("choices") or []:
+        if delta := choice.get("delta"):
+            choice["message"] = cleanup_indices(delta)
+            del choice["delta"]
     return response
 
 
