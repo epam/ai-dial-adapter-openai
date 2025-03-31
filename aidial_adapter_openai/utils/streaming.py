@@ -253,14 +253,12 @@ class ResponseWithHeaders(Generic[_Body], BaseModel):
     body: _Body
 
 
-_BaseResponse = AsyncIterator[dict] | dict | BaseModel | Response
-AppResponse = ResponseWithHeaders[_BaseResponse] | _BaseResponse
+_BaseResponse = AsyncIterator[dict] | dict | BaseModel
+AppResponse = ResponseWithHeaders[_BaseResponse] | _BaseResponse | Response
 
 
 def create_server_response(
-    *,
-    emulate_streaming: bool,
-    response: AppResponse,
+    *, emulate_streaming: bool, response: AppResponse
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
         body = response.body
