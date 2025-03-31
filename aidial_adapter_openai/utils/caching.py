@@ -1,8 +1,6 @@
 import time
 from typing import Any, Callable, Mapping
 
-from aidial_sdk.chat_completion import CacheBreakpointPath
-
 _DIAL_CACHE_BREAKPOINT_PATH = "X-DIAL-CACHE-BREAKPOINT-PATH"
 _DIAL_CACHE_EXPIRE_AT = "X-DIAL-CACHE-EXPIRE-AT"
 
@@ -61,7 +59,7 @@ def get_response_headers_for_caching(
     if (last_message_idx := _get_last_message_idx(request_body)) is None:
         return None
 
-    path = CacheBreakpointPath.messages(last_message_idx).path
+    path = f"prefix.body.messages[{last_message_idx}]"
     expire_at = str(int(time.time()) + _DEFAULT_TTL_SEC)
 
     prompt_tokens = get_request_tokens()

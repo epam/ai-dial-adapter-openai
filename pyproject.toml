@@ -20,25 +20,23 @@ fastapi = "0.115.2"
 openai = "1.33.0"
 tiktoken = "0.7.0"
 uvicorn = "0.23"
-wrapt = "1.15.0"
-pydantic = "1.10.17"
-httpx = "0.27.0"
-aiohttp = "3.10.11"
+wrapt = "^1.15.0"
+pydantic = "^1.10.12"
+httpx = "^0.27.0"
+aiohttp = "^3.10.11"
 # required by openai embeddings; avoiding openai[datalib],
 # since it also depends on pandas
-numpy = "1.26.0"
-pillow = "10.3.0"
-azure-identity = "1.16.1"
-# aidial-sdk = { version = "^0.16.0", extras = ["telemetry"] }
-# FIXME: migrate to the release version
-aidial-sdk = { git = "https://github.com/epam/ai-dial-sdk.git", branch = "feat/add-headers-to-response", extras = ["telemetry"] }
+numpy = "^1.26.0"
+pillow = "^10.3.0"
+azure-identity = "^1.16.1"
+aidial-sdk = { version = "^0.16.0", extras = ["telemetry"] }
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
 pytest-asyncio = "0.21.1"
-pytest-xdist = "3.6.1"
-respx = "0.21.1"
-aioresponses = "0.7.8"
+pytest-xdist = "^3.5.0"
+respx = "^0.21.1"
+aioresponses = "^0.7.8"
 
 [tool.poetry.group.lint.dependencies]
 pyright = "1.1.324"
@@ -48,9 +46,9 @@ autoflake = "2.2.0"
 flake8 = "6.0.0"
 
 [tool.poetry.group.dev.dependencies]
-nox = "2023.4.22"
+nox = "^2023.4.22"
 # Required for `make serve` which loads .env file
-python-dotenv = "1.0.1"
+python-dotenv = "^1.0.1"
 
 [tool.pytest.ini_options]
 addopts = "-n=auto --asyncio-mode=auto"
