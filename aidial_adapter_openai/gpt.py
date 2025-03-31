@@ -8,8 +8,8 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.caching import (
+    get_prompt_tokens_from_response,
     get_response_headers_for_caching,
-    get_response_prompt_tokens,
 )
 from aidial_adapter_openai.utils.parsers import chat_completions_parser
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
@@ -87,14 +87,14 @@ async def gpt_chat_completion(
     if isinstance(response, AsyncIterator):
 
         @cache
-        def get_request_tokens() -> int:
+        def get_request_tokens_streaming() -> int:
             return estimated_prompt_tokens or tokenizer.tokenize_request(
                 request, request["messages"]
             )
 
         body = generate_stream(
             stream=map_stream(chunk_to_dict, response),
-            get_prompt_tokens=get_request_tokens,
+            get_prompt_tokens=get_request_tokens_streaming,
             tokenize_response=tokenizer.tokenize_response,
             deployment=deployment_id,
             discarded_messages=discarded_messages,
@@ -104,7 +104,7 @@ async def gpt_chat_completion(
         headers = get_response_headers_for_caching(
             request_headers=request_headers,
             request_body=request,
-            get_request_tokens=get_request_tokens,
+            get_request_tokens=get_request_tokens_streaming,
         )
 
         return ResponseWithHeaders(body=body, headers=headers)
@@ -114,10 +114,15 @@ async def gpt_chat_completion(
             body |= {"statistics": {"discarded_messages": discarded_messages}}
         debug_print("response", body)
 
+        def get_request_tokens_block() -> int:
+            return get_prompt_tokens_from_response(
+                body
+            ) or tokenizer.tokenize_request(request, request["messages"])
+
         headers = get_response_headers_for_caching(
             request_headers=request_headers,
             request_body=request,
-            get_request_tokens=lambda: get_response_prompt_tokens(body),
+            get_request_tokens=get_request_tokens_block,
         )
 
         return ResponseWithHeaders(body=body, headers=headers)

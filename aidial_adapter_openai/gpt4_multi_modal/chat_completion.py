@@ -27,8 +27,8 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.caching import (
+    get_prompt_tokens_from_response,
     get_response_headers_for_caching,
-    get_response_prompt_tokens,
 )
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionBlock,
@@ -334,7 +334,9 @@ async def _chat_completion(
         headers = get_response_headers_for_caching(
             request_headers=request_headers,
             request_body=request,
-            get_request_tokens=lambda: get_response_prompt_tokens(response),
+            get_request_tokens=lambda: get_prompt_tokens_from_response(
+                response
+            ),
         )
 
         return ResponseWithHeaders(headers=headers, body=response)

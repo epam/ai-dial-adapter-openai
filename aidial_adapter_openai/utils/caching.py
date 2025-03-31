@@ -32,7 +32,7 @@ def _get_last_message_idx(request_body: Any) -> int | None:
     return len(messages) - 1
 
 
-def get_response_prompt_tokens(response_body: Any | None) -> int | None:
+def get_prompt_tokens_from_response(response_body: Any | None) -> int | None:
     if not isinstance(response_body, dict):
         return None
 
@@ -53,7 +53,6 @@ def get_response_headers_for_caching(
     request_body: Any,
     get_request_tokens: Callable[[], int | None],
 ) -> dict[str, str] | None:
-
     # DIAL Core always sends this header if the deployment
     # is marked in listing as supporting auto-caching
     if request_headers.get(_DIAL_CACHE_BREAKPOINT_PATH) is None:
@@ -66,7 +65,7 @@ def get_response_headers_for_caching(
     expire_at = str(int(time.time()) + _DEFAULT_TTL_SEC)
 
     prompt_tokens = get_request_tokens()
-    if prompt_tokens is not None and prompt_tokens < _PROMPT_TOKENS_THRESHOLD:
+    if prompt_tokens is None or prompt_tokens < _PROMPT_TOKENS_THRESHOLD:
         return None
 
     return {

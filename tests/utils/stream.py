@@ -2,6 +2,10 @@ import json
 from typing import Any, Callable, List
 
 import httpx
+from aidial_sdk.utils.merge_chunks import (
+    cleanup_indices,
+    merge_chat_completion_chunks,
+)
 
 
 class OpenAIStream:
@@ -16,6 +20,17 @@ class OpenAIStream:
             ret += f"data: {json.dumps(chunk)}\n\n"
         ret += "data: [DONE]\n\n"
         return ret
+
+    def to_block_response(self) -> dict:
+        response_dict = merge_chat_completion_chunks(*self.chunks)
+
+        for choice in response_dict["choices"]:
+            choice["message"] = cleanup_indices(choice["delta"])
+            del choice["delta"]
+
+        response_dict["object"] = "chat.completion"
+
+        return response_dict
 
     def assert_response_content(
         self,
