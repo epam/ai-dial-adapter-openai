@@ -1,4 +1,5 @@
-from typing import AsyncIterator, List, Tuple, cast
+from functools import cache
+from typing import AsyncIterator, List, Mapping, Tuple, cast
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncStream
@@ -6,9 +7,15 @@ from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
+from aidial_adapter_openai.utils.caching import (
+    get_response_headers_for_caching,
+    get_response_prompt_tokens,
+)
 from aidial_adapter_openai.utils.parsers import chat_completions_parser
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
+    AppResponse,
+    ResponseWithHeaders,
     chunk_to_dict,
     debug_print,
     generate_stream,
@@ -39,13 +46,14 @@ def plain_text_truncate_prompt(
 
 async def gpt_chat_completion(
     request: dict,
+    request_headers: Mapping[str, str],
     deployment_id: str,
     upstream_endpoint: str,
     creds: OpenAICreds,
     api_version: str,
     tokenizer: PlainTextTokenizer,
     eliminate_empty_choices: bool,
-):
+) -> AppResponse:
     discarded_messages = None
     estimated_prompt_tokens = None
     if "max_prompt_tokens" in request:
@@ -77,18 +85,39 @@ async def gpt_chat_completion(
     )
 
     if isinstance(response, AsyncIterator):
-        return generate_stream(
+
+        @cache
+        def get_request_tokens() -> int:
+            return estimated_prompt_tokens or tokenizer.tokenize_request(
+                request, request["messages"]
+            )
+
+        body = generate_stream(
             stream=map_stream(chunk_to_dict, response),
-            get_prompt_tokens=lambda: estimated_prompt_tokens
-            or tokenizer.tokenize_request(request, request["messages"]),
+            get_prompt_tokens=get_request_tokens,
             tokenize_response=tokenizer.tokenize_response,
             deployment=deployment_id,
             discarded_messages=discarded_messages,
             eliminate_empty_choices=eliminate_empty_choices,
         )
+
+        headers = get_response_headers_for_caching(
+            request_headers=request_headers,
+            request_body=request,
+            get_request_tokens=get_request_tokens,
+        )
+
+        return ResponseWithHeaders(body=body, headers=headers)
     else:
-        rest = response.to_dict()
+        body = response.to_dict()
         if discarded_messages is not None:
-            rest |= {"statistics": {"discarded_messages": discarded_messages}}
-        debug_print("response", rest)
-        return rest
+            body |= {"statistics": {"discarded_messages": discarded_messages}}
+        debug_print("response", body)
+
+        headers = get_response_headers_for_caching(
+            request_headers=request_headers,
+            request_body=request,
+            get_request_tokens=lambda: get_response_prompt_tokens(body),
+        )
+
+        return ResponseWithHeaders(body=body, headers=headers)

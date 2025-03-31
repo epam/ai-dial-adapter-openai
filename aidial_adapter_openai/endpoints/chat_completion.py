@@ -22,13 +22,15 @@ from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.caching import get_headers_for_caching
 from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
 from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
 )
-from aidial_adapter_openai.utils.streaming import create_server_response
+from aidial_adapter_openai.utils.streaming import (
+    AppResponse,
+    create_server_response,
+)
 
 
 async def call_chat_completion(
@@ -37,7 +39,7 @@ async def call_chat_completion(
     is_stream: bool,
     request: Request,
     app_config: ApplicationConfig,
-):
+) -> AppResponse:
 
     # Azure OpenAI deployments ignore "model" request field,
     # since the deployment id is already encoded in the endpoint path.
@@ -96,6 +98,7 @@ async def call_chat_completion(
         case ChatCompletionDeploymentType.GPT4_VISION:
             return await gpt4_vision_chat_completion(
                 data,
+                request.headers,
                 deployment_id,
                 upstream_endpoint,
                 creds,
@@ -111,6 +114,7 @@ async def call_chat_completion(
         ):
             return await gpt4o_chat_completion(
                 data,
+                request.headers,
                 deployment_id,
                 upstream_endpoint,
                 creds,
@@ -123,6 +127,7 @@ async def call_chat_completion(
         case ChatCompletionDeploymentType.GPT_TEXT_ONLY:
             return await gpt_chat_completion(
                 data,
+                request.headers,
                 deployment_id,
                 upstream_endpoint,
                 creds,
@@ -149,7 +154,6 @@ async def chat_completion(deployment_id: str, request: Request):
 
     return create_server_response(
         emulate_streaming=emulate_streaming,
-        headers=get_headers_for_caching(request.headers, data),
         response=await call_chat_completion(
             deployment_id, data, is_stream, request, app_config
         ),

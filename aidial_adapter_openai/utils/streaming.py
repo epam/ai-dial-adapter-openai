@@ -1,6 +1,6 @@
 import logging
 from time import time
-from typing import Any, AsyncIterator, Callable, Optional, TypeVar
+from typing import Any, AsyncIterator, Callable, Generic, Optional, TypeVar
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
@@ -223,12 +223,29 @@ def block_response_to_streaming_chunk(response: dict) -> dict:
     return response
 
 
+_Body = TypeVar("_Body")
+
+
+class ResponseWithHeaders(Generic[_Body], BaseModel):
+    headers: dict[str, str] | None = None
+    body: _Body
+
+
+_BaseResponse = AsyncIterator[dict] | dict | BaseModel | Response
+AppResponse = ResponseWithHeaders[_BaseResponse] | _BaseResponse
+
+
 def create_server_response(
     *,
     emulate_streaming: bool,
-    headers: dict[str, str],
-    response: AsyncIterator[dict] | dict | BaseModel | Response,
+    response: AppResponse,
 ) -> Response:
+    if isinstance(response, ResponseWithHeaders):
+        body = response.body
+        headers = response.headers or {}
+    else:
+        body = response
+        headers = {}
 
     def block_to_stream(block: dict) -> AsyncIterator[dict]:
         async def stream():
@@ -249,16 +266,16 @@ def create_server_response(
         else:
             return JSONResponse(block, headers=headers)
 
-    if isinstance(response, AsyncIterator):
-        return stream_to_response(response)
+    if isinstance(body, AsyncIterator):
+        return stream_to_response(body)
 
-    if isinstance(response, dict):
-        return block_to_response(response)
+    if isinstance(body, dict):
+        return block_to_response(body)
 
-    if isinstance(response, BaseModel):
-        return block_to_response(response.dict())
+    if isinstance(body, BaseModel):
+        return block_to_response(body.dict())
 
-    return response
+    return body
 
 
 T = TypeVar("T")
