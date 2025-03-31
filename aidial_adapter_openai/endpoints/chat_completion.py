@@ -72,7 +72,7 @@ async def call_chat_completion(
         deployment_id
     )
 
-    if deployment_type is ChatCompletionDeploymentType.GPT4_VISION:
+    if deployment_type == ChatCompletionDeploymentType.GPT4_VISION:
         tiktoken_model = "gpt-4"
     else:
         tiktoken_model = (
