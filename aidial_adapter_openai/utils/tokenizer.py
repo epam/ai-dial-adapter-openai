@@ -14,7 +14,6 @@ from aidial_adapter_openai.utils.chat_completion_response import (
 )
 from aidial_adapter_openai.utils.image_tokenizer import ImageTokenizer
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.text import truncate_string
 
 MessageType = TypeVar("MessageType")
 
@@ -110,11 +109,11 @@ class BaseTokenizer(Generic[MessageType]):
         pass
 
 
-def _process_raw_message(
+def _tokenize_raw_message(
     raw_message: dict,
     tokens_per_name: int,
-    calculate_text_tokens: Callable[[str], int],
-    handle_custom_content_part: Callable[[Any], None],
+    tokenize_text: Callable[[str], int],
+    tokenize_multi_modal_content_part: Callable[[Any], int],
 ) -> int:
     tokens = 0
     for key, value in raw_message.items():
@@ -125,12 +124,14 @@ def _process_raw_message(
             if isinstance(value, list):
                 for content_part in value:
                     if content_part["type"] == "text":
-                        tokens += calculate_text_tokens(content_part["text"])
+                        tokens += tokenize_text(content_part["text"])
                     else:
-                        handle_custom_content_part(content_part)
+                        tokens += tokenize_multi_modal_content_part(
+                            content_part
+                        )
 
             elif isinstance(value, str):
-                tokens += calculate_text_tokens(value)
+                tokens += tokenize_text(value)
             elif value is None:
                 pass
             else:
@@ -140,7 +141,7 @@ def _process_raw_message(
 
         elif key == "role":
             if isinstance(value, str):
-                tokens += calculate_text_tokens(value)
+                tokens += tokenize_text(value)
             else:
                 raise InternalServerError(
                     f"Unexpected type of 'role' field in message: {type(value)}"
@@ -154,20 +155,20 @@ class PlainTextTokenizer(BaseTokenizer[dict]):
     Calculates only textual tokens, not image tokens.
     """
 
-    def _handle_custom_content_part(self, content_part: Any):
-        short_content_str = truncate_string(str(content_part), 100)
+    def _fail_on_non_textual_content_part(self, content_part: dict) -> int:
+        ty = content_part.get("type")
         raise InternalServerError(
-            f"Unexpected non-textural content part in the request: {short_content_str!r}. "
+            f"Unexpected non-textural content part of type {ty!r}. "
             f"The deployment only supports plain text messages. "
             f"Declare the deployment as a multi-modal one in the OpenAI adapter configuration to avoid the error."
         )
 
     def tokenize_request_message(self, message: dict) -> int:
-        return self._tokens_per_request_message + _process_raw_message(
+        return self._tokens_per_request_message + _tokenize_raw_message(
             raw_message=message,
             tokens_per_name=self._tokens_per_request_message_name,
-            calculate_text_tokens=self.tokenize_text,
-            handle_custom_content_part=self._handle_custom_content_part,
+            tokenize_text=self.tokenize_text,
+            tokenize_multi_modal_content_part=self._fail_on_non_textual_content_part,
         )
 
 
@@ -178,15 +179,23 @@ class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
         super().__init__(model)
         self.image_tokenizer = image_tokenizer
 
+    def _accept_image_content_part(self, content_part: dict) -> int:
+        if (ty := content_part.get("type")) == "image_url":
+            return 0
+
+        raise InternalServerError(
+            f"Unexpected multi-modal content part of type {ty!r}. "
+            f"The deployment only supports plain text and image messages."
+        )
+
     def tokenize_request_message(self, message: MultiModalMessage) -> int:
         tokens = self._tokens_per_request_message
-        raw_message = message.raw_message
 
-        tokens += _process_raw_message(
-            raw_message=raw_message,
+        tokens += _tokenize_raw_message(
+            raw_message=message.raw_message,
             tokens_per_name=self._tokens_per_request_message_name,
-            calculate_text_tokens=self.tokenize_text,
-            handle_custom_content_part=lambda content_part: None,
+            tokenize_text=self.tokenize_text,
+            tokenize_multi_modal_content_part=self._accept_image_content_part,
         )
 
         # Processing image parts of message

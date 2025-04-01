@@ -5,6 +5,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Mapping,
     Optional,
     Tuple,
     TypeVar,
@@ -25,6 +26,10 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     ResourceProcessor,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
+from aidial_adapter_openai.utils.caching import (
+    get_prompt_tokens_from_response,
+    get_response_headers_for_caching,
+)
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionBlock,
 )
@@ -32,6 +37,7 @@ from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
+    ResponseWithHeaders,
     create_response_from_chunk,
     create_stage_chunk,
     generate_stream,
@@ -140,6 +146,7 @@ def multi_modal_truncate_prompt(
 
 async def gpt4o_chat_completion(
     request: Any,
+    request_headers: Mapping[str, str],
     deployment: str,
     upstream_endpoint: str,
     creds: OpenAICreds,
@@ -149,8 +156,9 @@ async def gpt4o_chat_completion(
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
 ):
-    return await chat_completion(
+    return await _chat_completion(
         request,
+        request_headers,
         deployment,
         upstream_endpoint,
         creds,
@@ -175,8 +183,9 @@ async def gpt4_vision_chat_completion(
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
 ):
-    return await chat_completion(
+    return await _chat_completion(
         request,
+        {},
         deployment,
         upstream_endpoint,
         creds,
@@ -190,8 +199,9 @@ async def gpt4_vision_chat_completion(
     )
 
 
-async def chat_completion(
+async def _chat_completion(
     request: Any,
+    request_headers: Mapping[str, str],
     deployment: str,
     upstream_endpoint: str,
     creds: OpenAICreds,
@@ -263,7 +273,13 @@ async def chat_completion(
             logger.debug(f"chunk: {chunk}")
             return chunk
 
-        return map_stream(
+        headers = get_response_headers_for_caching(
+            request_headers=request_headers,
+            request_body=request,
+            get_request_tokens=lambda: estimated_prompt_tokens,
+        )
+
+        body = map_stream(
             debug_print,
             generate_stream(
                 stream=map_stream(
@@ -277,6 +293,8 @@ async def chat_completion(
                 eliminate_empty_choices=eliminate_empty_choices,
             ),
         )
+
+        return ResponseWithHeaders(headers=headers, body=body)
     else:
         response = await predict_non_stream(api_url, headers, request)
         if isinstance(response, Response):
@@ -311,4 +329,11 @@ async def chat_completion(
                     f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
                 )
 
-        return response
+        headers = get_response_headers_for_caching(
+            request_headers=request_headers,
+            request_body=request,
+            get_request_tokens=lambda: get_prompt_tokens_from_response(response)
+            or estimated_prompt_tokens,
+        )
+
+        return ResponseWithHeaders(headers=headers, body=response)

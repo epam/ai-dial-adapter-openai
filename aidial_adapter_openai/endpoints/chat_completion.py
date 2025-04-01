@@ -22,6 +22,7 @@ from aidial_adapter_openai.mistral import (
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
 from aidial_adapter_openai.utils.request import (
     get_api_version,
@@ -56,6 +57,7 @@ async def call_chat_completion(
     api_version = get_api_version(request)
 
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+    logger.debug(f"upstream endpoint: {upstream_endpoint}")
 
     if completions_endpoint := completions_parser.parse(upstream_endpoint):
         return await completion(
@@ -70,9 +72,18 @@ async def call_chat_completion(
     deployment_type = app_config.get_chat_completion_deployment_type(
         deployment_id
     )
+
+    if deployment_type == ChatCompletionDeploymentType.GPT4_VISION:
+        tiktoken_model = "gpt-4"
+    else:
+        tiktoken_model = (
+            app_config.MODEL_ALIASES.get(deployment_id) or deployment_id
+        )
+
+    storage = create_file_storage("images", request.headers)
+
     match deployment_type:
         case ChatCompletionDeploymentType.DALLE3:
-            storage = create_file_storage("images", request.headers)
             return await dalle3_chat_completion(
                 data,
                 upstream_endpoint,
@@ -89,7 +100,7 @@ async def call_chat_completion(
             )
         case ChatCompletionDeploymentType.GPT4_VISION:
             tokenizer = MultiModalTokenizer(
-                "gpt-4", get_image_tokenizer(deployment_type)
+                tiktoken_model, get_image_tokenizer(deployment_type)
             )
             return await gpt4_vision_chat_completion(
                 data,
@@ -97,7 +108,7 @@ async def call_chat_completion(
                 upstream_endpoint,
                 creds,
                 is_stream,
-                create_file_storage("images", request.headers),
+                storage,
                 api_version,
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
@@ -106,26 +117,23 @@ async def call_chat_completion(
             ChatCompletionDeploymentType.GPT4O
             | ChatCompletionDeploymentType.GPT4O_MINI
         ):
-
             tokenizer = MultiModalTokenizer(
-                app_config.MODEL_ALIASES.get(deployment_id, deployment_id),
-                get_image_tokenizer(deployment_type),
+                tiktoken_model, get_image_tokenizer(deployment_type)
             )
             return await gpt4o_chat_completion(
                 data,
+                request.headers,
                 deployment_id,
                 upstream_endpoint,
                 creds,
                 is_stream,
-                create_file_storage("images", request.headers),
+                storage,
                 api_version,
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
             )
         case ChatCompletionDeploymentType.GPT_TEXT_ONLY:
-            tokenizer = PlainTextTokenizer(
-                model=app_config.MODEL_ALIASES.get(deployment_id, deployment_id)
-            )
+            tokenizer = PlainTextTokenizer(model=tiktoken_model)
             return await gpt_chat_completion(
                 data,
                 deployment_id,

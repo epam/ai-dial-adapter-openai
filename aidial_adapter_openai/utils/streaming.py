@@ -1,10 +1,21 @@
 import logging
 from time import time
-from typing import Any, AsyncIterator, Callable, Optional, TypeVar
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Generic,
+    List,
+    Optional,
+    TypeVar,
+)
 from uuid import uuid4
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.utils.merge_chunks import merge_chat_completion_chunks
+from aidial_sdk.utils.merge_chunks import (
+    cleanup_indices,
+    merge_chat_completion_chunks,
+)
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel
@@ -223,10 +234,38 @@ def block_response_to_streaming_chunk(response: dict) -> dict:
     return response
 
 
+def streaming_chunks_to_block_response(chunks: List[dict]) -> dict:
+    response = merge_chat_completion_chunks(*chunks)
+    response["object"] = "chat.completion"
+
+    for choice in response.get("choices") or []:
+        if delta := choice.get("delta"):
+            choice["message"] = cleanup_indices(delta)
+            del choice["delta"]
+    return response
+
+
+_Body = TypeVar("_Body")
+
+
+class ResponseWithHeaders(Generic[_Body], BaseModel):
+    headers: dict[str, str] | None = None
+    body: _Body
+
+
+_BaseResponse = AsyncIterator[dict] | dict | BaseModel
+AppResponse = ResponseWithHeaders[_BaseResponse] | _BaseResponse | Response
+
+
 def create_server_response(
-    emulate_stream: bool,
-    response: AsyncIterator[dict] | dict | BaseModel | Response,
+    emulate_streaming: bool, response: AppResponse
 ) -> Response:
+    if isinstance(response, ResponseWithHeaders):
+        body = response.body
+        headers = response.headers or {}
+    else:
+        body = response
+        headers = {}
 
     def block_to_stream(block: dict) -> AsyncIterator[dict]:
         async def stream():
@@ -238,24 +277,25 @@ def create_server_response(
         return StreamingResponse(
             to_openai_sse_stream(stream),
             media_type="text/event-stream",
+            headers=headers,
         )
 
     def block_to_response(block: dict) -> Response:
-        if emulate_stream:
+        if emulate_streaming:
             return stream_to_response(block_to_stream(block))
         else:
-            return JSONResponse(block)
+            return JSONResponse(block, headers=headers)
 
-    if isinstance(response, AsyncIterator):
-        return stream_to_response(response)
+    if isinstance(body, AsyncIterator):
+        return stream_to_response(body)
 
-    if isinstance(response, dict):
-        return block_to_response(response)
+    if isinstance(body, dict):
+        return block_to_response(body)
 
-    if isinstance(response, BaseModel):
-        return block_to_response(response.dict())
+    if isinstance(body, BaseModel):
+        return block_to_response(body.dict())
 
-    return response
+    return body
 
 
 T = TypeVar("T")
