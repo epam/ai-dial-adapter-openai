@@ -174,7 +174,6 @@ async def gpt4o_chat_completion(
 
 async def gpt4_vision_chat_completion(
     request: Any,
-    request_headers: Mapping[str, str],
     deployment: str,
     upstream_endpoint: str,
     creds: OpenAICreds,
@@ -186,7 +185,7 @@ async def gpt4_vision_chat_completion(
 ):
     return await _chat_completion(
         request,
-        request_headers,
+        {},
         deployment,
         upstream_endpoint,
         creds,
@@ -333,9 +332,8 @@ async def _chat_completion(
         headers = get_response_headers_for_caching(
             request_headers=request_headers,
             request_body=request,
-            get_request_tokens=lambda: get_prompt_tokens_from_response(
-                response
-            ),
+            get_request_tokens=lambda: get_prompt_tokens_from_response(response)
+            or estimated_prompt_tokens,
         )
 
         return ResponseWithHeaders(headers=headers, body=response)

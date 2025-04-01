@@ -104,7 +104,6 @@ async def call_chat_completion(
             )
             return await gpt4_vision_chat_completion(
                 data,
-                request.headers,
                 deployment_id,
                 upstream_endpoint,
                 creds,
@@ -137,7 +136,6 @@ async def call_chat_completion(
             tokenizer = PlainTextTokenizer(model=tiktoken_model)
             return await gpt_chat_completion(
                 data,
-                request.headers,
                 deployment_id,
                 upstream_endpoint,
                 creds,

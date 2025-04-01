@@ -4,25 +4,56 @@ from typing import List
 
 import httpx
 import pytest
-import respx
+from aioresponses import aioresponses
 
+from aidial_adapter_openai.app_config import ApplicationConfig
+from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from tests.conftest import create_test_client
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
 
-def mock_response(upstream_url: str, stream: bool, chunks: List[dict]):
+@pytest.fixture
+def mock_aioresponse():
+    with aioresponses() as m:
+        yield m
+
+
+def mock_response(
+    mock: aioresponses, upstream_url: str, stream: bool, chunks: List[dict]
+):
     mock_stream = OpenAIStream(*chunks)
     if stream:
-        respx.post(upstream_url).respond(
-            status_code=200,
+        mock.add(
+            upstream_url,
+            method="POST",
+            status=200,
             content_type="text/event-stream",
-            content=mock_stream.to_content(),
+            body=mock_stream.to_content(),
         )
     else:
-        respx.post(upstream_url).respond(
-            status_code=200,
+        mock.add(
+            upstream_url,
+            method="POST",
+            status=200,
             content_type="application/json",
-            content=json.dumps(mock_stream.to_block_response()),
+            body=json.dumps(mock_stream.to_block_response()),
         )
+
+
+token_threshold = 1024
+big_content = "cat " * 1512  # #tokens >= token_threshold
+small_content = "cat"  # #tokens < token_threshold
+
+big_usage = {
+    "prompt_tokens": token_threshold,
+    "completion_tokens": 1,
+    "total_tokens": token_threshold + 1,
+}
+small_usage = {
+    "prompt_tokens": big_usage["prompt_tokens"] - 1,
+    "completion_tokens": 1,
+    "total_tokens": big_usage["total_tokens"] - 1,
+}
 
 
 @dataclasses.dataclass
@@ -43,10 +74,10 @@ class TestCase:
         else:
             xs.append("stream-")
 
-        if len(self.request_content) > 1024:
-            xs.append(">=1024")
+        if len(self.request_content) >= token_threshold:
+            xs.append("big-content")
         else:
-            xs.append("<1024")
+            xs.append("small-content")
 
         if self.caching_enabled:
             xs.append("caching+")
@@ -54,22 +85,31 @@ class TestCase:
             xs.append("caching-")
 
         if self.request_usage:
-            xs.append("usage+")
+            if self.request_usage["prompt_tokens"] >= token_threshold:
+                xs.append("big usage")
+            else:
+                xs.append("small usage")
         else:
-            xs.append("usage-")
+            xs.append("no-usage")
 
         return "/".join(xs)
 
 
-token_threshold = 1024
-big_content = "cat " * 1512  # #tokens >= token_threshold
-small_content = "cat"  # #tokens < token_threshold
+@pytest.fixture
+async def gpt4o_client():
+    app_config = (
+        ApplicationConfig()
+        .add_deployment("app", ChatCompletionDeploymentType.GPT4O)
+        .map_to_tiktoken_model("app", "gpt-4o")
+    )
 
-big_usage = {"prompt_tokens": token_threshold}
-small_usage = {"prompt_tokens": token_threshold - 1}
+    async with create_test_client(
+        app_config=app_config,
+        base_url="http://test-app.com/openai/deployments/app",
+    ) as client:
+        yield client
 
 
-@respx.mock
 @pytest.mark.parametrize(
     "ts",
     [
@@ -88,16 +128,19 @@ small_usage = {"prompt_tokens": token_threshold - 1}
     ],
     ids=lambda x: x.get_name(),
 )
-async def test_auto_caching(test_app: httpx.AsyncClient, ts: TestCase):
+async def test_auto_caching(
+    mock_aioresponse: aioresponses,
+    gpt4o_client: httpx.AsyncClient,
+    ts: TestCase,
+):
 
     query_part = "api-version=2023-03-15-preview"
-    adapter_url = f"/openai/deployments/gpt-4/chat/completions?{query_part}"
-    upstream_endpoint = (
-        "http://localhost:5001/openai/deployments/gpt-4o/chat/completions"
-    )
+    adapter_url = f"chat/completions?{query_part}"
+    upstream_endpoint = "http://test-upstream"
     upstream_url = f"{upstream_endpoint}?{query_part}"
 
     mock_response(
+        mock=mock_aioresponse,
         upstream_url=upstream_url,
         stream=ts.stream,
         chunks=[
@@ -109,7 +152,7 @@ async def test_auto_caching(test_app: httpx.AsyncClient, ts: TestCase):
         ],
     )
 
-    response = await test_app.post(
+    response = await gpt4o_client.post(
         adapter_url,
         json={
             "messages": [
@@ -119,7 +162,7 @@ async def test_auto_caching(test_app: httpx.AsyncClient, ts: TestCase):
             "stream": ts.stream,
         },
         headers={
-            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-KEY": "dummy-upstream-api-key",
             "X-UPSTREAM-ENDPOINT": upstream_endpoint,
             **(
                 {}
