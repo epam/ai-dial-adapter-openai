@@ -11,36 +11,35 @@ def _now() -> float:
     return time.monotonic()
 
 
-def _elapsed_ms(start_time: float) -> int:
-    return round((_now() - start_time) * 1000)
+def _elapsed_ms(start_time: float, last_time: float | None = None) -> int:
+    last_time = last_time or _now()
+    return round((last_time - start_time) * 1000)
 
 
 def _get_trace_config() -> aiohttp.TraceConfig:
 
-    async def on_request_start(session, trace_config_ctx, params):
-        trace_config_ctx.start_time = trace_config_ctx.trace_request_ctx[
-            "start_time"
-        ] = _now()
+    def _set_first(ctx):
+        ctx.trace_request_ctx["first"] = ctx.trace_request_ctx["last"] = _now()
 
-    async def on_dns_resolvehost_end(session, trace_config_ctx, params):
-        if getattr(trace_config_ctx, "start_time", None):
-            elapsed = _elapsed_ms(trace_config_ctx.start_time)
-            trace_config_ctx.trace_request_ctx["dns"] = elapsed
+    def _set_elapsed(ctx, field: str):
+        if last := ctx.trace_request_ctx.get("last"):
+            ctx.trace_request_ctx[field] = _elapsed_ms(last)
+            ctx.trace_request_ctx["last"] = _now()
 
-    async def on_connection_create_end(session, trace_config_ctx, params):
-        if getattr(trace_config_ctx, "start_time", None):
-            elapsed = _elapsed_ms(trace_config_ctx.start_time)
-            trace_config_ctx.trace_request_ctx["connect"] = elapsed
+    async def on_request_start(session, ctx, params):
+        _set_first(ctx)
 
-    async def on_response_chunk_received(session, trace_config_ctx, params):
-        if getattr(trace_config_ctx, "start_time", None):
-            elapsed = _elapsed_ms(trace_config_ctx.start_time)
-            trace_config_ctx.trace_request_ctx["body"] = elapsed
+    async def on_dns_resolvehost_end(session, ctx, params):
+        _set_elapsed(ctx, "dns")
 
-    async def on_request_end(session, trace_config_ctx, params):
-        if getattr(trace_config_ctx, "start_time", None):
-            elapsed = _elapsed_ms(trace_config_ctx.start_time)
-            trace_config_ctx.trace_request_ctx["header"] = elapsed
+    async def on_connection_create_end(session, ctx, params):
+        _set_elapsed(ctx, "connect")
+
+    async def on_request_end(session, ctx, params):
+        _set_elapsed(ctx, "header")
+
+    async def on_response_chunk_received(session, ctx, params):
+        _set_elapsed(ctx, "body")
 
     trace_config = aiohttp.TraceConfig()
     trace_config.on_request_start.append(on_request_start)
@@ -57,17 +56,23 @@ _trace_config = _get_trace_config()
 
 
 def _get_tracing_timings(trace_request_ctx: dict) -> str:
-    start_time = trace_request_ctx.get("start_time")
+    first = trace_request_ctx.get("first")
+    last = trace_request_ctx.get("last")
+
+    if not first or not last:
+        return "na"
+
     dns = trace_request_ctx.get("dns") or "na"
     connect = trace_request_ctx.get("connect") or "na"
     header = trace_request_ctx.get("header") or "na"
-    body = (
-        trace_request_ctx.get("body")
-        or (None if start_time is None else _elapsed_ms(start_time))
-        or "na"
-    )
 
-    return f"Cumulative timings: dns={dns}, connect={connect}, header={header}, body={body}"
+    now = _now()
+    body = trace_request_ctx.get("body") or _elapsed_ms(last, now)
+    total = _elapsed_ms(first, now)
+
+    return (
+        f"{total} (dns={dns}, connect={connect}, header={header}, body={body})"
+    )
 
 
 @contextlib.asynccontextmanager
@@ -81,5 +86,5 @@ async def post(url: str, headers: Dict[str, str], request: Any):
                 yield response
             finally:
                 logger.info(
-                    f"POST {url!r} {response.status} | {_get_tracing_timings(ctx)}"
+                    f"Upstream: {url!r}. Status: {response.status}. Timing: {_get_tracing_timings(ctx)}."
                 )
