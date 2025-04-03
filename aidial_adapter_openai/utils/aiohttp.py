@@ -58,13 +58,14 @@ _trace_config = _get_trace_config()
 
 def _get_tracing_timings(trace_request_ctx: dict) -> str:
     start_time = trace_request_ctx.get("start_time")
-    if not start_time:
-        return ""
-
     dns = trace_request_ctx.get("dns") or "na"
     connect = trace_request_ctx.get("connect") or "na"
     header = trace_request_ctx.get("header") or "na"
-    body = trace_request_ctx.get("body") or _elapsed_ms(start_time)
+    body = (
+        trace_request_ctx.get("body")
+        or (None if start_time is None else _elapsed_ms(start_time))
+        or "na"
+    )
 
     return f"Cumulative timings: dns={dns}, connect={connect}, header={header}, body={body}"
 
