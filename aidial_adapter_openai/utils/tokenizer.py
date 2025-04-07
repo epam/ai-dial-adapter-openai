@@ -20,15 +20,17 @@ MessageType = TypeVar("MessageType")
 
 
 _TIKTOKEN_MODEL_PREFIXES = [
-    p for p in MODEL_PREFIX_TO_ENCODING.keys() if not p.startswith("ft:")
+    f"{p!r}" for p in MODEL_PREFIX_TO_ENCODING.keys() if not p.startswith("ft:")
 ]
 
 
 def _get_tiktoken_error_message(model: str) -> str:
+    var_name = "TIKTOKEN_MODEL_MAPPING"
+
     return (
         f"Could not find tokenizer for the model {model!r} in the tiktoken package. "
-        "Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING env var: "
-        f'TIKTOKEN_MODEL_MAPPING=\'{{"{model}": "tiktoken_model_prefix"}}\', where tiktoken_model_prefix is one of: {", ".join(_TIKTOKEN_MODEL_PREFIXES)}. '
+        f"Consider mapping the model to an existing tokenizer via {var_name} variable in the adapter OpenAI environment: "
+        f'{var_name}=\'{{"{model}": "tiktoken_model_prefix"}}\', where tiktoken_model_prefix is one of: {", ".join(_TIKTOKEN_MODEL_PREFIXES)}. '
         "Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken."
     )
 

@@ -56,7 +56,12 @@ async def call_chat_completion(
     creds = await get_credentials(request)
     api_version = get_api_version(request)
 
-    upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+    upstream_endpoint = request.headers.get("X-UPSTREAM-ENDPOINT")
+    if upstream_endpoint is None:
+        raise ValueError(
+            "X-UPSTREAM-ENDPOINT header is missing in the request."
+        )
+
     logger.debug(f"upstream endpoint: {upstream_endpoint}")
 
     if completions_endpoint := completions_parser.parse(upstream_endpoint):

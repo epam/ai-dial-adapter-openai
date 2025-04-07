@@ -809,3 +809,25 @@ async def test_error_from_gpt_multi_modal(stream: bool):
 
             assert response.status_code == 500
             assert response.content == b"Something went wrong"
+
+
+async def test_missing_tiktoken_model(test_app: httpx.AsyncClient):
+    response = await test_app.post(
+        "/openai/deployments/my-favorite-model/chat/completions?api-version=2023-03-15-preview",
+        json={"whatever": "whatever"},
+        headers={
+            "X-UPSTREAM-KEY": "dummy-upstream-api-key",
+            "X-UPSTREAM-ENDPOINT": "http://test-upstream",
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": {
+            "code": "500",
+            "message": """
+Could not find tokenizer for the model 'my-favorite-model' in the tiktoken package. Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING variable in the adapter OpenAI environment: TIKTOKEN_MODEL_MAPPING='{"my-favorite-model": "tiktoken_model_prefix"}', where tiktoken_model_prefix is one of: 'gpt-4o-', 'gpt-4-', 'gpt-3.5-turbo-', 'gpt-35-turbo-'. Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken.
+""".strip(),
+            "type": "internal_server_error",
+        }
+    }
