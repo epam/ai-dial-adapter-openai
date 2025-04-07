@@ -12,7 +12,6 @@ from typing import (
     cast,
 )
 
-import aiohttp
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import Response
@@ -25,6 +24,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     SUPPORTED_FILE_EXTS,
     ResourceProcessor,
 )
+from aidial_adapter_openai.utils.aiohttp import post
 from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
 from aidial_adapter_openai.utils.caching import (
     get_prompt_tokens_from_response,
@@ -91,41 +91,35 @@ async def transpose_stream(
 
 
 async def predict_stream(
-    api_url: str, headers: Dict[str, str], request: Any
+    url: str, headers: Dict[str, str], request: Any
 ) -> AsyncIterator[bytes] | Response:
-    return await transpose_stream(predict_stream_raw(api_url, headers, request))
+    return await transpose_stream(predict_stream_raw(url, headers, request))
 
 
 async def predict_stream_raw(
-    api_url: str, headers: Dict[str, str], request: Any
+    url: str, headers: Dict[str, str], request: Any
 ) -> AsyncIterator[bytes | Response]:
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            api_url, json=request, headers=headers
-        ) as response:
-            if not response.ok:
-                yield Response(
-                    status_code=response.status,
-                    content=await response.content.read(),
-                )
-            else:
-                async for line in response.content:
-                    yield line
+    async with post(url, headers, request) as response:
+        if not response.ok:
+            yield Response(
+                status_code=response.status,
+                content=await response.content.read(),
+            )
+
+        async for line in response.content:
+            yield line
 
 
 async def predict_non_stream(
-    api_url: str, headers: Dict[str, str], request: Any
+    url: str, headers: Dict[str, str], request: Any
 ) -> dict | Response:
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            api_url, json=request, headers=headers
-        ) as response:
-            if not response.ok:
-                return Response(
-                    status_code=response.status,
-                    content=await response.content.read(),
-                )
-            return await response.json()
+    async with post(url, headers, request) as response:
+        if not response.ok:
+            return Response(
+                status_code=response.status,
+                content=await response.content.read(),
+            )
+        return await response.json()
 
 
 def multi_modal_truncate_prompt(
