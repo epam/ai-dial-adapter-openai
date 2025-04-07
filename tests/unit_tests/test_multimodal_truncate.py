@@ -38,7 +38,7 @@ def test_multimodal_truncate_with_system_and_last_user_error():
             raw_message={
                 "role": "user",
                 "content": [
-                    {"type": "message", "message": "this is four tokens"},
+                    {"type": "text", "text": "this is four tokens"},
                     {"type": "image_url", "image_url": "..."},
                 ],
             },

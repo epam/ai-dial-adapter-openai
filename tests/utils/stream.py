@@ -3,6 +3,10 @@ from typing import Any, Callable, List
 
 import httpx
 
+from aidial_adapter_openai.utils.streaming import (
+    streaming_chunks_to_block_response,
+)
+
 
 class OpenAIStream:
     chunks: List[dict]
@@ -16,6 +20,9 @@ class OpenAIStream:
             ret += f"data: {json.dumps(chunk)}\n\n"
         ret += "data: [DONE]\n\n"
         return ret
+
+    def to_block_response(self) -> dict:
+        return streaming_chunks_to_block_response(self.chunks)
 
     def assert_response_content(
         self,
