@@ -1,5 +1,5 @@
 import os
-from typing import Callable, Dict, List, TypeVar
+from typing import Callable, Dict, List
 
 from pydantic import BaseModel
 
@@ -8,11 +8,9 @@ from aidial_adapter_openai.utils.env import (
     get_env_bool,
     get_env_dict,
     get_env_list,
+    get_env_var,
 )
 from aidial_adapter_openai.utils.json import remove_nones
-from aidial_adapter_openai.utils.log_config import logger
-
-_T = TypeVar("_T")
 
 
 class ApplicationConfig(BaseModel):
@@ -66,20 +64,8 @@ class ApplicationConfig(BaseModel):
     @classmethod
     def from_env(cls) -> "ApplicationConfig":
 
-        def _parse_env_var(names: List[str], parse: Callable[[str], _T]) -> _T:
-            last = names[-1]
-            for name in names:
-                value = os.getenv(name)
-                if value is not None:
-                    if name != last:
-                        logger.warning(
-                            f"{name} environment variable is deprecated. Use {last} instead."
-                        )
-                    return parse(name)
-            return parse(last)
-
         list_fields = {
-            key: get_env_list(key)
+            key: get_env_var(get_env_list, key)
             for key in (
                 "DALLE3_DEPLOYMENTS",
                 "GPT4_VISION_DEPLOYMENTS",
@@ -93,7 +79,7 @@ class ApplicationConfig(BaseModel):
         }
 
         dict_fields = {
-            key: get_env_dict(key)
+            key: get_env_var(get_env_dict, key)
             for key in (
                 "API_VERSIONS_MAPPING",
                 "COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES",
@@ -105,19 +91,20 @@ class ApplicationConfig(BaseModel):
                 {
                     **list_fields,
                     **dict_fields,
-                    "DALLE3_AZURE_API_VERSION": os.getenv(
-                        "DALLE3_AZURE_API_VERSION"
+                    "DALLE3_AZURE_API_VERSION": get_env_var(
+                        os.getenv, "DALLE3_AZURE_API_VERSION"
                     ),
-                    "ELIMINATE_EMPTY_CHOICES": _parse_env_var(
-                        [
-                            "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS",
-                            "ELIMINATE_EMPTY_CHOICES",
-                        ],
+                    "ELIMINATE_EMPTY_CHOICES": get_env_var(
                         get_env_bool,
+                        "ELIMINATE_EMPTY_CHOICES",
+                        deprecated_names=[
+                            "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS"
+                        ],
                     ),
-                    "TIKTOKEN_MODEL_MAPPING": _parse_env_var(
-                        ["MODEL_ALIASES", "TIKTOKEN_MODEL_MAPPING"],
+                    "TIKTOKEN_MODEL_MAPPING": get_env_var(
                         get_env_dict,
+                        "TIKTOKEN_MODEL_MAPPING",
+                        deprecated_names=["MODEL_ALIASES"],
                     ),
                 }
             ),
