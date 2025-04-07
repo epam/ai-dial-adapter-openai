@@ -8,6 +8,7 @@ from typing import Any, Callable, Generic, List, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
+from tiktoken.model import MODEL_PREFIX_TO_ENCODING
 
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
@@ -17,6 +18,20 @@ from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.text import truncate_string
 
 MessageType = TypeVar("MessageType")
+
+
+_TIKTOKEN_MODEL_PREFIXES = [
+    p for p in MODEL_PREFIX_TO_ENCODING.keys() if not p.startswith("ft:")
+]
+
+
+def _get_tiktoken_error_message(model: str) -> str:
+    return (
+        f"Could not find tokenizer for the model {model!r} in the tiktoken package. "
+        "Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING env var: "
+        f'TIKTOKEN_MODEL_MAPPING=\'{{"{model}": "tiktoken_model_prefix"}}\', where tiktoken_model_prefix is one of: {", ".join(_TIKTOKEN_MODEL_PREFIXES)}. '
+        "Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken."
+    )
 
 
 class BaseTokenizer(Generic[MessageType]):
@@ -33,11 +48,7 @@ class BaseTokenizer(Generic[MessageType]):
         try:
             self.encoding = encoding_for_model(model)
         except KeyError as e:
-            raise InternalServerError(
-                f"Could not find tokenizer for the model {model!r} in tiktoken. "
-                "Consider mapping the model to an existing tokenizer via MODEL_ALIASES env var, "
-                "or declare it as a model which doesn't require tokenization through tiktoken.",
-            ) from e
+            raise InternalServerError(_get_tiktoken_error_message(model)) from e
 
     def tokenize_text(self, text: str) -> int:
         return len(self.encoding.encode(text))

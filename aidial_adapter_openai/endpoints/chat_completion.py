@@ -108,7 +108,9 @@ async def call_chat_completion(
         ):
 
             tokenizer = MultiModalTokenizer(
-                app_config.MODEL_ALIASES.get(deployment_id, deployment_id),
+                app_config.TIKTOKEN_MODEL_MAPPING.get(
+                    deployment_id, deployment_id
+                ),
                 get_image_tokenizer(deployment_type),
             )
             return await gpt4o_chat_completion(
@@ -124,7 +126,9 @@ async def call_chat_completion(
             )
         case ChatCompletionDeploymentType.GPT_TEXT_ONLY:
             tokenizer = PlainTextTokenizer(
-                model=app_config.MODEL_ALIASES.get(deployment_id, deployment_id)
+                model=app_config.TIKTOKEN_MODEL_MAPPING.get(
+                    deployment_id, deployment_id
+                )
             )
             return await gpt_chat_completion(
                 data,
