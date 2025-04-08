@@ -1,17 +1,20 @@
-import json
 import os
 from typing import Callable, Dict, List
 
 from pydantic import BaseModel
 
 from aidial_adapter_openai.constant import ChatCompletionDeploymentType
-from aidial_adapter_openai.utils.env import get_env_bool
+from aidial_adapter_openai.utils.env import (
+    get_env_bool,
+    get_env_dict,
+    get_env_list,
+    get_env_var,
+)
 from aidial_adapter_openai.utils.json import remove_nones
-from aidial_adapter_openai.utils.log_config import logger
 
 
 class ApplicationConfig(BaseModel):
-    MODEL_ALIASES: Dict[str, str] = {}
+    TIKTOKEN_MODEL_MAPPING: Dict[str, str] = {}
     DALLE3_DEPLOYMENTS: List[str] = []
     GPT4_VISION_DEPLOYMENTS: List[str] = []
     MISTRAL_DEPLOYMENTS: List[str] = []
@@ -25,7 +28,7 @@ class ApplicationConfig(BaseModel):
     NON_STREAMING_DEPLOYMENTS: List[str] = []
     ELIMINATE_EMPTY_CHOICES: bool = False
 
-    DEPLOYMENT_TYPE_MAP: Dict[
+    _DEPLOYMENT_TYPE_MAP: Dict[
         ChatCompletionDeploymentType, Callable[["ApplicationConfig"], List[str]]
     ] = {
         ChatCompletionDeploymentType.DALLE3: lambda config: config.DALLE3_DEPLOYMENTS,
@@ -39,7 +42,7 @@ class ApplicationConfig(BaseModel):
     def get_chat_completion_deployment_type(
         self, deployment_id: str
     ) -> ChatCompletionDeploymentType:
-        for deployment_type, config_getter in self.DEPLOYMENT_TYPE_MAP.items():
+        for deployment_type, config_getter in self._DEPLOYMENT_TYPE_MAP.items():
             if deployment_id in config_getter(self):
                 return deployment_type
         return ChatCompletionDeploymentType.GPT_TEXT_ONLY
@@ -48,45 +51,22 @@ class ApplicationConfig(BaseModel):
         self, deployment_id: str, deployment_type: ChatCompletionDeploymentType
     ) -> "ApplicationConfig":
         if deployment_type != ChatCompletionDeploymentType.GPT_TEXT_ONLY:
-            config_getter = self.DEPLOYMENT_TYPE_MAP[deployment_type]
+            config_getter = self._DEPLOYMENT_TYPE_MAP[deployment_type]
             config_getter(self).append(deployment_id)
         return self
 
     def map_to_tiktoken_model(
         self, deployment_id: str, tiktoken_model: str
     ) -> "ApplicationConfig":
-        self.MODEL_ALIASES[deployment_id] = tiktoken_model
+        self.TIKTOKEN_MODEL_MAPPING[deployment_id] = tiktoken_model
         return self
 
     @classmethod
     def from_env(cls) -> "ApplicationConfig":
-        def _parse_env_deployments(deployments_key: str) -> List[str] | None:
-            deployments_value = os.getenv(deployments_key)
-            if deployments_value is None:
-                return None
-            return list(map(str.strip, (deployments_value).split(",")))
 
-        def _parse_env_dict(key: str) -> Dict[str, str] | None:
-            value = os.getenv(key)
-            return json.loads(value) if value else None
-
-        def _parse_eliminate_empty_choices() -> bool | None:
-            old_name = "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS"
-            new_name = "ELIMINATE_EMPTY_CHOICES"
-
-            if old_name in os.environ:
-                logger.warning(
-                    f"{old_name} environment variable is deprecated. Use {new_name} instead."
-                )
-                return get_env_bool(old_name)
-            elif new_name in os.environ:
-                return get_env_bool(new_name)
-
-            return None
-
-        deployment_fields = {
-            deployment_key: _parse_env_deployments(deployment_key)
-            for deployment_key in (
+        list_fields = {
+            key: get_env_var(get_env_list, key)
+            for key in (
                 "DALLE3_DEPLOYMENTS",
                 "GPT4_VISION_DEPLOYMENTS",
                 "MISTRAL_DEPLOYMENTS",
@@ -97,10 +77,10 @@ class ApplicationConfig(BaseModel):
                 "NON_STREAMING_DEPLOYMENTS",
             )
         }
+
         dict_fields = {
-            key: _parse_env_dict(key)
+            key: get_env_var(get_env_dict, key)
             for key in (
-                "MODEL_ALIASES",
                 "API_VERSIONS_MAPPING",
                 "COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES",
             )
@@ -109,12 +89,23 @@ class ApplicationConfig(BaseModel):
         return cls(
             **remove_nones(
                 {
-                    **deployment_fields,
+                    **list_fields,
                     **dict_fields,
-                    "DALLE3_AZURE_API_VERSION": os.getenv(
-                        "DALLE3_AZURE_API_VERSION"
+                    "DALLE3_AZURE_API_VERSION": get_env_var(
+                        os.getenv, "DALLE3_AZURE_API_VERSION"
                     ),
-                    "ELIMINATE_EMPTY_CHOICES": _parse_eliminate_empty_choices(),
+                    "ELIMINATE_EMPTY_CHOICES": get_env_var(
+                        get_env_bool,
+                        "ELIMINATE_EMPTY_CHOICES",
+                        deprecated_names=[
+                            "FIX_STREAMING_ISSUES_IN_NEW_API_VERSIONS"
+                        ],
+                    ),
+                    "TIKTOKEN_MODEL_MAPPING": get_env_var(
+                        get_env_dict,
+                        "TIKTOKEN_MODEL_MAPPING",
+                        deprecated_names=["MODEL_ALIASES"],
+                    ),
                 }
             ),
         )

@@ -56,7 +56,12 @@ async def call_chat_completion(
     creds = await get_credentials(request)
     api_version = get_api_version(request)
 
-    upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+    upstream_endpoint = request.headers.get("X-UPSTREAM-ENDPOINT")
+    if upstream_endpoint is None:
+        raise ValueError(
+            "X-UPSTREAM-ENDPOINT header is missing in the request."
+        )
+
     logger.debug(f"upstream endpoint: {upstream_endpoint}")
 
     if completions_endpoint := completions_parser.parse(upstream_endpoint):
@@ -77,7 +82,8 @@ async def call_chat_completion(
         tiktoken_model = "gpt-4"
     else:
         tiktoken_model = (
-            app_config.MODEL_ALIASES.get(deployment_id) or deployment_id
+            app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id)
+            or deployment_id
         )
 
     storage = create_file_storage("images", request.headers)
