@@ -26,7 +26,7 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 \
     && apk upgrade --no-cache libexpat \
     # fix CVE-2025-31115
     && apk add --no-cache xz-libs==5.6.3-r1 \
-    # fix CVE-2023-52425
+    # fix CVE-2025-29087
     && apk add --no-cache sqlite-libs==3.49.1 --force
 
 RUN pip install setuptools==70.0.0
