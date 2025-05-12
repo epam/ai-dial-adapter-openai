@@ -29,6 +29,7 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 \
     # fix CVE-2025-29087
     && apk add --no-cache sqlite-libs==3.49.1 --force
 
+# fix CVE-2024-6345
 RUN pip install setuptools==70.0.0
 
 WORKDIR /app
