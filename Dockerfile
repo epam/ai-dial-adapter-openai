@@ -21,14 +21,16 @@ RUN poetry install --no-interaction --no-ansi --no-cache --only main
 
 FROM python:3.11-alpine as server
 
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
+RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 \
+    # fix CVE-2023-52425
+    && apk upgrade --no-cache libexpat \
+    # fix CVE-2025-31115
+    && apk add --no-cache xz-libs==5.6.3-r1 \
+    # fix CVE-2025-29087
+    && apk add --no-cache sqlite-libs==3.49.1 --force
 
-# CVE-2023-52425
-RUN apk upgrade --no-cache libexpat
-# CVE-2024-6345
+# fix CVE-2024-6345
 RUN pip install setuptools==70.0.0
-# CVE-2025-31115
-RUN apk add --no-cache xz-libs==5.6.3-r1
 
 WORKDIR /app
 
