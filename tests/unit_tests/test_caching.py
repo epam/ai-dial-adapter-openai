@@ -136,7 +136,7 @@ async def test_auto_caching(
 
     query_part = "api-version=2023-03-15-preview"
     adapter_url = f"chat/completions?{query_part}"
-    upstream_endpoint = "http://test-upstream"
+    upstream_endpoint = "http://test-upstream/openai/deployments/upstream-deployment/chat/completions"
     upstream_url = f"{upstream_endpoint}?{query_part}"
 
     mock_response(

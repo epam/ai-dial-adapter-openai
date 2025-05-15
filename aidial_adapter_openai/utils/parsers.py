@@ -1,5 +1,4 @@
 import re
-from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import Any, Dict, TypedDict
 
@@ -8,6 +7,7 @@ from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
 
+from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 
 
@@ -16,12 +16,6 @@ class OpenAIParams(TypedDict, total=False):
     azure_ad_token: str
     api_version: str
     timeout: Timeout
-
-
-class Endpoint(ABC):
-    @abstractmethod
-    def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
-        pass
 
 
 # Retries are handled on the DIAL Core side
@@ -44,6 +38,15 @@ class AzureOpenAIEndpoint(BaseModel):
             http_client=get_http_client(),
         )
 
+    def get_auth_headers(self, creds: OpenAICreds) -> dict[str, str]:
+        if key := creds.get("api_key"):
+            return {"api-key": key}
+
+        if token := creds.get("azure_ad_token"):
+            return {"Authorization": f"Bearer {token}"}
+
+        raise ValueError("Invalid credentials")
+
 
 class OpenAIEndpoint(BaseModel):
     base_url: str
@@ -56,6 +59,11 @@ class OpenAIEndpoint(BaseModel):
             max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
         )
+
+    def get_auth_headers(self, creds: OpenAICreds) -> dict[str, str]:
+        if key := (creds.get("api_key") or creds.get("azure_ad_token")):
+            return {"Authorization": f"Bearer {key}"}
+        raise ValueError("Invalid credentials")
 
 
 def _parse_endpoint(

@@ -784,10 +784,12 @@ async def test_error_from_gpt_multi_modal(stream: bool):
         .map_to_tiktoken_model("app", "gpt-4")
     )
 
+    upstream_url = "http://test-upstream/openai/deployments/upstream-deployment/chat/completions"
+
     with aioresponses() as aio_mock:
         aio_mock.add(
             method="POST",
-            url="http://test-upstream/?api-version=2023-03-15-preview",
+            url=f"{upstream_url}?api-version=2023-03-15-preview",
             body="Something went wrong",
             status=500,
             headers={"Content-Type": "text/plain"},
@@ -803,7 +805,7 @@ async def test_error_from_gpt_multi_modal(stream: bool):
                 },
                 headers={
                     "X-UPSTREAM-KEY": "dummy-upstream-api-key",
-                    "X-UPSTREAM-ENDPOINT": "http://test-upstream",
+                    "X-UPSTREAM-ENDPOINT": upstream_url,
                 },
             )
 
@@ -817,7 +819,7 @@ async def test_missing_tiktoken_model(test_app: httpx.AsyncClient):
         json={"whatever": "whatever"},
         headers={
             "X-UPSTREAM-KEY": "dummy-upstream-api-key",
-            "X-UPSTREAM-ENDPOINT": "http://test-upstream",
+            "X-UPSTREAM-ENDPOINT": "http://test-upstream/openai/deployments/upstream-deployment/chat/completions",
         },
     )
 
