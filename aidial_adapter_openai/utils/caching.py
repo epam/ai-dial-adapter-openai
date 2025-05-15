@@ -62,8 +62,9 @@ def get_response_headers_for_caching(
 
     # DIAL Core always sends this header if the deployment
     # is marked in listing as supporting auto-caching
-    if cache_path is None:
-        return None
+    # FIXME: revert
+    # if cache_path is None:
+    #     return None
 
     if (last_message_idx := _get_last_message_idx(request_body)) is None:
         return None
