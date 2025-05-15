@@ -25,7 +25,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     ResourceProcessor,
 )
 from aidial_adapter_openai.utils.aiohttp import post
-from aidial_adapter_openai.utils.auth import OpenAICreds, get_auth_headers
+from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.caching import (
     get_prompt_tokens_from_response,
     get_response_headers_for_caching,
@@ -35,6 +35,7 @@ from aidial_adapter_openai.utils.chat_completion_response import (
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.parsers import chat_completions_parser
 from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
@@ -254,7 +255,8 @@ async def _chat_completion(
         "messages": [m.raw_message for m in multi_modal_messages],
     }
 
-    headers = get_auth_headers(creds)
+    openai_endpoint = chat_completions_parser.parse(upstream_endpoint)
+    headers = openai_endpoint.get_auth_headers(creds)
 
     if is_stream:
         response = await predict_stream(api_url, headers, request)
