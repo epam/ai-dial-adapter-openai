@@ -56,16 +56,6 @@ async def get_credentials(request: Request) -> OpenAICreds:
         return {"api_key": api_key}
 
 
-def get_auth_headers(creds: OpenAICreds) -> dict[str, str]:
-    if "api_key" in creds:
-        return {"api-key": creds["api_key"]}
-
-    if "azure_ad_token" in creds:
-        return {"Authorization": f"Bearer {creds['azure_ad_token']}"}
-
-    raise ValueError("Invalid credentials")
-
-
 class Auth(BaseModel):
     name: str
     value: str
