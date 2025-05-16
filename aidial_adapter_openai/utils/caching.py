@@ -54,17 +54,15 @@ def get_response_headers_for_caching(
     request_body: Any,
     get_request_tokens: Callable[[], int | None],
 ) -> dict[str, str] | None:
-    cache_path = request_headers.get(_DIAL_CACHE_BREAKPOINT_PATH)
-
     logger.debug(
-        f"caching: request header {_DIAL_CACHE_BREAKPOINT_PATH!r} = {cache_path!r}"
+        f"caching: request headers {json.dumps(dict(request_headers))}"
     )
 
     # DIAL Core always sends this header if the deployment
     # is marked in listing as supporting auto-caching
-    # FIXME: revert
-    # if cache_path is None:
-    #     return None
+    cache_path = request_headers.get(_DIAL_CACHE_BREAKPOINT_PATH)
+    if cache_path is None:
+        return None
 
     if (last_message_idx := _get_last_message_idx(request_body)) is None:
         return None
