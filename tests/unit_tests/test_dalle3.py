@@ -18,11 +18,11 @@ _DALLE_API_VERSION = "dalle-3-api-version"
 async def dalle3_client():
     app_config = ApplicationConfig(
         DALLE3_AZURE_API_VERSION=_DALLE_API_VERSION
-    ).add_deployment("app", ChatCompletionDeploymentType.DALLE3)
+    ).add_deployment("test-dall-e-3", ChatCompletionDeploymentType.DALLE3)
 
     async with create_test_client(
         app_config=app_config,
-        base_url="http://test-app.com/openai/deployments/app",
+        base_url="http://test-app.com/openai/deployments/test-dall-e-3",
     ) as client:
         yield client
 
@@ -60,6 +60,7 @@ async def test_dalle3_configuration_success(
 ):
     def _mock_dalle3_response(request: httpx.Request):
         assert json.loads(request.content) == {
+            "model": "test-dall-e-3",
             "prompt": "test",
             "response_format": "b64_json",
             **remove_nones(conf or {}),
