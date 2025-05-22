@@ -92,6 +92,7 @@ async def call_chat_completion(
         case ChatCompletionDeploymentType.DALLE3:
             return await dalle3_chat_completion(
                 data,
+                deployment_id,
                 upstream_endpoint,
                 creds,
                 is_stream,

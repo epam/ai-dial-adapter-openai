@@ -103,6 +103,7 @@ async def move_attachments_data_to_storage(
 
 async def chat_completion(
     data: Any,
+    deployment: str,
     upstream_endpoint: str,
     creds: OpenAICreds,
     is_stream: bool,
@@ -121,6 +122,7 @@ async def chat_completion(
     config = get_configuration(Dalle3Config, data) or Dalle3Config()
 
     model_response = await client.images.generate(
+        model=deployment,
         prompt=user_prompt,
         response_format="b64_json",
         extra_body=config.dict(exclude_none=True),
