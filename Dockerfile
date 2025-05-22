@@ -1,4 +1,4 @@
-FROM python:3.11-alpine as builder
+FROM python:3.11-alpine AS builder
 
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
 RUN apk add --no-cache alpine-sdk linux-headers
@@ -19,14 +19,14 @@ RUN .venv/bin/python -c "from tiktoken import encoding_for_model as load; load('
 COPY aidial_adapter_openai aidial_adapter_openai
 RUN poetry install --no-interaction --no-ansi --no-cache --only main
 
-FROM python:3.11-alpine as server
+FROM python:3.11-alpine AS server
 
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
 
 # CVE-2023-52425
 RUN apk upgrade --no-cache libexpat
-# CVE-2024-6345
-RUN pip install setuptools==70.0.0
+# CVE-2025-47273
+RUN pip install setuptools==78.1.1
 # CVE-2025-31115
 RUN apk add --no-cache xz-libs==5.6.3-r1
 
