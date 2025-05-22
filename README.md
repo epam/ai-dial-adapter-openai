@@ -123,9 +123,7 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
 
 ## Prompt caching
 
-The adapter supports [prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching) for o-series model family.
-
-It's enabled by the `autoCachingSupported` flag in the features of the model deployment in the DIAL Core config:
+The [prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching) could be enabled via the `autoCachingSupported` flag in the DIAL Core config.
 
 ```json
 {
@@ -154,7 +152,7 @@ It's enabled by the `autoCachingSupported` flag in the features of the model dep
 ```
 
 > [!IMPORTANT]
-> The deployment must also be declared in either `GPT4O_DEPLOYMENTS` or `GPT4O_MINI_DEPLOYMENTS` environment variables to enable the auto caching feature.
+> Check that the deployment does actually support [prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching#supported-models) before enabling it in the config.
 
 ## Lint
 
