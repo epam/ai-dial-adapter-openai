@@ -27,8 +27,6 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
 RUN apk upgrade --no-cache libexpat
 # CVE-2025-47273
 RUN pip install setuptools==78.1.1
-# CVE-2025-31115
-RUN apk add --no-cache xz-libs==5.6.3-r1
 
 WORKDIR /app
 
