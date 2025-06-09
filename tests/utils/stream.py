@@ -79,7 +79,7 @@ def single_choice_chunk(
     model: str = "gpt-4",
     finish_reason: str | None = None,
     delta: dict | None = None,
-    extra_choice: dict | None = None,
+    logprobs: dict | None = None,
     usage: dict | None = None,
     **kwargs,
 ) -> dict:
@@ -92,7 +92,7 @@ def single_choice_chunk(
                 "index": 0,
                 "finish_reason": finish_reason,
                 "delta": delta or {},
-                **(extra_choice or {}),
+                **({"logprobs": logprobs} if logprobs else {}),
             }
         ],
         usage=usage,

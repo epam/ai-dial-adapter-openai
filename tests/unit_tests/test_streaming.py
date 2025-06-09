@@ -193,48 +193,37 @@ async def test_streaming_logprobs(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(
             delta={"role": "assistant", "content": ""},
-            extra_choice={
-                "logprobs": {
-                    "content": [],
-                    "refusal": None,
-                }
-            },
+            logprobs={"content": [], "refusal": None},
         ),
         single_choice_chunk(
             delta={"role": "assistant", "content": "Hello"},
-            extra_choice={
-                "logprobs": {
-                    "content": [
-                        {
-                            "token": "Hello",
-                            "logprob": -0.0030339211,
-                            "bytes": [72, 101, 108, 108, 111],
-                            "top_logprobs": [],
-                        }
-                    ],
-                    "refusal": None,
-                }
+            logprobs={
+                "content": [
+                    {
+                        "token": "Hello",
+                        "logprob": -0.0030339211,
+                        "bytes": [72, 101, 108, 108, 111],
+                        "top_logprobs": [],
+                    }
+                ],
+                "refusal": None,
             },
         ),
         single_choice_chunk(
             delta={"content": " world"},
-            extra_choice={
-                "logprobs": {
-                    "content": [
-                        {
-                            "token": " world",
-                            "logprob": -0.0089504095,
-                            "bytes": [32, 119, 111, 114, 108, 100],
-                            "top_logprobs": [],
-                        }
-                    ],
-                    "refusal": None,
-                }
+            logprobs={
+                "content": [
+                    {
+                        "token": " world",
+                        "logprob": -0.0089504095,
+                        "bytes": [32, 119, 111, 114, 108, 100],
+                        "top_logprobs": [],
+                    }
+                ],
+                "refusal": None,
             },
         ),
-        single_choice_chunk(
-            delta={}, finish_reason="stop", extra_choice={"logprobs": None}
-        ),
+        single_choice_chunk(delta={}, finish_reason="stop"),
     )
 
     respx.post(
