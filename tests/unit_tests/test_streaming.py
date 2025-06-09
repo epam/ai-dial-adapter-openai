@@ -186,3 +186,86 @@ async def test_include_usage_stream_issues(
 
     assert response.status_code == 200
     expected_response.assert_response_content(response, assert_equal)
+
+
+@respx.mock
+async def test_streaming_logprobs(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(
+            delta={"role": "assistant", "content": ""},
+            extra_choice={
+                "logprobs": {
+                    "content": [],
+                    "refusal": None,
+                }
+            },
+        ),
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "Hello"},
+            extra_choice={
+                "logprobs": {
+                    "content": [
+                        {
+                            "token": "Hello",
+                            "logprob": -0.0030339211,
+                            "bytes": [72, 101, 108, 108, 111],
+                            "top_logprobs": [],
+                        }
+                    ],
+                    "refusal": None,
+                }
+            },
+        ),
+        single_choice_chunk(
+            delta={"content": " world"},
+            extra_choice={
+                "logprobs": {
+                    "content": [
+                        {
+                            "token": " world",
+                            "logprob": -0.0089504095,
+                            "bytes": [32, 119, 111, 114, 108, 100],
+                            "top_logprobs": [],
+                        }
+                    ],
+                    "refusal": None,
+                }
+            },
+        ),
+        single_choice_chunk(
+            delta={}, finish_reason="stop", extra_choice={"logprobs": None}
+        ),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15"
+    ).respond(
+        status_code=200,
+        content=mock_stream.to_content(),
+        content_type="text/event-stream",
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+    mock_stream.assert_response_content(
+        response,
+        assert_equal,
+        usages={
+            3: {
+                "completion_tokens": 2,
+                "prompt_tokens": 9,
+                "total_tokens": 11,
+            }
+        },
+    )
