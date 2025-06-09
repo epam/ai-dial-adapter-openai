@@ -42,6 +42,6 @@ def test(session: nox.Session):
 
 @nox.session
 def integration_test(session: nox.Session):
-    """Runs integration tests. You need a"""
+    """Runs integration tests"""
     session.run("poetry", "install", external=True)
     session.run("pytest", "tests/integration_tests")
