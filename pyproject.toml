@@ -1,3 +1,7 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
 [project]
 name = "aidial-adapter-openai"
 version = "0.27.0rc"
@@ -14,7 +18,7 @@ dependencies = [
   "tiktoken (==0.9.0)",
   "uvicorn (==0.23.0)",
   "wrapt (==1.15.0)",
-  "pydantic (==1.10.13)",
+  "pydantic (==1.10.17)",
   "httpx (==0.27.0)",
   "aiohttp (==3.10.11)",
   # required by openai embeddings; avoiding openai[datalib],
@@ -22,7 +26,7 @@ dependencies = [
   "numpy (==1.26.0)",
   "pillow (==10.3.0)",
   "azure-identity (==1.16.1)",
-  "aidial-sdk[telemetry] (==0.16.0)"
+  "aidial-sdk[telemetry] (==0.22.1)"
 ]
 
 [project.urls]
@@ -32,6 +36,9 @@ Repository = "https://github.com/epam/ai-dial-adapter-openai"
 
 [project.scripts]
 clean = "scripts.clean:main"
+
+[tool.poetry]
+package-mode = false
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
@@ -51,10 +58,6 @@ flake8 = "6.0.0"
 nox = "^2023.4.22"
 # Required for `make serve` which loads .env file
 python-dotenv = "^1.0.1"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 addopts = "-n=auto --asyncio-mode=auto"
