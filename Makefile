@@ -3,8 +3,8 @@ IMAGE_NAME ?= ai-dial-adapter-openai
 PLATFORM ?= linux/amd64
 VENV_DIR ?= .venv
 POETRY ?= $(VENV_DIR)/bin/poetry
-POETRY_VERSION ?= 1.8.5
-ARGS=
+POETRY_VERSION ?= 2.1.1
+ARGS ?=
 
 .PHONY: all init_env install build serve clean lint format test integration_tests docker_build docker_run
 
@@ -34,10 +34,10 @@ format: install
 	$(POETRY) run nox -s format
 
 test: install
-	$(POETRY) run nox -s test -- $(ARGS)
+	$(POETRY) run -- nox -s test -- $(ARGS)
 
 integration_test: install
-	$(POETRY) run nox -s integration_test -- $(ARGS)
+	$(POETRY) run -- nox -s integration_test -- $(ARGS)
 
 docker_serve:
 	docker build --platform $(PLATFORM) -t $(IMAGE_NAME):dev .
