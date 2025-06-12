@@ -1,7 +1,7 @@
 from aidial_sdk.exceptions import InvalidRequestError
 from fastapi import FastAPI, Request
 
-from aidial_adapter_openai.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 
 
 def set_app_config(app: FastAPI, app_config: ApplicationConfig):

@@ -4,7 +4,7 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncStream
 from openai.types import Completion
 
-from aidial_adapter_openai.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,

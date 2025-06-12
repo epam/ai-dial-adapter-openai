@@ -6,7 +6,7 @@ import httpx
 import pytest
 from aioresponses import aioresponses
 
-from aidial_adapter_openai.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.constant import ChatCompletionDeploymentType
 from tests.conftest import create_test_client
 from tests.utils.stream import OpenAIStream, single_choice_chunk

@@ -2,8 +2,8 @@ from typing import assert_never
 
 from fastapi import Request
 
-from aidial_adapter_openai.app_config import ApplicationConfig
 from aidial_adapter_openai.completions import chat_completion as completion
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.constant import ChatCompletionDeploymentType
 from aidial_adapter_openai.dalle3 import (
     chat_completion as dalle3_chat_completion,

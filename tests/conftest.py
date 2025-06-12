@@ -6,7 +6,7 @@ from httpx import ASGITransport
 from openai import AsyncAzureOpenAI
 
 from aidial_adapter_openai.app import create_app
-from aidial_adapter_openai.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.http_client import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.request import get_app_config
 from tests.integration_tests.base import DeploymentConfig

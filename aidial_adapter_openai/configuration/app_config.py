@@ -3,6 +3,9 @@ from typing import Callable, Dict, List
 
 from pydantic import BaseModel
 
+from aidial_adapter_openai.configuration.deprecations import (
+    check_deprecated_env_vars,
+)
 from aidial_adapter_openai.constant import ChatCompletionDeploymentType
 from aidial_adapter_openai.utils.env import (
     get_env_bool,
@@ -63,6 +66,7 @@ class ApplicationConfig(BaseModel):
 
     @classmethod
     def from_env(cls) -> "ApplicationConfig":
+        check_deprecated_env_vars()
 
         list_fields = {
             key: get_env_var(get_env_list, key)

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from openai import OpenAIError
 
 import aidial_adapter_openai.endpoints as endpoints
-from aidial_adapter_openai.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.exception_handlers import adapter_exception_handler
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
@@ -26,12 +26,13 @@ def create_app(
     init_telemetry: bool = True,
 ) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
-    set_app_config(app, app_config or ApplicationConfig.from_env())
 
     if init_telemetry:
         sdk_init_telemetry(app, TelemetryConfig())
 
     configure_loggers()
+
+    set_app_config(app, app_config or ApplicationConfig.from_env())
 
     app.get("/health")(endpoints.health)
     app.post("/openai/deployments/{deployment_id:path}/embeddings")(
