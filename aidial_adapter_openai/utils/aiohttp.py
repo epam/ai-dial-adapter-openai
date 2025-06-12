@@ -78,7 +78,9 @@ def _get_tracing_timings(trace_request_ctx: dict) -> str:
 @contextlib.asynccontextmanager
 async def post(url: str, headers: Dict[str, str], request: Any):
     ctx = {}
-    async with aiohttp.ClientSession(trace_configs=[_trace_config]) as session:
+    async with aiohttp.ClientSession(
+        trust_env=True, trace_configs=[_trace_config]
+    ) as session:
         async with session.post(
             url, json=request, headers=headers, trace_request_ctx=ctx
         ) as response:
