@@ -14,7 +14,6 @@ from aidial_adapter_openai.databricks import (
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.gpt import gpt_chat_completion
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
-    gpt4_vision_chat_completion,
     gpt4o_chat_completion,
 )
 from aidial_adapter_openai.mistral import (
@@ -78,13 +77,9 @@ async def call_chat_completion(
         deployment_id
     )
 
-    if deployment_type == ChatCompletionDeploymentType.GPT4_VISION:
-        tiktoken_model = "gpt-4"
-    else:
-        tiktoken_model = (
-            app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id)
-            or deployment_id
-        )
+    tiktoken_model = (
+        app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id) or deployment_id
+    )
 
     storage = create_file_storage("images", request.headers)
 
@@ -104,21 +99,6 @@ async def call_chat_completion(
         case ChatCompletionDeploymentType.DATABRICKS:
             return await databricks_chat_completion(
                 data, upstream_endpoint, creds
-            )
-        case ChatCompletionDeploymentType.GPT4_VISION:
-            tokenizer = MultiModalTokenizer(
-                tiktoken_model, get_image_tokenizer(deployment_type)
-            )
-            return await gpt4_vision_chat_completion(
-                data,
-                deployment_id,
-                upstream_endpoint,
-                creds,
-                is_stream,
-                storage,
-                api_version,
-                tokenizer,
-                app_config.ELIMINATE_EMPTY_CHOICES,
             )
         case (
             ChatCompletionDeploymentType.GPT4O

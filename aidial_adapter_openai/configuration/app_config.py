@@ -19,7 +19,6 @@ from aidial_adapter_openai.utils.json import remove_nones
 class ApplicationConfig(BaseModel):
     TIKTOKEN_MODEL_MAPPING: Dict[str, str] = {}
     DALLE3_DEPLOYMENTS: List[str] = []
-    GPT4_VISION_DEPLOYMENTS: List[str] = []
     MISTRAL_DEPLOYMENTS: List[str] = []
     DATABRICKS_DEPLOYMENTS: List[str] = []
     GPT4O_DEPLOYMENTS: List[str] = []
@@ -35,7 +34,6 @@ class ApplicationConfig(BaseModel):
         ChatCompletionDeploymentType, Callable[["ApplicationConfig"], List[str]]
     ] = {
         ChatCompletionDeploymentType.DALLE3: lambda config: config.DALLE3_DEPLOYMENTS,
-        ChatCompletionDeploymentType.GPT4_VISION: lambda config: config.GPT4_VISION_DEPLOYMENTS,
         ChatCompletionDeploymentType.MISTRAL: lambda config: config.MISTRAL_DEPLOYMENTS,
         ChatCompletionDeploymentType.DATABRICKS: lambda config: config.DATABRICKS_DEPLOYMENTS,
         ChatCompletionDeploymentType.GPT4O: lambda config: config.GPT4O_DEPLOYMENTS,
@@ -72,7 +70,6 @@ class ApplicationConfig(BaseModel):
             key: get_env_var(get_env_list, key)
             for key in (
                 "DALLE3_DEPLOYMENTS",
-                "GPT4_VISION_DEPLOYMENTS",
                 "MISTRAL_DEPLOYMENTS",
                 "DATABRICKS_DEPLOYMENTS",
                 "GPT4O_DEPLOYMENTS",
