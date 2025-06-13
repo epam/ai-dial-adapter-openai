@@ -12,7 +12,9 @@ from openai.types.chat.completion_create_params import Function
 from pydantic import BaseModel
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from tests.utils.openai import ChatCompletionResult, ExpectedException
 

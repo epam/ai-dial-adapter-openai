@@ -1,4 +1,6 @@
-from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from tests.integration_tests.base import TestSuite, exclude_deployments
 from tests.utils.openai import (
     GET_WEATHER_FUNCTION,

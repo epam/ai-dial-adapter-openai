@@ -8,7 +8,9 @@ from typing import Literal, assert_never
 
 from pydantic import BaseModel
 
-from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from aidial_adapter_openai.utils.image import ImageDetail, resolve_detail_level
 
 

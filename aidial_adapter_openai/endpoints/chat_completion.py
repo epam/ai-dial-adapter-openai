@@ -4,9 +4,8 @@ from fastapi import Request
 
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.constant import ChatCompletionDeploymentType
-from aidial_adapter_openai.dalle3 import (
-    chat_completion as dalle3_chat_completion,
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
 )
 from aidial_adapter_openai.databricks import (
     chat_completion as databricks_chat_completion,
@@ -16,6 +15,10 @@ from aidial_adapter_openai.gpt import gpt_chat_completion
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     gpt4o_chat_completion,
 )
+from aidial_adapter_openai.image_generation.generation import (
+    chat_completion as image_generation,
+)
+from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
@@ -84,15 +87,20 @@ async def call_chat_completion(
     storage = create_file_storage("images", request.headers)
 
     match deployment_type:
-        case ChatCompletionDeploymentType.DALLE3:
-            return await dalle3_chat_completion(
+        case (
+            ChatCompletionDeploymentType.DALLE3
+            | ChatCompletionDeploymentType.GPT_IMAGE_1
+        ):
+            model = ImageGenerationModel.create(deployment_type)
+            return await image_generation(
+                model,
                 data,
                 deployment_id,
                 upstream_endpoint,
                 creds,
                 is_stream,
                 storage,
-                app_config.DALLE3_AZURE_API_VERSION,
+                model.get_azure_api_version(app_config),
             )
         case ChatCompletionDeploymentType.MISTRAL:
             return await mistral_chat_completion(data, upstream_endpoint, creds)

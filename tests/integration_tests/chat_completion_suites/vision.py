@@ -1,4 +1,6 @@
-from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from tests.integration_tests.base import TestSuite, include_deployments
 from tests.integration_tests.constants import SAMPLE_DOG_RESOURCE
 from tests.utils.openai import user_with_attachment_url, user_with_image_url

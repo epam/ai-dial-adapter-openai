@@ -6,7 +6,7 @@ from aidial_sdk.pydantic_v1 import BaseModel, ValidationError
 _T = TypeVar("_T", bound=BaseModel)
 
 
-def get_configuration(cls: Type[_T], data: Any) -> _T | None:
+def parse_configuration(cls: Type[_T], data: Any) -> _T | None:
     if (cf := data.get("custom_fields")) is None:
         return None
 

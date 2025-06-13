@@ -1,6 +1,8 @@
 from openai import BadRequestError, UnprocessableEntityError
 
-from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from tests.integration_tests.base import TestSuite
 from tests.utils.openai import ExpectedException, ai, sys, user
 
