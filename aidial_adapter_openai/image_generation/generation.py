@@ -1,7 +1,8 @@
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Optional, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from openai.types.image import Image
+from pydantic import BaseModel
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
@@ -17,7 +18,7 @@ IMG_USAGE = {
 }
 
 
-def create_custom_content(image: Image) -> Any:
+def create_custom_content(image: Image, content_type: str) -> Any:
     attachments = []
 
     if revised_prompt := image.revised_prompt:
@@ -28,7 +29,7 @@ def create_custom_content(image: Image) -> Any:
             "The model didn't return the base64 encoding of an image"
         )
 
-    attachments.append({"title": "Image", "type": "image/png", "data": data})
+    attachments.append({"title": "Image", "type": content_type, "data": data})
 
     return {"custom_content": {"attachments": attachments}}
 
@@ -83,8 +84,11 @@ async def move_attachments_data_to_storage(
         attachment["url"] = file_metadata["url"]
 
 
+_Config = TypeVar("_Config", bound=BaseModel)
+
+
 async def chat_completion(
-    model: ImageGenerationModel,
+    model: ImageGenerationModel[_Config],
     data: Any,
     deployment: str,
     upstream_endpoint: str,
@@ -117,7 +121,8 @@ async def chat_completion(
 
     image = model_response.data[0]
 
-    custom_content = create_custom_content(image)
+    image_content_type = model.get_image_content_type(config)
+    custom_content = create_custom_content(image, image_content_type)
     message_content = {"content": "", **custom_content}
 
     if file_storage is not None:

@@ -4,7 +4,6 @@ from aidial_sdk.pydantic_v1 import Field
 from aidial_sdk.pydantic_v1 import StrictInt as Int
 from aidial_sdk.pydantic_v1 import StrictStr as Str
 from openai import NOT_GIVEN, NotGiven
-from pydantic import BaseModel
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
@@ -64,12 +63,16 @@ Must be one of `1024x1024`, `1536x1024` (landscape), `1024x1536` (portrait), or 
     )
 
 
-class GptImage1Model(ImageGenerationModel):
+class GptImage1Model(ImageGenerationModel[GptImage1Config]):
     def get_azure_api_version(self, config: ApplicationConfig) -> str:
         return config.GPT_IMAGE_1_AZURE_API_VERSION
 
-    def get_configuration(self) -> type[BaseModel]:
+    def get_configuration(self) -> type[GptImage1Config]:
         return GptImage1Config
 
     def get_response_format(self) -> NotGiven:
         return NOT_GIVEN
+
+    def get_image_content_type(self, config: GptImage1Config) -> str:
+        ty = config.output_format or "png"
+        return f"image/{ty}"

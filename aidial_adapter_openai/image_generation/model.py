@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Literal, assert_never
+from typing import Generic, Literal, TypeVar, assert_never
 
 from openai import NotGiven
 from pydantic import BaseModel
@@ -11,16 +11,21 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
 
+_Config = TypeVar("_Config", bound=BaseModel)
 
-class ImageGenerationModel(ABC):
+
+class ImageGenerationModel(ABC, Generic[_Config]):
     @abstractmethod
     def get_azure_api_version(self, config: ApplicationConfig) -> str: ...
 
     @abstractmethod
-    def get_configuration(self) -> type[BaseModel]: ...
+    def get_configuration(self) -> type[_Config]: ...
 
     @abstractmethod
     def get_response_format(self) -> NotGiven | Literal["b64_json"]: ...
+
+    @abstractmethod
+    def get_image_content_type(self, config: _Config) -> str: ...
 
     @classmethod
     def create(
