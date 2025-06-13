@@ -5,7 +5,9 @@ import pytest
 import respx
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.constant import ChatCompletionDeploymentType
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from aidial_adapter_openai.utils.json import remove_nones
 from tests.conftest import create_test_client
 from tests.utils.json import match_objects

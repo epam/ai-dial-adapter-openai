@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 import os
 from typing import Callable, Dict, List
 
 from pydantic import BaseModel
 
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from aidial_adapter_openai.configuration.deprecations import (
     check_deprecated_env_vars,
 )
-from aidial_adapter_openai.constant import ChatCompletionDeploymentType
 from aidial_adapter_openai.utils.env import (
     get_env_bool,
     get_env_dict,
@@ -15,24 +19,33 @@ from aidial_adapter_openai.utils.env import (
 )
 from aidial_adapter_openai.utils.json import remove_nones
 
+_DEFAULT_API_VERSION = "2024-02-01"
+
 
 class ApplicationConfig(BaseModel):
     TIKTOKEN_MODEL_MAPPING: Dict[str, str] = {}
+
     DALLE3_DEPLOYMENTS: List[str] = []
+    DALLE3_AZURE_API_VERSION: str = _DEFAULT_API_VERSION
+
+    GPT_IMAGE_1_DEPLOYMENTS: List[str] = []
+    GPT_IMAGE_1_AZURE_API_VERSION: str = _DEFAULT_API_VERSION
+
     MISTRAL_DEPLOYMENTS: List[str] = []
     DATABRICKS_DEPLOYMENTS: List[str] = []
     GPT4O_DEPLOYMENTS: List[str] = []
     GPT4O_MINI_DEPLOYMENTS: List[str] = []
     AZURE_AI_VISION_DEPLOYMENTS: List[str] = []
+
     API_VERSIONS_MAPPING: Dict[str, str] = {}
     COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: Dict[str, str] = {}
-    DALLE3_AZURE_API_VERSION: str = "2024-02-01"
     NON_STREAMING_DEPLOYMENTS: List[str] = []
     ELIMINATE_EMPTY_CHOICES: bool = False
 
     _DEPLOYMENT_TYPE_MAP: Dict[
-        ChatCompletionDeploymentType, Callable[["ApplicationConfig"], List[str]]
+        ChatCompletionDeploymentType, Callable[[ApplicationConfig], List[str]]
     ] = {
+        ChatCompletionDeploymentType.GPT_IMAGE_1: lambda config: config.GPT_IMAGE_1_DEPLOYMENTS,
         ChatCompletionDeploymentType.DALLE3: lambda config: config.DALLE3_DEPLOYMENTS,
         ChatCompletionDeploymentType.MISTRAL: lambda config: config.MISTRAL_DEPLOYMENTS,
         ChatCompletionDeploymentType.DATABRICKS: lambda config: config.DATABRICKS_DEPLOYMENTS,
@@ -50,7 +63,7 @@ class ApplicationConfig(BaseModel):
 
     def add_deployment(
         self, deployment_id: str, deployment_type: ChatCompletionDeploymentType
-    ) -> "ApplicationConfig":
+    ) -> ApplicationConfig:
         if deployment_type != ChatCompletionDeploymentType.GPT_TEXT_ONLY:
             config_getter = self._DEPLOYMENT_TYPE_MAP[deployment_type]
             config_getter(self).append(deployment_id)
@@ -58,18 +71,19 @@ class ApplicationConfig(BaseModel):
 
     def map_to_tiktoken_model(
         self, deployment_id: str, tiktoken_model: str
-    ) -> "ApplicationConfig":
+    ) -> ApplicationConfig:
         self.TIKTOKEN_MODEL_MAPPING[deployment_id] = tiktoken_model
         return self
 
     @classmethod
-    def from_env(cls) -> "ApplicationConfig":
+    def from_env(cls) -> ApplicationConfig:
         check_deprecated_env_vars()
 
         list_fields = {
             key: get_env_var(get_env_list, key)
             for key in (
                 "DALLE3_DEPLOYMENTS",
+                "GPT_IMAGE_1_DEPLOYMENTS",
                 "MISTRAL_DEPLOYMENTS",
                 "DATABRICKS_DEPLOYMENTS",
                 "GPT4O_DEPLOYMENTS",
@@ -94,6 +108,9 @@ class ApplicationConfig(BaseModel):
                     **dict_fields,
                     "DALLE3_AZURE_API_VERSION": get_env_var(
                         os.getenv, "DALLE3_AZURE_API_VERSION"
+                    ),
+                    "GPT_IMAGE_1_AZURE_API_VERSION": get_env_var(
+                        os.getenv, "GPT_IMAGE_1_AZURE_API_VERSION"
                     ),
                     "ELIMINATE_EMPTY_CHOICES": get_env_var(
                         get_env_bool,

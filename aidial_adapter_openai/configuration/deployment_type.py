@@ -2,6 +2,7 @@ from enum import StrEnum
 
 
 class ChatCompletionDeploymentType(StrEnum):
+    GPT_IMAGE_1 = "GPT_IMAGE_1"
     DALLE3 = "DALLE3"
     MISTRAL = "MISTRAL"
     DATABRICKS = "DATABRICKS"
