@@ -97,7 +97,9 @@ Deployments that do not fall into any of the categories are considered to suppor
 ## Configurable models
 
 Certain models support configuration via the `$ADAPTER_HOSTNAME/openai/deployments/$DEPLOYMENT_NAME/configuration` endpoint.
+
 GET request to this endpoint returns the schema of the model configuration in [JSON Schema](https://json-schema.org/) format.
+
 Such models expect that `custom_fields.configuration` field of the `chat/completions` request will contain a JSON value that conforms to the schema.
 The `custom_fields.configuration` field is optional iff each field in the schema is optional too.
 
