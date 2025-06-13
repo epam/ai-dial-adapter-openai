@@ -47,7 +47,7 @@ class ImageTokenizer(BaseModel):
         return (self.tokens_per_tile * cols * rows) + self.low_detail_tokens
 
 
-GPT4O_IMAGE_TOKENIZER = GPT4_VISION_IMAGE_TOKENIZER = ImageTokenizer(
+GPT4O_IMAGE_TOKENIZER = ImageTokenizer(
     low_detail_tokens=85, tokens_per_tile=170
 )
 GPT4O_MINI_IMAGE_TOKENIZER = ImageTokenizer(
@@ -57,7 +57,6 @@ GPT4O_MINI_IMAGE_TOKENIZER = ImageTokenizer(
 MultiModalDeployments = Literal[
     ChatCompletionDeploymentType.GPT4O,
     ChatCompletionDeploymentType.GPT4O_MINI,
-    ChatCompletionDeploymentType.GPT4_VISION,
 ]
 
 
@@ -69,8 +68,6 @@ def get_image_tokenizer(
             return GPT4O_IMAGE_TOKENIZER
         case ChatCompletionDeploymentType.GPT4O_MINI:
             return GPT4O_MINI_IMAGE_TOKENIZER
-        case ChatCompletionDeploymentType.GPT4_VISION:
-            return GPT4_VISION_IMAGE_TOKENIZER
         case _:
             assert_never(deployment_type)
 

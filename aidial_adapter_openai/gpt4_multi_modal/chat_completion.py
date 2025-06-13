@@ -1,8 +1,6 @@
-import os
 from typing import (
     Any,
     AsyncIterator,
-    Callable,
     Dict,
     List,
     Mapping,
@@ -17,9 +15,6 @@ from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import Response
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.gpt4_multi_modal.gpt4_vision import (
-    convert_gpt4v_to_gpt4_chunk,
-)
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     SUPPORTED_FILE_EXTS,
     ResourceProcessor,
@@ -51,10 +46,6 @@ from aidial_adapter_openai.utils.truncate_prompt import (
     TruncatedTokens,
     truncate_prompt,
 )
-
-# The built-in default max_tokens is 16 tokens,
-# which is too small for most image-to-text use cases.
-GPT4V_DEFAULT_MAX_TOKENS = int(os.getenv("GPT4_VISION_MAX_TOKENS", "1024"))
 
 USAGE = f"""
 ### Usage
@@ -151,63 +142,6 @@ async def gpt4o_chat_completion(
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
 ):
-    return await _chat_completion(
-        request,
-        request_headers,
-        deployment,
-        upstream_endpoint,
-        creds,
-        is_stream,
-        file_storage,
-        api_version,
-        tokenizer,
-        lambda x: x,
-        None,
-        eliminate_empty_choices,
-    )
-
-
-async def gpt4_vision_chat_completion(
-    request: Any,
-    deployment: str,
-    upstream_endpoint: str,
-    creds: OpenAICreds,
-    is_stream: bool,
-    file_storage: Optional[FileStorage],
-    api_version: str,
-    tokenizer: MultiModalTokenizer,
-    eliminate_empty_choices: bool,
-):
-    return await _chat_completion(
-        request,
-        {},
-        deployment,
-        upstream_endpoint,
-        creds,
-        is_stream,
-        file_storage,
-        api_version,
-        tokenizer,
-        convert_gpt4v_to_gpt4_chunk,
-        GPT4V_DEFAULT_MAX_TOKENS,
-        eliminate_empty_choices,
-    )
-
-
-async def _chat_completion(
-    request: Any,
-    request_headers: Mapping[str, str],
-    deployment: str,
-    upstream_endpoint: str,
-    creds: OpenAICreds,
-    is_stream: bool,
-    file_storage: Optional[FileStorage],
-    api_version: str,
-    tokenizer: MultiModalTokenizer,
-    response_transformer: Callable[[dict], dict | None],
-    default_max_tokens: Optional[int],
-    eliminate_empty_choices: bool,
-):
     if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
@@ -251,7 +185,6 @@ async def _chat_completion(
 
     request = {
         **request,
-        "max_tokens": request.get("max_tokens") or default_max_tokens,
         "messages": [m.raw_message for m in multi_modal_messages],
     }
 
@@ -278,10 +211,7 @@ async def _chat_completion(
         body = map_stream(
             debug_print,
             generate_stream(
-                stream=map_stream(
-                    response_transformer,
-                    parse_openai_sse_stream(response),
-                ),
+                stream=parse_openai_sse_stream(response),
                 get_prompt_tokens=lambda: estimated_prompt_tokens,
                 tokenize_response=tokenizer.tokenize_response,
                 deployment=deployment,
@@ -296,7 +226,6 @@ async def _chat_completion(
         if isinstance(response, Response):
             return response
 
-        response = response_transformer(response)
         if response is None:
             raise DialException(
                 status_code=500,

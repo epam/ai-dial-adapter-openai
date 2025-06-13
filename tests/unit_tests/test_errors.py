@@ -8,7 +8,7 @@ import respx
 from aioresponses import aioresponses
 from respx.types import SideEffectTypes
 
-from aidial_adapter_openai.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.constant import ChatCompletionDeploymentType
 from tests.conftest import create_test_client
 from tests.utils.dictionary import exclude_keys
