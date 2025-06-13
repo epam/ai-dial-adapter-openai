@@ -47,7 +47,6 @@ def supports_functions(deployment_type: ChatCompletionDeploymentType):
 
 @exclude_deployments(
     [
-        ChatCompletionDeploymentType.GPT4_VISION,
         ChatCompletionDeploymentType.DALLE3,
         ChatCompletionDeploymentType.MISTRAL,
     ]
