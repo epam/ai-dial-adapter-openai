@@ -1,6 +1,8 @@
-from typing import Literal, Optional
+from typing import Literal
 
-from aidial_sdk.pydantic_v1 import Field, StrictStr
+from aidial_sdk.pydantic_v1 import Field
+from aidial_sdk.pydantic_v1 import StrictInt as Int
+from aidial_sdk.pydantic_v1 import StrictStr as Str
 from openai import NOT_GIVEN, NotGiven
 from pydantic import BaseModel
 
@@ -10,17 +12,55 @@ from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 
 
 class GptImage1Config(ExtraAllowedModel):
-    quality: Optional[Literal["standard", "hd"] | StrictStr] = Field(
+    background: Literal["transparent", "opaque", "auto"] | Str | None = Field(
+        default=None,
+        description="""
+Allows to set transparency for the background of the generated image(s).
+Must be one of `transparent`, `opaque` or `auto` (default value).
+When `auto` is used, the model will automatically determine the best
+background for the image.
+
+If `transparent`, the output format needs to support transparency, so it should
+be set to either `png` (default value) or `webp`.
+        """.strip(),
+    )
+
+    moderation: Literal["low", "auto"] | Str | None = Field(
+        default=None,
+        description="""
+Control the content-moderation level for generated images.
+Must be either `low` for less restrictive filtering or `auto` (default value).
+""".strip(),
+    )
+
+    output_compression: Int | None = Field(
+        default=None,
+        description="""
+The compression level (0-100%) for the generated images. This parameter is only
+supported with the `webp` or `jpeg` output formats, and defaults to 100.
+""".strip(),
+    )
+
+    output_format: Literal["png", "jpeg", "webp"] | str | None = Field(
+        default=None,
+        description="""
+The format in which the generated images are returned.
+Must be one of `png`, `jpeg`, or `webp`.
+""".strip(),
+    )
+
+    quality: Literal["high", "medium", "low"] | Str | None = Field(
         default=None,
         description="The quality of the image that will be generated.",
     )
 
-    size: Optional[
-        Literal["1024x1024", "1792x1024", "1024x1792"] | StrictStr
-    ] = Field(default=None, description="The size of the generated images.")
-
-    style: Optional[Literal["vivid", "natural"] | StrictStr] = Field(
-        default=None, description="The style of the generated images."
+    size: (
+        Literal["1024x1024", "1536x1024", "1024x1536", "auto"] | Str | None
+    ) = Field(
+        default=None,
+        description="""
+Must be one of `1024x1024`, `1536x1024` (landscape), `1024x1536` (portrait), or `auto` (default value)
+""".strip(),
     )
 
 

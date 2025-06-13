@@ -1,6 +1,7 @@
-from typing import Literal, Optional
+from typing import Literal
 
-from aidial_sdk.pydantic_v1 import Field, StrictStr
+from aidial_sdk.pydantic_v1 import Field
+from aidial_sdk.pydantic_v1 import StrictStr as Str
 from pydantic import BaseModel
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
@@ -9,16 +10,16 @@ from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 
 
 class Dalle3Config(ExtraAllowedModel):
-    quality: Optional[Literal["standard", "hd"] | StrictStr] = Field(
+    quality: Literal["standard", "hd"] | Str | None = Field(
         default=None,
         description="The quality of the image that will be generated.",
     )
 
-    size: Optional[
-        Literal["1024x1024", "1792x1024", "1024x1792"] | StrictStr
-    ] = Field(default=None, description="The size of the generated images.")
+    size: Literal["1024x1024", "1792x1024", "1024x1792"] | Str | None = Field(
+        default=None, description="The size of the generated images."
+    )
 
-    style: Optional[Literal["vivid", "natural"] | StrictStr] = Field(
+    style: Literal["vivid", "natural"] | Str | None = Field(
         default=None, description="The style of the generated images."
     )
 

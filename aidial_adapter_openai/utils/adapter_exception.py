@@ -79,7 +79,11 @@ def _parse_dial_exception(
 
         # Content filter codes for DALL-E3 and GPT-Image-1 are different
         # from the GPT content filter code.
-        if code in ["content_policy_violation", "moderation_blocked"]:
+        if code in [
+            "content_policy_violation",
+            "moderation_blocked",
+            "contentFilter",
+        ]:
             code = "content_filter"
 
         return DialException(
