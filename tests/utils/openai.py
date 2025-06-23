@@ -227,7 +227,7 @@ async def chat_completion(
     return ChatCompletionResult(response=response)
 
 
-GET_WEATHER_FUNCTION: Function = {
+GET_WEATHER_FUNCTION: FunctionDefinition = {
     "name": "get_current_weather",
     "description": "Get the current weather",
     "parameters": {

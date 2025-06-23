@@ -1,11 +1,21 @@
-from typing import Any, AsyncIterator, Optional, TypeVar
+from __future__ import annotations
 
-from aidial_sdk.exceptions import InternalServerError, RequestValidationError
+from typing import Any, AsyncIterator, List, TypeVar
+
+from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.exceptions import (
+    InternalServerError,
+    InvalidRequestError,
+    RequestValidationError,
+)
 from openai.types.image import Image
 from pydantic import BaseModel
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
+from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+    ResourceProcessor,
+)
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import image_gen_parser
@@ -53,19 +63,42 @@ def generate_response(id: str, created: int, message_content: Any) -> dict:
     )
 
 
-def get_user_prompt(data: Any) -> str:
-    try:
-        prompt = data["messages"][-1]["content"]
-        if not isinstance(prompt, str):
-            raise ValueError("Content isn't a string")
-        return prompt
-    except Exception as e:
-        raise RequestValidationError(
-            "Invalid request. Expected a string at path 'messages[-1].content'."
-        ) from e
+class ImageGenPrompt(BaseModel):
+    text_prompt: str
+    images: List[bytes]
+
+    @classmethod
+    async def from_request(
+        cls, data: Any, file_storage: FileStorage | None
+    ) -> ImageGenPrompt:
+        result = await ResourceProcessor(
+            file_storage=file_storage
+        ).transform_messages(data["messages"])
+
+        if isinstance(result, DialException):
+            raise result
+
+        text_prompt = ""
+        images: List[bytes] = []
+
+        for message in result:
+            if content := message.raw_message.get("content"):
+                if isinstance(content, str):
+                    text_prompt += content
+                elif content.get("type") == "text":
+                    text_prompt += content["text"]
+
+            for image in message.image_metadatas:
+                images.append(image.image.data)
+
+        if not text_prompt:
+            message = "Text prompt must be provided."
+            raise InvalidRequestError(message=message, display_message=message)
+
+        return cls(text_prompt=text_prompt, images=images)
 
 
-async def move_attachments_data_to_storage(
+async def upload_attachments_data_to_storage(
     custom_content: Any, file_storage: FileStorage
 ):
     for attachment in custom_content["custom_content"]["attachments"]:
@@ -94,7 +127,7 @@ async def chat_completion(
     upstream_endpoint: str,
     creds: OpenAICreds,
     is_stream: bool,
-    file_storage: Optional[FileStorage],
+    file_storage: FileStorage | None,
     api_version: str,
 ):
     if data.get("n", 1) > 1:
@@ -104,29 +137,41 @@ async def chat_completion(
         {**creds, "api_version": api_version}
     )
 
-    user_prompt = get_user_prompt(data)
+    prompt = await ImageGenPrompt.from_request(data, file_storage)
 
     config_cls = model.get_configuration()
+    response_format = model.get_response_format()
     config = parse_configuration(config_cls, data) or config_cls()
+    extra_body = config.dict(exclude_none=True)
 
-    model_response = await client.images.generate(
-        model=deployment,
-        prompt=user_prompt,
-        response_format=model.get_response_format(),
-        extra_body=config.dict(exclude_none=True),
-    )
+    if prompt.images:
+        model_response = await client.images.edit(
+            model=deployment,
+            image=prompt.images,  # type: ignore
+            prompt=prompt.text_prompt,
+            response_format=response_format,
+            extra_body=extra_body,
+        )
+    else:
+        model_response = await client.images.generate(
+            model=deployment,
+            prompt=prompt.text_prompt,
+            response_format=response_format,
+            extra_body=extra_body,
+        )
 
-    if len(model_response.data) < 1:
+    images = model_response.data
+
+    if not images:
         raise InternalServerError("The model didn't return an image")
 
-    image = model_response.data[0]
-
+    image = images[0]
     image_content_type = model.get_image_content_type(config)
     custom_content = create_custom_content(image, image_content_type)
     message_content = {"content": "", **custom_content}
 
     if file_storage is not None:
-        await move_attachments_data_to_storage(custom_content, file_storage)
+        await upload_attachments_data_to_storage(custom_content, file_storage)
 
     id = generate_id()
     created = model_response.created
