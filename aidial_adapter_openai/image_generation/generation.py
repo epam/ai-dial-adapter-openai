@@ -100,10 +100,15 @@ async def chat_completion(
     config = parse_configuration(config_cls, data) or config_cls()
     extra_body = config.dict(exclude_none=True)
 
+    images = [
+        (f"image_{i}", resource.data, resource.type)
+        for (i, resource) in enumerate(prompt.images)
+    ]
+
     if prompt.images:
         model_response = await client.images.edit(
             model=deployment,
-            image=prompt.images,  # type: ignore
+            image=images,  # type: ignore
             prompt=prompt.text_prompt,
             response_format=response_format,
             extra_body=extra_body,
