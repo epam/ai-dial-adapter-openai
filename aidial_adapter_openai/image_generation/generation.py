@@ -85,8 +85,10 @@ class ImageGenPrompt(BaseModel):
             if content := message.raw_message.get("content"):
                 if isinstance(content, str):
                     text_prompt += content
-                elif content.get("type") == "text":
-                    text_prompt += content["text"]
+                elif isinstance(content, list):
+                    for item in content:
+                        if item.get("type") == "text":
+                            text_prompt += item["text"]
 
             for image in message.image_metadatas:
                 images.append(image.image.data)
