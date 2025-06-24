@@ -19,17 +19,15 @@ from aidial_adapter_openai.utils.env import (
 )
 from aidial_adapter_openai.utils.json import remove_nones
 
-_DEFAULT_API_VERSION = "2024-02-01"
-
 
 class ApplicationConfig(BaseModel):
     TIKTOKEN_MODEL_MAPPING: Dict[str, str] = {}
 
     DALLE3_DEPLOYMENTS: List[str] = []
-    DALLE3_AZURE_API_VERSION: str = _DEFAULT_API_VERSION
+    DALLE3_AZURE_API_VERSION: str = "2024-02-01"
 
     GPT_IMAGE_1_DEPLOYMENTS: List[str] = []
-    GPT_IMAGE_1_AZURE_API_VERSION: str = _DEFAULT_API_VERSION
+    GPT_IMAGE_1_AZURE_API_VERSION: str = "2025-04-01-preview"
 
     MISTRAL_DEPLOYMENTS: List[str] = []
     DATABRICKS_DEPLOYMENTS: List[str] = []
