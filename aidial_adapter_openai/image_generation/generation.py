@@ -1,22 +1,13 @@
-from __future__ import annotations
+from typing import Any, AsyncIterator, TypeVar
 
-from typing import Any, AsyncIterator, List, TypeVar
-
-from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import (
-    InternalServerError,
-    InvalidRequestError,
-    RequestValidationError,
-)
+from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from openai.types.image import Image
 from pydantic import BaseModel
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    ResourceProcessor,
-)
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
+from aidial_adapter_openai.image_generation.prompt import ImageGenPrompt
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import image_gen_parser
 from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
@@ -61,43 +52,6 @@ def generate_response(id: str, created: int, message_content: Any) -> dict:
         False,
         usage=IMG_USAGE,
     )
-
-
-class ImageGenPrompt(BaseModel):
-    text_prompt: str
-    images: List[bytes]
-
-    @classmethod
-    async def from_request(
-        cls, data: Any, file_storage: FileStorage | None
-    ) -> ImageGenPrompt:
-        result = await ResourceProcessor(
-            file_storage=file_storage
-        ).transform_messages(data["messages"])
-
-        if isinstance(result, DialException):
-            raise result
-
-        text_prompt = ""
-        images: List[bytes] = []
-
-        for message in result:
-            if content := message.raw_message.get("content"):
-                if isinstance(content, str):
-                    text_prompt += content
-                elif isinstance(content, list):
-                    for item in content:
-                        if item.get("type") == "text":
-                            text_prompt += item["text"]
-
-            for image in message.image_metadatas:
-                images.append(image.image.data)
-
-        if not text_prompt:
-            message = "Text prompt must be provided."
-            raise InvalidRequestError(message=message, display_message=message)
-
-        return cls(text_prompt=text_prompt, images=images)
 
 
 async def upload_attachments_data_to_storage(
