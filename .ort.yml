@@ -30,4 +30,7 @@ resolutions:
       comment: "BSD 3-Clause New or Revised License: https://github.com/encode/httpx/blob/0.27.0/LICENSE.md"
     - message: ".*PyPI::urllib3:2\\.5\\.0.*"
       reason: "CANT_FIX_EXCEPTION"
-      comment: "MIT License: https://github.com/urllib3/urllib3/blob/main/LICENSE.txt"
+      comment: "MIT License: https://github.com/urllib3/urllib3/blob/2.5.0/LICENSE.txt"
+    - message: ".*PyPI::typing-extensions:4\\.14\\.0.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "Same as CPython: https://github.com/python/typing_extensions/blob/4.14.0/LICENSE"
