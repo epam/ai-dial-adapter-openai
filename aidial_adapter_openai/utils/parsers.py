@@ -12,6 +12,7 @@ from aidial_adapter_openai.utils.http_client import get_http_client
 
 
 class OpenAIParams(TypedDict, total=False):
+    base_url: str
     api_key: str
     azure_ad_token: str
     api_version: str
@@ -23,12 +24,14 @@ _MAX_RETRIES = 0
 
 
 class AzureOpenAIEndpoint(BaseModel):
-    azure_endpoint: str
+    base_url: str | None = None
+    azure_endpoint: str | None = None
     azure_deployment: str | None = None
     next_gen_api: bool = False
 
     def get_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
         return AsyncAzureOpenAI(
+            base_url=self.base_url,  # type: ignore
             azure_endpoint=self.azure_endpoint,
             azure_deployment=self.azure_deployment,
             api_key=params.get("api_key"),
@@ -83,7 +86,7 @@ def _parse_endpoint(
         )
     if match := re.search(f"(.+?)/openai/v1/{name}", endpoint):
         return AzureOpenAIEndpoint(
-            azure_endpoint=match[1],
+            base_url=f"{match[1]}/openai/v1",
             next_gen_api=True,
         )
     if match := re.search(f"(.+?)/{name}", endpoint):
