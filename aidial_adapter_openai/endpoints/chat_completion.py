@@ -22,7 +22,7 @@ from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
-from aidial_adapter_openai.responses import chat_completion as responses
+from aidial_adapter_openai.responses.adapter import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
@@ -71,15 +71,17 @@ async def call_chat_completion(
 
     logger.debug(f"upstream endpoint: {upstream_endpoint}")
 
+    storage = create_file_storage("images", request.headers)
+
     if responses_endpoint := responses_parser.try_parse(upstream_endpoint):
         return await responses(
             data,
             responses_endpoint,
             creds,
             is_stream,
+            storage,
             api_version,
             deployment_id,
-            app_config,
         )
 
     if completions_endpoint := completions_parser.try_parse(upstream_endpoint):
@@ -99,8 +101,6 @@ async def call_chat_completion(
     tiktoken_model = (
         app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id) or deployment_id
     )
-
-    storage = create_file_storage("images", request.headers)
 
     match deployment_type:
         case (
