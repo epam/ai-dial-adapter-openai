@@ -22,10 +22,15 @@ from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
+from aidial_adapter_openai.responses import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
+from aidial_adapter_openai.utils.parsers import (
+    completions_parser,
+    parse_body,
+    responses_parser,
+)
 from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
@@ -66,7 +71,18 @@ async def call_chat_completion(
 
     logger.debug(f"upstream endpoint: {upstream_endpoint}")
 
-    if completions_endpoint := completions_parser.parse(upstream_endpoint):
+    if responses_endpoint := responses_parser.try_parse(upstream_endpoint):
+        return await responses(
+            data,
+            responses_endpoint,
+            creds,
+            is_stream,
+            api_version,
+            deployment_id,
+            app_config,
+        )
+
+    if completions_endpoint := completions_parser.try_parse(upstream_endpoint):
         return await completion(
             data,
             completions_endpoint,

@@ -24,7 +24,8 @@ _MAX_RETRIES = 0
 
 class AzureOpenAIEndpoint(BaseModel):
     azure_endpoint: str
-    azure_deployment: str
+    azure_deployment: str | None = None
+    next_gen_api: bool = False
 
     def get_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
         return AsyncAzureOpenAI(
@@ -32,7 +33,9 @@ class AzureOpenAIEndpoint(BaseModel):
             azure_deployment=self.azure_deployment,
             api_key=params.get("api_key"),
             azure_ad_token=params.get("azure_ad_token"),
-            api_version=params.get("api_version"),
+            api_version=(
+                "preview" if self.next_gen_api else params.get("api_version")
+            ),
             timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
@@ -69,30 +72,41 @@ class OpenAIEndpoint(BaseModel):
 def _parse_endpoint(
     name, endpoint
 ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
-    if azure_match := re.search(
-        f"(.+?)/openai/deployments/(.+?)/{name}", endpoint
-    ):
+    if match := re.search(f"(.+?)/openai/deployments/(.+?)/{name}", endpoint):
         return AzureOpenAIEndpoint(
-            azure_endpoint=azure_match[1],
-            azure_deployment=azure_match[2],
+            azure_endpoint=match[1],
+            azure_deployment=match[2],
         )
-    elif openai_match := re.search(f"(.+?)/{name}", endpoint):
-        return OpenAIEndpoint(base_url=openai_match[1])
-    else:
-        return None
+    if match := re.search(f"(.+?)/openai/{name}", endpoint):
+        return AzureOpenAIEndpoint(
+            azure_endpoint=match[1],
+        )
+    if match := re.search(f"(.+?)/openai/v1/{name}", endpoint):
+        return AzureOpenAIEndpoint(
+            azure_endpoint=match[1],
+            next_gen_api=True,
+        )
+    if match := re.search(f"(.+?)/{name}", endpoint):
+        return OpenAIEndpoint(base_url=match[1])
+    return None
 
 
 class EndpointParser(BaseModel):
     name: str
 
+    def try_parse(
+        self, endpoint: str
+    ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
+        return _parse_endpoint(self.name, endpoint)
+
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
-        if result := _parse_endpoint(self.name, endpoint):
+        if result := self.try_parse(endpoint):
             return result
         raise InvalidRequestError("Invalid upstream endpoint format")
 
 
 class CompletionsParser(BaseModel):
-    def parse(
+    def try_parse(
         self, endpoint: str
     ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
         if "/chat/completions" in endpoint:
@@ -104,6 +118,7 @@ class CompletionsParser(BaseModel):
 chat_completions_parser = EndpointParser(name="chat/completions")
 image_gen_parser = EndpointParser(name="images/generations")
 embeddings_parser = EndpointParser(name="embeddings")
+responses_parser = EndpointParser(name="responses")
 completions_parser = CompletionsParser()
 
 

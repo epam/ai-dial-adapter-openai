@@ -102,11 +102,11 @@ def test_chat_failing_cases(endpoint):
 
 @pytest.mark.parametrize("endpoint, parsed", NORMAL_COMPLETIONS_CASES)
 def test_completions_parser_normal(endpoint, parsed):
-    result = completions_parser.parse(endpoint)
+    result = completions_parser.try_parse(endpoint)
     assert result == parsed
 
 
 @pytest.mark.parametrize("endpoint, parsed", NORMAL_CHAT_CASES)
 def test_completions_parser_invalid(endpoint, parsed):
-    result = completions_parser.parse(endpoint)
+    result = completions_parser.try_parse(endpoint)
     assert result is None
