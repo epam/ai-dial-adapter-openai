@@ -116,10 +116,10 @@ async def chat_completion(
         extra_body=config.dict(exclude_none=True),
     )
 
-    if len(model_response.data) < 1:
+    if not (data := model_response.data) or len(data) < 1:
         raise InternalServerError("The model didn't return an image")
 
-    image = model_response.data[0]
+    image = data[0]
 
     image_content_type = model.get_image_content_type(config)
     custom_content = create_custom_content(image, image_content_type)
