@@ -1,16 +1,18 @@
-from typing import List, assert_never
+from typing import Any, Generator, List, assert_never
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai.types.chat import (
+    ChatCompletion,
     ChatCompletionContentPartParam,
     ChatCompletionContentPartTextParam,
     ChatCompletionMessage,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCall,
+    ChatCompletionMessageToolCallParam,
     ChatCompletionToolChoiceOptionParam,
     ChatCompletionToolParam,
 )
-from openai.types.chat.chat_completion import ChatCompletion, Choice
+from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_assistant_message_param import (
     ContentArrayOfContentPart,
 )
@@ -27,6 +29,7 @@ from openai.types.responses import (
     ResponseComputerToolCall,
     ResponseFileSearchToolCall,
     ResponseFunctionToolCall,
+    ResponseFunctionToolCallParam,
     ResponseFunctionWebSearch,
     ResponseInputContentParam,
     ResponseInputImageParam,
@@ -42,6 +45,7 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_create_params import ToolChoice
 from openai.types.responses.response_input_item_param import (
+    FunctionCallOutput,
     ResponseInputItemParam,
 )
 from openai.types.responses.response_output_item import (
@@ -69,9 +73,9 @@ from aidial_adapter_openai.responses.response import (
 )
 from aidial_adapter_openai.utils.log_config import logger
 
-_NO_FUNCTION_CALLING = "Function calling isn't yet supported."
-
 _NO_REFUSAL = "Refusal messages aren't yet supported."
+
+_DEPRECATED_FUNCTION_API = "The deployment doesn't support the deprecated API for functions. Please use tools instead."
 
 
 def convert_annotation(annotation: ResponsesAnnotation) -> Annotation | None:
@@ -169,14 +173,32 @@ def _convert_input_content_part(
             assert_never(part["type"])
 
 
+def _convert_tool_call(
+    tool_call: ChatCompletionMessageToolCallParam,
+) -> ResponseFunctionToolCallParam:
+    function = tool_call["function"]
+    return ResponseFunctionToolCallParam(
+        type="function_call",
+        call_id=tool_call["id"],
+        name=function["name"],
+        arguments=function["arguments"],
+    )
+
+
 def _convert_message(
     message: ChatCompletionMessageParam,
-) -> ResponseInputItemParam:
-    match (role := message["role"]):
+) -> Generator[ResponseInputItemParam, Any, Any]:
+    match message["role"]:
         case "user" | "assistant" | "system" | "developer":
-            content = message.get("content")
-            if content is None:
-                raise RequestValidationError(_NO_FUNCTION_CALLING)
+
+            if message.get("function_call"):
+                raise RequestValidationError(_DEPRECATED_FUNCTION_API)
+
+            if tool_calls := message.get("tool_calls"):
+                yield from map(_convert_tool_call, tool_calls)
+
+            if not (content := message.get("content")):
+                return
 
             if isinstance(content, str):
                 parts = [
@@ -187,30 +209,46 @@ def _convert_message(
             else:
                 parts = content
 
+            role = message["role"]
             if role == "assistant":
-                res_content = [
-                    _convert_output_content_part(item) for item in parts
-                ]
-
-                return EasyInputMessageParam(
-                    role=role, content="\n\n".join(res_content)
-                )
+                for item in parts:
+                    yield EasyInputMessageParam(
+                        role=role, content=_convert_output_content_part(item)
+                    )
             else:
                 res_content = [
                     _convert_input_content_part(item) for item in parts
                 ]
-                return EasyInputMessageParam(role=role, content=res_content)
+                yield EasyInputMessageParam(role=role, content=res_content)
 
-        case "function" | "tool":
-            raise RequestValidationError(_NO_FUNCTION_CALLING)
+        case "tool":
+            output = ""
+            content = message["content"]
+            if isinstance(content, str):
+                output += content
+            else:
+                for part in content:
+                    output += part["text"]
+
+            yield FunctionCallOutput(
+                call_id=message["tool_call_id"],
+                type="function_call_output",
+                output=output,
+            )
+
+        case "function":
+            raise RequestValidationError(_DEPRECATED_FUNCTION_API)
+
         case _:
-            assert_never(role)
+            assert_never(message)
 
 
 def convert_messages(
     messages: List[ChatCompletionMessageParam],
 ) -> ResponseInputParam:
-    return [_convert_message(message) for message in messages]
+    return [
+        param for message in messages for param in _convert_message(message)
+    ]
 
 
 def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:

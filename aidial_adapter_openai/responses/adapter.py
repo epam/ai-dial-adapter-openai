@@ -13,6 +13,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     ResourceProcessor,
 )
 from aidial_adapter_openai.responses.converter import (
+    _DEPRECATED_FUNCTION_API,
     convert_messages,
     convert_response,
     convert_tool_choice,
@@ -56,9 +57,7 @@ async def chat_completion(
         request.get("function_call") is not None
         or request.get("functions") is not None
     ):
-        raise RequestValidationError(
-            "The deployment doesn't support the deprecated API for functions. Please use tools instead."
-        )
+        raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
     client = endpoint.get_client({**creds, "api_version": api_version})
 
