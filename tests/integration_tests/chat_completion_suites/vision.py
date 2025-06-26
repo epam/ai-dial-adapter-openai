@@ -22,7 +22,7 @@ def build_vision_common(s: TestSuite) -> None:
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
-        max_tokens=5,
+        max_tokens=16,
     )
     s.test_case(
         name="image_in_custom_content",
@@ -33,5 +33,5 @@ def build_vision_common(s: TestSuite) -> None:
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
-        max_tokens=5,
+        max_tokens=16,
     )

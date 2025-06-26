@@ -1,3 +1,5 @@
+import json
+import logging
 from typing import Any, AsyncIterator, Dict, List
 
 from aidial_sdk.exceptions import HTTPException as DialException
@@ -38,9 +40,9 @@ async def chat_completion(
     deployment: str,
 ) -> AsyncIterator[dict] | dict | FastAPIResponse:
 
-    if request.get("n") not in [None, 1]:
+    if (n_param := request.get("n")) not in [None, 1]:
         raise RequestValidationError(
-            "The deployment doesn't support n other than 1."
+            f"The deployment doesn't support request.n parameter other than 1, but got {n_param}."
         )
 
     client = endpoint.get_client({**creds, "api_version": api_version})
@@ -75,7 +77,10 @@ async def chat_completion(
     )
 
     def _to_dict(x: BaseModel):
-        return x.dict()
+        ret = x.dict()
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"response: {json.dumps(ret)}")
+        return ret
 
     if isinstance(response, AsyncStream):
         handler = EventHandler()

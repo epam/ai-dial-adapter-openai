@@ -143,15 +143,6 @@ class TestCase:
             f"stream:{sanitize_id_part(self.streaming)}",
         ]
 
-        if self.max_tokens:
-            parts.append(f"tokens:{sanitize_id_part(self.max_tokens)}")
-        if self.stop:
-            parts.append(f"stop:{sanitize_id_part(self.stop)}")
-        if self.n and self.n != 1:
-            parts.append(f"n:{sanitize_id_part(self.n)}")
-        if self.temperature and self.temperature != 0.0:
-            parts.append(f"temp:{sanitize_id_part(self.temperature)}")
-
         return "/".join(parts)
 
 

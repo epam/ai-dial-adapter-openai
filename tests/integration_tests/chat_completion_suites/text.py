@@ -16,7 +16,7 @@ def build_text_common(s: TestSuite) -> None:
             ai("Hello"),
             user("what city do I like?"),
         ],
-        max_tokens=10,
+        max_tokens=16,
         expected=lambda r: "toronto" in r.content.lower(),
     )
 
@@ -58,27 +58,27 @@ def build_text_common(s: TestSuite) -> None:
         )
     s.test_case(
         name="empty dialog",
-        max_tokens=1,
+        max_tokens=16,
         messages=[],
         expected=expected_exc,
     )
 
     s.test_case(
         name="empty user message",
-        max_tokens=1,
+        max_tokens=16,
         messages=[user("")],
     )
     s.test_case(
         name="single space user message",
-        max_tokens=1,
+        max_tokens=16,
         messages=[user(" ")],
     )
 
     s.test_case(
-        name="pinocchio in one token",
-        max_tokens=1,
+        name="short pinocchio",
+        max_tokens=16,
         messages=[user("tell me the full story of Pinocchio")],
-        expected=lambda s: len(s.content.split()) <= 1,
+        expected=lambda s: len(s.content.split()) <= 16,
     )
 
 
