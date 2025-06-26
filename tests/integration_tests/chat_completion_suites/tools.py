@@ -83,7 +83,8 @@ def build_tools_common(s: TestSuite) -> None:
                 functions=[function],
                 expected=lambda s, n=city_names[0]: is_valid_function_call(
                     s.function_call, fun_name, check_fun_args(n)
-                ),
+                )
+                and s.response.choices[0].finish_reason == "function_call",
             )
 
             function_req = ai_function(
@@ -137,7 +138,8 @@ def build_tools_common(s: TestSuite) -> None:
                     check_fun_args(n[idx]),
                 )
                 for idx in range(len(n))
-            ),
+            )
+            and s.response.choices[0].finish_reason == "tool_calls",
         )
 
         tool_reqs = ai_tools(
