@@ -6,6 +6,9 @@ from openai.types.completion_usage import (
     PromptTokensDetails,
 )
 from openai.types.responses import Response, ResponseUsage
+from openai.types.responses.response_function_tool_call import (
+    ResponseFunctionToolCall,
+)
 
 ChatCompletionFinishReason = Literal[
     "stop", "length", "tool_calls", "content_filter", "function_call"
@@ -43,4 +46,9 @@ def get_finish_reason(response: Response) -> ChatCompletionFinishReason:
                 return "content_filter"
             case _:
                 assert_never(reason)
+
+    for item in response.output:
+        if isinstance(item, ResponseFunctionToolCall):
+            return "tool_calls"
+
     return "stop"

@@ -1,13 +1,16 @@
 import json
 import logging
-from typing import assert_never
+from typing import Dict, assert_never
 
 from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.exceptions import InternalServerError
 from openai import BaseModel
 from openai.types.chat.chat_completion_chunk import (
     ChatCompletionChunk,
     Choice,
     ChoiceDelta,
+    ChoiceDeltaToolCall,
+    ChoiceDeltaToolCallFunction,
 )
 from openai.types.completion_usage import CompletionUsage
 from openai.types.responses import (
@@ -66,6 +69,30 @@ from openai.types.responses import (
     ResponseWebSearchCallInProgressEvent,
     ResponseWebSearchCallSearchingEvent,
 )
+from openai.types.responses.response_code_interpreter_tool_call import (
+    ResponseCodeInterpreterToolCall,
+)
+from openai.types.responses.response_computer_tool_call import (
+    ResponseComputerToolCall,
+)
+from openai.types.responses.response_file_search_tool_call import (
+    ResponseFileSearchToolCall,
+)
+from openai.types.responses.response_function_tool_call import (
+    ResponseFunctionToolCall,
+)
+from openai.types.responses.response_function_web_search import (
+    ResponseFunctionWebSearch,
+)
+from openai.types.responses.response_output_item import (
+    ImageGenerationCall,
+    LocalShellCall,
+    McpApprovalRequest,
+    McpCall,
+    McpListTools,
+)
+from openai.types.responses.response_output_message import ResponseOutputMessage
+from openai.types.responses.response_reasoning_item import ResponseReasoningItem
 
 from aidial_adapter_openai.responses.response import (
     get_finish_reason,
@@ -84,10 +111,14 @@ class ErrorChunk(BaseModel):
     error: ErrorBody
 
 
-class EventHandler:
+class EventHandler(BaseModel):
     _id: str | None = None
     _created: int | None = None
     _model: str | None = None
+
+    _tool_calls: Dict[str, int] = {}
+    """Map item_id for a tool call onto its index in the chat completion response
+    """
 
     @property
     def id(self) -> str:
@@ -132,6 +163,56 @@ class EventHandler:
             )
         )
 
+    def _tool_call_chunk_open(
+        self,
+        item_id: str,
+        arguments: str,
+        name: str,
+        call_id: str,
+    ) -> ChatCompletionChunk:
+        idx = len(self._tool_calls)
+        self._tool_calls[item_id] = idx
+
+        return self._chunk(
+            choice=Choice(
+                index=0,
+                delta=ChoiceDelta(
+                    tool_calls=[
+                        ChoiceDeltaToolCall(
+                            index=idx,
+                            id=call_id,
+                            type="function",
+                            function=ChoiceDeltaToolCallFunction(
+                                arguments=arguments, name=name
+                            ),
+                        )
+                    ]
+                ),
+            )
+        )
+
+    def _tool_call_delta(self, item_id: str, delta: str) -> ChatCompletionChunk:
+        if (idx := self._tool_calls.get(item_id)) is None:
+            raise InternalServerError(
+                "Cannot add delta to an unopened tool call"
+            )
+
+        return self._chunk(
+            choice=Choice(
+                index=idx,
+                delta=ChoiceDelta(
+                    tool_calls=[
+                        ChoiceDeltaToolCall(
+                            index=idx,
+                            function=ChoiceDeltaToolCallFunction(
+                                arguments=delta
+                            ),
+                        )
+                    ]
+                ),
+            )
+        )
+
     def handle(
         self, event: ResponseStreamEvent
     ) -> ChatCompletionChunk | ErrorChunk | None:
@@ -167,6 +248,45 @@ class EventHandler:
                     usage=get_usage(response),
                 )
 
+            case ResponseOutputItemAddedEvent(item=item):
+                match item:
+                    case ResponseFunctionToolCall(
+                        arguments=arguments,
+                        name=name,
+                        call_id=call_id,
+                        id=item_id,
+                    ):
+                        if item_id is None:
+                            raise InternalServerError(
+                                "item_id of a tool call is missing"
+                            )
+                        return self._tool_call_chunk_open(
+                            item_id, arguments, name, call_id
+                        )
+
+                    case (
+                        ResponseOutputMessage()
+                        | ResponseFileSearchToolCall()
+                        | ResponseFunctionToolCall()
+                        | ResponseFunctionWebSearch()
+                        | ResponseComputerToolCall()
+                        | ResponseReasoningItem()
+                        | ImageGenerationCall()
+                        | ResponseCodeInterpreterToolCall()
+                        | LocalShellCall()
+                        | McpCall()
+                        | McpListTools()
+                        | McpApprovalRequest()
+                    ):
+                        pass
+                    case _:
+                        assert_never(item)
+
+            case ResponseFunctionCallArgumentsDeltaEvent(
+                delta=delta, item_id=item_id
+            ):
+                return self._tool_call_delta(item_id, delta)
+
             case (
                 ResponseAudioDeltaEvent()
                 | ResponseAudioDoneEvent()
@@ -182,11 +302,9 @@ class EventHandler:
                 | ResponseFileSearchCallCompletedEvent()
                 | ResponseFileSearchCallInProgressEvent()
                 | ResponseFileSearchCallSearchingEvent()
-                | ResponseFunctionCallArgumentsDeltaEvent()
                 | ResponseFunctionCallArgumentsDoneEvent()
                 | ResponseInProgressEvent()
                 | ResponseFailedEvent()
-                | ResponseOutputItemAddedEvent()
                 | ResponseOutputItemDoneEvent()
                 | ResponseReasoningSummaryPartAddedEvent()
                 | ResponseReasoningSummaryPartDoneEvent()

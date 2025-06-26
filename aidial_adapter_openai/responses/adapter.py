@@ -52,6 +52,14 @@ async def chat_completion(
             f"The deployment doesn't support request.stop parameter, but got {stop_words}."
         )
 
+    if (
+        request.get("function_call") is not None
+        or request.get("functions") is not None
+    ):
+        raise RequestValidationError(
+            "The deployment doesn't support the deprecated API for functions. Please use tools instead."
+        )
+
     client = endpoint.get_client({**creds, "api_version": api_version})
 
     messages: List[Any] = request["messages"]
