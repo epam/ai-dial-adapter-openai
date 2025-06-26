@@ -27,7 +27,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 fastapi = "0.115.2"
-openai = "1.91.0"
+openai = "1.90.0"
 tiktoken = "0.9.0"
 uvicorn = "0.23.0"
 wrapt = "1.15.0"
