@@ -15,6 +15,8 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
 from aidial_adapter_openai.responses.converter import (
     convert_messages,
     convert_response,
+    convert_tool_choice,
+    convert_tools,
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
 from aidial_adapter_openai.utils.auth import OpenAICreds
@@ -45,6 +47,11 @@ async def chat_completion(
             f"The deployment doesn't support request.n parameter other than 1, but got {n_param}."
         )
 
+    if (stop_words := request.get("stop")) is not None:
+        raise RequestValidationError(
+            f"The deployment doesn't support request.stop parameter, but got {stop_words}."
+        )
+
     client = endpoint.get_client({**creds, "api_version": api_version})
 
     messages: List[Any] = request["messages"]
@@ -64,12 +71,20 @@ async def chat_completion(
         [m.raw_message for m in transform_result]  # type: ignore
     )
 
+    res_tools = NOT_GIVEN
+    if tools := request.get("tools"):
+        res_tools = convert_tools(tools)
+
+    res_tool_choice = NOT_GIVEN
+    if tool_choice := request.get("tool_choice"):
+        res_tool_choice = convert_tool_choice(tool_choice)
+
     response = await client.responses.create(
         model=deployment,
         stream=is_stream,
         input=input_messages,
-        tools=request.get("tools") or NOT_GIVEN,
-        tool_choice=request.get("tool_choice") or NOT_GIVEN,
+        tools=res_tools,
+        tool_choice=res_tool_choice,
         top_p=request.get("top_p") or NOT_GIVEN,
         temperature=request.get("temperature") or NOT_GIVEN,
         max_output_tokens=request.get("max_tokens") or NOT_GIVEN,
@@ -79,11 +94,15 @@ async def chat_completion(
     def _to_dict(x: BaseModel):
         ret = x.dict()
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"response: {json.dumps(ret)}")
+            logger.debug(f"chat completion API response: {json.dumps(ret)}")
         return ret
 
     if isinstance(response, AsyncStream):
         handler = EventHandler()
         return map_stream(_to_dict, map_stream(handler.handle, response))
     else:
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"responses API response: {json.dumps(response.dict())}"
+            )
         return _to_dict(convert_response(response))

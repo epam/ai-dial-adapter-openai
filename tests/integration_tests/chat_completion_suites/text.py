@@ -23,7 +23,8 @@ def build_text_common(s: TestSuite) -> None:
     s.test_case(
         name="simple math",
         messages=[user("compute (2+3)")],
-        expected=lambda s: "5" in s.content,
+        expected=lambda s: "5" in s.content
+        and s.response.choices[0].finish_reason == "stop",
     )
 
     s.test_case(
@@ -78,7 +79,10 @@ def build_text_common(s: TestSuite) -> None:
         name="short pinocchio",
         max_tokens=16,
         messages=[user("tell me the full story of Pinocchio")],
-        expected=lambda s: len(s.content.split()) <= 16,
+        expected=lambda s: len(s.content.split()) <= 16
+        and s.response.choices[0].finish_reason == "length"
+        and s.usage is not None
+        and s.usage.completion_tokens == 16,
     )
 
 

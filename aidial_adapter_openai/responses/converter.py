@@ -4,19 +4,24 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai.types.chat import (
     ChatCompletionContentPartParam,
     ChatCompletionContentPartTextParam,
+    ChatCompletionMessage,
     ChatCompletionMessageParam,
+    ChatCompletionMessageToolCall,
+    ChatCompletionToolChoiceOptionParam,
+    ChatCompletionToolParam,
 )
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_assistant_message_param import (
     ContentArrayOfContentPart,
 )
-from openai.types.completion_usage import (
-    CompletionTokensDetails,
-    CompletionUsage,
-    PromptTokensDetails,
+from openai.types.chat.chat_completion_message import (
+    Annotation,
+    AnnotationURLCitation,
 )
+from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.responses import (
     EasyInputMessageParam,
+    FunctionToolParam,
     Response,
     ResponseCodeInterpreterToolCall,
     ResponseComputerToolCall,
@@ -32,8 +37,10 @@ from openai.types.responses import (
     ResponseOutputRefusal,
     ResponseOutputText,
     ResponseReasoningItem,
-    ResponseUsage,
+    ToolChoiceFunctionParam,
+    ToolParam,
 )
+from openai.types.responses.response_create_params import ToolChoice
 from openai.types.responses.response_input_item_param import (
     ResponseInputItemParam,
 )
@@ -44,10 +51,79 @@ from openai.types.responses.response_output_item import (
     McpCall,
     McpListTools,
 )
+from openai.types.responses.response_output_text import (
+    Annotation as ResponsesAnnotation,
+)
+from openai.types.responses.response_output_text import (
+    AnnotationContainerFileCitation,
+    AnnotationFileCitation,
+    AnnotationFilePath,
+)
+from openai.types.responses.response_output_text import (
+    AnnotationURLCitation as ResponsesAnnotationURLCitation,
+)
+
+from aidial_adapter_openai.responses.response import (
+    get_finish_reason,
+    get_usage,
+)
+from aidial_adapter_openai.utils.log_config import logger
 
 _NO_FUNCTION_CALLING = "Function calling isn't yet supported."
 
 _NO_REFUSAL = "Refusal messages aren't yet supported."
+
+
+def convert_annotation(annotation: ResponsesAnnotation) -> Annotation | None:
+    match annotation:
+        case ResponsesAnnotationURLCitation():
+            return Annotation(
+                type="url_citation",
+                url_citation=AnnotationURLCitation(
+                    start_index=annotation.start_index,
+                    end_index=annotation.end_index,
+                    url=annotation.url,
+                    title=annotation.title,
+                ),
+            )
+        case (
+            AnnotationFileCitation()
+            | AnnotationContainerFileCitation()
+            | AnnotationFilePath()
+        ):
+            logger.warning(
+                f"Unsupported type of an annotation: {annotation.type}"
+            )
+            return None
+        case _:
+            assert_never(annotation)
+
+
+def convert_tool_choice(
+    tool_choice: ChatCompletionToolChoiceOptionParam,
+) -> ToolChoice:
+    if isinstance(tool_choice, str):
+        return tool_choice
+    if isinstance(tool_choice, dict):
+        return ToolChoiceFunctionParam(
+            type="function",
+            name=tool_choice["function"]["name"],
+        )
+    assert_never(tool_choice)
+
+
+def convert_tools(tools: List[ChatCompletionToolParam]) -> List[ToolParam]:
+    def _convert_tool(tool: ChatCompletionToolParam) -> ToolParam:
+        function = tool["function"]
+        return FunctionToolParam(
+            type="function",
+            name=function["name"],
+            parameters=function.get("parameters"),
+            strict=function.get("strict"),
+            description=function.get("description"),
+        )
+
+    return [_convert_tool(tool) for tool in tools]
 
 
 def _convert_output_content_part(
@@ -137,27 +213,15 @@ def convert_messages(
     return [_convert_message(message) for message in messages]
 
 
-def convert_usage(usage: ResponseUsage) -> CompletionUsage:
-    return CompletionUsage(
-        prompt_tokens=usage.input_tokens,
-        completion_tokens=usage.output_tokens,
-        total_tokens=usage.total_tokens,
-        prompt_tokens_details=PromptTokensDetails(
-            cached_tokens=usage.input_tokens_details.cached_tokens
-        ),
-        completion_tokens_details=CompletionTokensDetails(
-            reasoning_tokens=usage.output_tokens_details.reasoning_tokens
-        ),
-    )
-
-
-def _convert_output(output: List[ResponseOutputItem]) -> Choice:
+def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     if len(output) != 1:
         raise RequestValidationError(
             "The response output should contain exactly one item."
         )
 
     text_content = ""
+    annotations: List[Annotation] = []
+    tool_calls: List[ChatCompletionMessageToolCall] = []
 
     item = output[0]
     match item:
@@ -166,13 +230,27 @@ def _convert_output(output: List[ResponseOutputItem]) -> Choice:
                 match part:
                     case ResponseOutputText(text=text):
                         text_content += text
+                        for annotation in part.annotations:
+                            if res_annotation := convert_annotation(annotation):
+                                annotations.append(res_annotation)
                     case ResponseOutputRefusal():
                         pass
                     case _:
                         assert_never(part)
+
+        case ResponseFunctionToolCall(
+            arguments=arguments, name=name, call_id=call_id
+        ):
+            tool_calls.append(
+                ChatCompletionMessageToolCall(
+                    id=call_id,
+                    type="function",
+                    function=Function(arguments=arguments, name=name),
+                )
+            )
+
         case (
             ResponseFileSearchToolCall()
-            | ResponseFunctionToolCall()
             | ResponseFunctionWebSearch()
             | ResponseComputerToolCall()
             | ResponseReasoningItem()
@@ -189,19 +267,26 @@ def _convert_output(output: List[ResponseOutputItem]) -> Choice:
         case _:
             assert_never(item)
 
-    return Choice(
-        index=0,
-        message={"role": "assistant", "content": text_content},  # type: ignore
-        finish_reason="stop",
+    return ChatCompletionMessage(
+        role="assistant",
+        content=text_content,
+        annotations=annotations or None,
+        tool_calls=tool_calls or None,
     )
 
 
 def convert_response(response: Response) -> ChatCompletion:
+    message = _convert_output(response.output)
+
+    choice = Choice(
+        index=0, message=message, finish_reason=get_finish_reason(response)
+    )
+
     return ChatCompletion(
         id=response.id,
         created=int(response.created_at),
         model=response.model,
         object="chat.completion",
-        usage=response.usage and convert_usage(response.usage),
-        choices=[_convert_output(response.output)],
+        usage=get_usage(response),
+        choices=[choice],
     )
