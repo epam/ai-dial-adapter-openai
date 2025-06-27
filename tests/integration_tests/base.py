@@ -40,7 +40,7 @@ class CoreConfig(ExtraAllowedModel):
 
 
 class DeploymentConfig(BaseModel):
-    test_deployment_id: str
+    upstream_idx: int | None
 
     deployment_id: str
     deployment_type: ChatCompletionDeploymentType
@@ -60,21 +60,26 @@ class DeploymentConfig(BaseModel):
     ) -> List[Self]:
         configs = []
         for model_name, model_config in core_config.models.items():
-            deployment_type = app_config.get_chat_completion_deployment_type(
-                model_name
-            )
             for upstream_index, upstream_config in enumerate(
                 model_config.upstreams
             ):
-                test_deployment_id = f"{deployment_type.value}__{model_name}"
-                if len(model_config.upstreams) > 1:
-                    test_deployment_id += f"_upstream_{upstream_index}"
+                upstream_endpoint = upstream_config.endpoint
+                deployment_type = (
+                    app_config.get_chat_completion_deployment_type(
+                        model_name, upstream_endpoint
+                    ).deployment_type
+                )
+
+                upstream_idx = (
+                    None if len(model_config.upstreams) <= 1 else upstream_index
+                )
+
                 configs.append(
                     cls(
-                        test_deployment_id=test_deployment_id,
+                        upstream_idx=upstream_idx,
                         deployment_id=model_name,
                         deployment_type=deployment_type,
-                        upstream_endpoint=upstream_config.endpoint,
+                        upstream_endpoint=upstream_endpoint,
                         upstream_api_key=upstream_config.key,
                     )
                 )
@@ -137,9 +142,12 @@ class TestCase:
     temperature: float | NotGiven
 
     def get_id(self):
+        upstream_idx = self.deployment_config.upstream_idx
         parts = [
             sanitize_id_part(self.name),
-            f"{sanitize_id_part(self.deployment_config.test_deployment_id)}",
+            sanitize_id_part(self.deployment_config.deployment_type.value),
+            sanitize_id_part(self.deployment_config.deployment_id),
+            *([] if upstream_idx is None else [f"upstream:{upstream_idx}"]),
             f"stream:{sanitize_id_part(self.streaming)}",
         ]
 

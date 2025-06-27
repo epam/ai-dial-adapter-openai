@@ -199,7 +199,7 @@ class EventHandler(BaseModel):
 
         return self._chunk(
             choice=Choice(
-                index=idx,
+                index=0,
                 delta=ChoiceDelta(
                     tool_calls=[
                         ChoiceDeltaToolCall(

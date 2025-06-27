@@ -47,6 +47,8 @@ pytest-asyncio = "0.21.1"
 pytest-xdist = "^3.5.0"
 respx = "^0.21.1"
 aioresponses = "^0.7.8"
+pytest-timeout = "^2.4.0"
+pytest-sugar = "^1.0.0"
 
 [tool.poetry.group.lint.dependencies]
 pyright = "1.1.324"
@@ -61,7 +63,7 @@ nox = "^2023.4.22"
 python-dotenv = "^1.0.1"
 
 [tool.pytest.ini_options]
-addopts = "-n=auto --asyncio-mode=auto"
+addopts = "-n=auto --asyncio-mode=auto --timeout=60"
 testpaths = ["tests"]
 filterwarnings = [
   "error",

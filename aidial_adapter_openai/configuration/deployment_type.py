@@ -9,3 +9,5 @@ class ChatCompletionDeploymentType(StrEnum):
     GPT4O = "GPT4O"
     GPT4O_MINI = "GPT4O_MINI"
     GPT_TEXT_ONLY = "GPT_TEXT_ONLY"
+    RESPONSES_API = "RESPONSES_API"
+    COMPLETIONS_API = "COMPLETIONS_API"

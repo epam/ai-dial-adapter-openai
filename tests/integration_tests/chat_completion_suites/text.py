@@ -57,6 +57,7 @@ def build_text_common(s: TestSuite) -> None:
             message="The request doesn't contain any messages",
             status_code=422,
         )
+
     s.test_case(
         name="empty dialog",
         max_tokens=16,
@@ -69,6 +70,7 @@ def build_text_common(s: TestSuite) -> None:
         max_tokens=16,
         messages=[user("")],
     )
+
     s.test_case(
         name="single space user message",
         max_tokens=16,
@@ -87,16 +89,17 @@ def build_text_common(s: TestSuite) -> None:
 
 
 def build_stop_sequence(s: TestSuite) -> None:
-    if s.deployment_type == ChatCompletionDeploymentType.MISTRAL:
-        # Mistral just ignores stop sequence
-
-        def expected(s) -> bool:
-            return "john" in s.content.lower()
-
+    if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
+        expected = ExpectedException(
+            type=UnprocessableEntityError,
+            message="The deployment doesn't support stop request parameter.",
+            status_code=422,
+        )
+    elif s.deployment_type == ChatCompletionDeploymentType.MISTRAL:
+        # Mistral ignores stop sequences
+        expected = lambda s: "john" in s.content.lower()  # noqa: E731
     else:
-
-        def expected(s) -> bool:
-            return "john" not in s.content.lower()
+        expected = lambda s: "john" not in s.content.lower()  # noqa: E731
 
     s.test_case(
         name="stop sequence",

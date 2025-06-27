@@ -197,7 +197,7 @@ def _convert_message(
             if tool_calls := message.get("tool_calls"):
                 yield from map(_convert_tool_call, tool_calls)
 
-            if not (content := message.get("content")):
+            if (content := message.get("content")) is None:
                 return
 
             if isinstance(content, str):
@@ -252,58 +252,55 @@ def convert_messages(
 
 
 def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
-    if len(output) != 1:
-        raise RequestValidationError(
-            "The response output should contain exactly one item."
-        )
-
     text_content = ""
     annotations: List[Annotation] = []
     tool_calls: List[ChatCompletionMessageToolCall] = []
 
-    item = output[0]
-    match item:
-        case ResponseOutputMessage(content=content):
-            for part in content:
-                match part:
-                    case ResponseOutputText(text=text):
-                        text_content += text
-                        for annotation in part.annotations:
-                            if res_annotation := convert_annotation(annotation):
-                                annotations.append(res_annotation)
-                    case ResponseOutputRefusal():
-                        pass
-                    case _:
-                        assert_never(part)
+    for item in output:
+        match item:
+            case ResponseOutputMessage(content=content):
+                for part in content:
+                    match part:
+                        case ResponseOutputText(text=text):
+                            text_content += text
+                            for annotation in part.annotations:
+                                if res_annotation := convert_annotation(
+                                    annotation
+                                ):
+                                    annotations.append(res_annotation)
+                        case ResponseOutputRefusal():
+                            pass
+                        case _:
+                            assert_never(part)
 
-        case ResponseFunctionToolCall(
-            arguments=arguments, name=name, call_id=call_id
-        ):
-            tool_calls.append(
-                ChatCompletionMessageToolCall(
-                    id=call_id,
-                    type="function",
-                    function=Function(arguments=arguments, name=name),
+            case ResponseFunctionToolCall(
+                arguments=arguments, name=name, call_id=call_id
+            ):
+                tool_calls.append(
+                    ChatCompletionMessageToolCall(
+                        id=call_id,
+                        type="function",
+                        function=Function(arguments=arguments, name=name),
+                    )
                 )
-            )
 
-        case (
-            ResponseFileSearchToolCall()
-            | ResponseFunctionWebSearch()
-            | ResponseComputerToolCall()
-            | ResponseReasoningItem()
-            | ImageGenerationCall()
-            | ResponseCodeInterpreterToolCall()
-            | LocalShellCall()
-            | McpCall()
-            | McpListTools()
-            | McpApprovalRequest()
-        ):
-            raise RequestValidationError(
-                f"The response output contains an unsupported item type: {item.type}"
-            )
-        case _:
-            assert_never(item)
+            case (
+                ResponseFileSearchToolCall()
+                | ResponseFunctionWebSearch()
+                | ResponseComputerToolCall()
+                | ResponseReasoningItem()
+                | ImageGenerationCall()
+                | ResponseCodeInterpreterToolCall()
+                | LocalShellCall()
+                | McpCall()
+                | McpListTools()
+                | McpApprovalRequest()
+            ):
+                raise RequestValidationError(
+                    f"The response output contains an unsupported item type: {item.type}"
+                )
+            case _:
+                assert_never(item)
 
     return ChatCompletionMessage(
         role="assistant",

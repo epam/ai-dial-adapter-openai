@@ -33,6 +33,45 @@ from aidial_adapter_openai.utils.streaming import (
 )
 
 
+def _validate_request(request: Dict[str, Any]) -> None:
+    errors: List[str] = []
+
+    if (n := request.get("n")) not in [None, 1]:
+        errors.append(
+            f"The deployment doesn't support request.n parameter other than 1, but got {n}."
+        )
+
+    unsupported_params: List[str] = []
+    for param in [
+        "stop",
+        "response_format",
+        "seed",
+        "top_logprobs",
+        "logprobs",
+        "presence_penalty",
+    ]:
+        if request.get(param) is not None:
+            unsupported_params.append(param)
+
+    if unsupported_params:
+        suffix = "s" if len(unsupported_params) > 1 else ""
+        errors.append(
+            f"The deployment doesn't support {', '.join(unsupported_params)} request parameter{suffix}."
+        )
+
+    if (
+        request.get("function_call") is not None
+        or request.get("functions") is not None
+    ):
+        errors.append(_DEPRECATED_FUNCTION_API)
+
+    if not (request.get("messages")):
+        errors.append("The request doesn't contain any messages.")
+
+    if errors:
+        raise RequestValidationError(" ".join(errors))
+
+
 async def chat_completion(
     request: Dict[str, Any],
     endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
@@ -42,40 +81,25 @@ async def chat_completion(
     api_version: str,
     deployment: str,
 ) -> AsyncIterator[dict] | dict | FastAPIResponse:
-
-    if (n_param := request.get("n")) not in [None, 1]:
-        raise RequestValidationError(
-            f"The deployment doesn't support request.n parameter other than 1, but got {n_param}."
-        )
-
-    if (stop_words := request.get("stop")) is not None:
-        raise RequestValidationError(
-            f"The deployment doesn't support request.stop parameter, but got {stop_words}."
-        )
-
-    if (
-        request.get("function_call") is not None
-        or request.get("functions") is not None
-    ):
-        raise RequestValidationError(_DEPRECATED_FUNCTION_API)
+    _validate_request(request)
 
     client = endpoint.get_client({**creds, "api_version": api_version})
 
-    messages: List[Any] = request["messages"]
-    if len(messages) == 0:
-        raise RequestValidationError("The request doesn't contain any messages")
-
-    transform_result = await ResourceProcessor(
+    transformed_messages = await ResourceProcessor(
         file_storage=file_storage
-    ).transform_messages(messages)
+    ).transform_messages(request["messages"])
 
-    if isinstance(transform_result, DialException):
-        logger.error(f"Failed to prepare request: {transform_result.message}")
+    if isinstance(transformed_messages, DialException):
+        logger.error(
+            f"Failed to prepare request: {transformed_messages.message}"
+        )
         chunk = create_stage_chunk("Usage", USAGE, is_stream)
-        return create_response_from_chunk(chunk, transform_result, is_stream)
+        return create_response_from_chunk(
+            chunk, transformed_messages, is_stream
+        )
 
     input_messages = convert_messages(
-        [m.raw_message for m in transform_result]  # type: ignore
+        [m.raw_message for m in transformed_messages]  # type: ignore
     )
 
     res_tools = NOT_GIVEN

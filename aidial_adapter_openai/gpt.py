@@ -6,7 +6,10 @@ from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.parsers import chat_completions_parser
+from aidial_adapter_openai.utils.parsers import (
+    AzureOpenAIEndpoint,
+    OpenAIEndpoint,
+)
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     chunk_to_dict,
@@ -40,7 +43,7 @@ def plain_text_truncate_prompt(
 async def gpt_chat_completion(
     request: dict,
     deployment_id: str,
-    upstream_endpoint: str,
+    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint,
     creds: OpenAICreds,
     api_version: str,
     tokenizer: PlainTextTokenizer,
@@ -69,9 +72,7 @@ async def gpt_chat_completion(
             )
         )
 
-    client = chat_completions_parser.parse(upstream_endpoint).get_client(
-        {**creds, "api_version": api_version}
-    )
+    client = endpoint.get_client({**creds, "api_version": api_version})
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
         await call_with_extra_body(client.chat.completions.create, request)
     )
