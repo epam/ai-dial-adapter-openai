@@ -33,6 +33,7 @@
             ]
         },
         "mistral-endpoint": {
+            "overrideName": "mistral-model-name",
             "upstreams": [
                 {
                     "endpoint": "https://your-databricks-endpoint.cloud.databricks.com/serving-endpoints/chat/completions",

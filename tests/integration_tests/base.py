@@ -25,6 +25,7 @@ class UpstreamConfig(ExtraAllowedModel):
 
 
 class ModelConfig(ExtraAllowedModel):
+    overrideName: str | None = None
     upstreams: List[UpstreamConfig]
 
 
@@ -43,6 +44,7 @@ class DeploymentConfig(BaseModel):
     upstream_idx: int | None
 
     deployment_id: str
+    model_name: str
     deployment_type: ChatCompletionDeploymentType
     upstream_endpoint: str
     upstream_api_key: str
@@ -59,14 +61,14 @@ class DeploymentConfig(BaseModel):
         cls, core_config: CoreConfig, app_config: ApplicationConfig
     ) -> List[Self]:
         configs = []
-        for model_name, model_config in core_config.models.items():
+        for deployment_id, model_config in core_config.models.items():
             for upstream_index, upstream_config in enumerate(
                 model_config.upstreams
             ):
                 upstream_endpoint = upstream_config.endpoint
                 deployment_type = (
                     app_config.get_chat_completion_deployment_type(
-                        model_name, upstream_endpoint
+                        deployment_id, upstream_endpoint
                     ).deployment_type
                 )
 
@@ -77,7 +79,8 @@ class DeploymentConfig(BaseModel):
                 configs.append(
                     cls(
                         upstream_idx=upstream_idx,
-                        deployment_id=model_name,
+                        deployment_id=deployment_id,
+                        model_name=model_config.overrideName or deployment_id,
                         deployment_type=deployment_type,
                         upstream_endpoint=upstream_endpoint,
                         upstream_api_key=upstream_config.key,
@@ -94,7 +97,6 @@ class TestDeployments(BaseModel):
     @classmethod
     def from_config(cls, config_path: str):
         app_config = ApplicationConfig.from_env()
-
         core_config = CoreConfig.from_config(config_path)
 
         return cls(
