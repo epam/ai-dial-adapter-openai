@@ -1,9 +1,12 @@
+from openai import UnprocessableEntityError
+
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
 from tests.integration_tests.base import TestSuite, exclude_deployments
 from tests.utils.openai import (
     GET_WEATHER_FUNCTION,
+    ExpectedException,
     ai,
     ai_function,
     ai_tools,
@@ -42,9 +45,7 @@ def supports_parallel_tool_calls(deployment_type: ChatCompletionDeploymentType):
 
 
 def supports_functions(deployment_type: ChatCompletionDeploymentType):
-    return deployment_type not in [
-        ChatCompletionDeploymentType.DATABRICKS,
-    ]
+    return deployment_type not in [ChatCompletionDeploymentType.DATABRICKS]
 
 
 @exclude_deployments(
@@ -76,13 +77,25 @@ def build_tools_common(s: TestSuite) -> None:
             user(query),
         ]
         if supports_functions(s.deployment_type):
+            expected_exc = None
+            if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
+                expected_exc = ExpectedException(
+                    type=UnprocessableEntityError,
+                    message="The deployment doesn't support the deprecated API for functions. Please use tools instead.",
+                    status_code=422,
+                )
+
             # Functions
             s.test_case(
                 name=f"weather function {test_name_suffix}",
                 messages=init_messages,
                 functions=[function],
-                expected=lambda s, n=city_names[0]: is_valid_function_call(
-                    s.function_call, fun_name, check_fun_args(n)
+                expected=expected_exc
+                or (
+                    lambda s, n=city_names[0]: is_valid_function_call(
+                        s.function_call, fun_name, check_fun_args(n)
+                    )
+                    and s.response.choices[0].finish_reason == "function_call"
                 ),
             )
 
@@ -102,9 +115,8 @@ def build_tools_common(s: TestSuite) -> None:
                         function_resp,
                     ],
                     functions=[function],
-                    expected=lambda s, t=city_temps[0]: s.content_contains_all(
-                        [t]
-                    ),
+                    expected=expected_exc
+                    or (lambda s, t=city_temps[0]: s.content_contains_all([t])),
                 )
             else:
                 s.test_case(
@@ -115,8 +127,11 @@ def build_tools_common(s: TestSuite) -> None:
                         function_resp,
                     ],
                     functions=[function],
-                    expected=lambda s, n=city_names[1]: is_valid_function_call(
-                        s.function_call, fun_name, check_fun_args(n)
+                    expected=expected_exc
+                    or (
+                        lambda s, n=city_names[1]: is_valid_function_call(
+                            s.function_call, fun_name, check_fun_args(n)
+                        )
                     ),
                 )
 
@@ -137,7 +152,8 @@ def build_tools_common(s: TestSuite) -> None:
                     check_fun_args(n[idx]),
                 )
                 for idx in range(len(n))
-            ),
+            )
+            and s.response.choices[0].finish_reason == "tool_calls",
         )
 
         tool_reqs = ai_tools(
@@ -150,10 +166,12 @@ def build_tools_common(s: TestSuite) -> None:
                 for idx, (name, _) in enumerate(cities)
             ]
         )
+
         tool_resps = [
             tool_response(create_tool_call_id(idx), f"{temp} celsius")
             for idx, (_, temp) in enumerate(cities)
         ]
+
         # Databricks doesn't allow to continue chat after first tool call
         if s.deployment_type != ChatCompletionDeploymentType.DATABRICKS:
             s.test_case(

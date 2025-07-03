@@ -63,7 +63,7 @@ async def test_chat_completion(
             try:
                 return await chat_completion(
                     client,
-                    test_case.deployment_config.deployment_id,
+                    test_case.deployment_config.model_name,
                     test_case.messages,
                     test_case.streaming,
                     test_case.stop,

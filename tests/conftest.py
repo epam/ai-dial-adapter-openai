@@ -57,10 +57,10 @@ def create_openai_client(test_app: httpx.AsyncClient):
     def _create_client(deployment_config: DeploymentConfig) -> AsyncAzureOpenAI:
         return AsyncAzureOpenAI(
             azure_endpoint=str(test_app.base_url),
-            azure_deployment=deployment_config.deployment_id,
+            azure_deployment=deployment_config.model_name,
             api_version="2024-02-01",
             api_key="dummy_key",
-            max_retries=5,
+            max_retries=3,
             timeout=30,
             http_client=test_app,
             default_headers=deployment_config.upstream_headers,

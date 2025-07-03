@@ -10,6 +10,7 @@ from tests.utils.openai import user_with_attachment_url, user_with_image_url
     [
         ChatCompletionDeploymentType.GPT4O,
         ChatCompletionDeploymentType.GPT4O_MINI,
+        ChatCompletionDeploymentType.RESPONSES_API,
     ]
 )
 def build_vision_common(s: TestSuite) -> None:
@@ -22,8 +23,9 @@ def build_vision_common(s: TestSuite) -> None:
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
-        max_tokens=5,
+        max_tokens=16,
     )
+
     s.test_case(
         name="image_in_custom_content",
         messages=[
@@ -33,5 +35,5 @@ def build_vision_common(s: TestSuite) -> None:
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
-        max_tokens=5,
+        max_tokens=16,
     )

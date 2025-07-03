@@ -22,10 +22,11 @@ from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.mistral import (
     chat_completion as mistral_chat_completion,
 )
+from aidial_adapter_openai.responses.adapter import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.parsers import completions_parser, parse_body
+from aidial_adapter_openai.utils.parsers import parse_body
 from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
@@ -44,7 +45,6 @@ async def call_chat_completion(
     request: Request,
     app_config: ApplicationConfig,
 ):
-
     # Azure OpenAI deployments ignore "model" request field,
     # since the deployment id is already encoded in the endpoint path.
     # This is not the case for non-Azure OpenAI deployments, so
@@ -66,27 +66,39 @@ async def call_chat_completion(
 
     logger.debug(f"upstream endpoint: {upstream_endpoint}")
 
-    if completions_endpoint := completions_parser.parse(upstream_endpoint):
-        return await completion(
-            data,
-            completions_endpoint,
-            creds,
-            api_version,
-            deployment_id,
-            app_config,
-        )
+    storage = create_file_storage("images", request.headers)
 
-    deployment_type = app_config.get_chat_completion_deployment_type(
-        deployment_id
+    deployment = app_config.get_chat_completion_deployment_type(
+        deployment_id, upstream_endpoint
     )
+    deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
     tiktoken_model = (
         app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id) or deployment_id
     )
 
-    storage = create_file_storage("images", request.headers)
-
     match deployment_type:
+        case ChatCompletionDeploymentType.COMPLETIONS_API:
+            return await completion(
+                data,
+                endpoint,
+                creds,
+                api_version,
+                deployment_id,
+                app_config,
+            )
+
+        case ChatCompletionDeploymentType.RESPONSES_API:
+            return await responses(
+                data,
+                endpoint,
+                creds,
+                is_stream,
+                storage,
+                api_version,
+                deployment_id,
+            )
+
         case (
             ChatCompletionDeploymentType.DALLE3
             | ChatCompletionDeploymentType.GPT_IMAGE_1
@@ -96,18 +108,18 @@ async def call_chat_completion(
                 model,
                 data,
                 deployment_id,
-                upstream_endpoint,
+                endpoint,
                 creds,
                 is_stream,
                 storage,
                 model.get_azure_api_version(app_config),
             )
+
         case ChatCompletionDeploymentType.MISTRAL:
             return await mistral_chat_completion(data, upstream_endpoint, creds)
         case ChatCompletionDeploymentType.DATABRICKS:
-            return await databricks_chat_completion(
-                data, upstream_endpoint, creds
-            )
+            return await databricks_chat_completion(data, endpoint, creds)
+
         case (
             ChatCompletionDeploymentType.GPT4O
             | ChatCompletionDeploymentType.GPT4O_MINI
@@ -127,17 +139,19 @@ async def call_chat_completion(
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
             )
+
         case ChatCompletionDeploymentType.GPT_TEXT_ONLY:
             tokenizer = PlainTextTokenizer(model=tiktoken_model)
             return await gpt_chat_completion(
                 data,
                 deployment_id,
-                upstream_endpoint,
+                endpoint,
                 creds,
                 api_version,
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
             )
+
         case _:
             assert_never(deployment_type)
 

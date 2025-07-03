@@ -25,6 +25,7 @@ class UpstreamConfig(ExtraAllowedModel):
 
 
 class ModelConfig(ExtraAllowedModel):
+    overrideName: str | None = None
     upstreams: List[UpstreamConfig]
 
 
@@ -40,9 +41,10 @@ class CoreConfig(ExtraAllowedModel):
 
 
 class DeploymentConfig(BaseModel):
-    test_deployment_id: str
+    upstream_idx: int | None
 
     deployment_id: str
+    model_name: str
     deployment_type: ChatCompletionDeploymentType
     upstream_endpoint: str
     upstream_api_key: str
@@ -59,22 +61,28 @@ class DeploymentConfig(BaseModel):
         cls, core_config: CoreConfig, app_config: ApplicationConfig
     ) -> List[Self]:
         configs = []
-        for model_name, model_config in core_config.models.items():
-            deployment_type = app_config.get_chat_completion_deployment_type(
-                model_name
-            )
+        for deployment_id, model_config in core_config.models.items():
             for upstream_index, upstream_config in enumerate(
                 model_config.upstreams
             ):
-                test_deployment_id = f"{deployment_type.value}__{model_name}"
-                if len(model_config.upstreams) > 1:
-                    test_deployment_id += f"_upstream_{upstream_index}"
+                upstream_endpoint = upstream_config.endpoint
+                deployment_type = (
+                    app_config.get_chat_completion_deployment_type(
+                        deployment_id, upstream_endpoint
+                    ).deployment_type
+                )
+
+                upstream_idx = (
+                    None if len(model_config.upstreams) <= 1 else upstream_index
+                )
+
                 configs.append(
                     cls(
-                        test_deployment_id=test_deployment_id,
-                        deployment_id=model_name,
+                        upstream_idx=upstream_idx,
+                        deployment_id=deployment_id,
+                        model_name=model_config.overrideName or deployment_id,
                         deployment_type=deployment_type,
-                        upstream_endpoint=upstream_config.endpoint,
+                        upstream_endpoint=upstream_endpoint,
                         upstream_api_key=upstream_config.key,
                     )
                 )
@@ -89,7 +97,6 @@ class TestDeployments(BaseModel):
     @classmethod
     def from_config(cls, config_path: str):
         app_config = ApplicationConfig.from_env()
-
         core_config = CoreConfig.from_config(config_path)
 
         return cls(
@@ -137,20 +144,14 @@ class TestCase:
     temperature: float | NotGiven
 
     def get_id(self):
+        upstream_idx = self.deployment_config.upstream_idx
         parts = [
             sanitize_id_part(self.name),
-            f"{sanitize_id_part(self.deployment_config.test_deployment_id)}",
+            sanitize_id_part(self.deployment_config.deployment_type.value),
+            sanitize_id_part(self.deployment_config.deployment_id),
+            *([] if upstream_idx is None else [f"upstream:{upstream_idx}"]),
             f"stream:{sanitize_id_part(self.streaming)}",
         ]
-
-        if self.max_tokens:
-            parts.append(f"tokens:{sanitize_id_part(self.max_tokens)}")
-        if self.stop:
-            parts.append(f"stop:{sanitize_id_part(self.stop)}")
-        if self.n and self.n != 1:
-            parts.append(f"n:{sanitize_id_part(self.n)}")
-        if self.temperature and self.temperature != 0.0:
-            parts.append(f"temp:{sanitize_id_part(self.temperature)}")
 
         return "/".join(parts)
 
