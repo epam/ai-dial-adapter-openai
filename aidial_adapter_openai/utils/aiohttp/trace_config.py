@@ -1,10 +1,6 @@
-import contextlib
 import time
-from typing import Any, Dict
 
 import aiohttp
-
-from aidial_adapter_openai.utils.log_config import logger
 
 
 def _now() -> float:
@@ -16,7 +12,7 @@ def _elapsed_ms(start_time: float, last_time: float | None = None) -> int:
     return round((last_time - start_time) * 1000)
 
 
-def _get_trace_config() -> aiohttp.TraceConfig:
+def get_trace_config() -> aiohttp.TraceConfig:
 
     def _set_first(ctx):
         ctx.trace_request_ctx["first"] = ctx.trace_request_ctx["last"] = _now()
@@ -52,10 +48,7 @@ def _get_trace_config() -> aiohttp.TraceConfig:
     return trace_config
 
 
-_trace_config = _get_trace_config()
-
-
-def _get_tracing_timings(trace_request_ctx: dict) -> str:
+def get_tracing_timings(trace_request_ctx: dict) -> str:
     first = trace_request_ctx.get("first")
     last = trace_request_ctx.get("last")
 
@@ -73,20 +66,3 @@ def _get_tracing_timings(trace_request_ctx: dict) -> str:
     return (
         f"{total} (dns={dns}, connect={connect}, header={header}, body={body})"
     )
-
-
-@contextlib.asynccontextmanager
-async def post(url: str, headers: Dict[str, str], request: Any):
-    ctx = {}
-    async with aiohttp.ClientSession(
-        trust_env=True, trace_configs=[_trace_config]
-    ) as session:
-        async with session.post(
-            url, json=request, headers=headers, trace_request_ctx=ctx
-        ) as response:
-            try:
-                yield response
-            finally:
-                logger.info(
-                    f"Upstream: {url!r}. Status: {response.status}. Timing: {_get_tracing_timings(ctx)}."
-                )

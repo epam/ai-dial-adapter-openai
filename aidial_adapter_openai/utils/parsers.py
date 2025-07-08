@@ -8,7 +8,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.http_client import get_httpx_client
 
 
 class OpenAIParams(TypedDict, total=False):
@@ -41,7 +41,7 @@ class AzureOpenAIEndpoint(BaseModel):
             ),
             timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
-            http_client=get_http_client(),
+            http_client=get_httpx_client(),
         )
 
     def get_auth_headers(self, creds: OpenAICreds) -> dict[str, str]:
@@ -63,7 +63,7 @@ class OpenAIEndpoint(BaseModel):
             api_key=params.get("api_key"),
             timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
-            http_client=get_http_client(),
+            http_client=get_httpx_client(),
         )
 
     def get_auth_headers(self, creds: OpenAICreds) -> dict[str, str]:

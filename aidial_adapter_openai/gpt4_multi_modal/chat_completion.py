@@ -19,7 +19,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     SUPPORTED_FILE_EXTS,
     ResourceProcessor,
 )
-from aidial_adapter_openai.utils.aiohttp import post
+from aidial_adapter_openai.utils.aiohttp.client import post
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.caching import (
     get_prompt_tokens_from_response,
