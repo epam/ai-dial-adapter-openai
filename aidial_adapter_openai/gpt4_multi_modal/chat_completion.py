@@ -19,7 +19,7 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     SUPPORTED_FILE_EXTS,
     ResourceProcessor,
 )
-from aidial_adapter_openai.utils.aiohttp.client import post
+from aidial_adapter_openai.utils.aiohttp.client import post, post2
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.caching import (
     get_prompt_tokens_from_response,
@@ -85,7 +85,21 @@ async def transpose_stream(
 async def predict_stream(
     url: str, headers: Dict[str, str], request: Any
 ) -> AsyncIterator[bytes] | Response:
-    return await transpose_stream(predict_stream_raw(url, headers, request))
+    return await transpose_stream(predict_stream_raw2(url, headers, request))
+
+
+async def predict_stream_raw2(
+    url: str, headers: Dict[str, str], request: Any
+) -> AsyncIterator[bytes | Response]:
+    async with post2(url, headers, request) as response:
+        if not response.is_success:
+            yield Response(
+                status_code=response.status_code,
+                content=response.content,
+            )
+
+        async for line in response.aiter_lines():
+            yield line.encode()
 
 
 async def predict_stream_raw(
