@@ -13,9 +13,6 @@ _DEFAULT_AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=600, connect=10)
 _DEFAULT_HTTPX_CONNECTION_LIMITS = httpx.Limits(
     max_connections=1000, max_keepalive_connections=100
 )
-_DEFAULT_AIOHTTP_CONNECTION_LIMITS = aiohttp.TCPConnector(
-    limit=1000, limit_per_host=0
-)
 
 
 @functools.cache
@@ -33,5 +30,5 @@ def get_aiohttp_session() -> aiohttp.ClientSession:
         trust_env=True,
         trace_configs=[get_trace_config()],
         timeout=_DEFAULT_AIOHTTP_TIMEOUT,
-        connector=_DEFAULT_AIOHTTP_CONNECTION_LIMITS,
+        connector=aiohttp.TCPConnector(limit=1000, limit_per_host=0),
     )
