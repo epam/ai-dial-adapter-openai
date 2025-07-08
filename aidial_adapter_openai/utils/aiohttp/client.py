@@ -9,13 +9,12 @@ from aidial_adapter_openai.utils.log_config import logger
 @contextlib.asynccontextmanager
 async def post(url: str, headers: Dict[str, str], request: Any):
     ctx = {}
-    async with get_aiohttp_session() as session:
-        async with session.post(
-            url, json=request, headers=headers, trace_request_ctx=ctx
-        ) as response:
-            try:
-                yield response
-            finally:
-                logger.info(
-                    f"Upstream: {url!r}. Status: {response.status}. Timing: {get_tracing_timings(ctx)}."
-                )
+    async with get_aiohttp_session().post(
+        url, json=request, headers=headers, trace_request_ctx=ctx
+    ) as response:
+        try:
+            yield response
+        finally:
+            logger.info(
+                f"Upstream: {url!r}. Status: {response.status}. Timing: {get_tracing_timings(ctx)}."
+            )
