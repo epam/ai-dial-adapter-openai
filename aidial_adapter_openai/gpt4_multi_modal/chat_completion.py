@@ -1,3 +1,4 @@
+import json
 from typing import (
     Any,
     AsyncIterator,
@@ -85,7 +86,47 @@ async def transpose_stream(
 async def predict_stream(
     url: str, headers: Dict[str, str], request: Any
 ) -> AsyncIterator[bytes] | Response:
-    return await transpose_stream(predict_stream_raw2(url, headers, request))
+    return await transpose_stream(predict_stream_raw3(url, headers, request))
+
+
+async def predict_stream_raw3(
+    url: str, headers: Dict[str, str], request: Any
+) -> AsyncIterator[bytes | Response]:
+    def get_chunk(*, content=None, finish_reason=None, usage=None):
+        return {
+            "id": "chatcmpl-BrNGxI71Ignaym3C57ZQOczl8r7ai",
+            "object": "chat.completion.chunk",
+            "created": 1752060543,
+            "model": "gpt-4o-2024-11-20",
+            "system_fingerprint": "fp_ee1d74bde0",
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {} if content is None else {"content": content},
+                    "logprobs": None,
+                    "finish_reason": finish_reason,
+                }
+            ],
+            **({} if usage is None else {"usage": usage}),
+        }
+
+    import asyncio
+
+    n = 2000
+    for i in range(n):
+        await asyncio.sleep(0.01)
+        yield b"data: " + json.dumps(get_chunk(content=f"{i}...")).encode()
+
+    zero_usage = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+    }
+    yield b"data: " + json.dumps(
+        get_chunk(finish_reason="stop", usage=zero_usage)
+    ).encode()
+
+    yield b"data: [DONE]"
 
 
 async def predict_stream_raw2(
