@@ -118,9 +118,9 @@ async def predict_stream_raw3(
         yield b"data: " + json.dumps(get_chunk(content=f"{i}...")).encode()
 
     zero_usage = {
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
-        "total_tokens": 0,
+        "prompt_tokens": 2000,
+        "completion_tokens": 2000,
+        "total_tokens": 4000,
     }
     yield b"data: " + json.dumps(
         get_chunk(finish_reason="stop", usage=zero_usage)
