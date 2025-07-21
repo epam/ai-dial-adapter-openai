@@ -4,7 +4,7 @@ from typing import List
 
 import httpx
 import pytest
-from aioresponses import aioresponses
+import respx
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
@@ -14,31 +14,19 @@ from tests.conftest import create_test_client
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
 
-@pytest.fixture
-def mock_aioresponse():
-    with aioresponses() as m:
-        yield m
-
-
-def mock_response(
-    mock: aioresponses, upstream_url: str, stream: bool, chunks: List[dict]
-):
+def _mock_response(upstream_url: str, stream: bool, chunks: List[dict]):
     mock_stream = OpenAIStream(*chunks)
     if stream:
-        mock.add(
-            upstream_url,
-            method="POST",
-            status=200,
+        respx.post(upstream_url).respond(
+            status_code=200,
             content_type="text/event-stream",
-            body=mock_stream.to_content(),
+            content=mock_stream.to_content(),
         )
     else:
-        mock.add(
-            upstream_url,
-            method="POST",
-            status=200,
+        respx.post(upstream_url).respond(
+            status_code=200,
             content_type="application/json",
-            body=json.dumps(mock_stream.to_block_response()),
+            content=json.dumps(mock_stream.to_block_response()),
         )
 
 
@@ -112,6 +100,7 @@ async def gpt4o_client():
         yield client
 
 
+@respx.mock
 @pytest.mark.parametrize(
     "ts",
     [
@@ -130,19 +119,13 @@ async def gpt4o_client():
     ],
     ids=lambda x: x.get_name(),
 )
-async def test_auto_caching(
-    mock_aioresponse: aioresponses,
-    gpt4o_client: httpx.AsyncClient,
-    ts: TestCase,
-):
-
+async def test_auto_caching(gpt4o_client: httpx.AsyncClient, ts: TestCase):
     query_part = "api-version=2023-03-15-preview"
     adapter_url = f"chat/completions?{query_part}"
     upstream_endpoint = "http://test-upstream/openai/deployments/upstream-deployment/chat/completions"
     upstream_url = f"{upstream_endpoint}?{query_part}"
 
-    mock_response(
-        mock=mock_aioresponse,
+    _mock_response(
         upstream_url=upstream_url,
         stream=ts.stream,
         chunks=[

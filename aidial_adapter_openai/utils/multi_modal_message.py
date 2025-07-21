@@ -1,12 +1,18 @@
 from typing import List
 
+from openai.types.chat import (
+    ChatCompletionContentPartImageParam,
+    ChatCompletionContentPartTextParam,
+)
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.image import ImageDetail, ImageMetadata
 from aidial_adapter_openai.utils.resource import Resource
 
 
-def create_image_content_part(image: Resource, detail: ImageDetail) -> dict:
+def create_image_content_part(
+    image: Resource, detail: ImageDetail
+) -> ChatCompletionContentPartImageParam:
     return {
         "type": "image_url",
         "image_url": {
@@ -16,7 +22,7 @@ def create_image_content_part(image: Resource, detail: ImageDetail) -> dict:
     }
 
 
-def create_text_content_part(text: str) -> dict:
+def create_text_content_part(text: str) -> ChatCompletionContentPartTextParam:
     return {
         "type": "text",
         "text": text,

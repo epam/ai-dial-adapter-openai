@@ -129,9 +129,9 @@ async def call_chat_completion(
             )
             return await gpt4o_chat_completion(
                 data,
-                request.headers,
                 deployment_id,
-                upstream_endpoint,
+                request.headers,
+                endpoint,
                 creds,
                 is_stream,
                 storage,
