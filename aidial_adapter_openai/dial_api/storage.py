@@ -41,7 +41,7 @@ class FileStorage(BaseModel):
                 headers=self.auth.headers,
             )
             response.raise_for_status()
-            self.bucket = await response.json()
+            self.bucket = response.json()
             log.debug(f"bucket: {self.bucket}")
 
         return self.bucket
@@ -70,7 +70,7 @@ class FileStorage(BaseModel):
             headers=self.auth.headers,
         )
         response.raise_for_status()
-        meta = await response.json()
+        meta = response.json()
         log.debug(f"Uploaded file: url={url}, metadata={meta}")
         return meta
 
