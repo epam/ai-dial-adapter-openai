@@ -1,7 +1,10 @@
 import json
-from typing import Any, AsyncGenerator, Callable, List
+from typing import Any, Callable, List
 
-from aidial_sdk.utils.streaming import merge_chunks
+from aidial_sdk.utils.merge_chunks import (
+    cleanup_indices,
+    merge_chat_completion_chunks,
+)
 from openai import APIError, AsyncAzureOpenAI, AsyncStream, NotGiven
 from openai._types import NOT_GIVEN
 from openai.types import CompletionUsage
@@ -211,13 +214,17 @@ async def chat_completion(
 
         if isinstance(response, AsyncStream):
 
-            async def generator() -> AsyncGenerator[dict, None]:
-                async for chunk in response:
-                    yield chunk.dict()
+            chunks: List[dict] = []
+            async for chunk in response:
+                chunks.append(chunk.dict())
 
-            response_dict = await merge_chunks(generator())
+            response_dict = merge_chat_completion_chunks(*chunks)
+
+            for choice in response_dict["choices"]:
+                choice["message"] = cleanup_indices(choice["delta"])
+                del choice["delta"]
+
             response_dict["object"] = "chat.completion"
-            response_dict["model"] = "dummy_model"
 
             return ChatCompletion.parse_obj(response_dict)
         else:
