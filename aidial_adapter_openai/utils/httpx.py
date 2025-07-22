@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Any, Tuple
 
@@ -78,9 +79,18 @@ async def _log_timings_hook(response: httpx.Response) -> None:
     ctx: TraceCtx = request.extensions.get("trace_ctx", {})
 
     def _log_timing():
-        logger.info(
-            f"Upstream: '{request.url}'. Status: {response.status_code}. Timing: {_get_tracing_timings(ctx)}."
+        url = str(request.url).rstrip("/")
+        # Log the requests to the upstream models with INFO level.
+        # Log other requests (e.g. to the DIAL Storage) with DEBUG level,
+        # since they could reveal sensitive information such as user bucket.
+        is_model_call = url.endswith("embeddings") or url.endswith(
+            "completions"
         )
+        level = logging.INFO if is_model_call else logging.DEBUG
+        msg = (
+            f"Upstream: {url!r}. Status: {response.status_code}. Timing: {_get_tracing_timings(ctx)}.",
+        )
+        logger.log(level, msg)
 
     if response.is_closed:
         # If the body is already in memory we can log right away.
