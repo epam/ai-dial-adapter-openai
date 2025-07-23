@@ -40,7 +40,6 @@ numpy = "1.26.0"
 pillow = "10.3.0"
 azure-identity = "1.16.1"
 aidial-sdk = { version = "0.22.1", extras = ["telemetry"] }
-starlette = "0.47.2"
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"
