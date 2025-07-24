@@ -123,7 +123,7 @@ async def generate_stream(
             response_snapshot.merge(chunk)
 
             if buffer_chunk is not None:
-                chunk = merge_chat_completion_chunks(chunk, buffer_chunk)
+                chunk = merge_chat_completion_chunks(buffer_chunk, chunk)
                 buffer_chunk = None
 
             choices = chunk.get("choices") or []
