@@ -55,6 +55,7 @@ class OpenAIStream:
 def chunk(
     *,
     id: str = "chatcmpl-test",
+    object_: str = "chat.completion.chunk",
     created: int = 1695940483,
     model: str = "gpt-4",
     choices: List[dict],
@@ -63,7 +64,7 @@ def chunk(
 ) -> dict:
     return {
         "id": id,
-        "object": "chat.completion.chunk",
+        "object": object_,
         "created": created,
         "model": model,
         "choices": choices,
@@ -75,6 +76,7 @@ def chunk(
 def single_choice_chunk(
     *,
     id: str = "chatcmpl-test",
+    object_: str = "chat.completion.chunk",
     created: int = 1695940483,
     model: str = "gpt-4",
     finish_reason: str | None = None,
@@ -87,6 +89,7 @@ def single_choice_chunk(
         id=id,
         created=created,
         model=model,
+        object_=object_,
         choices=[
             {
                 "index": 0,
