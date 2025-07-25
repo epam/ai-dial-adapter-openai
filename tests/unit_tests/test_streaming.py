@@ -132,7 +132,76 @@ async def test_include_usage(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-async def test_include_usage_stream_issues(
+async def test_empty_usage_with_content_filter_results(
+    eliminate_empty_choices, test_app: httpx.AsyncClient
+):
+    # Modeled after the example from the Azure doc:
+    # https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/content-streaming#sample-response-stream-passes-filters
+    upstream_response = OpenAIStream(
+        chunk(
+            id="",
+            object_="",
+            created=0,
+            model="",
+            choices=[],
+            prompt_filter_results="prompt_filter_results_placeholder",
+        ),
+        single_choice_chunk(delta={"role": "assistant"}),
+        single_choice_chunk(delta={"content": "Test content"}),
+        single_choice_chunk(
+            delta={},
+            finish_reason="stop",
+            usage={
+                "completion_tokens": 111,
+                "prompt_tokens": 222,
+                "total_tokens": 333,
+            },
+        ),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15"
+    ).respond(
+        status_code=200,
+        content=upstream_response.to_content(),
+        content_type="text/event-stream",
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-06-15",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    expected_response = OpenAIStream(
+        single_choice_chunk(
+            delta={"role": "assistant"},
+            prompt_filter_results="prompt_filter_results_placeholder",
+        ),
+        single_choice_chunk(delta={"content": "Test content"}),
+        single_choice_chunk(
+            delta={},
+            finish_reason="stop",
+            usage={
+                "completion_tokens": 111,
+                "prompt_tokens": 222,
+                "total_tokens": 333,
+            },
+        ),
+    )
+
+    assert response.status_code == 200
+    expected_response.assert_response_content(response, assert_equal)
+
+
+@respx.mock
+async def test_empty_choice_with_usage(
     eliminate_empty_choices, test_app: httpx.AsyncClient
 ):
     # Emulating the steam returned by OpenAI when stream_options.include_usage=True
