@@ -3,11 +3,11 @@ from openai import BadRequestError, UnprocessableEntityError
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
-from tests.integration_tests.base import TestSuite
+from tests.integration_tests.base import ChatTestSuite
 from tests.utils.openai import ExpectedException, ai, sys, user
 
 
-def build_text_common(s: TestSuite) -> None:
+def build_text_common(s: ChatTestSuite) -> None:
     # Basic dialog tests
     s.test_case(
         name="dialog recall",
@@ -88,7 +88,7 @@ def build_text_common(s: TestSuite) -> None:
     )
 
 
-def build_stop_sequence(s: TestSuite) -> None:
+def build_stop_sequence(s: ChatTestSuite) -> None:
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
         expected = ExpectedException(
             type=UnprocessableEntityError,
@@ -109,7 +109,7 @@ def build_stop_sequence(s: TestSuite) -> None:
     )
 
 
-def build_multi_system(s: TestSuite) -> None:
+def build_multi_system(s: ChatTestSuite) -> None:
     messages = [
         sys("act as a helpful assistant"),
         sys("act as a calculator"),

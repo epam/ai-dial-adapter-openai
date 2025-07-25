@@ -3,10 +3,15 @@ import logging
 import re
 from typing import Generator, List
 
+import openai
 import pytest
 from openai import APIError
 
-from tests.integration_tests.base import TestCase, TestSuite, TestSuiteBuilder
+from tests.integration_tests.base import (
+    ChatTestCase,
+    ChatTestSuite,
+    ChatTestSuiteBuilder,
+)
 from tests.integration_tests.chat_completion_suites.text import (
     build_multi_system,
     build_stop_sequence,
@@ -29,11 +34,11 @@ logger = logging.getLogger(__name__)
 
 
 def create_test_cases(
-    builders: List[TestSuiteBuilder],
-) -> Generator[TestCase, None, None]:
+    builders: List[ChatTestSuiteBuilder],
+) -> Generator[ChatTestCase, None, None]:
     for streaming in (False, True):
-        for deployment in TEST_DEPLOYMENTS_CONFIG.deployments:
-            suite = TestSuite(deployment, streaming)
+        for deployment in TEST_DEPLOYMENTS_CONFIG.chat_deployments:
+            suite = ChatTestSuite(deployment, streaming)
             for builder in builders:
                 builder(suite)
             yield from suite
@@ -50,13 +55,15 @@ def create_test_cases(
             build_vision_common,
         ]
     ),
-    ids=lambda tc: tc.get_id() if isinstance(tc, TestCase) else "na",
+    ids=lambda tc: tc.get_id() if isinstance(tc, ChatTestCase) else "na",
 )
 async def test_chat_completion(
-    test_case: TestCase,
+    test_case: ChatTestCase,
     create_openai_client,
 ):
-    client = create_openai_client(test_case.deployment_config)
+    client: openai.AsyncAzureOpenAI = create_openai_client(
+        test_case.deployment_config
+    )
 
     async def run_chat_completion() -> ChatCompletionResult:
         for _ in range(3):

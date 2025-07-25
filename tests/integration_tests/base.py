@@ -1,7 +1,20 @@
+from __future__ import annotations
+
 import functools
 import json
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterator, List, Self
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    Generic,
+    Iterator,
+    List,
+    Literal,
+    TypeVar,
+    assert_never,
+)
 
 from openai import NOT_GIVEN, NotGiven
 from openai.types.chat import (
@@ -25,6 +38,7 @@ class UpstreamConfig(ExtraAllowedModel):
 
 
 class ModelConfig(ExtraAllowedModel):
+    type: Literal["chat", "embedding"]
     overrideName: str | None = None
     upstreams: List[UpstreamConfig]
 
@@ -40,14 +54,39 @@ class CoreConfig(ExtraAllowedModel):
         return cls(**test_config)
 
 
-class DeploymentConfig(BaseModel):
-    upstream_idx: int | None
+class EmbeddingsDeploymentType(BaseModel):
+    pass
 
-    deployment_id: str
+
+_T = TypeVar("_T")
+
+DeploymentType = ChatCompletionDeploymentType | EmbeddingsDeploymentType
+
+
+def _classify_deployment(
+    app_config: ApplicationConfig,
+    model_config: ModelConfig,
+    deployment_id: str,
+    upstream_endpoint: str,
+) -> DeploymentType:
+    if model_config.type == "chat":
+        return app_config.get_chat_completion_deployment_type(
+            deployment_id, upstream_endpoint
+        ).deployment_type
+    elif model_config.type == "embedding":
+        return EmbeddingsDeploymentType()
+    else:
+        assert_never(model_config.type)
+
+
+class DeploymentConfig(BaseModel, Generic[_T]):
+    id_: str
+    type_: _T
+
     model_name: str
-    deployment_type: ChatCompletionDeploymentType
     upstream_endpoint: str
     upstream_api_key: str
+    upstream_idx: int | None
 
     @property
     def upstream_headers(self) -> Dict[str, str]:
@@ -58,19 +97,16 @@ class DeploymentConfig(BaseModel):
 
     @classmethod
     def create_deployments(
-        cls, core_config: CoreConfig, app_config: ApplicationConfig
-    ) -> List[Self]:
+        cls,
+        core_config: CoreConfig,
+        get_deployment_type: Callable[[ModelConfig, str, str], _T],
+    ) -> List[DeploymentConfig[_T]]:
         configs = []
         for deployment_id, model_config in core_config.models.items():
             for upstream_index, upstream_config in enumerate(
                 model_config.upstreams
             ):
                 upstream_endpoint = upstream_config.endpoint
-                deployment_type = (
-                    app_config.get_chat_completion_deployment_type(
-                        deployment_id, upstream_endpoint
-                    ).deployment_type
-                )
 
                 upstream_idx = (
                     None if len(model_config.upstreams) <= 1 else upstream_index
@@ -79,9 +115,11 @@ class DeploymentConfig(BaseModel):
                 configs.append(
                     cls(
                         upstream_idx=upstream_idx,
-                        deployment_id=deployment_id,
+                        id_=deployment_id,
                         model_name=model_config.overrideName or deployment_id,
-                        deployment_type=deployment_type,
+                        type_=get_deployment_type(
+                            model_config, deployment_id, upstream_endpoint
+                        ),
                         upstream_endpoint=upstream_endpoint,
                         upstream_api_key=upstream_config.key,
                     )
@@ -91,7 +129,8 @@ class DeploymentConfig(BaseModel):
 
 class TestDeployments(BaseModel):
     __test__ = False
-    deployments: list[DeploymentConfig]
+
+    deployments: List[DeploymentConfig[DeploymentType]]
     app_config: ApplicationConfig
 
     @classmethod
@@ -102,9 +141,26 @@ class TestDeployments(BaseModel):
         return cls(
             app_config=app_config,
             deployments=DeploymentConfig.create_deployments(
-                core_config, app_config
+                core_config,
+                functools.partial(_classify_deployment, app_config),
             ),
         )
+
+    @property
+    def chat_deployments(
+        self,
+    ) -> Generator[DeploymentConfig[ChatCompletionDeploymentType], None, None]:
+        for deployment in self.deployments:
+            if isinstance(deployment.type_, ChatCompletionDeploymentType):
+                yield deployment  # type: ignore
+
+    @property
+    def embedding_deployment(
+        self,
+    ) -> Generator[DeploymentConfig[EmbeddingsDeploymentType], None, None]:
+        for deployment in self.deployments:
+            if isinstance(deployment.type_, EmbeddingsDeploymentType):
+                yield deployment  # type: ignore
 
 
 def sanitize_id_part(value: Any) -> str:
@@ -122,10 +178,10 @@ def sanitize_id_part(value: Any) -> str:
 
 
 @dataclass
-class TestCase:
+class ChatTestCase:
     __test__ = False
 
-    deployment_config: DeploymentConfig
+    deployment_config: DeploymentConfig[ChatCompletionDeploymentType]
 
     name: str
     streaming: bool
@@ -147,8 +203,8 @@ class TestCase:
         upstream_idx = self.deployment_config.upstream_idx
         parts = [
             sanitize_id_part(self.name),
-            sanitize_id_part(self.deployment_config.deployment_type.value),
-            sanitize_id_part(self.deployment_config.deployment_id),
+            sanitize_id_part(self.deployment_config.type_.value),
+            sanitize_id_part(self.deployment_config.id_),
             *([] if upstream_idx is None else [f"upstream:{upstream_idx}"]),
             f"stream:{sanitize_id_part(self.streaming)}",
         ]
@@ -156,16 +212,16 @@ class TestCase:
         return "/".join(parts)
 
 
-TestSuiteBuilder = Callable[["TestSuite"], None]
+ChatTestSuiteBuilder = Callable[["ChatTestSuite"], None]
 
 
 @dataclass
-class TestSuite:
+class ChatTestSuite:
     __test__ = False
 
-    deployment_config: DeploymentConfig
+    deployment_config: DeploymentConfig[ChatCompletionDeploymentType]
     streaming: bool
-    test_cases: List[TestCase] = field(default_factory=list)
+    test_cases: List[ChatTestCase] = field(default_factory=list)
 
     def test_case(
         self,
@@ -175,9 +231,9 @@ class TestSuite:
             Callable[[ChatCompletionResult], bool] | ExpectedException
         ) = lambda *args, **kwargs: True,
         **kwargs,
-    ) -> "TestSuite":
+    ) -> ChatTestSuite:
         self.test_cases.append(
-            TestCase(
+            ChatTestCase(
                 deployment_config=self.deployment_config,
                 name=name,
                 streaming=self.streaming,
@@ -193,7 +249,7 @@ class TestSuite:
         )
         return self
 
-    def __iter__(self) -> Iterator[TestCase]:
+    def __iter__(self) -> Iterator[ChatTestCase]:
         return iter(self.test_cases)
 
     def __len__(self):
@@ -201,24 +257,26 @@ class TestSuite:
 
     @property
     def deployment_type(self) -> ChatCompletionDeploymentType:
-        return self.deployment_config.deployment_type
+        return self.deployment_config.type_
 
     @classmethod
     def create(
         cls,
-        deployment_config: DeploymentConfig,
+        deployment_config: DeploymentConfig[ChatCompletionDeploymentType],
         streaming: bool,
-        case_builder: TestSuiteBuilder,
-    ) -> "TestSuite":
+        case_builder: ChatTestSuiteBuilder,
+    ) -> "ChatTestSuite":
         suite = cls(deployment_config, streaming)
         case_builder(suite)
         return suite
 
 
-def exclude_deployments(deployment_types: List[ChatCompletionDeploymentType]):
-    def wrapper(func: TestSuiteBuilder):
+def exclude_chat_deployments(
+    deployment_types: List[ChatCompletionDeploymentType],
+):
+    def wrapper(func: ChatTestSuiteBuilder):
         @functools.wraps(func)
-        def wrapped(s: TestSuite):
+        def wrapped(s: ChatTestSuite):
             if s.deployment_type in deployment_types:
                 return
             return func(s)
@@ -228,10 +286,12 @@ def exclude_deployments(deployment_types: List[ChatCompletionDeploymentType]):
     return wrapper
 
 
-def include_deployments(deployment_types: List[ChatCompletionDeploymentType]):
-    def wrapper(func: TestSuiteBuilder):
+def include_chat_deployments(
+    deployment_types: List[ChatCompletionDeploymentType],
+):
+    def wrapper(func: ChatTestSuiteBuilder):
         @functools.wraps(func)
-        def wrapped(s: TestSuite):
+        def wrapped(s: ChatTestSuite):
             if s.deployment_type not in deployment_types:
                 return
             return func(s)
