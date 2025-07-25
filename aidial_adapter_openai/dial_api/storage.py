@@ -1,15 +1,14 @@
 import base64
 import hashlib
-import io
 import mimetypes
 from typing import Mapping, Optional, TypedDict
 from urllib.parse import unquote, urljoin
 
-import aiohttp
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.auth import Auth
 from aidial_adapter_openai.utils.env import get_env, get_env_bool
+from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
 
 
@@ -32,20 +31,20 @@ class FileStorage(BaseModel):
 
     bucket: Optional[Bucket] = None
 
-    async def _get_bucket(self, session: aiohttp.ClientSession) -> Bucket:
+    async def _get_bucket(self) -> Bucket:
         if self.bucket is None:
-            async with session.get(
+            response = await get_http_client().get(
                 f"{self.dial_url}/v1/bucket",
                 headers=self.auth.headers,
-            ) as response:
-                response.raise_for_status()
-                self.bucket = await response.json()
-                log.debug(f"bucket: {self.bucket}")
+            )
+            response.raise_for_status()
+            self.bucket = response.json()
+            log.debug(f"bucket: {self.bucket}")
 
         return self.bucket
 
-    async def _get_user_bucket(self, session: aiohttp.ClientSession) -> str:
-        bucket = await self._get_bucket(session)
+    async def _get_user_bucket(self) -> str:
+        bucket = await self._get_bucket()
         appdata = bucket.get("appdata")
         if appdata is None:
             raise ValueError(
@@ -53,40 +52,24 @@ class FileStorage(BaseModel):
             )
         return appdata.split("/", 1)[0]
 
-    @staticmethod
-    def _to_form_data(
-        filename: str, content_type: str, content: bytes
-    ) -> aiohttp.FormData:
-        data = aiohttp.FormData()
-        data.add_field(
-            "file",
-            io.BytesIO(content),
-            filename=filename,
-            content_type=content_type,
-        )
-        return data
-
     async def upload(
         self, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
-        async with aiohttp.ClientSession() as session:
-            bucket = await self._get_bucket(session)
+        bucket = await self._get_bucket()
 
-            appdata = bucket["appdata"]
-            ext = mimetypes.guess_extension(content_type) or ""
-            url = f"{self.dial_url}/v1/files/{appdata}/{self.upload_dir}/{filename}{ext}"
+        appdata = bucket["appdata"]
+        ext = mimetypes.guess_extension(content_type) or ""
+        url = f"{self.dial_url}/v1/files/{appdata}/{self.upload_dir}/{filename}{ext}"
 
-            data = FileStorage._to_form_data(filename, content_type, content)
-
-            async with session.put(
-                url=url,
-                data=data,
-                headers=self.auth.headers,
-            ) as response:
-                response.raise_for_status()
-                meta = await response.json()
-                log.debug(f"Uploaded file: url={url}, metadata={meta}")
-                return meta
+        response = await get_http_client().put(
+            url=url,
+            files={"file": (filename, content, content_type)},
+            headers=self.auth.headers,
+        )
+        response.raise_for_status()
+        meta = response.json()
+        log.debug(f"Uploaded file: url={url}, metadata={meta}")
+        return meta
 
     async def upload_file_as_base64(
         self, data: str, content_type: str
@@ -118,8 +101,7 @@ class FileStorage(BaseModel):
         if link.startswith("public/"):
             bucket = "public"
         else:
-            async with aiohttp.ClientSession() as session:
-                bucket = await self._get_user_bucket(session)
+            bucket = await self._get_user_bucket()
 
         link = link.removeprefix(f"{bucket}/")
         decoded_link = unquote(link)
@@ -127,10 +109,9 @@ class FileStorage(BaseModel):
 
 
 async def download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            response.raise_for_status()
-            return await response.read()
+    response = await get_http_client().get(url, headers=headers)
+    response.raise_for_status()
+    return response.read()
 
 
 def _compute_hash_digest(file_content: str) -> str:
