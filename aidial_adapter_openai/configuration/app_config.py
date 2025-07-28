@@ -28,9 +28,21 @@ from aidial_adapter_openai.utils.parsers import (
 )
 
 
-class DeploymentAPIType(BaseModel):
+# TODO: investigate: the unit test `test_deployment_api_type`
+# fails when `DeploymentAPIType` inherits from `BaseModel`,
+# even if their signatures do not overlap.
+class DeploymentAPIType:
     deployment_type: D
     endpoint: AzureOpenAIEndpoint | OpenAIEndpoint
+
+    def __init__(
+        self,
+        *,
+        deployment_type: D,
+        endpoint: AzureOpenAIEndpoint | OpenAIEndpoint,
+    ) -> None:
+        self.deployment_type = deployment_type
+        self.endpoint = endpoint
 
 
 class ApplicationConfig(BaseModel):

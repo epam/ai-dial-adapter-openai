@@ -24,14 +24,14 @@ _MAX_RETRIES = 0
 
 
 class AzureOpenAIEndpoint(BaseModel):
-    base_url: str | None = None
+    azure_base_url: str | None = None
     azure_endpoint: str | None = None
     azure_deployment: str | None = None
     next_gen_api: bool = False
 
     def get_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
         return AsyncAzureOpenAI(
-            base_url=self.base_url,  # type: ignore
+            base_url=self.azure_base_url,  # type: ignore
             azure_endpoint=self.azure_endpoint,
             azure_deployment=self.azure_deployment,
             api_key=params.get("api_key"),
@@ -86,7 +86,7 @@ def _parse_endpoint(
         )
     if match := re.search(f"(.+?)/openai/v1/{name}", endpoint):
         return AzureOpenAIEndpoint(
-            base_url=f"{match[1]}/openai/v1",
+            azure_base_url=f"{match[1]}/openai/v1",
             next_gen_api=True,
         )
     if match := re.search(f"(.+?)/{name}", endpoint):
