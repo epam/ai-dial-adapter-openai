@@ -13,7 +13,7 @@ RESPONSE_CASES = [
     (
         "https://test.com/openai/v1/responses",
         AzureOpenAIEndpoint(
-            base_url="https://test.com/openai/v1",
+            azure_base_url="https://test.com/openai/v1",
             next_gen_api=True,
         ),
     ),
