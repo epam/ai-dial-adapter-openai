@@ -2,8 +2,7 @@ from typing import AsyncIterator, List, Tuple, cast
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncStream
-from openai.types.chat.chat_completion import ChatCompletion
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import (
@@ -88,8 +87,8 @@ async def gpt_chat_completion(
             eliminate_empty_choices=eliminate_empty_choices,
         )
     else:
-        rest = response.to_dict()
+        body = response.to_dict()
         if discarded_messages is not None:
-            rest |= {"statistics": {"discarded_messages": discarded_messages}}
-        debug_print("response", rest)
-        return rest
+            body |= {"statistics": {"discarded_messages": discarded_messages}}
+        debug_print("response", body)
+        return body

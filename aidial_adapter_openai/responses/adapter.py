@@ -72,6 +72,13 @@ def _validate_request(request: Dict[str, Any]) -> None:
         raise RequestValidationError(" ".join(errors))
 
 
+def _to_dict(x: BaseModel) -> dict:
+    ret = x.dict()
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"chat completion API response: {json.dumps(ret)}")
+    return ret
+
+
 async def chat_completion(
     request: Dict[str, Any],
     endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
@@ -121,12 +128,6 @@ async def chat_completion(
         max_output_tokens=request.get("max_tokens") or NOT_GIVEN,
         parallel_tool_calls=request.get("parallel_tool_calls") or NOT_GIVEN,
     )
-
-    def _to_dict(x: BaseModel):
-        ret = x.dict()
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"chat completion API response: {json.dumps(ret)}")
-        return ret
 
     if isinstance(response, AsyncStream):
         handler = EventHandler()

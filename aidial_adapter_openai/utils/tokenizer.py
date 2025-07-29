@@ -70,7 +70,7 @@ class BaseTokenizer(Generic[MessageType]):
         )
         return self.tokenize_text(text)
 
-    def _tokenize_response_message(self, message: Any) -> int:
+    def _tokenize_response_message(self, message: dict) -> int:
 
         tokens = 0
 
