@@ -73,29 +73,33 @@ class OpenAIEndpoint(BaseModel):
 
 
 def _parse_endpoint(
-    name, endpoint
+    name: str | None, endpoint: str
 ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
-    if match := re.search(f"(.+?)/openai/deployments/(.+?)/{name}", endpoint):
+    if name is not None:
+        suffix = f"/{name}"
+        if not endpoint.endswith(suffix):
+            return None
+        endpoint = endpoint.removesuffix(suffix)
+
+    if match := re.fullmatch("(.+?)/openai/deployments/(.+)", endpoint):
         return AzureOpenAIEndpoint(
             azure_endpoint=match[1],
             azure_deployment=match[2],
         )
-    if match := re.search(f"(.+?)/openai/{name}", endpoint):
+    if match := re.fullmatch("(.+?)/openai", endpoint):
         return AzureOpenAIEndpoint(
             azure_endpoint=match[1],
         )
-    if match := re.search(f"(.+?)/openai/v1/{name}", endpoint):
+    if match := re.fullmatch("(.+?)/openai/v1", endpoint):
         return AzureOpenAIEndpoint(
-            azure_base_url=f"{match[1]}/openai/v1",
+            azure_base_url=endpoint,
             next_gen_api=True,
         )
-    if match := re.search(f"(.+?)/{name}", endpoint):
-        return OpenAIEndpoint(base_url=match[1])
-    return None
+    return OpenAIEndpoint(base_url=endpoint)
 
 
 class EndpointParser(BaseModel):
-    name: str
+    name: str | None
 
     def try_parse(
         self, endpoint: str
@@ -122,6 +126,7 @@ chat_completions_parser = EndpointParser(name="chat/completions")
 image_gen_parser = EndpointParser(name="images/generations")
 embeddings_parser = EndpointParser(name="embeddings")
 responses_parser = EndpointParser(name="responses")
+no_endpoint_parser = EndpointParser(name=None)
 completions_parser = CompletionsParser()
 
 
