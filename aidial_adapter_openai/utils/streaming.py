@@ -114,7 +114,7 @@ async def generate_stream(
 
     last_chunk = None
     buffer_chunk = None
-    response_snapshot = ChatCompletionStreamingChunk()
+    response_snapshot = ChatCompletionStreamingChunk(response={})
 
     error: Exception | None = None
 
@@ -300,14 +300,6 @@ def create_server_response(
 
 T = TypeVar("T")
 V = TypeVar("V")
-
-
-async def prepend_to_stream(
-    value: T, iterator: AsyncIterator[T]
-) -> AsyncIterator[T]:
-    yield value
-    async for item in iterator:
-        yield item
 
 
 async def map_stream(

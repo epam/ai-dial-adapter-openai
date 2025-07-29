@@ -1,10 +1,8 @@
-import asyncio
 import logging
 import re
 from typing import Generator, List
 
 import pytest
-from openai import APIError
 
 from tests.integration_tests.base import TestCase, TestSuite, TestSuiteBuilder
 from tests.integration_tests.chat_completion_suites.text import (
@@ -59,29 +57,18 @@ async def test_chat_completion(
     client = create_openai_client(test_case.deployment_config)
 
     async def run_chat_completion() -> ChatCompletionResult:
-        for _ in range(3):
-            try:
-                return await chat_completion(
-                    client,
-                    test_case.deployment_config.model_name,
-                    test_case.messages,
-                    test_case.streaming,
-                    test_case.stop,
-                    test_case.max_tokens,
-                    test_case.n,
-                    test_case.functions,
-                    test_case.tools,
-                    test_case.temperature,
-                )
-            except APIError as e:
-                # Somehow, randomly through test, event loop is closing
-                if e.message == "Event loop is closed":
-                    await asyncio.sleep(5)
-                    logger.warning("Event loop is closed, retrying...")
-                    continue
-                else:
-                    raise e
-        raise Exception("Event loop retries has failed!")
+        return await chat_completion(
+            client,
+            test_case.deployment_config.model_name,
+            test_case.messages,
+            test_case.streaming,
+            test_case.stop,
+            test_case.max_tokens,
+            test_case.n,
+            test_case.functions,
+            test_case.tools,
+            test_case.temperature,
+        )
 
     if isinstance(test_case.expected, ExpectedException):
         with pytest.raises(Exception) as exc_info:

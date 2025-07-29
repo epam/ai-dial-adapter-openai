@@ -1,44 +1,35 @@
-from typing import (
-    Any,
-    AsyncIterator,
-    Dict,
-    List,
-    Mapping,
-    Optional,
-    Tuple,
-    TypeVar,
-    cast,
-)
+from typing import Any, List, Mapping, Optional, Tuple
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
-from fastapi.responses import Response
+from openai import AsyncStream
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     SUPPORTED_FILE_EXTS,
     ResourceProcessor,
 )
-from aidial_adapter_openai.utils.aiohttp import post
 from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.caching import (
-    get_prompt_tokens_from_response,
-    get_response_headers_for_caching,
-)
+from aidial_adapter_openai.utils.caching import get_response_headers_for_caching
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionBlock,
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.parsers import chat_completions_parser
-from aidial_adapter_openai.utils.sse_stream import parse_openai_sse_stream
+from aidial_adapter_openai.utils.parsers import (
+    AzureOpenAIEndpoint,
+    OpenAIEndpoint,
+)
+from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
+    chunk_to_dict,
     create_response_from_chunk,
     create_stage_chunk,
+    debug_print,
     generate_stream,
     map_stream,
-    prepend_to_stream,
 )
 from aidial_adapter_openai.utils.tokenizer import MultiModalTokenizer
 from aidial_adapter_openai.utils.truncate_prompt import (
@@ -61,59 +52,6 @@ Examples of queries:
 """.strip()
 
 
-async def transpose_stream(
-    stream: AsyncIterator[bytes | Response],
-) -> AsyncIterator[bytes] | Response:
-    first_chunk: Optional[bytes] = None
-    async for chunk in stream:
-        if isinstance(chunk, Response):
-            # Exhaust the stream
-            async for _ in stream:
-                pass
-            return chunk
-        else:
-            first_chunk = chunk
-            break
-
-    stream = cast(AsyncIterator[bytes], stream)
-    if first_chunk is not None:
-        stream = prepend_to_stream(first_chunk, stream)
-
-    return stream
-
-
-async def predict_stream(
-    url: str, headers: Dict[str, str], request: Any
-) -> AsyncIterator[bytes] | Response:
-    return await transpose_stream(predict_stream_raw(url, headers, request))
-
-
-async def predict_stream_raw(
-    url: str, headers: Dict[str, str], request: Any
-) -> AsyncIterator[bytes | Response]:
-    async with post(url, headers, request) as response:
-        if not response.ok:
-            yield Response(
-                status_code=response.status,
-                content=await response.content.read(),
-            )
-
-        async for line in response.content:
-            yield line
-
-
-async def predict_non_stream(
-    url: str, headers: Dict[str, str], request: Any
-) -> dict | Response:
-    async with post(url, headers, request) as response:
-        if not response.ok:
-            return Response(
-                status_code=response.status,
-                content=await response.content.read(),
-            )
-        return await response.json()
-
-
 def multi_modal_truncate_prompt(
     request: dict,
     messages: List[MultiModalMessage],
@@ -130,11 +68,28 @@ def multi_modal_truncate_prompt(
     )
 
 
+def _validate_request(request: Any) -> List[Any]:
+    errors: List[str] = []
+
+    if (n := request.get("n")) not in [None, 1]:
+        errors.append(
+            f"The deployment doesn't support request.n parameter other than 1, but got {n}."
+        )
+
+    if not (messages := request.get("messages")):
+        errors.append("The request doesn't contain any messages.")
+
+    if errors:
+        raise RequestValidationError(" ".join(errors))
+
+    return messages
+
+
 async def gpt4o_chat_completion(
     request: Any,
-    request_headers: Mapping[str, str],
     deployment: str,
-    upstream_endpoint: str,
+    request_headers: Mapping[str, str],
+    endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
     creds: OpenAICreds,
     is_stream: bool,
     file_storage: Optional[FileStorage],
@@ -142,14 +97,7 @@ async def gpt4o_chat_completion(
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
 ):
-    if request.get("n", 1) > 1:
-        raise RequestValidationError("The deployment doesn't support n > 1")
-
-    messages: List[Any] = request["messages"]
-    if len(messages) == 0:
-        raise RequestValidationError("The request doesn't contain any messages")
-
-    api_url = f"{upstream_endpoint}?api-version={api_version}"
+    messages = _validate_request(request)
 
     transform_result = await ResourceProcessor(
         file_storage=file_storage
@@ -183,71 +131,48 @@ async def gpt4o_chat_completion(
             f"prompt tokens without truncation: {estimated_prompt_tokens}"
         )
 
-    request = {
-        **request,
-        "messages": [m.raw_message for m in multi_modal_messages],
-    }
+    request["messages"] = [m.raw_message for m in multi_modal_messages]
 
-    openai_endpoint = chat_completions_parser.parse(upstream_endpoint)
-    headers = openai_endpoint.get_auth_headers(creds)
+    client = endpoint.get_client({**creds, "api_version": api_version})
 
-    if is_stream:
-        response = await predict_stream(api_url, headers, request)
-        if isinstance(response, Response):
-            return response
+    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
+        await call_with_extra_body(client.chat.completions.create, request)
+    )
 
-        T = TypeVar("T")
-
-        def debug_print(chunk: T) -> T:
-            logger.debug(f"chunk: {chunk}")
-            return chunk
-
+    if isinstance(response, AsyncStream):
         headers = get_response_headers_for_caching(
             request_headers=request_headers,
             request_body=request,
             get_request_tokens=lambda: estimated_prompt_tokens,
         )
 
-        body = map_stream(
-            debug_print,
-            generate_stream(
-                stream=parse_openai_sse_stream(response),
-                get_prompt_tokens=lambda: estimated_prompt_tokens,
-                tokenize_response=tokenizer.tokenize_response,
-                deployment=deployment,
-                discarded_messages=discarded_messages,
-                eliminate_empty_choices=eliminate_empty_choices,
-            ),
+        body = generate_stream(
+            stream=map_stream(chunk_to_dict, response),
+            get_prompt_tokens=lambda: estimated_prompt_tokens,
+            tokenize_response=tokenizer.tokenize_response,
+            deployment=deployment,
+            discarded_messages=discarded_messages,
+            eliminate_empty_choices=eliminate_empty_choices,
         )
 
         return ResponseWithHeaders(headers=headers, body=body)
     else:
-        response = await predict_non_stream(api_url, headers, request)
-        if isinstance(response, Response):
-            return response
-
-        if response is None:
-            raise DialException(
-                status_code=500,
-                message="The origin returned invalid response",
-                type="invalid_response_error",
-            )
-
+        body = response.to_dict()
         if discarded_messages:
-            response |= {
-                "statistics": {"discarded_messages": discarded_messages}
-            }
+            body |= {"statistics": {"discarded_messages": discarded_messages}}
+        debug_print("response", body)
 
-        if usage := response.get("usage"):
-            actual_prompt_tokens = usage["prompt_tokens"]
+        actual_prompt_tokens: int | None = None
+        if usage := response.usage:
+            actual_prompt_tokens = usage.prompt_tokens
             if actual_prompt_tokens != estimated_prompt_tokens:
                 logger.warning(
                     f"Estimated prompt tokens ({estimated_prompt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
                 )
 
-            actual_completion_tokens = usage["completion_tokens"]
+            actual_completion_tokens = usage.completion_tokens
             estimated_completion_tokens = tokenizer.tokenize_response(
-                ChatCompletionBlock(resp=response)
+                ChatCompletionBlock(response=body)
             )
             if actual_completion_tokens != estimated_completion_tokens:
                 logger.warning(
@@ -257,8 +182,8 @@ async def gpt4o_chat_completion(
         headers = get_response_headers_for_caching(
             request_headers=request_headers,
             request_body=request,
-            get_request_tokens=lambda: get_prompt_tokens_from_response(response)
+            get_request_tokens=lambda: actual_prompt_tokens
             or estimated_prompt_tokens,
         )
 
-        return ResponseWithHeaders(headers=headers, body=response)
+        return ResponseWithHeaders(headers=headers, body=body)

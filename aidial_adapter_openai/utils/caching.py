@@ -30,21 +30,6 @@ def _get_last_message_idx(request_body: Any) -> int | None:
     return len(messages) - 1
 
 
-def get_prompt_tokens_from_response(response_body: Any | None) -> int | None:
-    if not isinstance(response_body, dict):
-        return None
-
-    usage = response_body.get("usage") or {}
-    if not isinstance(usage, dict):
-        return None
-
-    prompt_tokens = usage.get("prompt_tokens")
-    if not isinstance(prompt_tokens, int):
-        return None
-
-    return prompt_tokens
-
-
 def get_response_headers_for_caching(
     *,
     request_headers: Mapping[str, str],

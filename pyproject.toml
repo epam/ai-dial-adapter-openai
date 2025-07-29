@@ -33,12 +33,13 @@ uvicorn = "0.23.0"
 wrapt = "1.15.0"
 pydantic = "1.10.17"
 httpx = "0.27.0"
-aiohttp = "3.12.14"
 # required by openai embeddings; avoiding openai[datalib],
 # since it also depends on pandas
 numpy = "1.26.0"
 pillow = "10.3.0"
 azure-identity = "1.16.1"
+# The default async transport in `azure-identity` is `aiohttp`
+aiohttp = "3.12.14"
 aidial-sdk = { version = "0.22.1", extras = ["telemetry"] }
 
 [tool.poetry.group.test.dependencies]
@@ -46,7 +47,6 @@ pytest = "7.4.0"
 pytest-asyncio = "0.21.1"
 pytest-xdist = "^3.5.0"
 respx = "^0.21.1"
-aioresponses = "^0.7.8"
 pytest-timeout = "^2.4.0"
 pytest-sugar = "^1.0.0"
 
@@ -67,6 +67,8 @@ addopts = "-n=auto --asyncio-mode=auto --timeout=60"
 testpaths = ["tests"]
 filterwarnings = [
   "error",
+  # thrown because of `get_http_client` isn't properly disposed between tests
+  "ignore::pytest.PytestUnraisableExceptionWarning",
   # muting warnings coming from opentelemetry and pkg_resources packages
   "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies",
   "ignore::DeprecationWarning:pkg_resources",
