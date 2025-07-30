@@ -3,8 +3,6 @@ from __future__ import annotations
 import os
 from typing import Dict, List, assert_never
 
-from pydantic import BaseModel
-
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
@@ -27,26 +25,15 @@ from aidial_adapter_openai.utils.parsers import (
     no_endpoint_parser,
     responses_parser,
 )
+from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 
-# TODO: investigate: the unit test `test_deployment_api_type`
-# fails when `DeploymentAPIType` inherits from `BaseModel`,
-# even if their signatures do not overlap.
-class DeploymentAPIType:
+class DeploymentAPIType(ExtraForbidModel):
     deployment_type: D
     endpoint: AzureOpenAIEndpoint | OpenAIEndpoint
 
-    def __init__(
-        self,
-        *,
-        deployment_type: D,
-        endpoint: AzureOpenAIEndpoint | OpenAIEndpoint,
-    ) -> None:
-        self.deployment_type = deployment_type
-        self.endpoint = endpoint
 
-
-class ApplicationConfig(BaseModel):
+class ApplicationConfig(ExtraForbidModel):
     TIKTOKEN_MODEL_MAPPING: Dict[str, str] = {}
 
     DALLE3_DEPLOYMENTS: List[str] = []
