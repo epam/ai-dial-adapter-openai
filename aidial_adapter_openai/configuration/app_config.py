@@ -22,6 +22,7 @@ from aidial_adapter_openai.utils.parsers import (
     chat_completions_parser,
     completions_parser,
     image_gen_parser,
+    no_endpoint_parser,
     responses_parser,
 )
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
@@ -70,7 +71,7 @@ class ApplicationConfig(ExtraForbidModel):
         if deployment_id in self.MISTRAL_DEPLOYMENTS:
             return DeploymentAPIType(
                 deployment_type=D.MISTRAL,
-                endpoint=chat_completions_parser.parse(upstream_endpoint),
+                endpoint=no_endpoint_parser.parse(upstream_endpoint),
             )
 
         if deployment_id in self.DATABRICKS_DEPLOYMENTS:
