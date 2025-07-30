@@ -6,6 +6,7 @@ from aidial_adapter_openai.utils.parsers import (
     OpenAIEndpoint,
     chat_completions_parser,
     completions_parser,
+    no_endpoint_parser,
     responses_parser,
 )
 
@@ -26,6 +27,39 @@ RESPONSE_CASES = [
         ),
     ),
 ]
+
+NO_ENDPOINT_CASES = [
+    (
+        "https://test.com/openai/deployments/test-deployment",
+        AzureOpenAIEndpoint(
+            azure_endpoint="https://test.com",
+            azure_deployment="test-deployment",
+        ),
+    ),
+    (
+        "https://test.com/my/models/openai/deployments/test-deployment",
+        AzureOpenAIEndpoint(
+            azure_endpoint="https://test.com/my/models",
+            azure_deployment="test-deployment",
+        ),
+    ),
+    (
+        "https://test.com/openai/deployments/test-deployment-chat",
+        AzureOpenAIEndpoint(
+            azure_endpoint="https://test.com",
+            azure_deployment="test-deployment-chat",
+        ),
+    ),
+    (
+        "https://test.com/openai/deployments",
+        OpenAIEndpoint(base_url="https://test.com/openai/deployments"),
+    ),
+    (
+        "https://test.com/my/endpoint",
+        OpenAIEndpoint(base_url="https://test.com/my/endpoint"),
+    ),
+]
+
 
 NORMAL_CHAT_CASES = [
     (
@@ -134,4 +168,10 @@ def test_completions_parser_invalid(endpoint, parsed):
 @pytest.mark.parametrize("endpoint, parsed", RESPONSE_CASES)
 def test_responses_parser(endpoint, parsed):
     result = responses_parser.try_parse(endpoint)
+    assert result == parsed
+
+
+@pytest.mark.parametrize("endpoint, parsed", NO_ENDPOINT_CASES)
+def test_no_endpoint_parser(endpoint, parsed):
+    result = no_endpoint_parser.try_parse(endpoint)
     assert result == parsed
