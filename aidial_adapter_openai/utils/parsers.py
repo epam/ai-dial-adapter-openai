@@ -5,10 +5,10 @@ from typing import Any, Dict, TypedDict
 from aidial_sdk.exceptions import InvalidRequestError
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
-from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 
 class OpenAIParams(TypedDict, total=False):
@@ -23,7 +23,7 @@ class OpenAIParams(TypedDict, total=False):
 _MAX_RETRIES = 0
 
 
-class AzureOpenAIEndpoint(BaseModel):
+class AzureOpenAIEndpoint(ExtraForbidModel):
     azure_base_url: str | None = None
     azure_endpoint: str | None = None
     azure_deployment: str | None = None
@@ -54,7 +54,7 @@ class AzureOpenAIEndpoint(BaseModel):
         raise ValueError("Invalid credentials")
 
 
-class OpenAIEndpoint(BaseModel):
+class OpenAIEndpoint(ExtraForbidModel):
     base_url: str
 
     def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
@@ -94,7 +94,7 @@ def _parse_endpoint(
     return None
 
 
-class EndpointParser(BaseModel):
+class EndpointParser(ExtraForbidModel):
     name: str
 
     def try_parse(
@@ -108,7 +108,7 @@ class EndpointParser(BaseModel):
         raise InvalidRequestError("Invalid upstream endpoint format")
 
 
-class CompletionsParser(BaseModel):
+class CompletionsParser(ExtraForbidModel):
     def try_parse(
         self, endpoint: str
     ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
