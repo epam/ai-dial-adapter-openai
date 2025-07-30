@@ -56,7 +56,9 @@ def create_test_cases() -> Generator[TestCase, None, None]:
 
 
 @pytest.mark.parametrize(
-    "test_case", create_test_cases(), ids=lambda test: test.get_id()
+    "test_case",
+    create_test_cases(),
+    ids=lambda tc: tc.get_id() if isinstance(tc, TestCase) else "na",
 )
 async def test_embeddings(create_openai_client, test_case: TestCase):
     model_id = test_case.deployment_config.model_name
