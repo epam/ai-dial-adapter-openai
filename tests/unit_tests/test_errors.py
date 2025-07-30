@@ -5,7 +5,6 @@ from unittest.mock import patch
 import httpx
 import pytest
 import respx
-from aioresponses import aioresponses
 from respx.types import SideEffectTypes
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
@@ -778,6 +777,7 @@ async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
     assert response.json() == expected_response
 
 
+@respx.mock
 @pytest.mark.parametrize("stream", [False, True])
 async def test_error_from_gpt_multi_modal(stream: bool):
     app_config = (
@@ -788,31 +788,27 @@ async def test_error_from_gpt_multi_modal(stream: bool):
 
     upstream_url = "http://test-upstream/openai/deployments/upstream-deployment/chat/completions"
 
-    with aioresponses() as aio_mock:
-        aio_mock.add(
-            method="POST",
-            url=f"{upstream_url}?api-version=2023-03-15-preview",
-            body="Something went wrong",
-            status=500,
-            headers={"Content-Type": "text/plain"},
+    respx.post(f"{upstream_url}?api-version=2023-03-15-preview").respond(
+        status_code=500,
+        content="Something went wrong",
+        content_type="text/plain",
+    )
+
+    async with create_test_client(app_config=app_config) as http_client:
+        response = await http_client.post(
+            "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": stream,
+            },
+            headers={
+                "X-UPSTREAM-KEY": "dummy-upstream-api-key",
+                "X-UPSTREAM-ENDPOINT": upstream_url,
+            },
         )
 
-        async with create_test_client(app_config=app_config) as http_client:
-
-            response = await http_client.post(
-                "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
-                json={
-                    "messages": [{"role": "user", "content": "test"}],
-                    "stream": stream,
-                },
-                headers={
-                    "X-UPSTREAM-KEY": "dummy-upstream-api-key",
-                    "X-UPSTREAM-ENDPOINT": upstream_url,
-                },
-            )
-
-            assert response.status_code == 500
-            assert response.content == b"Something went wrong"
+        assert response.status_code == 500
+        assert response.content == b"Something went wrong"
 
 
 async def test_missing_tiktoken_model(test_app: httpx.AsyncClient):

@@ -36,7 +36,7 @@ def build_text_common(s: ChatTestSuite) -> None:
     if s.deployment_type == ChatCompletionDeploymentType.GPT_TEXT_ONLY:
         expected_exc = ExpectedException(
             type=BadRequestError,
-            message="should be non-empty",
+            message="Expected an array with minimum length 1, but got an empty array instead",
             status_code=400,
         )
     elif s.deployment_type == ChatCompletionDeploymentType.MISTRAL:
@@ -82,6 +82,7 @@ def build_text_common(s: ChatTestSuite) -> None:
         max_tokens=16,
         messages=[user("tell me the full story of Pinocchio")],
         expected=lambda s: len(s.content.split()) <= 16
+        and len(s.response.id) <= 100
         and s.response.choices[0].finish_reason == "length"
         and s.usage is not None
         and s.usage.completion_tokens == 16,

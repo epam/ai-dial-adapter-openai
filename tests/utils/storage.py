@@ -16,7 +16,7 @@ class MockFileStorage(FileStorage):
         )
 
     @override
-    async def _get_bucket(self, session) -> Bucket:
+    async def _get_bucket(self) -> Bucket:
         return {
             "bucket": "APP_BUCKET",
             "appdata": "USER_BUCKET/appdata/test-application",
