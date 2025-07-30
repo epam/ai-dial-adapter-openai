@@ -96,9 +96,6 @@ def build_stop_sequence(s: ChatTestSuite) -> None:
             message="The deployment doesn't support stop request parameter.",
             status_code=422,
         )
-    elif s.deployment_type == ChatCompletionDeploymentType.MISTRAL:
-        # Mistral ignores stop sequences
-        expected = lambda s: "john" in s.content.lower()  # noqa: E731
     else:
         expected = lambda s: "john" not in s.content.lower()  # noqa: E731
 

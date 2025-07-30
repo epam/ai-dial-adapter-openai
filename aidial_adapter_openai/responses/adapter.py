@@ -86,7 +86,7 @@ async def chat_completion(
     is_stream: bool,
     file_storage: FileStorage | None,
     api_version: str,
-    deployment: str,
+    model_name: str,
 ) -> AsyncIterator[dict] | dict | FastAPIResponse:
     _validate_request(request)
 
@@ -118,7 +118,7 @@ async def chat_completion(
         res_tool_choice = convert_tool_choice(tool_choice)
 
     response = await client.responses.create(
-        model=deployment,
+        model=model_name,
         stream=is_stream,
         input=input_messages,
         tools=res_tools,

@@ -55,10 +55,7 @@ def create_test_cases(
     ),
     ids=lambda tc: tc.get_id() if isinstance(tc, ChatTestCase) else "na",
 )
-async def test_chat_completion(
-    test_case: ChatTestCase,
-    create_openai_client,
-):
+async def test_chat_completion(test_case: ChatTestCase, create_openai_client):
     client: openai.AsyncAzureOpenAI = create_openai_client(
         test_case.deployment_config
     )
