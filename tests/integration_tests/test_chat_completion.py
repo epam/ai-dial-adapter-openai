@@ -5,22 +5,18 @@ from typing import Generator, List
 import openai
 import pytest
 
-from tests.integration_tests.base import (
-    ChatTestCase,
-    ChatTestSuite,
-    ChatTestSuiteBuilder,
+from tests.integration_tests.chat_completion.test_case import (
+    TestCase,
+    TestSuite,
+    TestSuiteBuilder,
 )
-from tests.integration_tests.chat_completion_suites.text import (
+from tests.integration_tests.chat_completion.text import (
     build_multi_system,
     build_stop_sequence,
     build_text_common,
 )
-from tests.integration_tests.chat_completion_suites.tools import (
-    build_tools_common,
-)
-from tests.integration_tests.chat_completion_suites.vision import (
-    build_vision_common,
-)
+from tests.integration_tests.chat_completion.tools import build_tools_common
+from tests.integration_tests.chat_completion.vision import build_vision_common
 from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
 from tests.utils.openai import (
     ChatCompletionResult,
@@ -32,11 +28,11 @@ logger = logging.getLogger(__name__)
 
 
 def create_test_cases(
-    builders: List[ChatTestSuiteBuilder],
-) -> Generator[ChatTestCase, None, None]:
+    builders: List[TestSuiteBuilder],
+) -> Generator[TestCase, None, None]:
     for streaming in (False, True):
         for deployment in TEST_DEPLOYMENTS_CONFIG.chat_deployments:
-            suite = ChatTestSuite(deployment, streaming)
+            suite = TestSuite(deployment, streaming)
             for builder in builders:
                 builder(suite)
             yield from suite
@@ -53,9 +49,9 @@ def create_test_cases(
             build_vision_common,
         ]
     ),
-    ids=lambda tc: tc.get_id() if isinstance(tc, ChatTestCase) else "na",
+    ids=lambda tc: tc.get_id() if isinstance(tc, TestCase) else "na",
 )
-async def test_chat_completion(test_case: ChatTestCase, create_openai_client):
+async def test_chat_completion(test_case: TestCase, create_openai_client):
     client: openai.AsyncAzureOpenAI = create_openai_client(
         test_case.deployment_config
     )

@@ -2,26 +2,18 @@ from __future__ import annotations
 
 import functools
 import json
-from dataclasses import dataclass, field
 from typing import (
     Any,
     Callable,
     Dict,
     Generator,
     Generic,
-    Iterator,
     List,
     Literal,
     TypeVar,
     assert_never,
 )
 
-from openai import NOT_GIVEN, NotGiven
-from openai.types.chat import (
-    ChatCompletionMessageParam,
-    ChatCompletionToolParam,
-)
-from openai.types.chat.completion_create_params import Function
 from pydantic import BaseModel
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
@@ -29,7 +21,6 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
-from tests.utils.openai import ChatCompletionResult, ExpectedException
 
 
 class UpstreamConfig(ExtraAllowedModel):
@@ -175,127 +166,3 @@ def sanitize_id_part(value: Any) -> str:
     value_str = str(value)
     sanitized = "".join(c if c.isalnum() else "_" for c in value_str)
     return sanitized.strip("_")
-
-
-@dataclass
-class ChatTestCase:
-    __test__ = False
-
-    deployment_config: DeploymentConfig[ChatCompletionDeploymentType]
-
-    name: str
-    streaming: bool
-
-    messages: List[ChatCompletionMessageParam]
-
-    expected: Callable[[ChatCompletionResult], bool] | ExpectedException
-
-    max_tokens: int | NotGiven
-    stop: List[str] | NotGiven
-
-    n: int | NotGiven
-
-    functions: List[Function] | NotGiven
-    tools: List[ChatCompletionToolParam] | NotGiven
-    temperature: float | NotGiven
-
-    def get_id(self):
-        upstream_idx = self.deployment_config.upstream_idx
-        parts = [
-            sanitize_id_part(self.name),
-            sanitize_id_part(self.deployment_config.type_.value),
-            sanitize_id_part(self.deployment_config.id_),
-            *([] if upstream_idx is None else [f"upstream:{upstream_idx}"]),
-            f"stream:{sanitize_id_part(self.streaming)}",
-        ]
-
-        return "/".join(parts)
-
-
-ChatTestSuiteBuilder = Callable[["ChatTestSuite"], None]
-
-
-@dataclass
-class ChatTestSuite:
-    __test__ = False
-
-    deployment_config: DeploymentConfig[ChatCompletionDeploymentType]
-    streaming: bool
-    test_cases: List[ChatTestCase] = field(default_factory=list)
-
-    def test_case(
-        self,
-        name: str,
-        messages: List[ChatCompletionMessageParam],
-        expected: (
-            Callable[[ChatCompletionResult], bool] | ExpectedException
-        ) = lambda *args, **kwargs: True,
-        **kwargs,
-    ) -> ChatTestSuite:
-        self.test_cases.append(
-            ChatTestCase(
-                deployment_config=self.deployment_config,
-                name=name,
-                streaming=self.streaming,
-                messages=messages,
-                expected=expected,
-                max_tokens=kwargs.get("max_tokens") or NOT_GIVEN,
-                stop=kwargs.get("stop") or NOT_GIVEN,
-                n=kwargs.get("n") or NOT_GIVEN,
-                functions=kwargs.get("functions") or NOT_GIVEN,
-                tools=kwargs.get("tools") or NOT_GIVEN,
-                temperature=kwargs.get("temperature") or NOT_GIVEN,
-            )
-        )
-        return self
-
-    def __iter__(self) -> Iterator[ChatTestCase]:
-        return iter(self.test_cases)
-
-    def __len__(self):
-        return len(self.test_cases)
-
-    @property
-    def deployment_type(self) -> ChatCompletionDeploymentType:
-        return self.deployment_config.type_
-
-    @classmethod
-    def create(
-        cls,
-        deployment_config: DeploymentConfig[ChatCompletionDeploymentType],
-        streaming: bool,
-        case_builder: ChatTestSuiteBuilder,
-    ) -> "ChatTestSuite":
-        suite = cls(deployment_config, streaming)
-        case_builder(suite)
-        return suite
-
-
-def exclude_chat_deployments(
-    deployment_types: List[ChatCompletionDeploymentType],
-):
-    def wrapper(func: ChatTestSuiteBuilder):
-        @functools.wraps(func)
-        def wrapped(s: ChatTestSuite):
-            if s.deployment_type in deployment_types:
-                return
-            return func(s)
-
-        return wrapped
-
-    return wrapper
-
-
-def include_chat_deployments(
-    deployment_types: List[ChatCompletionDeploymentType],
-):
-    def wrapper(func: ChatTestSuiteBuilder):
-        @functools.wraps(func)
-        def wrapped(s: ChatTestSuite):
-            if s.deployment_type not in deployment_types:
-                return
-            return func(s)
-
-        return wrapped
-
-    return wrapper

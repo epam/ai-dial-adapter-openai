@@ -1,19 +1,22 @@
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
-from tests.integration_tests.base import ChatTestSuite, include_chat_deployments
+from tests.integration_tests.chat_completion.test_case import (
+    TestSuite,
+    include_deployments,
+)
 from tests.integration_tests.constants import SAMPLE_DOG_RESOURCE
 from tests.utils.openai import user_with_attachment_url, user_with_image_url
 
 
-@include_chat_deployments(
+@include_deployments(
     [
         ChatCompletionDeploymentType.GPT4O,
         ChatCompletionDeploymentType.GPT4O_MINI,
         ChatCompletionDeploymentType.RESPONSES_API,
     ]
 )
-def build_vision_common(s: ChatTestSuite) -> None:
+def build_vision_common(s: TestSuite) -> None:
     s.test_case(
         name="image_in_content_parts",
         messages=[

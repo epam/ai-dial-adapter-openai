@@ -50,7 +50,6 @@ def create_test_cases() -> Generator[TestCase, None, None]:
             name="single text input",
             input="cat",
             deployment_config=deployment,
-            extra_body={},
             expected=check_response,
         )
 
