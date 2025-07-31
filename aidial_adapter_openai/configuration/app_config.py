@@ -56,18 +56,6 @@ class ApplicationConfig(ExtraForbidModel):
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
     ) -> DeploymentAPIType:
-        if endpoint := completions_parser.try_parse(upstream_endpoint):
-            return DeploymentAPIType(
-                deployment_type=D.COMPLETIONS_API,
-                endpoint=endpoint,
-            )
-
-        if endpoint := responses_parser.try_parse(upstream_endpoint):
-            return DeploymentAPIType(
-                deployment_type=D.RESPONSES_API,
-                endpoint=endpoint,
-            )
-
         if deployment_id in self.GPT_IMAGE_1_DEPLOYMENTS:
             return DeploymentAPIType(
                 deployment_type=D.GPT_IMAGE_1,
@@ -102,6 +90,18 @@ class ApplicationConfig(ExtraForbidModel):
             return DeploymentAPIType(
                 deployment_type=D.GPT4O_MINI,
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
+            )
+
+        if endpoint := completions_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.COMPLETIONS_API,
+                endpoint=endpoint,
+            )
+
+        if endpoint := responses_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.RESPONSES_API,
+                endpoint=endpoint,
             )
 
         return DeploymentAPIType(
