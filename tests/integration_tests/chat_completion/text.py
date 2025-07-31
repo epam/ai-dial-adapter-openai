@@ -3,7 +3,7 @@ from openai import BadRequestError, UnprocessableEntityError
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
-from tests.integration_tests.base import TestSuite
+from tests.integration_tests.chat_completion.test_case import TestSuite
 from tests.utils.openai import ExpectedException, ai, sys, user
 
 
@@ -96,9 +96,6 @@ def build_stop_sequence(s: TestSuite) -> None:
             message="The deployment doesn't support stop request parameter.",
             status_code=422,
         )
-    elif s.deployment_type == ChatCompletionDeploymentType.MISTRAL:
-        # Mistral ignores stop sequences
-        expected = lambda s: "john" in s.content.lower()  # noqa: E731
     else:
         expected = lambda s: "john" not in s.content.lower()  # noqa: E731
 

@@ -1,50 +1,74 @@
 {
     "models": {
         "gpt-4o-2024-05-13": {
+            "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-endpoint.openai.azure.com/openai/deployments/gpt-4o-2024-05-13/chat/completions",
+                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/gpt-4o-2024-05-13/chat/completions",
                     "key": "your-api-key"
                 }
             ]
         },
         "gpt-4o-mini-2024-07-18": {
+            "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-endpoint.openai.azure.com/openai/deployments/gpt-4o-mini-2024-07-18/chat/completions",
+                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/gpt-4o-mini-2024-07-18/chat/completions",
                     "key": "your-api-key"
                 }
             ]
         },
         "gpt-4-vision-preview": {
+            "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-endpoint.openai.azure.com/openai/deployments/gpt-4-vision-preview/chat/completions",
+                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/gpt-4-vision-preview/chat/completions",
                     "key": "your-api-key"
                 }
             ]
         },
         "databricks-endpoint": {
+            "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-databricks-endpoint.cloud.databricks.com/serving-endpoints/chat/completions",
+                    "endpoint": "https://your-databricks-service-name.cloud.databricks.com/serving-endpoints/chat/completions",
                     "key": "your-databricks-api-key"
                 }
             ]
         },
         "mistral-endpoint": {
+            "type": "chat",
             "overrideName": "mistral-model-name",
             "upstreams": [
                 {
-                    "endpoint": "https://your-databricks-endpoint.cloud.databricks.com/serving-endpoints/chat/completions",
+                    "endpoint": "https://your-databricks-service-name.cloud.databricks.com/serving-endpoints/chat/completions",
                     "key": "your-databricks-api-key"
                 }
             ]
         },
         "gpt-4-0613": {
+            "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-endpoint.openai.azure.com/openai/deployments/gpt-4-0613/chat/completions",
+                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/gpt-4-0613/chat/completions",
+                    "key": "your-api-key"
+                }
+            ]
+        },
+        "text-embedding-3-large": {
+            "type": "embedding",
+            "upstreams": [
+                {
+                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings",
+                    "key": "your-api-key"
+                }
+            ]
+        },
+        "azure-ai-vision-embeddings": {
+            "type": "embedding",
+            "upstreams": [
+                {
+                    "endpoint": "https://your-azure-service-name.cognitiveservices.azure.com",
                     "key": "your-api-key"
                 }
             ]
