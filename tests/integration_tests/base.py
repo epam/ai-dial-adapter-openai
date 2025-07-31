@@ -146,7 +146,7 @@ class TestDeployments(BaseModel):
                 yield deployment  # type: ignore
 
     @property
-    def embedding_deployment(
+    def embedding_deployments(
         self,
     ) -> Generator[DeploymentConfig[EmbeddingsDeploymentType], None, None]:
         for deployment in self.deployments:
