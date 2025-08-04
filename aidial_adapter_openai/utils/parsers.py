@@ -48,12 +48,7 @@ class OpenAIEndpoint(ExtraForbidModel):
     base_url: str
 
     def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
-        extra_headers = {}
-        if token := params.get("azure_ad_token"):
-            extra_headers["Authorization"] = f"Bearer {token}"
-            api_key = "dummy-api-key"
-        else:
-            api_key = params.get("api_key")
+        api_key = params.get("api_key") or params.get("azure_ad_token")
 
         return AsyncOpenAI(
             base_url=self.base_url,
@@ -61,7 +56,6 @@ class OpenAIEndpoint(ExtraForbidModel):
             timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
-            default_headers=extra_headers,
         )
 
 
