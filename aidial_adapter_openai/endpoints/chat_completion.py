@@ -7,9 +7,6 @@ from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
-from aidial_adapter_openai.databricks import (
-    chat_completion as databricks_chat_completion,
-)
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.gpt import gpt_chat_completion
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
@@ -19,8 +16,8 @@ from aidial_adapter_openai.image_generation.generation import (
     chat_completion as image_generation,
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
-from aidial_adapter_openai.mistral import (
-    chat_completion as mistral_chat_completion,
+from aidial_adapter_openai.non_gpt import (
+    chat_completion as non_gpt_chat_completion,
 )
 from aidial_adapter_openai.responses.adapter import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
@@ -115,10 +112,11 @@ async def call_chat_completion(
                 model.get_azure_api_version(app_config),
             )
 
-        case ChatCompletionDeploymentType.MISTRAL:
-            return await mistral_chat_completion(data, endpoint, creds)
-        case ChatCompletionDeploymentType.DATABRICKS:
-            return await databricks_chat_completion(data, endpoint, creds)
+        case (
+            ChatCompletionDeploymentType.MISTRAL
+            | ChatCompletionDeploymentType.DATABRICKS
+        ):
+            return await non_gpt_chat_completion(data, endpoint, creds)
 
         case (
             ChatCompletionDeploymentType.GPT4O
