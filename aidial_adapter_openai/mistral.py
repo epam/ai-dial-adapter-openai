@@ -1,23 +1,25 @@
-from typing import Any
+from typing import Any, cast
 
-from openai import AsyncOpenAI, AsyncStream
+from openai import AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.parsers import (
+    AzureOpenAIEndpoint,
+    OpenAIEndpoint,
+    OpenAIParams,
+)
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import chunk_to_dict, map_stream
 
 
 async def chat_completion(
-    data: Any, upstream_endpoint: str, creds: OpenAICreds
+    data: Any,
+    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint,
+    creds: OpenAICreds,
 ):
-    client = AsyncOpenAI(
-        base_url=upstream_endpoint,
-        api_key=creds.get("api_key"),
-        http_client=get_http_client(),
-    )
+    client = endpoint.get_client(cast(OpenAIParams, creds))
 
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
         await call_with_extra_body(client.chat.completions.create, data)
