@@ -1,15 +1,10 @@
 from typing import Any, Dict
 
 from aidial_sdk.exceptions import RequestValidationError
-from openai import AsyncStream
+from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types import Completion
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    OpenAIEndpoint,
-)
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     build_chunk,
@@ -42,17 +37,12 @@ def convert_to_chat_completions_response(
 
 async def chat_completion(
     data: Dict[str, Any],
-    endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
-    creds: OpenAICreds,
-    api_version: str,
+    client: AsyncAzureOpenAI | AsyncOpenAI,
     deployment_id: str,
     app_config: ApplicationConfig,
 ):
-
     if data.get("n") or 1 > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
-
-    client = endpoint.get_client({**creds, "api_version": api_version})
 
     messages = data.get("messages") or []
     if not messages:

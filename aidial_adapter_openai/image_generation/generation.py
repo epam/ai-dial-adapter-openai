@@ -1,6 +1,7 @@
 from typing import Any, AsyncIterator, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.image import Image
 from pydantic import BaseModel
 
@@ -8,11 +9,6 @@ from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.image_generation.prompt import ImageGenPrompt
-from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    OpenAIEndpoint,
-)
 from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
 
 IMG_USAGE = {
@@ -83,16 +79,12 @@ async def chat_completion(
     model: ImageGenerationModel[_Config],
     data: Any,
     deployment: str,
-    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint,
-    creds: OpenAICreds,
+    client: AsyncAzureOpenAI | AsyncOpenAI,
     is_stream: bool,
     file_storage: FileStorage | None,
-    api_version: str,
 ):
     if data.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
-
-    client = endpoint.get_client({**creds, "api_version": api_version})
 
     prompt = await ImageGenPrompt.from_request(data, file_storage)
 

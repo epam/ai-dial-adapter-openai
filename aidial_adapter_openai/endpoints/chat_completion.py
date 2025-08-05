@@ -1,6 +1,7 @@
 from typing import assert_never
 
 from fastapi import Request
+from openai import AsyncAzureOpenAI
 
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
@@ -52,9 +53,6 @@ async def call_chat_completion(
     # The same goes for /embeddings endpoint.
     model_name = data["model"] = data.get("model") or deployment_id
 
-    creds = await get_credentials(request)
-    api_version = get_api_version(request)
-
     upstream_endpoint = request.headers.get("X-UPSTREAM-ENDPOINT")
     if upstream_endpoint is None:
         raise ValueError(
@@ -70,6 +68,10 @@ async def call_chat_completion(
     )
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
+    creds = await get_credentials(request)
+    api_version = get_api_version(request)
+    client = endpoint.get_client({**creds, "api_version": api_version})
+
     tiktoken_model = (
         app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id) or deployment_id
     )
@@ -78,9 +80,7 @@ async def call_chat_completion(
         case ChatCompletionDeploymentType.COMPLETIONS_API:
             return await completion(
                 data,
-                endpoint,
-                creds,
-                api_version,
+                client,
                 deployment_id,
                 app_config,
             )
@@ -88,11 +88,9 @@ async def call_chat_completion(
         case ChatCompletionDeploymentType.RESPONSES_API:
             return await responses(
                 data,
-                endpoint,
-                creds,
+                client,
                 is_stream,
                 storage,
-                api_version,
                 model_name,
             )
 
@@ -101,22 +99,25 @@ async def call_chat_completion(
             | ChatCompletionDeploymentType.GPT_IMAGE_1
         ):
             model = ImageGenerationModel.create(deployment_type)
+
+            if isinstance(client, AsyncAzureOpenAI):
+                api_version = model.get_azure_api_version(app_config)
+                client = client.with_options(api_version=api_version)
+
             return await image_generation(
                 model,
                 data,
                 deployment_id,
-                endpoint,
-                creds,
+                client,
                 is_stream,
                 storage,
-                model.get_azure_api_version(app_config),
             )
 
         case (
             ChatCompletionDeploymentType.MISTRAL
             | ChatCompletionDeploymentType.DATABRICKS
         ):
-            return await non_gpt_chat_completion(data, endpoint, creds)
+            return await non_gpt_chat_completion(data, client)
 
         case (
             ChatCompletionDeploymentType.GPT4O
@@ -129,11 +130,9 @@ async def call_chat_completion(
                 data,
                 deployment_id,
                 request.headers,
-                endpoint,
-                creds,
+                client,
                 is_stream,
                 storage,
-                api_version,
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
             )
@@ -143,9 +142,7 @@ async def call_chat_completion(
             return await gpt_chat_completion(
                 data,
                 deployment_id,
-                endpoint,
-                creds,
-                api_version,
+                client,
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
             )

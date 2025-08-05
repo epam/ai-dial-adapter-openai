@@ -1,14 +1,9 @@
 from typing import AsyncIterator, List, Tuple, cast
 
 from aidial_sdk.exceptions import InvalidRequestError
-from openai import AsyncStream
+from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
-from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    OpenAIEndpoint,
-)
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     chunk_to_dict,
@@ -42,9 +37,7 @@ def plain_text_truncate_prompt(
 async def gpt_chat_completion(
     request: dict,
     deployment_id: str,
-    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint,
-    creds: OpenAICreds,
-    api_version: str,
+    client: AsyncAzureOpenAI | AsyncOpenAI,
     tokenizer: PlainTextTokenizer,
     eliminate_empty_choices: bool,
 ):
@@ -71,7 +64,6 @@ async def gpt_chat_completion(
             )
         )
 
-    client = endpoint.get_client({**creds, "api_version": api_version})
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
         await call_with_extra_body(client.chat.completions.create, request)
     )

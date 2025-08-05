@@ -5,7 +5,13 @@ from typing import Any, AsyncIterator, Dict, List
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import Response as FastAPIResponse
-from openai import NOT_GIVEN, AsyncStream, BaseModel
+from openai import (
+    NOT_GIVEN,
+    AsyncAzureOpenAI,
+    AsyncOpenAI,
+    AsyncStream,
+    BaseModel,
+)
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import USAGE
@@ -20,12 +26,7 @@ from aidial_adapter_openai.responses.converter import (
     convert_tools,
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
-from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    OpenAIEndpoint,
-)
 from aidial_adapter_openai.utils.streaming import (
     create_response_from_chunk,
     create_stage_chunk,
@@ -81,16 +82,12 @@ def _to_dict(x: BaseModel) -> dict:
 
 async def chat_completion(
     request: Dict[str, Any],
-    endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
-    creds: OpenAICreds,
+    client: AsyncAzureOpenAI | AsyncOpenAI,
     is_stream: bool,
     file_storage: FileStorage | None,
-    api_version: str,
     model_name: str,
 ) -> AsyncIterator[dict] | dict | FastAPIResponse:
     _validate_request(request)
-
-    client = endpoint.get_client({**creds, "api_version": api_version})
 
     transformed_messages = await ResourceProcessor(
         file_storage=file_storage

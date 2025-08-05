@@ -2,7 +2,7 @@ from typing import Any, List, Mapping, Optional, Tuple
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
-from openai import AsyncStream
+from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
@@ -10,17 +10,12 @@ from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     SUPPORTED_FILE_EXTS,
     ResourceProcessor,
 )
-from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.caching import get_response_headers_for_caching
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionBlock,
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    OpenAIEndpoint,
-)
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
@@ -86,17 +81,16 @@ def _validate_request(request: Any) -> List[Any]:
 
 
 async def gpt4o_chat_completion(
-    request: Any,
+    request: dict,
     deployment: str,
     request_headers: Mapping[str, str],
-    endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
-    creds: OpenAICreds,
+    client: AsyncAzureOpenAI | AsyncOpenAI,
     is_stream: bool,
     file_storage: Optional[FileStorage],
-    api_version: str,
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
 ):
+
     messages = _validate_request(request)
 
     transform_result = await ResourceProcessor(
@@ -132,8 +126,6 @@ async def gpt4o_chat_completion(
         )
 
     request["messages"] = [m.raw_message for m in multi_modal_messages]
-
-    client = endpoint.get_client({**creds, "api_version": api_version})
 
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
         await call_with_extra_body(client.chat.completions.create, request)
