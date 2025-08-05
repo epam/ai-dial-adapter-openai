@@ -88,6 +88,24 @@ def build_text_common(s: TestSuite) -> None:
         and s.usage.completion_tokens == 16,
     )
 
+    if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
+        multiple_completions_expected = ExpectedException(
+            type=UnprocessableEntityError,
+            message="The deployment doesn't support request.n parameter other than 1, but got 3.",
+            status_code=422,
+        )
+    else:
+        multiple_completions_expected = (
+            lambda s: len(s.response.choices) == 3 and s.usage is not None
+        )
+
+    s.test_case(
+        name="multiple completions",
+        n=3,
+        messages=[user("2+3=?")],
+        expected=multiple_completions_expected,
+    )
+
 
 def build_stop_sequence(s: TestSuite) -> None:
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
