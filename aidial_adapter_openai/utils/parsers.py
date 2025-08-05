@@ -83,18 +83,15 @@ def _parse_endpoint(
 
     if match := re.fullmatch("(.+?)/openai/deployments/(.+)", endpoint):
         return AzureOpenAIEndpoint(
-            azure_endpoint=match[1],
-            azure_deployment=match[2],
+            azure_endpoint=match[1], azure_deployment=match[2]
         )
+
     if match := re.fullmatch("(.+?)/openai", endpoint):
-        return AzureOpenAIEndpoint(
-            azure_endpoint=match[1],
-        )
+        return AzureOpenAIEndpoint(azure_endpoint=match[1])
+
     if match := re.fullmatch("(.+?)/openai/v1", endpoint):
-        return AzureOpenAIEndpoint(
-            azure_base_url=endpoint,
-            next_gen_api=True,
-        )
+        return AzureOpenAIEndpoint(azure_base_url=endpoint, next_gen_api=True)
+
     return OpenAIEndpoint(base_url=endpoint)
 
 
