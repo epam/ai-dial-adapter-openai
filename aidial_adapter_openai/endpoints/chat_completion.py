@@ -116,7 +116,7 @@ async def call_chat_completion(
             )
 
         case ChatCompletionDeploymentType.MISTRAL:
-            return await mistral_chat_completion(data, upstream_endpoint, creds)
+            return await mistral_chat_completion(data, endpoint, creds)
         case ChatCompletionDeploymentType.DATABRICKS:
             return await databricks_chat_completion(data, endpoint, creds)
 
