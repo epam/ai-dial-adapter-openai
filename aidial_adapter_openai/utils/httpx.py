@@ -87,9 +87,7 @@ async def _log_timings_hook(response: httpx.Response) -> None:
             "completions"
         )
         level = logging.INFO if is_model_call else logging.DEBUG
-        msg = (
-            f"Upstream: {url!r}. Status: {response.status_code}. Timing: {_get_tracing_timings(ctx)}.",
-        )
+        msg = f"Upstream: {url!r}. Status: {response.status_code}. Timing: {_get_tracing_timings(ctx)}."
         logger.log(level, msg)
 
     if response.is_closed:
