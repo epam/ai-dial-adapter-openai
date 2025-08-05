@@ -1,7 +1,6 @@
 from typing import Any, List, Mapping, Optional, Tuple
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
@@ -68,23 +67,6 @@ def multi_modal_truncate_prompt(
     )
 
 
-def _validate_request(request: Any) -> List[Any]:
-    errors: List[str] = []
-
-    if (n := request.get("n")) not in [None, 1]:
-        errors.append(
-            f"The deployment doesn't support request.n parameter other than 1, but got {n}."
-        )
-
-    if not (messages := request.get("messages")):
-        errors.append("The request doesn't contain any messages.")
-
-    if errors:
-        raise RequestValidationError(" ".join(errors))
-
-    return messages
-
-
 async def gpt4o_chat_completion(
     request: Any,
     deployment: str,
@@ -97,7 +79,8 @@ async def gpt4o_chat_completion(
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
 ):
-    messages = _validate_request(request)
+    n: int = request.get("n") or 1
+    messages: List[dict] = request.get("messages")
 
     transform_result = await ResourceProcessor(
         file_storage=file_storage
@@ -147,6 +130,7 @@ async def gpt4o_chat_completion(
         )
 
         body = generate_stream(
+            n=n,
             stream=map_stream(chunk_to_dict, response),
             get_prompt_tokens=lambda: estimated_prompt_tokens,
             tokenize_response=tokenizer.tokenize_response,
@@ -158,7 +142,7 @@ async def gpt4o_chat_completion(
         return ResponseWithHeaders(headers=headers, body=body)
     else:
         body = response.to_dict()
-        if discarded_messages:
+        if discarded_messages is not None:
             body |= {"statistics": {"discarded_messages": discarded_messages}}
         debug_print("response", body)
 

@@ -1,4 +1,4 @@
-from typing import Any, Iterable, Literal, Self
+from typing import Any, Iterable, Literal, Self, Set
 
 from aidial_sdk.utils.merge_chunks import merge_chat_completion_chunks
 from pydantic import BaseModel
@@ -17,16 +17,6 @@ class ChatCompletionResponse(BaseModel):
         return self.response == {}
 
     @property
-    def finish_reasons(self) -> Iterable[Any]:
-        for choice in self.response.get("choices") or []:
-            if (reason := choice.get("finish_reason")) is not None:
-                yield reason
-
-    @property
-    def has_finish_reason(self) -> bool:
-        return len(list(self.finish_reasons)) > 0
-
-    @property
     def messages(self) -> Iterable[Any]:
         for choice in self.response.get("choices") or []:
             if (message := choice.get(self.message_key)) is not None:
@@ -35,6 +25,14 @@ class ChatCompletionResponse(BaseModel):
     @property
     def has_messages(self) -> bool:
         return len(list(self.messages)) > 0
+
+    def get_missing_finish_reasons(self, n: int) -> Set[int]:
+        missing = set(range(n))
+        for choice in self.response.get("choices") or []:
+            if choice.get("finish_reason") is not None:
+                index = choice.get("index")
+                missing.discard(index)
+        return missing
 
 
 class ChatCompletionBlock(ChatCompletionResponse):

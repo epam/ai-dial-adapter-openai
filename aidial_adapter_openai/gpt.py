@@ -48,10 +48,13 @@ async def gpt_chat_completion(
     tokenizer: PlainTextTokenizer,
     eliminate_empty_choices: bool,
 ):
+    n: int = request.get("n") or 1
+
     discarded_messages = None
     estimated_prompt_tokens = None
-    if "max_prompt_tokens" in request:
-        max_prompt_tokens = request["max_prompt_tokens"]
+    max_prompt_tokens = request.pop("max_prompt_tokens", None)
+
+    if max_prompt_tokens is not None:
         if not isinstance(max_prompt_tokens, int):
             raise InvalidRequestError(
                 f"'{max_prompt_tokens}' is not of type 'integer' - 'max_prompt_tokens'",
@@ -60,7 +63,6 @@ async def gpt_chat_completion(
             raise InvalidRequestError(
                 f"'{max_prompt_tokens}' is less than the minimum of 1 - 'max_prompt_tokens'",
             )
-        del request["max_prompt_tokens"]
 
         request["messages"], discarded_messages, estimated_prompt_tokens = (
             plain_text_truncate_prompt(
@@ -78,6 +80,7 @@ async def gpt_chat_completion(
 
     if isinstance(response, AsyncIterator):
         return generate_stream(
+            n=n,
             stream=map_stream(chunk_to_dict, response),
             get_prompt_tokens=lambda: estimated_prompt_tokens
             or tokenizer.tokenize_request(request, request["messages"]),
