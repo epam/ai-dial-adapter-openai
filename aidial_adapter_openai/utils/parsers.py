@@ -6,7 +6,6 @@ from aidial_sdk.exceptions import InvalidRequestError
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 
-from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
@@ -44,32 +43,20 @@ class AzureOpenAIEndpoint(ExtraForbidModel):
             http_client=get_http_client(),
         )
 
-    def get_auth_headers(self, creds: OpenAICreds) -> dict[str, str]:
-        if key := creds.get("api_key"):
-            return {"api-key": key}
-
-        if token := creds.get("azure_ad_token"):
-            return {"Authorization": f"Bearer {token}"}
-
-        raise ValueError("Invalid credentials")
-
 
 class OpenAIEndpoint(ExtraForbidModel):
     base_url: str
 
     def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
+        api_key = params.get("api_key") or params.get("azure_ad_token")
+
         return AsyncOpenAI(
             base_url=self.base_url,
-            api_key=params.get("api_key"),
+            api_key=api_key,
             timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
         )
-
-    def get_auth_headers(self, creds: OpenAICreds) -> dict[str, str]:
-        if key := (creds.get("api_key") or creds.get("azure_ad_token")):
-            return {"Authorization": f"Bearer {key}"}
-        raise ValueError("Invalid credentials")
 
 
 def _parse_endpoint(
