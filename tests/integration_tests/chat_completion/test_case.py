@@ -40,6 +40,8 @@ class TestCase:
     tools: List[ChatCompletionToolParam] | NotGiven
     temperature: float | NotGiven
 
+    extra_body: dict | None
+
     def get_id(self):
         upstream_idx = self.deployment_config.upstream_idx
         parts = [
@@ -80,12 +82,13 @@ class TestSuite:
                 streaming=self.streaming,
                 messages=messages,
                 expected=expected,
-                max_tokens=kwargs.get("max_tokens") or NOT_GIVEN,
-                stop=kwargs.get("stop") or NOT_GIVEN,
-                n=kwargs.get("n") or NOT_GIVEN,
-                functions=kwargs.get("functions") or NOT_GIVEN,
-                tools=kwargs.get("tools") or NOT_GIVEN,
-                temperature=kwargs.get("temperature") or NOT_GIVEN,
+                max_tokens=kwargs.pop("max_tokens", None) or NOT_GIVEN,
+                stop=kwargs.pop("stop", None) or NOT_GIVEN,
+                n=kwargs.pop("n", None) or NOT_GIVEN,
+                functions=kwargs.pop("functions", None) or NOT_GIVEN,
+                tools=kwargs.pop("tools", None) or NOT_GIVEN,
+                temperature=kwargs.pop("temperature", None) or NOT_GIVEN,
+                extra_body=kwargs,
             )
         )
         return self
@@ -110,6 +113,22 @@ class TestSuite:
         suite = cls(deployment_config, streaming)
         case_builder(suite)
         return suite
+
+    @property
+    def supports_system_prompt(self):
+        return self.deployment_config.model_features.systemPromptSupported
+
+    @property
+    def supports_vision(self):
+        return self.deployment_config.model_features.visionSupported
+
+    @property
+    def supports_function_calling(self):
+        return self.deployment_config.model_features.functionCallingSupported
+
+    @property
+    def supports_stop(self):
+        return self.deployment_config.model_features.stopSupported
 
 
 def exclude_deployments(

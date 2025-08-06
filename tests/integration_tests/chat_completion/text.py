@@ -27,11 +27,12 @@ def build_text_common(s: TestSuite) -> None:
         and s.response.choices[0].finish_reason == "stop",
     )
 
-    s.test_case(
-        name="empty system message",
-        messages=[sys(""), user("compute (2+4)")],
-        expected=lambda s: "6" in s.content,
-    )
+    if s.supports_system_prompt:
+        s.test_case(
+            name="empty system message",
+            messages=[sys(""), user("compute (2+4)")],
+            expected=lambda s: "6" in s.content,
+        )
 
     if s.deployment_type == ChatCompletionDeploymentType.GPT_TEXT_ONLY:
         expected_exc = ExpectedException(
@@ -90,6 +91,9 @@ def build_text_common(s: TestSuite) -> None:
 
 
 def build_stop_sequence(s: TestSuite) -> None:
+    if not s.supports_stop:
+        return
+
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
         expected = ExpectedException(
             type=UnprocessableEntityError,
@@ -108,6 +112,9 @@ def build_stop_sequence(s: TestSuite) -> None:
 
 
 def build_multi_system(s: TestSuite) -> None:
+    if not s.supports_system_prompt:
+        return
+
     messages = [
         sys("act as a helpful assistant"),
         sys("act as a calculator"),

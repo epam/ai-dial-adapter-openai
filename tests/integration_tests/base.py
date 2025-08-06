@@ -28,10 +28,22 @@ class UpstreamConfig(ExtraAllowedModel):
     key: str
 
 
+class Features(ExtraAllowedModel):
+    systemPromptSupported: bool = True
+
+    # Not in DIAL Core config yet
+    maxTokensSupported: bool = True
+    reasoningSupported: bool = False
+    visionSupported: bool = False
+    functionCallingSupported: bool = True
+    stopSupported: bool = True
+
+
 class ModelConfig(ExtraAllowedModel):
     type: Literal["chat", "embedding"]
     overrideName: str | None = None
     upstreams: List[UpstreamConfig]
+    features: Features = Features()
 
 
 class CoreConfig(ExtraAllowedModel):
@@ -75,6 +87,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
     type_: _T
 
     model_name: str
+    model_features: Features
     upstream_endpoint: str
     upstream_api_key: str
     upstream_idx: int | None
@@ -108,6 +121,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                         upstream_idx=upstream_idx,
                         id_=deployment_id,
                         model_name=model_config.overrideName or deployment_id,
+                        model_features=model_config.features,
                         type_=get_deployment_type(
                             model_config, deployment_id, upstream_endpoint
                         ),

@@ -190,12 +190,15 @@ async def chat_completion(
     deployment_id: str,
     messages: List[ChatCompletionMessageParam],
     stream: bool,
+    *,
     stop: List[str] | NotGiven = NOT_GIVEN,
+    max_completion_tokens: int | NotGiven = NOT_GIVEN,
     max_tokens: int | NotGiven = NOT_GIVEN,
     n: int | NotGiven = NOT_GIVEN,
     functions: List[Function] | NotGiven = NOT_GIVEN,
     tools: List[ChatCompletionToolParam] | NotGiven = NOT_GIVEN,
     temperature: float | NotGiven = NOT_GIVEN,
+    extra_body: dict | None = None,
 ) -> ChatCompletionResult:
     async def get_response() -> ChatCompletion:
         response = await client.chat.completions.create(
@@ -203,6 +206,7 @@ async def chat_completion(
             messages=messages,
             stream=stream,
             stop=stop,
+            max_completion_tokens=max_completion_tokens,
             max_tokens=max_tokens,
             temperature=temperature,
             n=n,
@@ -210,6 +214,7 @@ async def chat_completion(
             functions=functions,
             tool_choice="auto" if tools is not NOT_GIVEN else NOT_GIVEN,
             tools=tools or NOT_GIVEN,
+            extra_body=extra_body,
         )
 
         if isinstance(response, AsyncStream):

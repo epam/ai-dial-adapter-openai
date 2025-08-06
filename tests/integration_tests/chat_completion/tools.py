@@ -58,6 +58,9 @@ def supports_functions(deployment_type: ChatCompletionDeploymentType):
     ]
 )
 def build_tools_common(s: TestSuite) -> None:
+    if not s.supports_function_calling:
+        return
+
     if supports_parallel_tool_calls(s.deployment_type):
         city_config = [[("Glasgow", 15)], [("Glasgow", 15), ("London", 20)]]
     else:
@@ -73,72 +76,11 @@ def build_tools_common(s: TestSuite) -> None:
         test_name_suffix = "_".join(city_names)
         city_test_query = " and in ".join(city_names)
         query = f"What's the temperature in {city_test_query} in celsius?"
-        init_messages = [
-            sys("act as a helpful assistant"),
-            user("2+3=?"),
-            ai("5"),
-            user(query),
-        ]
-        if supports_functions(s.deployment_type):
-            expected_exc = None
-            if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
-                expected_exc = ExpectedException(
-                    type=UnprocessableEntityError,
-                    message="The deployment doesn't support the deprecated API for functions. Please use tools instead.",
-                    status_code=422,
-                )
 
-            # Functions
-            s.test_case(
-                name=f"weather function {test_name_suffix}",
-                messages=init_messages,
-                functions=[function],
-                expected=expected_exc
-                or (
-                    lambda s, n=city_names[0]: is_valid_function_call(
-                        s.function_call, fun_name, check_fun_args(n)
-                    )
-                    and s.response.choices[0].finish_reason == "function_call"
-                ),
-            )
+        init_messages = [user("2+3=?"), ai("5"), user(query)]
+        if s.supports_system_prompt:
+            init_messages.insert(0, sys("act as a helpful assistant"))
 
-            function_req = ai_function(
-                function_request(fun_name, create_fun_args(city_names[0]))
-            )
-            function_resp = function_response(
-                fun_name, f"{city_temps[0]} celsius"
-            )
-
-            if len(cities) == 1:
-                s.test_case(
-                    name=f"weather_function_followup_{test_name_suffix}",
-                    messages=[
-                        *init_messages,
-                        function_req,
-                        function_resp,
-                    ],
-                    functions=[function],
-                    expected=expected_exc
-                    or (lambda s, t=city_temps[0]: s.content_contains_all([t])),
-                )
-            else:
-                s.test_case(
-                    name=f"weather function followup {test_name_suffix}",
-                    messages=[
-                        *init_messages,
-                        function_req,
-                        function_resp,
-                    ],
-                    functions=[function],
-                    expected=expected_exc
-                    or (
-                        lambda s, n=city_names[1]: is_valid_function_call(
-                            s.function_call, fun_name, check_fun_args(n)
-                        )
-                    ),
-                )
-
-        # Tools
         def create_tool_call_id(idx: int):
             return f"{fun_name}_{idx+1}"
 

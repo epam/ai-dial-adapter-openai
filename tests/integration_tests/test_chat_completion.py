@@ -57,17 +57,33 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
     )
 
     async def run_chat_completion() -> ChatCompletionResult:
+        max_tokens = test_case.max_tokens
+        extra_body = test_case.extra_body or {}
+
+        if test_case.deployment_config.model_features.reasoningSupported:
+            max_tokens = 1024
+            extra_body = {"reasoning_effort": "low"} | extra_body
+
+        max_completion_tokens = openai.NOT_GIVEN
+        if not (test_case.deployment_config.model_features.maxTokensSupported):
+            max_tokens, max_completion_tokens = (
+                max_completion_tokens,
+                max_tokens,
+            )
+
         return await chat_completion(
             client,
             test_case.deployment_config.model_name,
             test_case.messages,
             test_case.streaming,
-            test_case.stop,
-            test_case.max_tokens,
-            test_case.n,
-            test_case.functions,
-            test_case.tools,
-            test_case.temperature,
+            stop=test_case.stop,
+            max_tokens=max_tokens,
+            max_completion_tokens=max_completion_tokens,
+            n=test_case.n,
+            functions=test_case.functions,
+            tools=test_case.tools,
+            temperature=test_case.temperature,
+            extra_body=test_case.extra_body,
         )
 
     if isinstance(test_case.expected, ExpectedException):
