@@ -25,7 +25,7 @@ from aidial_adapter_openai.utils.text import decapitalize
 
 # Officially supported image types by GPT-4 Vision, GPT-4o
 SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
+SUPPORTED_IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
 
 
 @dataclass(order=True, frozen=True)

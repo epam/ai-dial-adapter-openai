@@ -13,7 +13,7 @@ from openai import (
     BaseModel,
 )
 
-from aidial_adapter_openai.chat_completions.gpt import USAGE
+from aidial_adapter_openai.chat_completions.gpt import MULTI_MODAL_USAGE
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
@@ -99,7 +99,12 @@ async def chat_completion(
         logger.error(
             f"Failed to prepare request: {transformed_messages.message}"
         )
-        chunk = create_stage_chunk("Usage", USAGE, is_stream)
+        chunk = create_stage_chunk(
+            model_name=model_name,
+            stage_title="Usage",
+            stage_content=MULTI_MODAL_USAGE,
+            stream=is_stream,
+        )
         return create_response_from_chunk(
             chunk, transformed_messages, is_stream
         )

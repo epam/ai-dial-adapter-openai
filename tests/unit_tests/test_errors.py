@@ -7,6 +7,7 @@ import pytest
 import respx
 from respx.types import SideEffectTypes
 
+from aidial_adapter_openai.chat_completions.gpt import MULTI_MODAL_USAGE
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
@@ -755,6 +756,91 @@ async def test_unexpected_multi_modal_input_streaming(
     }
     assert response.status_code == 500
     assert response.json() == expected_response
+
+
+@respx.mock
+async def test_invalid_image_url_streaming(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(delta={"role": "assistant"}),
+        single_choice_chunk(delta={"content": "Test response"}),
+        single_choice_chunk(delta={}, finish_reason="stop"),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content=mock_stream.to_content(),
+        content_type="text/event-stream",
+    )
+
+    image_url = "http://xyz.com/image.png"
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "stream": True,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_url,
+                                "detail": "auto",
+                            },
+                        }
+                    ],
+                }
+            ],
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    error_message = f"The following files failed to process:\n1. {image_url}: failed to download the image"
+
+    response_stream = OpenAIStream(
+        single_choice_chunk(
+            model="gpt-4",
+            finish_reason="stop",
+            delta={
+                "role": "assistant",
+                "content": "",
+                "custom_content": {
+                    "stages": [
+                        {
+                            "index": 0,
+                            "name": "Usage",
+                            "content": MULTI_MODAL_USAGE,
+                            "status": "completed",
+                        }
+                    ]
+                },
+            },
+            usage={
+                "completion_tokens": 0,
+                "prompt_tokens": 0,
+                "total_tokens": 0,
+            },
+        ),
+        {
+            "error": {
+                "code": "400",
+                "type": "invalid_request_error",
+                "message": error_message,
+                "display_message": error_message,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    response_stream.assert_response_content(
+        response, assert_equal_no_dynamic_fields
+    )
 
 
 async def test_incorrect_max_prompt_tokens_streaming_request(

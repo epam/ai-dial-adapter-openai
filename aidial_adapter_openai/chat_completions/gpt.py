@@ -6,7 +6,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from aidial_adapter_openai.chat_completions.transformation import (
-    SUPPORTED_FILE_EXTS,
+    SUPPORTED_IMAGE_EXTS,
     ResourceProcessor,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
@@ -33,13 +33,13 @@ from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt,
 )
 
-USAGE = f"""
+MULTI_MODAL_USAGE = f"""
 ### Usage
 
 The application answers queries about attached images.
 Attach images and ask questions about them.
 
-Supported image types: {', '.join(SUPPORTED_FILE_EXTS)}.
+Supported image types: {', '.join(SUPPORTED_IMAGE_EXTS)}.
 
 Examples of queries:
 - "Describe this picture" for one image,
@@ -116,7 +116,12 @@ async def chat_completion(
     if isinstance(transform_result, DialException):
         logger.error(f"Failed to prepare request: {transform_result.message}")
         is_stream = bool(request.get("stream"))
-        chunk = create_stage_chunk("Usage", USAGE, is_stream)
+        chunk = create_stage_chunk(
+            model_name=model_name,
+            stage_title="Usage",
+            stage_content=MULTI_MODAL_USAGE,
+            stream=is_stream,
+        )
         return create_response_from_chunk(chunk, transform_result, is_stream)
 
     multi_modal_messages = transform_result

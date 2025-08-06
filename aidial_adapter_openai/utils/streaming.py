@@ -177,14 +177,16 @@ async def generate_stream(
         raise error
 
 
-def create_stage_chunk(name: str, content: str, stream: bool) -> dict:
+def create_stage_chunk(
+    *, model_name: str, stage_title: str, stage_content: str, stream: bool
+) -> dict:
     id = generate_id()
     created = generate_created()
 
     stage = {
         "index": 0,
-        "name": name,
-        "content": content,
+        "name": stage_title,
+        "content": stage_content,
         "status": "completed",
     }
 
@@ -205,6 +207,7 @@ def create_stage_chunk(name: str, content: str, stream: bool) -> dict:
             "prompt_tokens": 0,
             "total_tokens": 0,
         },
+        model=model_name,
     )
 
 
