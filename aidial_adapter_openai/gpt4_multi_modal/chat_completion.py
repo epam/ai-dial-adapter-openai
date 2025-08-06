@@ -82,16 +82,16 @@ def _validate_request(request: Any) -> List[Any]:
 
 async def gpt4o_chat_completion(
     request: dict,
-    deployment: str,
-    request_headers: Mapping[str, str],
+    model_name: str,
+    request_headers: Mapping[str, str] | None,
     client: AsyncAzureOpenAI | AsyncOpenAI,
-    is_stream: bool,
     file_storage: Optional[FileStorage],
     tokenizer: MultiModalTokenizer,
     eliminate_empty_choices: bool,
 ):
-
     messages = _validate_request(request)
+
+    is_stream = bool(request.get("stream"))
 
     transform_result = await ResourceProcessor(
         file_storage=file_storage
@@ -131,23 +131,25 @@ async def gpt4o_chat_completion(
         await call_with_extra_body(client.chat.completions.create, request)
     )
 
+    response_headers = None
     if isinstance(response, AsyncStream):
-        headers = get_response_headers_for_caching(
-            request_headers=request_headers,
-            request_body=request,
-            get_request_tokens=lambda: estimated_prompt_tokens,
-        )
+        if request_headers is not None:
+            response_headers = get_response_headers_for_caching(
+                request_headers=request_headers,
+                request_body=request,
+                get_request_tokens=lambda: estimated_prompt_tokens,
+            )
 
         body = generate_stream(
             stream=map_stream(chunk_to_dict, response),
             get_prompt_tokens=lambda: estimated_prompt_tokens,
             tokenize_response=tokenizer.tokenize_response,
-            deployment=deployment,
+            model=model_name,
             discarded_messages=discarded_messages,
             eliminate_empty_choices=eliminate_empty_choices,
         )
 
-        return ResponseWithHeaders(headers=headers, body=body)
+        return ResponseWithHeaders(headers=response_headers, body=body)
     else:
         body = response.to_dict()
         if discarded_messages:
@@ -171,11 +173,12 @@ async def gpt4o_chat_completion(
                     f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
                 )
 
-        headers = get_response_headers_for_caching(
-            request_headers=request_headers,
-            request_body=request,
-            get_request_tokens=lambda: actual_prompt_tokens
-            or estimated_prompt_tokens,
-        )
+        if request_headers is not None:
+            response_headers = get_response_headers_for_caching(
+                request_headers=request_headers,
+                request_body=request,
+                get_request_tokens=lambda: actual_prompt_tokens
+                or estimated_prompt_tokens,
+            )
 
-        return ResponseWithHeaders(headers=headers, body=body)
+        return ResponseWithHeaders(headers=response_headers, body=body)

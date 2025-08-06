@@ -36,15 +36,15 @@ def convert_to_chat_completions_response(
 
 
 async def chat_completion(
-    data: Dict[str, Any],
+    request: Dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     deployment_id: str,
     app_config: ApplicationConfig,
 ):
-    if data.get("n") or 1 > 1:
+    if request.get("n") or 1 > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
-    messages = data.get("messages") or []
+    messages = request.get("messages") or []
     if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
@@ -57,11 +57,11 @@ async def chat_completion(
     ) is not None:
         prompt = template.format(prompt=prompt)
 
-    del data["messages"]
+    del request["messages"]
 
     response = await call_with_extra_body(
         client.completions.create,
-        {"prompt": prompt, **data},
+        {"prompt": prompt, **request},
     )
 
     if isinstance(response, AsyncStream):

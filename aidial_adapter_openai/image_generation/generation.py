@@ -77,20 +77,21 @@ _Config = TypeVar("_Config", bound=BaseModel)
 
 async def chat_completion(
     model: ImageGenerationModel[_Config],
-    data: Any,
-    deployment: str,
+    request: Any,
+    model_name: str,
     client: AsyncAzureOpenAI | AsyncOpenAI,
-    is_stream: bool,
     file_storage: FileStorage | None,
 ):
-    if data.get("n", 1) > 1:
+    if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
-    prompt = await ImageGenPrompt.from_request(data, file_storage)
+    prompt = await ImageGenPrompt.from_request(request, file_storage)
+
+    is_stream = bool(request.get("stream"))
 
     config_cls = model.get_configuration()
     response_format = model.get_response_format()
-    config = parse_configuration(config_cls, data) or config_cls()
+    config = parse_configuration(config_cls, request) or config_cls()
     extra_body = config.dict(exclude_none=True)
 
     images = [
@@ -100,7 +101,7 @@ async def chat_completion(
 
     if prompt.images:
         model_response = await client.images.edit(
-            model=deployment,
+            model=model_name,
             image=images,  # type: ignore
             prompt=prompt.text_prompt,
             response_format=response_format,
@@ -108,7 +109,7 @@ async def chat_completion(
         )
     else:
         model_response = await client.images.generate(
-            model=deployment,
+            model=model_name,
             prompt=prompt.text_prompt,
             response_format=response_format,
             extra_body=extra_body,

@@ -6,7 +6,6 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
-from fastapi import Request
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.log_config import logger
@@ -48,8 +47,8 @@ class OpenAICreds(TypedDict, total=False):
     azure_ad_token: str
 
 
-async def get_credentials(request: Request) -> OpenAICreds:
-    api_key = request.headers.get("X-UPSTREAM-KEY")
+async def get_credentials(request_headers: Mapping[str, str]) -> OpenAICreds:
+    api_key = request_headers.get("X-UPSTREAM-KEY")
     if api_key is None:
         return {"azure_ad_token": await get_api_key()}
     else:

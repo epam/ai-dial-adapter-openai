@@ -83,15 +83,17 @@ def _to_dict(x: BaseModel) -> dict:
 async def chat_completion(
     request: Dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
-    is_stream: bool,
     file_storage: FileStorage | None,
-    model_name: str,
 ) -> AsyncIterator[dict] | dict | FastAPIResponse:
     _validate_request(request)
 
+    is_stream = bool(request.get("stream"))
+    model_name = request["model"]
+    messages = request["messages"]
+
     transformed_messages = await ResourceProcessor(
         file_storage=file_storage
-    ).transform_messages(request["messages"])
+    ).transform_messages(messages)
 
     if isinstance(transformed_messages, DialException):
         logger.error(

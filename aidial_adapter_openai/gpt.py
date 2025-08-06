@@ -36,7 +36,7 @@ def plain_text_truncate_prompt(
 
 async def gpt_chat_completion(
     request: dict,
-    deployment_id: str,
+    model_name: str,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     tokenizer: PlainTextTokenizer,
     eliminate_empty_choices: bool,
@@ -74,7 +74,7 @@ async def gpt_chat_completion(
             get_prompt_tokens=lambda: estimated_prompt_tokens
             or tokenizer.tokenize_request(request, request["messages"]),
             tokenize_response=tokenizer.tokenize_response,
-            deployment=deployment_id,
+            model=model_name,
             discarded_messages=discarded_messages,
             eliminate_empty_choices=eliminate_empty_choices,
         )

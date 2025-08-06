@@ -1,4 +1,4 @@
-from typing import assert_never
+from typing import Mapping, assert_never
 
 from fastapi import Request
 from openai import AsyncAzureOpenAI
@@ -36,12 +36,22 @@ from aidial_adapter_openai.utils.tokenizer import (
 )
 
 
+def _get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:
+    name = "X-UPSTREAM-ENDPOINT"
+    if (endpoint := request_headers.get(name)) is None:
+        raise ValueError(f"{name} header is missing in the request.")
+
+    logger.debug(f"upstream endpoint: {endpoint}")
+    return endpoint
+
+
 async def call_chat_completion(
-    deployment_id: str,
-    data: dict,
-    is_stream: bool,
-    request: Request,
+    *,
     app_config: ApplicationConfig,
+    deployment_id: str,
+    request: dict,
+    request_headers: Mapping[str, str],
+    api_version: str,
 ):
     # Azure OpenAI deployments ignore "model" request field,
     # since the deployment id is already encoded in the endpoint path.
@@ -51,25 +61,17 @@ async def call_chat_completion(
     # Azure and non-Azure deployments.
     # Therefore, we provide the "model" field for all deployments here.
     # The same goes for /embeddings endpoint.
-    model_name = data["model"] = data.get("model") or deployment_id
+    request["model"] = request.get("model") or deployment_id
 
-    upstream_endpoint = request.headers.get("X-UPSTREAM-ENDPOINT")
-    if upstream_endpoint is None:
-        raise ValueError(
-            "X-UPSTREAM-ENDPOINT header is missing in the request."
-        )
-
-    logger.debug(f"upstream endpoint: {upstream_endpoint}")
-
-    storage = create_file_storage("images", request.headers)
+    upstream_endpoint = _get_upstream_endpoint(request_headers)
+    storage = create_file_storage("images", request_headers)
 
     deployment = app_config.get_chat_completion_deployment_type(
         deployment_id, upstream_endpoint
     )
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
-    creds = await get_credentials(request)
-    api_version = get_api_version(request)
+    creds = await get_credentials(request_headers)
     client = endpoint.get_client({**creds, "api_version": api_version})
 
     tiktoken_model = (
@@ -78,21 +80,10 @@ async def call_chat_completion(
 
     match deployment_type:
         case ChatCompletionDeploymentType.COMPLETIONS_API:
-            return await completion(
-                data,
-                client,
-                deployment_id,
-                app_config,
-            )
+            return await completion(request, client, deployment_id, app_config)
 
         case ChatCompletionDeploymentType.RESPONSES_API:
-            return await responses(
-                data,
-                client,
-                is_stream,
-                storage,
-                model_name,
-            )
+            return await responses(request, client, storage)
 
         case (
             ChatCompletionDeploymentType.DALLE3
@@ -105,19 +96,14 @@ async def call_chat_completion(
                 client = client.with_options(api_version=api_version)
 
             return await image_generation(
-                model,
-                data,
-                deployment_id,
-                client,
-                is_stream,
-                storage,
+                model, request, deployment_id, client, storage
             )
 
         case (
             ChatCompletionDeploymentType.MISTRAL
             | ChatCompletionDeploymentType.DATABRICKS
         ):
-            return await non_gpt_chat_completion(data, client)
+            return await non_gpt_chat_completion(request, client)
 
         case (
             ChatCompletionDeploymentType.GPT4O
@@ -127,11 +113,10 @@ async def call_chat_completion(
                 tiktoken_model, get_image_tokenizer(deployment_type)
             )
             return await gpt4o_chat_completion(
-                data,
+                request,
                 deployment_id,
-                request.headers,
+                request_headers,
                 client,
-                is_stream,
                 storage,
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
@@ -140,7 +125,7 @@ async def call_chat_completion(
         case ChatCompletionDeploymentType.GPT_TEXT_ONLY:
             tokenizer = PlainTextTokenizer(model=tiktoken_model)
             return await gpt_chat_completion(
-                data,
+                request,
                 deployment_id,
                 client,
                 tokenizer,
@@ -153,20 +138,26 @@ async def call_chat_completion(
 
 async def chat_completion(deployment_id: str, request: Request):
     app_config = get_request_app_config(request)
-    data = await parse_body(request)
+    request_body = await parse_body(request)
 
-    is_stream = bool(data.get("stream"))
+    is_stream = bool(request_body.get("stream"))
 
     emulate_streaming = (
         deployment_id in app_config.NON_STREAMING_DEPLOYMENTS and is_stream
     )
 
     if emulate_streaming:
-        data["stream"] = False
+        request_body["stream"] = False
+
+    api_version = get_api_version(request)
 
     return create_server_response(
         emulate_streaming,
         await call_chat_completion(
-            deployment_id, data, is_stream, request, app_config
+            deployment_id=deployment_id,
+            request=request_body,
+            request_headers=request.headers,
+            api_version=api_version,
+            app_config=app_config,
         ),
     )
