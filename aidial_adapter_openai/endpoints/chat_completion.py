@@ -3,23 +3,22 @@ from typing import Mapping, assert_never
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
+from aidial_adapter_openai.chat_completions.gpt import (
+    chat_completion as gpt_chat_completion,
+)
+from aidial_adapter_openai.chat_completions.non_gpt import (
+    chat_completion as non_gpt_chat_completion,
+)
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
 from aidial_adapter_openai.dial_api.storage import create_file_storage
-from aidial_adapter_openai.gpt import gpt_chat_completion
-from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
-    gpt4o_chat_completion,
-)
 from aidial_adapter_openai.image_generation.generation import (
     chat_completion as image_generation,
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
-from aidial_adapter_openai.non_gpt import (
-    chat_completion as non_gpt_chat_completion,
-)
 from aidial_adapter_openai.responses.adapter import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
@@ -30,10 +29,7 @@ from aidial_adapter_openai.utils.request import (
     get_request_app_config,
 )
 from aidial_adapter_openai.utils.streaming import create_server_response
-from aidial_adapter_openai.utils.tokenizer import (
-    MultiModalTokenizer,
-    PlainTextTokenizer,
-)
+from aidial_adapter_openai.utils.tokenizer import Tokenizer
 
 
 def _get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:
@@ -108,26 +104,18 @@ async def call_chat_completion(
         case (
             ChatCompletionDeploymentType.GPT4O
             | ChatCompletionDeploymentType.GPT4O_MINI
+            | ChatCompletionDeploymentType.GPT_TEXT_ONLY
         ):
-            tokenizer = MultiModalTokenizer(
-                tiktoken_model, get_image_tokenizer(deployment_type)
+            tokenizer = Tokenizer(
+                model=tiktoken_model,
+                image_tokenizer=get_image_tokenizer(deployment_type),
             )
-            return await gpt4o_chat_completion(
+            return await gpt_chat_completion(
                 request,
                 deployment_id,
                 request_headers,
                 client,
                 storage,
-                tokenizer,
-                app_config.ELIMINATE_EMPTY_CHOICES,
-            )
-
-        case ChatCompletionDeploymentType.GPT_TEXT_ONLY:
-            tokenizer = PlainTextTokenizer(model=tiktoken_model)
-            return await gpt_chat_completion(
-                request,
-                deployment_id,
-                client,
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
             )

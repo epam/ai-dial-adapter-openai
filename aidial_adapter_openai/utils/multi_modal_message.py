@@ -30,5 +30,5 @@ def create_text_content_part(text: str) -> ChatCompletionContentPartTextParam:
 
 
 class MultiModalMessage(BaseModel):
-    image_metadatas: List[ImageMetadata]
     raw_message: dict
+    image_metadatas: List[ImageMetadata] = []

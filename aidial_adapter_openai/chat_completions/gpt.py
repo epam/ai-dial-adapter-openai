@@ -1,15 +1,15 @@
-from typing import Any, List, Mapping, Optional, Tuple
+from typing import Any, List, Mapping, Tuple
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import RequestValidationError
+from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
-from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+from aidial_adapter_openai.chat_completions.transformation import (
     SUPPORTED_FILE_EXTS,
     ResourceProcessor,
 )
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.caching import get_response_headers_for_caching
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionBlock,
@@ -26,7 +26,7 @@ from aidial_adapter_openai.utils.streaming import (
     generate_stream,
     map_stream,
 )
-from aidial_adapter_openai.utils.tokenizer import MultiModalTokenizer
+from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.utils.truncate_prompt import (
     DiscardedMessages,
     TruncatedTokens,
@@ -51,7 +51,7 @@ def multi_modal_truncate_prompt(
     request: dict,
     messages: List[MultiModalMessage],
     max_prompt_tokens: int,
-    tokenizer: MultiModalTokenizer,
+    tokenizer: Tokenizer,
 ) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     return truncate_prompt(
         messages=messages,
@@ -80,18 +80,34 @@ def _validate_request(request: Any) -> List[Any]:
     return messages
 
 
-async def gpt4o_chat_completion(
+def _extract_max_prompt_tokens(request: dict) -> int | None:
+    if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
+        return None
+
+    if not isinstance(max_prompt_tokens, int):
+        raise InvalidRequestError(
+            f"'{max_prompt_tokens}' is not of type 'integer'",
+            param="max_prompt_tokens",
+        )
+
+    if max_prompt_tokens < 1:
+        raise InvalidRequestError(
+            f"'{max_prompt_tokens}' is less than the minimum of 1",
+            param="max_prompt_tokens",
+        )
+    return max_prompt_tokens
+
+
+async def chat_completion(
     request: dict,
     model_name: str,
     request_headers: Mapping[str, str] | None,
     client: AsyncAzureOpenAI | AsyncOpenAI,
-    file_storage: Optional[FileStorage],
-    tokenizer: MultiModalTokenizer,
+    file_storage: FileStorage | None,
+    tokenizer: Tokenizer,
     eliminate_empty_choices: bool,
 ):
     messages = _validate_request(request)
-
-    is_stream = bool(request.get("stream"))
 
     transform_result = await ResourceProcessor(
         file_storage=file_storage
@@ -99,13 +115,14 @@ async def gpt4o_chat_completion(
 
     if isinstance(transform_result, DialException):
         logger.error(f"Failed to prepare request: {transform_result.message}")
+        is_stream = bool(request.get("stream"))
         chunk = create_stage_chunk("Usage", USAGE, is_stream)
         return create_response_from_chunk(chunk, transform_result, is_stream)
 
     multi_modal_messages = transform_result
     discarded_messages = None
-    max_prompt_tokens = request.pop("max_prompt_tokens", None)
-    if max_prompt_tokens is not None:
+
+    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
         multi_modal_messages, discarded_messages, estimated_prompt_tokens = (
             multi_modal_truncate_prompt(
                 request=request,
@@ -152,7 +169,7 @@ async def gpt4o_chat_completion(
         return ResponseWithHeaders(headers=response_headers, body=body)
     else:
         body = response.to_dict()
-        if discarded_messages:
+        if discarded_messages is not None:
             body |= {"statistics": {"discarded_messages": discarded_messages}}
         debug_print("response", body)
 

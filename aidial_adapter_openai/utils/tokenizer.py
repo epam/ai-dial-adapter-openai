@@ -4,7 +4,7 @@ Implemented based on the official recipe: https://cookbook.openai.com/examples/h
 
 import json
 from abc import abstractmethod
-from typing import Any, Callable, Generic, List, TypeVar
+from typing import Any, Callable, Generic, List, NoReturn, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
@@ -71,7 +71,6 @@ class BaseTokenizer(Generic[MessageType]):
         return self.tokenize_text(text)
 
     def _tokenize_response_message(self, message: dict) -> int:
-
         tokens = 0
 
         for key in ["content", "refusal", "function"]:
@@ -162,43 +161,31 @@ def _tokenize_raw_message(
     return tokens
 
 
-class PlainTextTokenizer(BaseTokenizer[dict]):
-    """
-    Tokenizer for message.
-    Calculates only textual tokens, not image tokens.
-    """
+class Tokenizer(BaseTokenizer[MultiModalMessage]):
+    image_tokenizer: ImageTokenizer | None
 
-    def _fail_on_non_textual_content_part(self, content_part: dict) -> int:
-        ty = content_part.get("type")
-        raise InternalServerError(
-            f"Unexpected non-textural content part of type {ty!r}. "
-            f"The deployment only supports plain text messages. "
-            f"Declare the deployment as a multi-modal one in the OpenAI adapter configuration to avoid the error."
-        )
-
-    def tokenize_request_message(self, message: dict) -> int:
-        return self._tokens_per_request_message + _tokenize_raw_message(
-            raw_message=message,
-            tokens_per_name=self._tokens_per_request_message_name,
-            tokenize_text=self.tokenize_text,
-            tokenize_multi_modal_content_part=self._fail_on_non_textual_content_part,
-        )
-
-
-class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
-    image_tokenizer: ImageTokenizer
-
-    def __init__(self, model: str, image_tokenizer: ImageTokenizer):
+    def __init__(
+        self, *, model: str, image_tokenizer: ImageTokenizer | None = None
+    ):
         super().__init__(model)
         self.image_tokenizer = image_tokenizer
 
+    def _reject_image(self) -> NoReturn:
+        raise InternalServerError(
+            "Unexpected message with an image. "
+            "The deployment only supports plain text messages. "
+            "Remove the image from the request or declare the deployment as a multi-modal one "
+            "in the OpenAI adapter configuration to avoid the error."
+        )
+
     def _accept_image_content_part(self, content_part: dict) -> int:
         if (ty := content_part.get("type")) == "image_url":
+            if self.image_tokenizer is None:
+                self._reject_image()
             return 0
 
         raise InternalServerError(
-            f"Unexpected multi-modal content part of type {ty!r}. "
-            f"The deployment only supports plain text and image messages."
+            f"Unsupported multi-modal content part of type {ty!r}."
         )
 
     def tokenize_request_message(self, message: MultiModalMessage) -> int:
@@ -211,11 +198,15 @@ class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
             tokenize_multi_modal_content_part=self._accept_image_content_part,
         )
 
-        # Processing image parts of message
+        # Processing image parts of the message
         for metadata in message.image_metadatas:
+            if self.image_tokenizer is None:
+                self._reject_image()
+
             tokens += self.image_tokenizer.tokenize(
                 width=metadata.width,
                 height=metadata.height,
                 detail=metadata.detail,
             )
+
         return tokens

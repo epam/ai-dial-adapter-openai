@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Set, cast
+from typing import List, Optional, Set
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
@@ -160,5 +160,4 @@ class ResourceProcessor(BaseModel):
             )
             return InvalidRequestError(message=msg, display_message=msg)
 
-        transformations = cast(List[MultiModalMessage], transformations)
         return transformations

@@ -13,11 +13,11 @@ from openai import (
     BaseModel,
 )
 
-from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.gpt4_multi_modal.chat_completion import USAGE
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+from aidial_adapter_openai.chat_completions.gpt import USAGE
+from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
     _DEPRECATED_FUNCTION_API,
     convert_messages,

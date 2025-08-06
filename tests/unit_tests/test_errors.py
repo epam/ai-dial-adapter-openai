@@ -11,7 +11,11 @@ from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
+from aidial_adapter_openai.utils.multi_modal_message import (
+    create_image_content_part,
+)
 from tests.conftest import create_test_client
+from tests.integration_tests.constants import SAMPLE_DOG_RESOURCE
 from tests.utils.dictionary import exclude_keys
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
@@ -625,7 +629,7 @@ async def test_adapter_internal_error(
         raise ValueError("failed generating the stream")
 
     with patch(
-        "aidial_adapter_openai.gpt.generate_stream",
+        "aidial_adapter_openai.chat_completions.gpt.generate_stream",
         side_effect=mock_generate_stream,
     ):
 
@@ -731,12 +735,7 @@ async def test_unexpected_multi_modal_input_streaming(
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": "http://example.com/image.png"
-                            },
-                        }
+                        create_image_content_part(SAMPLE_DOG_RESOURCE, "auto")
                     ],
                 }
             ],
@@ -747,11 +746,20 @@ async def test_unexpected_multi_modal_input_streaming(
         },
     )
 
-    assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
+    expected_response = {
+        "error": {
+            "code": "500",
+            "message": "Unexpected message with an image. The deployment only supports plain text messages. Remove the image from the request or declare the deployment as a multi-modal one in the OpenAI adapter configuration to avoid the error.",
+            "type": "internal_server_error",
+        }
+    }
+    assert response.status_code == 500
+    assert response.json() == expected_response
 
 
-async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
+async def test_incorrect_max_prompt_tokens_streaming_request(
+    test_app: httpx.AsyncClient,
+):
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={
@@ -768,8 +776,9 @@ async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
     expected_response = {
         "error": {
             "code": "400",
-            "message": "'0' is less than the minimum of 1 - 'max_prompt_tokens'",
+            "message": "'0' is less than the minimum of 1",
             "type": "invalid_request_error",
+            "param": "max_prompt_tokens",
         }
     }
 
