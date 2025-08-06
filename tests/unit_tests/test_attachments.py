@@ -136,7 +136,9 @@ async def test_download_image_url(url, expected_result):
         entity_name="image",
         supported_types=["image/png"],
     )
-    processor = ResourceProcessor(file_storage=MockFileStorage())
+    processor = ResourceProcessor(
+        file_storage=MockFileStorage(), supported_image_types=None
+    )
     assert await processor.try_download_resource(resource) == expected_result
 
 
@@ -209,5 +211,7 @@ async def test_download_attachment_image(attachment: dict, expected_result):
         entity_name="image",
         supported_types=["image/png"],
     )
-    processor = ResourceProcessor(file_storage=MockFileStorage())
+    processor = ResourceProcessor(
+        file_storage=MockFileStorage(), supported_image_types=None
+    )
     assert await processor.try_download_resource(resource) == expected_result

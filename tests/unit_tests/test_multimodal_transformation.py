@@ -1,6 +1,7 @@
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
+from aidial_adapter_openai.chat_completions.input import image_inputs_supported
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
     TransformationError,
@@ -36,7 +37,10 @@ def text(text: str) -> dict:
 
 @pytest.fixture
 def mock_resource_processor():
-    return ResourceProcessor(file_storage=MockFileStorage())
+    return ResourceProcessor(
+        file_storage=MockFileStorage(),
+        supported_image_types=image_inputs_supported().input_types,
+    )
 
 
 @pytest.mark.parametrize(

@@ -6,6 +6,7 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel
 
+from aidial_adapter_openai.chat_completions.input import image_inputs_supported
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
@@ -22,7 +23,8 @@ class ImageGenPrompt(BaseModel):
         cls, data: Any, file_storage: FileStorage | None
     ) -> ImageGenPrompt:
         result = await ResourceProcessor(
-            file_storage=file_storage
+            file_storage=file_storage,
+            supported_image_types=image_inputs_supported().input_types,
         ).transform_messages(data["messages"])
 
         if isinstance(result, DialException):

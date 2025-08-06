@@ -5,8 +5,8 @@ from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
+from aidial_adapter_openai.chat_completions.input import SupportedInputs
 from aidial_adapter_openai.chat_completions.transformation import (
-    SUPPORTED_IMAGE_EXTS,
     ResourceProcessor,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
@@ -32,19 +32,6 @@ from aidial_adapter_openai.utils.truncate_prompt import (
     TruncatedTokens,
     truncate_prompt,
 )
-
-MULTI_MODAL_USAGE = f"""
-### Usage
-
-The application answers queries about attached images.
-Attach images and ask questions about them.
-
-Supported image types: {', '.join(SUPPORTED_IMAGE_EXTS)}.
-
-Examples of queries:
-- "Describe this picture" for one image,
-- "What are in these images? Is there any difference between them?" for multiple images.
-""".strip()
 
 
 def multi_modal_truncate_prompt(
@@ -104,25 +91,31 @@ async def chat_completion(
     request_headers: Mapping[str, str],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
+    supported_inputs: SupportedInputs,
     tokenizer: Tokenizer,
     eliminate_empty_choices: bool,
 ):
     messages = _validate_request(request)
 
     transform_result = await ResourceProcessor(
-        file_storage=file_storage
+        file_storage=file_storage,
+        supported_image_types=supported_inputs.input_types,
     ).transform_messages(messages)
 
     if isinstance(transform_result, DialException):
         logger.error(f"Failed to prepare request: {transform_result.message}")
         is_stream = bool(request.get("stream"))
-        chunk = create_stage_chunk(
-            model_name=model_name,
-            stage_title="Usage",
-            stage_content=MULTI_MODAL_USAGE,
-            stream=is_stream,
+        chunk = None
+        if (usage := supported_inputs.usage_message) is not None:
+            chunk = create_stage_chunk(
+                model_name=model_name,
+                stage_title="Usage",
+                stage_content=usage,
+                stream=is_stream,
+            )
+        return create_response_from_chunk(
+            chunk=chunk, exc=transform_result, stream=is_stream
         )
-        return create_response_from_chunk(chunk, transform_result, is_stream)
 
     multi_modal_messages = transform_result
     discarded_messages = None

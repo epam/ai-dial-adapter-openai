@@ -6,6 +6,7 @@ from openai import AsyncAzureOpenAI
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
+from aidial_adapter_openai.chat_completions.input import get_supported_inputs
 from aidial_adapter_openai.chat_completions.non_gpt import (
     chat_completion as non_gpt_chat_completion,
 )
@@ -79,7 +80,8 @@ async def call_chat_completion(
             return await completion(request, client, deployment_id, app_config)
 
         case ChatCompletionDeploymentType.RESPONSES_API:
-            return await responses(request, client, storage)
+            supported_inputs = get_supported_inputs(deployment_type)
+            return await responses(request, client, storage, supported_inputs)
 
         case (
             ChatCompletionDeploymentType.DALLE3
@@ -110,12 +112,14 @@ async def call_chat_completion(
                 model=tiktoken_model,
                 image_tokenizer=get_image_tokenizer(deployment_type),
             )
+            supported_inputs = get_supported_inputs(deployment_type)
             return await gpt_chat_completion(
                 request,
                 deployment_id,
                 request_headers,
                 client,
                 storage,
+                supported_inputs,
                 tokenizer,
                 app_config.ELIMINATE_EMPTY_CHOICES,
             )

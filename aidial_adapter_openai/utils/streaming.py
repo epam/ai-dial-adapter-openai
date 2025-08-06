@@ -212,18 +212,15 @@ def create_stage_chunk(
 
 
 def create_response_from_chunk(
-    chunk: dict, exc: DialException | None, stream: bool
+    *, chunk: dict | None, exc: DialException, stream: bool
 ) -> AsyncIterator[dict] | Response:
     if not stream:
-        if exc is not None:
-            return exc.to_fastapi_response()
-        else:
-            return JSONResponse(content=chunk)
+        return exc.to_fastapi_response()
 
     async def generator() -> AsyncIterator[dict]:
-        yield chunk
-        if exc is not None:
-            yield exc.json_error()
+        if chunk is not None:
+            yield chunk
+        yield exc.json_error()
 
     return generator()
 

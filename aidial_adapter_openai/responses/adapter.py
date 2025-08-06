@@ -13,7 +13,7 @@ from openai import (
     BaseModel,
 )
 
-from aidial_adapter_openai.chat_completions.gpt import MULTI_MODAL_USAGE
+from aidial_adapter_openai.chat_completions.input import SupportedInputs
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
@@ -84,6 +84,7 @@ async def chat_completion(
     request: Dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
+    supported_inputs: SupportedInputs,
 ) -> AsyncIterator[dict] | dict | FastAPIResponse:
     _validate_request(request)
 
@@ -92,21 +93,24 @@ async def chat_completion(
     messages = request["messages"]
 
     transformed_messages = await ResourceProcessor(
-        file_storage=file_storage
+        file_storage=file_storage,
+        supported_image_types=supported_inputs.input_types,
     ).transform_messages(messages)
 
     if isinstance(transformed_messages, DialException):
         logger.error(
             f"Failed to prepare request: {transformed_messages.message}"
         )
-        chunk = create_stage_chunk(
-            model_name=model_name,
-            stage_title="Usage",
-            stage_content=MULTI_MODAL_USAGE,
-            stream=is_stream,
-        )
+        chunk = None
+        if (usage := supported_inputs.usage_message) is not None:
+            chunk = create_stage_chunk(
+                model_name=model_name,
+                stage_title="Usage",
+                stage_content=usage,
+                stream=is_stream,
+            )
         return create_response_from_chunk(
-            chunk, transformed_messages, is_stream
+            chunk=chunk, exc=transformed_messages, stream=is_stream
         )
 
     input_messages = convert_messages(

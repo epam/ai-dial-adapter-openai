@@ -23,10 +23,6 @@ from aidial_adapter_openai.utils.multi_modal_message import (
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.text import decapitalize
 
-# Officially supported image types by GPT-4 Vision, GPT-4o
-SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-SUPPORTED_IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
-
 
 @dataclass(order=True, frozen=True)
 class TransformationError:
@@ -39,6 +35,8 @@ class ResourceProcessor(BaseModel):
         arbitrary_types_allowed = True  # for errors
 
     file_storage: FileStorage | None
+    supported_image_types: List[str] | None
+
     errors: Set[TransformationError] = Field(default_factory=set)
 
     def collect_resource(
@@ -56,7 +54,7 @@ class ResourceProcessor(BaseModel):
         self, dial_resource: DialResource
     ) -> Resource | TransformationError:
         try:
-            resource = await dial_resource.download(self.file_storage)
+            return await dial_resource.download(self.file_storage)
         except Exception as e:
             logger.error(
                 f"Failed to download {dial_resource.entity_name}: {str(e)}"
@@ -70,8 +68,6 @@ class ResourceProcessor(BaseModel):
             )
             return TransformationError(name=name, message=message)
 
-        return resource
-
     async def download_attachment_images(
         self, attachments: List[dict]
     ) -> List[ImageMetadata]:
@@ -84,7 +80,7 @@ class ResourceProcessor(BaseModel):
             dial_resource = AttachmentResource(
                 attachment=parse_attachment(attachment),
                 entity_name="image attachment",
-                supported_types=SUPPORTED_IMAGE_TYPES,
+                supported_types=self.supported_image_types,
             )
             result = await self.try_download_resource(dial_resource)
             self.collect_resource(ret, result, None)
@@ -109,7 +105,7 @@ class ResourceProcessor(BaseModel):
                 dial_resource = URLResource(
                     url=url,
                     entity_name="image",
-                    supported_types=SUPPORTED_IMAGE_TYPES,
+                    supported_types=self.supported_image_types,
                 )
                 result = await self.try_download_resource(dial_resource)
                 self.collect_resource(ret, result, detail)
@@ -152,11 +148,11 @@ class ResourceProcessor(BaseModel):
         ]
 
         if self.errors:
-            image_fails = sorted(list(self.errors))
+            fails = sorted(list(self.errors))
             msg = "The following files failed to process:\n"
             msg += "\n".join(
                 f"{idx}. {error.name}: {decapitalize(error.message)}"
-                for idx, error in enumerate(image_fails, start=1)
+                for idx, error in enumerate(fails, start=1)
             )
             return InvalidRequestError(message=msg, display_message=msg)
 
