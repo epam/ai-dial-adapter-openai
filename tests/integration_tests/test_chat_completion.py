@@ -79,7 +79,8 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
         assert isinstance(actual_exc, test_case.expected.type)
         actual_status_code = getattr(actual_exc, "status_code", None)
         assert actual_status_code == test_case.expected.status_code
-        assert re.search(test_case.expected.message, str(actual_exc))
+        if (message := test_case.expected.message) is not None:
+            assert re.search(message, str(actual_exc))
     else:
         actual_output = await run_chat_completion()
         assert test_case.expected(

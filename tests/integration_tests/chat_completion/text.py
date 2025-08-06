@@ -33,36 +33,23 @@ def build_text_common(s: TestSuite) -> None:
         expected=lambda s: "6" in s.content,
     )
 
-    if s.deployment_type == ChatCompletionDeploymentType.GPT_TEXT_ONLY:
-        expected_exc = ExpectedException(
-            type=BadRequestError,
-            message="Expected an array with minimum length 1, but got an empty array instead",
-            status_code=400,
-        )
-    elif s.deployment_type == ChatCompletionDeploymentType.MISTRAL:
-        expected_exc = ExpectedException(
-            type=BadRequestError,
-            message="Conversation must have at least one message",
-            status_code=400,
-        )
-    elif s.deployment_type == ChatCompletionDeploymentType.DATABRICKS:
-        expected_exc = ExpectedException(
-            type=BadRequestError,
-            message="cannot be an empty list",
-            status_code=400,
-        )
-    else:
-        expected_exc = ExpectedException(
+    if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
+        empty_messages_expected = ExpectedException(
             type=UnprocessableEntityError,
             message="The request doesn't contain any messages",
             status_code=422,
+        )
+    else:
+        empty_messages_expected = ExpectedException(
+            type=BadRequestError,
+            status_code=400,
         )
 
     s.test_case(
         name="empty dialog",
         max_tokens=16,
         messages=[],
-        expected=expected_exc,
+        expected=empty_messages_expected,
     )
 
     s.test_case(
@@ -139,7 +126,7 @@ def build_multi_system(s: TestSuite) -> None:
             # Databricks does not allow multiple system messages
             expected=ExpectedException(
                 type=BadRequestError,
-                message=("Chat message input roles must alternate"),
+                message="Chat message input roles must alternate",
                 status_code=400,
             ),
         )
