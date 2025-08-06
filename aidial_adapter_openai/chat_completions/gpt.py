@@ -101,7 +101,7 @@ def _extract_max_prompt_tokens(request: dict) -> int | None:
 async def chat_completion(
     request: dict,
     model_name: str,
-    request_headers: Mapping[str, str] | None,
+    request_headers: Mapping[str, str],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
     tokenizer: Tokenizer,
@@ -153,14 +153,12 @@ async def chat_completion(
         await call_with_extra_body(client.chat.completions.create, request)
     )
 
-    response_headers = None
     if isinstance(response, AsyncStream):
-        if request_headers is not None:
-            response_headers = get_response_headers_for_caching(
-                request_headers=request_headers,
-                request_body=request,
-                get_request_tokens=lambda: estimated_prompt_tokens,
-            )
+        response_headers = get_response_headers_for_caching(
+            request_headers=request_headers,
+            request_body=request,
+            get_request_tokens=lambda: estimated_prompt_tokens,
+        )
 
         body = generate_stream(
             stream=map_stream(chunk_to_dict, response),
@@ -195,12 +193,11 @@ async def chat_completion(
                     f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
                 )
 
-        if request_headers is not None:
-            response_headers = get_response_headers_for_caching(
-                request_headers=request_headers,
-                request_body=request,
-                get_request_tokens=lambda: actual_prompt_tokens
-                or estimated_prompt_tokens,
-            )
+        response_headers = get_response_headers_for_caching(
+            request_headers=request_headers,
+            request_body=request,
+            get_request_tokens=lambda: actual_prompt_tokens
+            or estimated_prompt_tokens,
+        )
 
         return ResponseWithHeaders(headers=response_headers, body=body)
