@@ -65,7 +65,7 @@ def _validate_request(request: Dict[str, Any]) -> None:
     ):
         errors.append(_DEPRECATED_FUNCTION_API)
 
-    if not (request.get("messages")):
+    if not request.get("messages"):
         errors.append("The request doesn't contain any messages.")
 
     if errors:
