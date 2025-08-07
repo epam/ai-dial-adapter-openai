@@ -25,18 +25,27 @@ from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 
 class UpstreamConfig(ExtraAllowedModel):
     endpoint: str
-    key: str
+    key: str | None
 
 
 class Features(ExtraAllowedModel):
-    systemPromptSupported: bool = True
+    """
+    What features/parameters the model supports.
+    * Function calling support: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/function-calling#function-calling-support
+    * Reasoning support: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reasoning?tabs=python-secure%2Cpy#api--feature-support
+    """
 
-    # Not in DIAL Core config yet
+    systemPromptSupported: bool = True
+    toolsSupported: bool = True
+    parallelToolCallsSupported: bool = True
+
+    # Not in the DIAL Core config yet
     maxTokensSupported: bool = True
     reasoningSupported: bool = False
-    visionSupported: bool = False
-    functionCallingSupported: bool = True
     stopSupported: bool = True
+
+    # TODO: inputAttachments
+    visionSupported: bool = False
 
 
 class ModelConfig(ExtraAllowedModel):
@@ -89,15 +98,15 @@ class DeploymentConfig(BaseModel, Generic[_T]):
     model_name: str
     model_features: Features
     upstream_endpoint: str
-    upstream_api_key: str
+    upstream_api_key: str | None
     upstream_idx: int | None
 
     @property
     def upstream_headers(self) -> Dict[str, str]:
-        return {
-            "X-UPSTREAM-KEY": self.upstream_api_key,
-            "X-UPSTREAM-ENDPOINT": self.upstream_endpoint,
-        }
+        headers = {"X-UPSTREAM-ENDPOINT": self.upstream_endpoint}
+        if self.upstream_api_key is not None:
+            headers["X-UPSTREAM-KEY"] = self.upstream_api_key
+        return headers
 
     @classmethod
     def create_deployments(

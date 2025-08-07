@@ -1,5 +1,3 @@
-from openai import UnprocessableEntityError
-
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
@@ -9,14 +7,9 @@ from tests.integration_tests.chat_completion.test_case import (
 )
 from tests.utils.openai import (
     GET_WEATHER_FUNCTION,
-    ExpectedException,
     ai,
-    ai_function,
     ai_tools,
-    function_request,
-    function_response,
     function_to_tool,
-    is_valid_function_call,
     is_valid_tool_call,
     sys,
     tool_request,
@@ -61,7 +54,7 @@ def build_tools_common(s: TestSuite) -> None:
     if not s.supports_function_calling:
         return
 
-    if supports_parallel_tool_calls(s.deployment_type):
+    if s.supports_parallel_function_calling:
         city_config = [[("Glasgow", 15)], [("Glasgow", 15), ("London", 20)]]
     else:
         city_config = [[("Glasgow", 15)]]

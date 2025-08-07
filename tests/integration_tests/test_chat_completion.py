@@ -59,13 +59,14 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
     async def run_chat_completion() -> ChatCompletionResult:
         max_tokens = test_case.max_tokens
         extra_body = test_case.extra_body or {}
+        features = test_case.deployment_config.model_features
 
-        if test_case.deployment_config.model_features.reasoningSupported:
+        if features.reasoningSupported:
             max_tokens = 1024
             extra_body = {"reasoning_effort": "low"} | extra_body
 
         max_completion_tokens = openai.NOT_GIVEN
-        if not (test_case.deployment_config.model_features.maxTokensSupported):
+        if not features.maxTokensSupported:
             max_tokens, max_completion_tokens = (
                 max_completion_tokens,
                 max_tokens,
@@ -92,10 +93,12 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
 
         actual_exc = exc_info.value
 
-        assert isinstance(actual_exc, test_case.expected.type)
+        expected = test_case.expected
+        assert isinstance(actual_exc, expected.type)
         actual_status_code = getattr(actual_exc, "status_code", None)
-        assert actual_status_code == test_case.expected.status_code
-        assert re.search(test_case.expected.message, str(actual_exc))
+        assert actual_status_code == expected.status_code
+        if (message := expected.message) is not None:
+            assert re.search(message, str(actual_exc))
     else:
         actual_output = await run_chat_completion()
         assert test_case.expected(

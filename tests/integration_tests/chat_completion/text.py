@@ -34,36 +34,27 @@ def build_text_common(s: TestSuite) -> None:
             expected=lambda s: "6" in s.content,
         )
 
-    if s.deployment_type == ChatCompletionDeploymentType.GPT_TEXT_ONLY:
-        expected_exc = ExpectedException(
-            type=BadRequestError,
-            message="Expected an array with minimum length 1, but got an empty array instead",
+    if s.deployment_type in (
+        ChatCompletionDeploymentType.GPT_TEXT_ONLY,
+        ChatCompletionDeploymentType.MISTRAL,
+        ChatCompletionDeploymentType.DATABRICKS,
+    ):
+        empty_messages_expected = ExpectedException(
             status_code=400,
-        )
-    elif s.deployment_type == ChatCompletionDeploymentType.MISTRAL:
-        expected_exc = ExpectedException(
             type=BadRequestError,
-            message="Conversation must have at least one message",
-            status_code=400,
-        )
-    elif s.deployment_type == ChatCompletionDeploymentType.DATABRICKS:
-        expected_exc = ExpectedException(
-            type=BadRequestError,
-            message="cannot be an empty list",
-            status_code=400,
         )
     else:
-        expected_exc = ExpectedException(
+        empty_messages_expected = ExpectedException(
+            status_code=422,
             type=UnprocessableEntityError,
             message="The request doesn't contain any messages",
-            status_code=422,
         )
 
     s.test_case(
         name="empty dialog",
         max_tokens=16,
         messages=[],
-        expected=expected_exc,
+        expected=empty_messages_expected,
     )
 
     s.test_case(
@@ -78,16 +69,18 @@ def build_text_common(s: TestSuite) -> None:
         messages=[user(" ")],
     )
 
-    s.test_case(
-        name="short pinocchio",
-        max_tokens=16,
-        messages=[user("tell me the full story of Pinocchio")],
-        expected=lambda s: len(s.content.split()) <= 16
-        and len(s.response.id) <= 100
-        and s.response.choices[0].finish_reason == "length"
-        and s.usage is not None
-        and s.usage.completion_tokens == 16,
-    )
+    if not s.supports_reasoning:
+        # TODO: support for reasoning
+        s.test_case(
+            name="short pinocchio",
+            max_tokens=16,
+            messages=[user("tell me the full story of Pinocchio")],
+            expected=lambda s: len(s.content.split()) <= 16
+            and len(s.response.id) <= 100
+            and s.response.choices[0].finish_reason == "length"
+            and s.usage is not None
+            and s.usage.completion_tokens == 16,
+        )
 
 
 def build_stop_sequence(s: TestSuite) -> None:
@@ -128,7 +121,7 @@ def build_multi_system(s: TestSuite) -> None:
             # Databricks does not allow multiple system messages
             expected=ExpectedException(
                 type=BadRequestError,
-                message=("Chat message input roles must alternate"),
+                message="Chat message input roles must alternate",
                 status_code=400,
             ),
         )

@@ -123,8 +123,16 @@ class TestSuite:
         return self.deployment_config.model_features.visionSupported
 
     @property
+    def supports_reasoning(self):
+        return self.deployment_config.model_features.reasoningSupported
+
+    @property
     def supports_function_calling(self):
-        return self.deployment_config.model_features.functionCallingSupported
+        return self.deployment_config.model_features.toolsSupported
+
+    @property
+    def supports_parallel_function_calling(self):
+        return self.deployment_config.model_features.parallelToolCallsSupported
 
     @property
     def supports_stop(self):
