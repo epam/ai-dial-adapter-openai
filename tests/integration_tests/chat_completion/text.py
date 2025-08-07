@@ -8,7 +8,14 @@ from tests.utils.openai import ExpectedException, ai, sys, user
 
 
 def build_text_common(s: TestSuite) -> None:
-    # Basic dialog tests
+    if s.supports_reasoning:
+        be_brief = {
+            "max_completion_tokens": 512,
+            "reasoning_effort": "low",
+        }
+    else:
+        be_brief = {"max_tokens": 16}
+
     s.test_case(
         name="dialog recall",
         messages=[
@@ -16,8 +23,8 @@ def build_text_common(s: TestSuite) -> None:
             ai("Hello"),
             user("what city do I like?"),
         ],
-        max_tokens=16,
         expected=lambda r: "toronto" in r.content.lower(),
+        **be_brief,
     )
 
     s.test_case(
@@ -52,29 +59,38 @@ def build_text_common(s: TestSuite) -> None:
 
     s.test_case(
         name="empty dialog",
-        max_tokens=16,
         messages=[],
         expected=empty_messages_expected,
+        **be_brief,
     )
 
     s.test_case(
         name="empty user message",
-        max_tokens=16,
         messages=[user("")],
+        **be_brief,  # type: ignore
     )
 
     s.test_case(
         name="single space user message",
-        max_tokens=16,
         messages=[user(" ")],
+        **be_brief,  # type: ignore
     )
 
-    if not s.supports_reasoning:
-        # TODO: support for reasoning
+    if s.supports_reasoning:
         s.test_case(
             name="short pinocchio",
-            max_tokens=16,
             messages=[user("tell me the full story of Pinocchio")],
+            max_completion_tokens=128,
+            reasoning_effort="low",
+            expected=lambda s: len(s.response.id) <= 100
+            and s.response.choices[0].finish_reason == "length"
+            and s.usage is not None,
+        )
+    else:
+        s.test_case(
+            name="short pinocchio",
+            messages=[user("tell me the full story of Pinocchio")],
+            max_tokens=16,
             expected=lambda s: len(s.content.split()) <= 16
             and len(s.response.id) <= 100
             and s.response.choices[0].finish_reason == "length"

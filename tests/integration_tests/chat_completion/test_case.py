@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Iterator, List
 
 from openai import NOT_GIVEN, NotGiven
+from openai.types import ReasoningEffort
 from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
@@ -31,6 +32,7 @@ class TestCase:
     expected: Callable[[ChatCompletionResult], bool] | ExpectedException
 
     max_tokens: int | NotGiven
+    max_completion_tokens: int | NotGiven
     stop: List[str] | NotGiven
 
     n: int | NotGiven
@@ -38,6 +40,8 @@ class TestCase:
     functions: List[Function] | NotGiven
     tools: List[ChatCompletionToolParam] | NotGiven
     temperature: float | NotGiven
+
+    reasoning_effort: ReasoningEffort | NotGiven
 
     extra_body: dict | None
 
@@ -82,11 +86,15 @@ class TestSuite:
                 messages=messages,
                 expected=expected,
                 max_tokens=kwargs.pop("max_tokens", None) or NOT_GIVEN,
+                max_completion_tokens=kwargs.pop("max_completion_tokens", None)
+                or NOT_GIVEN,
                 stop=kwargs.pop("stop", None) or NOT_GIVEN,
                 n=kwargs.pop("n", None) or NOT_GIVEN,
                 functions=kwargs.pop("functions", None) or NOT_GIVEN,
                 tools=kwargs.pop("tools", None) or NOT_GIVEN,
                 temperature=kwargs.pop("temperature", None) or NOT_GIVEN,
+                reasoning_effort=kwargs.pop("reasoning_effort", None)
+                or NOT_GIVEN,
                 extra_body=kwargs,
             )
         )
