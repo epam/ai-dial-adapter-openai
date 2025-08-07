@@ -9,10 +9,7 @@ from tests.utils.openai import ExpectedException, ai, sys, user
 
 def build_text_common(s: TestSuite) -> None:
     if s.supports_reasoning:
-        be_brief = {
-            "max_completion_tokens": 512,
-            "reasoning_effort": "low",
-        }
+        be_brief = {"max_completion_tokens": 512}
     else:
         be_brief = {"max_tokens": 16}
 
@@ -81,7 +78,6 @@ def build_text_common(s: TestSuite) -> None:
             name="short pinocchio",
             messages=[user("tell me the full story of Pinocchio")],
             max_completion_tokens=128,
-            reasoning_effort="low",
             expected=lambda s: len(s.response.id) <= 100
             and s.response.choices[0].finish_reason == "length"
             and s.usage is not None,
