@@ -38,20 +38,16 @@ def build_text_common(s: TestSuite) -> None:
             expected=lambda s: "6" in s.content,
         )
 
-    if s.deployment_type in (
-        ChatCompletionDeploymentType.GPT_TEXT_ONLY,
-        ChatCompletionDeploymentType.MISTRAL,
-        ChatCompletionDeploymentType.DATABRICKS,
-    ):
-        empty_messages_expected = ExpectedException(
-            status_code=400,
-            type=BadRequestError,
-        )
-    else:
+    if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
         empty_messages_expected = ExpectedException(
             status_code=422,
             type=UnprocessableEntityError,
             message="The request doesn't contain any messages",
+        )
+    else:
+        empty_messages_expected = ExpectedException(
+            type=BadRequestError,
+            status_code=400,
         )
 
     s.test_case(
@@ -93,6 +89,24 @@ def build_text_common(s: TestSuite) -> None:
             and s.usage is not None
             and s.usage.completion_tokens == 16,
         )
+
+    if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
+        multiple_completions_expected = ExpectedException(
+            type=UnprocessableEntityError,
+            message="The deployment doesn't support request.n parameter other than 1, but got 3.",
+            status_code=422,
+        )
+    else:
+        multiple_completions_expected = (
+            lambda s: len(s.response.choices) == 3 and s.usage is not None
+        )
+
+    s.test_case(
+        name="multiple completions",
+        n=3,
+        messages=[user("2+3=?")],
+        expected=multiple_completions_expected,
+    )
 
 
 def build_stop_sequence(s: TestSuite) -> None:

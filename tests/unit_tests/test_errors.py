@@ -13,7 +13,12 @@ from aidial_adapter_openai.configuration.deployment_type import (
 )
 from tests.conftest import create_test_client
 from tests.utils.dictionary import exclude_keys
-from tests.utils.stream import OpenAIStream, single_choice_chunk
+from tests.utils.stream import (
+    OpenAIStream,
+    create_choice,
+    many_choices_chunk,
+    single_choice_chunk,
+)
 
 
 def assert_equal(actual: Any, expected: Any):
@@ -296,7 +301,7 @@ async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-async def test_interrupted_stream(test_app: httpx.AsyncClient):
+async def test_interrupted_stream_single_choice(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant", "content": "hello"}),
     )
@@ -333,6 +338,65 @@ async def test_interrupted_stream(test_app: httpx.AsyncClient):
                 "total_tokens": 10,
             },
         )
+    )
+    expected_stream.assert_response_content(response, assert_equal)
+
+
+@respx.mock
+async def test_interrupted_stream_many_choices(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "hello1"}, choice_index=0
+        ),
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "hello2"}, choice_index=1
+        ),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+            "n": 3,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+
+    expected_stream = OpenAIStream(
+        single_choice_chunk(
+            choice_index=0,
+            delta={"role": "assistant", "content": "hello1"},
+        ),
+        many_choices_chunk(
+            choices=[
+                create_choice(
+                    index=1,
+                    delta={"role": "assistant", "content": "hello2"},
+                    finish_reason="length",
+                ),
+                create_choice(index=0, finish_reason="length"),
+                create_choice(index=2, finish_reason="length"),
+            ],
+            usage={
+                "completion_tokens": 4,
+                "prompt_tokens": 9,
+                "total_tokens": 13,
+            },
+        ),
     )
     expected_stream.assert_response_content(response, assert_equal)
 

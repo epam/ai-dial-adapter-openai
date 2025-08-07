@@ -49,7 +49,7 @@ async def chat_completion(
     app_config: ApplicationConfig,
 ):
 
-    if data.get("n") or 1 > 1:
+    if (data.get("n") or 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
     client = endpoint.get_client({**creds, "api_version": api_version})
