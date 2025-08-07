@@ -1,66 +1,168 @@
 {
     "models": {
+        "gpt-35-turbo-0125": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-35-turbo-0125/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
+        "gpt-35-turbo-1106": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-35-turbo-1106/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
+        "gpt-4-turbo-2024-04-09": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4-turbo-2024-04-09/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "parallelToolCallsSupported": false
+            }
+        },
+        "gpt-4.1-2025-04-14": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4.1-2025-04-14/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
+        "gpt-4.1-mini-2025-04-14": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4.1-mini-2025-04-14/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
+        "gpt-4.1-nano-2025-04-14": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4.1-nano-2025-04-14/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
         "gpt-4o-2024-05-13": {
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/gpt-4o-2024-05-13/chat/completions",
-                    "key": "your-api-key"
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4o-2024-05-13/chat/completions",
+                    "key": "optional-api-key"
                 }
+            ],
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
+        "gpt-4o-2024-08-06": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4o-2024-08-06/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
+        "gpt-4o-2024-11-20": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4o-2024-11-20/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
+        "gpt-4o-2024-11-20-responses": {
+            "overrideName": "gpt-4o-2024-11-20",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/v1/responses",
+                    "key": "optional-api-key"
+                }
+            ],
+            "inputAttachmentTypes": [
+                "image/*"
             ]
         },
         "gpt-4o-mini-2024-07-18": {
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/gpt-4o-mini-2024-07-18/chat/completions",
-                    "key": "your-api-key"
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4o-mini-2024-07-18/chat/completions",
+                    "key": "optional-api-key"
                 }
+            ],
+            "inputAttachmentTypes": [
+                "image/*"
             ]
         },
-        "gpt-4-vision-preview": {
+        "o1-mini-2024-09-12": {
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/gpt-4-vision-preview/chat/completions",
-                    "key": "your-api-key"
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/o1-mini-2024-09-12/chat/completions",
+                    "key": "optional-api-key"
                 }
-            ]
+            ],
+            "features": {
+                "systemPromptSupported": false,
+                "toolsSupported": false,
+                "maxTokensSupported": false,
+                "reasoningSupported": true,
+                "stopSupported": false
+            }
         },
-        "databricks-endpoint": {
+        "o3-mini-2025-01-31": {
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://your-databricks-service-name.cloud.databricks.com/serving-endpoints/chat/completions",
-                    "key": "your-databricks-api-key"
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/o3-mini-2025-01-31/chat/completions",
+                    "key": "optional-api-key"
                 }
-            ]
-        },
-        "mistral-endpoint": {
-            "type": "chat",
-            "overrideName": "mistral-model-name",
-            "upstreams": [
-                {
-                    "endpoint": "https://your-databricks-service-name.cloud.databricks.com/serving-endpoints/chat/completions",
-                    "key": "your-databricks-api-key"
-                }
-            ]
-        },
-        "gpt-4-0613": {
-            "type": "chat",
-            "upstreams": [
-                {
-                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/gpt-4-0613/chat/completions",
-                    "key": "your-api-key"
-                }
-            ]
+            ],
+            "features": {
+                "parallelToolCallsSupported": false,
+                "maxTokensSupported": false,
+                "reasoningSupported": true
+            }
         },
         "text-embedding-3-large": {
             "type": "embedding",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-service-name.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings",
-                    "key": "your-api-key"
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings",
+                    "key": "optional-api-key"
                 }
             ]
         },
@@ -68,10 +170,23 @@
             "type": "embedding",
             "upstreams": [
                 {
-                    "endpoint": "https://your-azure-service-name.cognitiveservices.azure.com",
-                    "key": "your-api-key"
+                    "endpoint": "https://azure-computer-vision-service-name.cognitiveservices.azure.com",
+                    "key": "optional-api-key"
                 }
             ]
+        },
+        "mistral-large": {
+            "overrideName": "Mistral-Large-2411",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-ai-foundry-service-name.openai.azure.com",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "toolsSupported": false
+            }
         }
     }
 }
