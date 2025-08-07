@@ -120,7 +120,10 @@ class TestSuite:
 
     @property
     def supports_vision(self):
-        return self.deployment_config.model_features.visionSupported
+        types = self.deployment_config.model_attachments or []
+        return any(
+            ty.startswith("image/") or ty.startswith("*/") for ty in types
+        )
 
     @property
     def supports_reasoning(self):

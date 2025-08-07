@@ -44,15 +44,13 @@ class Features(ExtraAllowedModel):
     reasoningSupported: bool = False
     stopSupported: bool = True
 
-    # TODO: inputAttachments
-    visionSupported: bool = False
-
 
 class ModelConfig(ExtraAllowedModel):
     type: Literal["chat", "embedding"]
     overrideName: str | None = None
     upstreams: List[UpstreamConfig]
     features: Features = Features()
+    inputAttachmentTypes: List[str] | None = None
 
 
 class CoreConfig(ExtraAllowedModel):
@@ -97,6 +95,8 @@ class DeploymentConfig(BaseModel, Generic[_T]):
 
     model_name: str
     model_features: Features
+    model_attachments: List[str] | None
+
     upstream_endpoint: str
     upstream_api_key: str | None
     upstream_idx: int | None
@@ -131,6 +131,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                         id_=deployment_id,
                         model_name=model_config.overrideName or deployment_id,
                         model_features=model_config.features,
+                        model_attachments=model_config.inputAttachmentTypes,
                         type_=get_deployment_type(
                             model_config, deployment_id, upstream_endpoint
                         ),
