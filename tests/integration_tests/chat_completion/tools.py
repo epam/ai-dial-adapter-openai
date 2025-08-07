@@ -1,10 +1,7 @@
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
-from tests.integration_tests.chat_completion.test_case import (
-    TestSuite,
-    exclude_deployments,
-)
+from tests.integration_tests.chat_completion.test_case import TestSuite
 from tests.utils.openai import (
     GET_WEATHER_FUNCTION,
     ai,
@@ -44,12 +41,6 @@ def supports_functions(deployment_type: ChatCompletionDeploymentType):
     return deployment_type not in [ChatCompletionDeploymentType.DATABRICKS]
 
 
-@exclude_deployments(
-    [
-        ChatCompletionDeploymentType.DALLE3,
-        ChatCompletionDeploymentType.MISTRAL,
-    ]
-)
 def build_tools_common(s: TestSuite) -> None:
     if not s.supports_function_calling:
         return

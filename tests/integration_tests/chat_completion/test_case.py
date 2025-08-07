@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 from dataclasses import dataclass, field
 from typing import Callable, Iterator, List
 
@@ -140,33 +139,3 @@ class TestSuite:
     @property
     def supports_stop(self):
         return self.deployment_config.model_features.stopSupported
-
-
-def exclude_deployments(
-    deployment_types: List[ChatCompletionDeploymentType],
-):
-    def wrapper(func: TestSuiteBuilder):
-        @functools.wraps(func)
-        def wrapped(s: TestSuite):
-            if s.deployment_type in deployment_types:
-                return
-            return func(s)
-
-        return wrapped
-
-    return wrapper
-
-
-def include_deployments(
-    deployment_types: List[ChatCompletionDeploymentType],
-):
-    def wrapper(func: TestSuiteBuilder):
-        @functools.wraps(func)
-        def wrapped(s: TestSuite):
-            if s.deployment_type not in deployment_types:
-                return
-            return func(s)
-
-        return wrapped
-
-    return wrapper
