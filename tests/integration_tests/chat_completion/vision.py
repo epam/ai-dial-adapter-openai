@@ -16,7 +16,6 @@ def build_vision_common(s: TestSuite) -> None:
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
-        max_tokens=16,
     )
 
     s.test_case(
@@ -28,5 +27,4 @@ def build_vision_common(s: TestSuite) -> None:
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
-        max_tokens=16,
     )

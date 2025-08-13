@@ -18,6 +18,74 @@
                 }
             ]
         },
+        "gpt-5-2025-08-07": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-5-2025-08-07/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "parallelToolCallsSupported": false,
+                "maxTokensSupported": false,
+                "reasoningSupported": true,
+                "stopSupported": false
+            },
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
+        "gpt-5-chat-2025-08-07": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-5-chat-2025-08-07/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "parallelToolCallsSupported": false,
+                "reasoningSupported": true
+            },
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
+        "gpt-5-mini-2025-08-07": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-5-mini-2025-08-07/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "maxTokensSupported": false,
+                "reasoningSupported": true,
+                "stopSupported": false
+            },
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
+        "gpt-5-nano-2025-08-07": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-5-nano-2025-08-07/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "maxTokensSupported": false,
+                "reasoningSupported": true,
+                "stopSupported": false
+            },
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
         "gpt-4-turbo-2024-04-09": {
             "type": "chat",
             "upstreams": [
