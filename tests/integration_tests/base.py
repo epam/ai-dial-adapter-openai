@@ -25,13 +25,32 @@ from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 
 class UpstreamConfig(ExtraAllowedModel):
     endpoint: str
-    key: str
+    key: str | None
+
+
+class Features(ExtraAllowedModel):
+    """
+    What features/parameters the model supports.
+    * Function calling support: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/function-calling#function-calling-support
+    * Reasoning support: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reasoning?tabs=python-secure%2Cpy#api--feature-support
+    """
+
+    systemPromptSupported: bool = True
+    toolsSupported: bool = True
+    parallelToolCallsSupported: bool = True
+
+    # Not in the DIAL Core config yet
+    maxTokensSupported: bool = True
+    reasoningSupported: bool = False
+    stopSupported: bool = True
 
 
 class ModelConfig(ExtraAllowedModel):
     type: Literal["chat", "embedding"]
     overrideName: str | None = None
     upstreams: List[UpstreamConfig]
+    features: Features = Features()
+    inputAttachmentTypes: List[str] | None = None
 
 
 class CoreConfig(ExtraAllowedModel):
@@ -75,16 +94,19 @@ class DeploymentConfig(BaseModel, Generic[_T]):
     type_: _T
 
     model_name: str
+    model_features: Features
+    model_attachments: List[str] | None
+
     upstream_endpoint: str
-    upstream_api_key: str
+    upstream_api_key: str | None
     upstream_idx: int | None
 
     @property
     def upstream_headers(self) -> Dict[str, str]:
-        return {
-            "X-UPSTREAM-KEY": self.upstream_api_key,
-            "X-UPSTREAM-ENDPOINT": self.upstream_endpoint,
-        }
+        headers = {"X-UPSTREAM-ENDPOINT": self.upstream_endpoint}
+        if self.upstream_api_key is not None:
+            headers["X-UPSTREAM-KEY"] = self.upstream_api_key
+        return headers
 
     @classmethod
     def create_deployments(
@@ -108,6 +130,8 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                         upstream_idx=upstream_idx,
                         id_=deployment_id,
                         model_name=model_config.overrideName or deployment_id,
+                        model_features=model_config.features,
+                        model_attachments=model_config.inputAttachmentTypes,
                         type_=get_deployment_type(
                             model_config, deployment_id, upstream_endpoint
                         ),

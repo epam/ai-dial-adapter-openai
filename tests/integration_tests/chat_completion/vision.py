@@ -1,22 +1,12 @@
-from aidial_adapter_openai.configuration.deployment_type import (
-    ChatCompletionDeploymentType,
-)
-from tests.integration_tests.chat_completion.test_case import (
-    TestSuite,
-    include_deployments,
-)
+from tests.integration_tests.chat_completion.test_case import TestSuite
 from tests.integration_tests.constants import SAMPLE_DOG_RESOURCE
 from tests.utils.openai import user_with_attachment_url, user_with_image_url
 
 
-@include_deployments(
-    [
-        ChatCompletionDeploymentType.GPT4O,
-        ChatCompletionDeploymentType.GPT4O_MINI,
-        ChatCompletionDeploymentType.RESPONSES_API,
-    ]
-)
 def build_vision_common(s: TestSuite) -> None:
+    if not s.supports_vision:
+        return
+
     s.test_case(
         name="image_in_content_parts",
         messages=[
@@ -26,7 +16,6 @@ def build_vision_common(s: TestSuite) -> None:
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
-        max_tokens=16,
     )
 
     s.test_case(
@@ -38,5 +27,4 @@ def build_vision_common(s: TestSuite) -> None:
             ),
         ],
         expected=lambda s: "dog" in s.content.lower(),
-        max_tokens=16,
     )

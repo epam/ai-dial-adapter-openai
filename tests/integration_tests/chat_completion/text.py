@@ -8,7 +8,11 @@ from tests.utils.openai import ExpectedException, ai, sys, user
 
 
 def build_text_common(s: TestSuite) -> None:
-    # Basic dialog tests
+    if s.supports_reasoning:
+        be_brief = {"max_completion_tokens": 512}
+    else:
+        be_brief = {"max_tokens": 16}
+
     s.test_case(
         name="dialog recall",
         messages=[
@@ -16,8 +20,8 @@ def build_text_common(s: TestSuite) -> None:
             ai("Hello"),
             user("what city do I like?"),
         ],
-        max_tokens=16,
         expected=lambda r: "toronto" in r.content.lower(),
+        **be_brief,
     )
 
     s.test_case(
@@ -27,17 +31,18 @@ def build_text_common(s: TestSuite) -> None:
         and s.response.choices[0].finish_reason == "stop",
     )
 
-    s.test_case(
-        name="empty system message",
-        messages=[sys(""), user("compute (2+4)")],
-        expected=lambda s: "6" in s.content,
-    )
+    if s.supports_system_prompt:
+        s.test_case(
+            name="empty system message",
+            messages=[sys(""), user("compute (2+4)")],
+            expected=lambda s: "6" in s.content,
+        )
 
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
         empty_messages_expected = ExpectedException(
+            status_code=422,
             type=UnprocessableEntityError,
             message="The request doesn't contain any messages",
-            status_code=422,
         )
     else:
         empty_messages_expected = ExpectedException(
@@ -47,33 +52,43 @@ def build_text_common(s: TestSuite) -> None:
 
     s.test_case(
         name="empty dialog",
-        max_tokens=16,
         messages=[],
         expected=empty_messages_expected,
+        **be_brief,
     )
 
     s.test_case(
         name="empty user message",
-        max_tokens=16,
         messages=[user("")],
+        **be_brief,  # type: ignore
     )
 
     s.test_case(
         name="single space user message",
-        max_tokens=16,
         messages=[user(" ")],
+        **be_brief,  # type: ignore
     )
 
-    s.test_case(
-        name="short pinocchio",
-        max_tokens=16,
-        messages=[user("tell me the full story of Pinocchio")],
-        expected=lambda s: len(s.content.split()) <= 16
-        and len(s.response.id) <= 100
-        and s.response.choices[0].finish_reason == "length"
-        and s.usage is not None
-        and s.usage.completion_tokens == 16,
-    )
+    if s.supports_reasoning:
+        s.test_case(
+            name="short pinocchio",
+            messages=[user("tell me the full story of Pinocchio")],
+            max_completion_tokens=128,
+            expected=lambda s: len(s.response.id) <= 100
+            and s.response.choices[0].finish_reason == "length"
+            and s.usage is not None,
+        )
+    else:
+        s.test_case(
+            name="short pinocchio",
+            messages=[user("tell me the full story of Pinocchio")],
+            max_tokens=16,
+            expected=lambda s: len(s.content.split()) <= 16
+            and len(s.response.id) <= 100
+            and s.response.choices[0].finish_reason == "length"
+            and s.usage is not None
+            and s.usage.completion_tokens == 16,
+        )
 
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
         multiple_completions_expected = ExpectedException(
@@ -95,6 +110,9 @@ def build_text_common(s: TestSuite) -> None:
 
 
 def build_stop_sequence(s: TestSuite) -> None:
+    if not s.supports_stop:
+        return
+
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
         expected = ExpectedException(
             type=UnprocessableEntityError,
@@ -113,6 +131,9 @@ def build_stop_sequence(s: TestSuite) -> None:
 
 
 def build_multi_system(s: TestSuite) -> None:
+    if not s.supports_system_prompt:
+        return
+
     messages = [
         sys("act as a helpful assistant"),
         sys("act as a calculator"),

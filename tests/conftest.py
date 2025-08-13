@@ -7,10 +7,11 @@ from openai import AsyncAzureOpenAI
 
 from aidial_adapter_openai.app import create_app
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.utils.http_client import DEFAULT_TIMEOUT
 from aidial_adapter_openai.utils.request import get_app_config
 from tests.integration_tests.base import DeploymentConfig
 from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
+
+_TEST_TIMEOUT = httpx.Timeout(30, connect=10)
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +47,7 @@ async def test_app(_app_instance):
     async with httpx.AsyncClient(
         transport=ASGITransport(app=_app_instance),
         base_url="http://test-app.com",
-        timeout=DEFAULT_TIMEOUT,
+        timeout=_TEST_TIMEOUT,
     ) as client:
         yield client
 
@@ -67,7 +68,7 @@ async def create_test_client(
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app),  # type: ignore
         base_url=base_url,
-        timeout=DEFAULT_TIMEOUT,
+        timeout=_TEST_TIMEOUT,
     ) as client:
         yield client
 
@@ -81,7 +82,6 @@ def create_openai_client(test_app: httpx.AsyncClient):
             api_version="2024-12-01-preview",
             api_key="dummy_key",
             max_retries=3,
-            timeout=30,
             http_client=test_app,
             default_headers=deployment_config.upstream_headers,
         )
