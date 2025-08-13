@@ -74,6 +74,7 @@ def build_text_common(s: TestSuite) -> None:
             name="short pinocchio",
             messages=[user("tell me the full story of Pinocchio")],
             max_completion_tokens=128,
+            reasoning_effort="low",
             expected=lambda s: len(s.response.id) <= 100
             and s.response.choices[0].finish_reason == "length"
             and s.usage is not None,
@@ -88,6 +89,28 @@ def build_text_common(s: TestSuite) -> None:
             and s.response.choices[0].finish_reason == "length"
             and s.usage is not None
             and s.usage.completion_tokens == 16,
+        )
+
+    if s.supports_reasoning_summary:
+        s.test_case(
+            name="reasoning summary",
+            messages=[
+                user(
+                    "Write a bash script that takes a matrix represented as a string with "
+                    'format "[1,2],[3,4],[5,6]" and prints the transpose in the same format.'
+                )
+            ],
+            custom_fields={
+                "configuration": {
+                    "reasoning": {
+                        "effort": "medium",
+                        "summary": "auto",
+                    }
+                }
+            },
+            expected=lambda s: s.response.choices[0].finish_reason == "stop"
+            and len(s.stages) >= 1
+            and s.stages[0]["name"] == "Reasoning",
         )
 
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:

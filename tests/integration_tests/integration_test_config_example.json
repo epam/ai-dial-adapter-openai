@@ -52,6 +52,24 @@
                 "image/*"
             ]
         },
+        "gpt-5-2025-08-07-responses": {
+            "overrideName": "gpt-5-2025-08-07",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/v1/responses",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "parallelToolCallsSupported": false,
+                "reasoningSupported": true,
+                "reasoningSummarySupported": true
+            },
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
         "gpt-5-mini-2025-08-07": {
             "type": "chat",
             "upstreams": [

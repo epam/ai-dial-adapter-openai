@@ -42,6 +42,7 @@ class Features(ExtraAllowedModel):
     # Not in the DIAL Core config yet
     maxTokensSupported: bool = True
     reasoningSupported: bool = False
+    reasoningSummarySupported: bool = False
     stopSupported: bool = True
 
 

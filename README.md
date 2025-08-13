@@ -164,7 +164,7 @@ So that the end user doesn't have to attach configuration to each chat completio
 
 The configuration schema in the adapter isn't fixed and allows for extra fields and arbitrary parameter values. This enables forward compatibility with the future versions of the image generation API.
 
-Let's say the next version of GPT Image model introduces support of a negative prompt. It still will be possible to use a version of OpenAI adapter that is ignorant of the latest developments in the GPT Image API thanks to the permissive configuration schema.
+Let's say the next version of GPT Image model introduces support of a negative prompt *(which isn't currently supported)*. It still will be possible to use a version of OpenAI adapter that is ignorant of the latest developments in the GPT Image API thanks to the permissive configuration schema.
 
 <details><summary>Request</summary>
 

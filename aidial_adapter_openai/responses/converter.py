@@ -1,5 +1,6 @@
 from typing import Any, Generator, List, assert_never
 
+from aidial_sdk.chat_completion.request import CustomContent, Stage, Status
 from aidial_sdk.exceptions import RequestValidationError
 from openai.types.chat import (
     ChatCompletion,
@@ -255,6 +256,7 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     text_content = ""
     annotations: List[Annotation] = []
     tool_calls: List[ChatCompletionMessageToolCall] = []
+    custom_content: CustomContent | None = None
 
     for item in output:
         match item:
@@ -284,11 +286,24 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                     )
                 )
 
+            case ResponseReasoningItem(summary=summary):
+                if summary:
+                    stages: List[Stage] = []
+                    for index, summary_part in enumerate(summary):
+                        suffix = "" if index == 0 else f" #{index+1}"
+                        stages.append(
+                            Stage(
+                                name="Reasoning" + suffix,
+                                status=Status.COMPLETED,
+                                content=summary_part.text,
+                            )
+                        )
+                    custom_content = CustomContent(stages=stages)
+
             case (
                 ResponseFileSearchToolCall()
                 | ResponseFunctionWebSearch()
                 | ResponseComputerToolCall()
-                | ResponseReasoningItem()
                 | ImageGenerationCall()
                 | ResponseCodeInterpreterToolCall()
                 | LocalShellCall()
@@ -302,11 +317,16 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
             case _:
                 assert_never(item)
 
+    extra_fields = {}
+    if custom_content:
+        extra_fields["custom_content"] = custom_content.dict()
+
     return ChatCompletionMessage(
         role="assistant",
         content=text_content,
         annotations=annotations or None,
         tool_calls=tool_calls or None,
+        **extra_fields,
     )
 
 
