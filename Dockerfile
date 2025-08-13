@@ -14,7 +14,7 @@ RUN poetry install --no-interaction --no-ansi --no-cache --no-root \
 
 # Download tiktoken model encodings
 ENV TIKTOKEN_CACHE_DIR=/app/tiktoken_cache
-RUN .venv/bin/python -c "from tiktoken import encoding_for_model as load; load('gpt-3.5-turbo'); load('gpt-4'); load('gpt-4o');"
+RUN .venv/bin/python -c "from tiktoken.model import (get_encoding as load, MODEL_TO_ENCODING as models); [(print(f'Loading tiktoken tokenizer {e}...'), load(e)) for e in set(models.values())]"
 
 COPY aidial_adapter_openai aidial_adapter_openai
 RUN poetry install --no-interaction --no-ansi --no-cache --only main
