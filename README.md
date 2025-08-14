@@ -95,12 +95,43 @@ Deployments that do not fall into any of the categories are considered to suppor
 
 ## Configurable models
 
-Certain models support configuration via the `$ADAPTER_HOSTNAME/openai/deployments/$DEPLOYMENT_NAME/configuration` endpoint.
+Certain models support configuration via the `$ADAPTER_ORIGIN/openai/deployments/$DEPLOYMENT_NAME/configuration` endpoint.
 
 GET request to this endpoint returns the schema of the model configuration in [JSON Schema](https://json-schema.org/) format.
 
 Such models expect that `custom_fields.configuration` field of the `chat/completions` request will contain a JSON value that conforms to the schema.
-The `custom_fields.configuration` field is optional iff each field in the schema is optional too.
+The `custom_fields.configuration` field is optional iff. each field in the schema is optional too.
+
+The configuration could be preset in the DIAL Core config via the `defaults` parameter:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "my-deployment-id": {
+      "type": "chat",
+      "endpoint": "$ADAPTER_ORIGIN/openai/deployments/my-deployment-id/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "$AZURE_OPENAI_SERVICE_ORIGIN/openai/deployments/openai-deployment-id/chat/completions"
+        }
+      ],
+      "defaults": {
+        "custom_fields": {
+            "configuration": $MODEL_CONFIGURATION_OBJECT
+        }
+      }
+    }
+  }
+}
+```
+
+</details>
+
+This could be convenient if certain major features of a model could be enabled via the configuration *(e.g. web search or reasoning)* and you want to create a deployment where these features are permanently enabled.
+
+DIAL Core will enrich the request with the configuration specified in the `defaults` field, so that the DIAL client doesn't have to provide the configuration enabling the features with each chat completion request.
 
 ### DALL-E / GPT Image 1
 
@@ -186,6 +217,48 @@ Let's say the next version of GPT Image model introduces support of a negative p
 ```
 </details>
 
+### Models based on Responses API
+
+The [Responses API](https://platform.openai.com/docs/api-reference/responses) provides more features than [Chat Completions API](https://platform.openai.com/docs/api-reference/chat/create). Some of these features could be enabled via a configuration fields in the chat completions request.
+
+The JSON schema of the configuration is open which enables forward compatibility with the future developments in the Responses API.
+
+> [!NOTE]
+> Such a configuration is only possible for the models that are configured in the DIAL Core config to use Responses API upstream endpoints.
+
+#### Reasoning configuration
+
+The [reasoning](https://platform.openai.com/docs/guides/reasoning) and the [reasoning summary](https://platform.openai.com/docs/guides/reasoning#reasoning-summaries) could be enabled via the configuration like this one:
+
+<details><summary>Request</summary>
+
+```json
+{
+  "model": "gpt-5-2025-08-07",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write a bash script that takes a matrix represented as a string with format \"[1,2],[3,4],[5,6]\" and prints the transpose in the same format."
+    }
+  ],
+  "custom_fields": {
+    "configuration": {
+      "reasoning": {
+        "effort": "medium",
+        "summary": "auto"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+Here `custom_fields.configuration.reasoning` is an object which is being passed to the Response API as the [reasoning](https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning) parameter.
+
+> [!important]
+> Not all models support reasoning. Consult with the [documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reasoning?tabs=gpt-5%2Cpython-secure%2Cpy) before enabling reasoning.
+
 ## Load balancing
 
 The adapter supports multiple upstream definitions in the DIAL Core config:
@@ -195,7 +268,7 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
     "models": {
         "gpt-4o-2024-11-20": {
             "type": "chat",
-            "endpoint": "http://$OPENAI_ADAPTER_HOSTNAME/openai/deployments/gpt-4o-2024-11-20/chat/completions",
+            "endpoint": "http://$OPENAI_ADAPTER_ORIGIN/openai/deployments/gpt-4o-2024-11-20/chat/completions",
             "displayName": "GPT-4o",
             "upstreams": [
                 {
@@ -222,7 +295,7 @@ The [prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/
     "models": {
         "gpt-4o-2024-11-20": {
             "type": "chat",
-            "endpoint": "http://$OPENAI_ADAPTER_HOSTNAME/openai/deployments/gpt-4o-2024-11-20/chat/completions",
+            "endpoint": "http://$OPENAI_ADAPTER_ORIGIN/openai/deployments/gpt-4o-2024-11-20/chat/completions",
             "displayName": "GPT-4o",
             "upstreams": [
                 {
