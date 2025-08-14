@@ -38,6 +38,7 @@ class Features(ExtraAllowedModel):
     systemPromptSupported: bool = True
     toolsSupported: bool = True
     parallelToolCallsSupported: bool = True
+    temperatureSupported: bool = True
 
     # Not in the DIAL Core config yet
     maxTokensSupported: bool = True
