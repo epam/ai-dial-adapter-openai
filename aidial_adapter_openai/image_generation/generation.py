@@ -22,7 +22,7 @@ IMG_USAGE = {
 }
 
 
-def create_custom_content(image: Image, content_type: str) -> Any:
+def create_custom_content(image: Image, content_type: str, stream: bool) -> Any:
     attachments = []
 
     if revised_prompt := image.revised_prompt:
@@ -34,6 +34,10 @@ def create_custom_content(image: Image, content_type: str) -> Any:
         )
 
     attachments.append({"title": "Image", "type": content_type, "data": data})
+
+    if stream:
+        for idx, attachment in enumerate(attachments):
+            attachment["index"] = idx
 
     return {"custom_content": {"attachments": attachments}}
 
@@ -129,7 +133,7 @@ async def chat_completion(
 
     image = images[0]
     image_content_type = model.get_image_content_type(config)
-    custom_content = create_custom_content(image, image_content_type)
+    custom_content = create_custom_content(image, image_content_type, is_stream)
     message_content = {"content": "", **custom_content}
 
     if file_storage is not None:
