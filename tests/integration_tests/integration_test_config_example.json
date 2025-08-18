@@ -30,7 +30,8 @@
                 "parallelToolCallsSupported": false,
                 "maxTokensSupported": false,
                 "reasoningSupported": true,
-                "stopSupported": false
+                "stopSupported": false,
+                "temperatureSupported": false
             },
             "inputAttachmentTypes": [
                 "image/*"
@@ -52,6 +53,25 @@
                 "image/*"
             ]
         },
+        "gpt-5-2025-08-07-responses": {
+            "overrideName": "gpt-5-2025-08-07",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/v1/responses",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "parallelToolCallsSupported": false,
+                "reasoningSupported": true,
+                "reasoningSummarySupported": true,
+                "temperatureSupported": false
+            },
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
         "gpt-5-mini-2025-08-07": {
             "type": "chat",
             "upstreams": [
@@ -63,7 +83,8 @@
             "features": {
                 "maxTokensSupported": false,
                 "reasoningSupported": true,
-                "stopSupported": false
+                "stopSupported": false,
+                "temperatureSupported": false
             },
             "inputAttachmentTypes": [
                 "image/*"
@@ -80,7 +101,8 @@
             "features": {
                 "maxTokensSupported": false,
                 "reasoningSupported": true,
-                "stopSupported": false
+                "stopSupported": false,
+                "temperatureSupported": false
             },
             "inputAttachmentTypes": [
                 "image/*"
@@ -208,7 +230,8 @@
                 "toolsSupported": false,
                 "maxTokensSupported": false,
                 "reasoningSupported": true,
-                "stopSupported": false
+                "stopSupported": false,
+                "temperatureSupported": false
             }
         },
         "o3-mini-2025-01-31": {
@@ -222,7 +245,8 @@
             "features": {
                 "parallelToolCallsSupported": false,
                 "maxTokensSupported": false,
-                "reasoningSupported": true
+                "reasoningSupported": true,
+                "temperatureSupported": false
             }
         },
         "text-embedding-3-large": {

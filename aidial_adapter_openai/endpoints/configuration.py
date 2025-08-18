@@ -11,7 +11,7 @@ from aidial_adapter_openai.utils.request import get_request_app_config
 async def configuration(deployment_id: str, request: Request):
     app_config = get_request_app_config(request)
 
-    if deployment_id in (app_config.DALLE3_DEPLOYMENTS):
+    if deployment_id in app_config.DALLE3_DEPLOYMENTS:
         model = ImageGenerationModel.create(D.DALLE3)
     elif deployment_id in app_config.GPT_IMAGE_1_DEPLOYMENTS:
         model = ImageGenerationModel.create(D.GPT_IMAGE_1)
