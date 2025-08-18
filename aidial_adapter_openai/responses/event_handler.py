@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, assert_never
+from typing import Dict, Generator, assert_never
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InternalServerError
@@ -120,6 +120,9 @@ class EventHandler(BaseModel):
     """Map item_id for a tool call onto its index in the chat completion response
     """
 
+    _stages: int = 0
+    """Number of stages attached to the choice"""
+
     @property
     def id(self) -> str:
         if self._id is None:
@@ -137,6 +140,52 @@ class EventHandler(BaseModel):
         if self._model is None:
             raise DialException("Response model is not set")
         return self._model
+
+    def _append_to_stage(
+        self, stage_index: int, content: str
+    ) -> Generator[ChatCompletionChunk, None, None]:
+        for index in range(self._stages, stage_index + 1):
+            suffix = "" if index == 0 else f" #{index+1}"
+            yield self._open_stage(index, "Reasoning" + suffix)
+
+        self._stages = max(self._stages, stage_index + 1)
+
+        yield self._chunk(
+            choice=Choice(
+                index=0,
+                delta=ChoiceDelta(
+                    custom_content={  # type: ignore
+                        "stages": [{"index": stage_index, "content": content}]
+                    }
+                ),
+            )
+        )
+
+    def _open_stage(self, stage_index: int, name: str) -> ChatCompletionChunk:
+        return self._chunk(
+            choice=Choice(
+                index=0,
+                delta=ChoiceDelta(
+                    custom_content={  # type: ignore
+                        "stages": [{"index": stage_index, "name": name}]
+                    }
+                ),
+            )
+        )
+
+    def _close_stage(self, stage_index: int) -> ChatCompletionChunk:
+        return self._chunk(
+            choice=Choice(
+                index=0,
+                delta=ChoiceDelta(
+                    custom_content={  # type: ignore
+                        "stages": [
+                            {"index": stage_index, "status": "completed"}
+                        ]
+                    }
+                ),
+            )
+        )
 
     def _chunk(
         self,
@@ -215,31 +264,31 @@ class EventHandler(BaseModel):
 
     def handle(
         self, event: ResponseStreamEvent
-    ) -> ChatCompletionChunk | ErrorChunk | None:
+    ) -> Generator[ChatCompletionChunk | ErrorChunk, None, None]:
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"event: {json.dumps(event.dict())}")
+            logger.debug(f"event[{event.type}]: {json.dumps(event.dict())}")
 
         match event:
             case ResponseCreatedEvent(response=response):
                 self._id = response.id
                 self._created = int(response.created_at)
                 self._model = response.model
-                return self._chunk(
+                yield self._chunk(
                     choice=Choice(index=0, delta=ChoiceDelta(role="assistant"))
                 )
 
             case ResponseErrorEvent():
-                return self._error(event)
+                yield self._error(event)
 
             case ResponseTextDeltaEvent(delta=delta):
-                return self._chunk(
+                yield self._chunk(
                     choice=Choice(index=0, delta=ChoiceDelta(content=delta))
                 )
 
             case ResponseCompletedEvent(
                 response=response
             ) | ResponseIncompleteEvent(response=response):
-                return self._chunk(
+                yield self._chunk(
                     choice=Choice(
                         index=0,
                         delta=ChoiceDelta(content=""),
@@ -260,7 +309,7 @@ class EventHandler(BaseModel):
                             raise InternalServerError(
                                 "item_id of a tool call is missing"
                             )
-                        return self._tool_call_chunk_open(
+                        yield self._tool_call_chunk_open(
                             item_id, arguments, name, call_id
                         )
 
@@ -285,7 +334,15 @@ class EventHandler(BaseModel):
             case ResponseFunctionCallArgumentsDeltaEvent(
                 delta=delta, item_id=item_id
             ):
-                return self._tool_call_delta(item_id, delta)
+                yield self._tool_call_delta(item_id, delta)
+
+            case ResponseReasoningSummaryTextDeltaEvent(
+                delta=content, summary_index=index
+            ):
+                yield from self._append_to_stage(index, content)
+
+            case ResponseReasoningSummaryTextDoneEvent(summary_index=index):
+                yield self._close_stage(index)
 
             case (
                 ResponseAudioDeltaEvent()
@@ -308,8 +365,6 @@ class EventHandler(BaseModel):
                 | ResponseOutputItemDoneEvent()
                 | ResponseReasoningSummaryPartAddedEvent()
                 | ResponseReasoningSummaryPartDoneEvent()
-                | ResponseReasoningSummaryTextDeltaEvent()
-                | ResponseReasoningSummaryTextDoneEvent()
                 | ResponseRefusalDeltaEvent()
                 | ResponseRefusalDoneEvent()
                 | ResponseTextDoneEvent()
@@ -335,6 +390,6 @@ class EventHandler(BaseModel):
                 | ResponseReasoningSummaryDeltaEvent()
                 | ResponseReasoningSummaryDoneEvent()
             ):
-                return None
+                pass
             case _:
                 assert_never(event)

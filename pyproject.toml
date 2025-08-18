@@ -63,7 +63,7 @@ nox = "^2023.4.22"
 python-dotenv = "^1.0.1"
 
 [tool.pytest.ini_options]
-addopts = "-n=auto --asyncio-mode=auto --timeout=60"
+addopts = "-n=auto --asyncio-mode=auto --timeout=120"
 testpaths = ["tests"]
 filterwarnings = [
   "error",

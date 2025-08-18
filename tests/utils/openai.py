@@ -158,6 +158,12 @@ class ChatCompletionResult(BaseModel):
         return self.response.choices[0].message
 
     @property
+    def stages(self) -> list[dict]:
+        return self.response.choices[0].message.dict()["custom_content"][
+            "stages"
+        ]
+
+    @property
     def content(self) -> str:
         return self.message.content or ""
 

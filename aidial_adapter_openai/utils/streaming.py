@@ -4,6 +4,7 @@ from typing import (
     Any,
     AsyncIterator,
     Callable,
+    Generator,
     Generic,
     List,
     Optional,
@@ -322,6 +323,14 @@ def create_server_response(
 
 T = TypeVar("T")
 V = TypeVar("V")
+
+
+async def map_stream_generator(
+    func: Callable[[T], Generator[V, None, None]], iterator: AsyncIterator[T]
+) -> AsyncIterator[V]:
+    async for item in iterator:
+        for new_item in func(item):
+            yield new_item
 
 
 async def map_stream(

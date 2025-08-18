@@ -137,6 +137,10 @@ class TestSuite:
         return self.deployment_config.model_features.reasoningSupported
 
     @property
+    def supports_reasoning_summary(self):
+        return self.deployment_config.model_features.reasoningSummarySupported
+
+    @property
     def supports_function_calling(self):
         return self.deployment_config.model_features.toolsSupported
 
@@ -147,3 +151,7 @@ class TestSuite:
     @property
     def supports_stop(self):
         return self.deployment_config.model_features.stopSupported
+
+    @property
+    def supports_temperature(self):
+        return self.deployment_config.model_features.temperatureSupported

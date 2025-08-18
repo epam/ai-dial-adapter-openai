@@ -11,7 +11,7 @@ def build_text_common(s: TestSuite) -> None:
     if s.supports_reasoning:
         be_brief = {"max_completion_tokens": 512}
     else:
-        be_brief = {"max_tokens": 16}
+        be_brief = {"max_tokens": 32}
 
     s.test_case(
         name="dialog recall",
@@ -74,6 +74,7 @@ def build_text_common(s: TestSuite) -> None:
             name="short pinocchio",
             messages=[user("tell me the full story of Pinocchio")],
             max_completion_tokens=128,
+            reasoning_effort="low",
             expected=lambda s: len(s.response.id) <= 100
             and s.response.choices[0].finish_reason == "length"
             and s.usage is not None,
@@ -88,6 +89,28 @@ def build_text_common(s: TestSuite) -> None:
             and s.response.choices[0].finish_reason == "length"
             and s.usage is not None
             and s.usage.completion_tokens == 16,
+        )
+
+    if s.supports_reasoning_summary:
+        s.test_case(
+            name="reasoning summary",
+            messages=[
+                user(
+                    "Write a bash script that takes a matrix represented as a string with "
+                    'format "[1,2],[3,4],[5,6]" and prints the transpose in the same format.'
+                )
+            ],
+            custom_fields={
+                "configuration": {
+                    "reasoning": {
+                        "effort": "medium",
+                        "summary": "auto",
+                    }
+                }
+            },
+            expected=lambda s: s.response.choices[0].finish_reason == "stop"
+            and len(s.stages) >= 1
+            and s.stages[0]["name"] == "Reasoning",
         )
 
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
@@ -107,6 +130,15 @@ def build_text_common(s: TestSuite) -> None:
         messages=[user("2+3=?")],
         expected=multiple_completions_expected,
     )
+
+    if s.supports_temperature:
+        s.test_case(
+            name="temperature",
+            messages=[user("2+3=?")],
+            temperature=0.42,
+            expected=lambda s: "5" in s.content,
+            **be_brief,  # type: ignore
+        )
 
 
 def build_stop_sequence(s: TestSuite) -> None:
