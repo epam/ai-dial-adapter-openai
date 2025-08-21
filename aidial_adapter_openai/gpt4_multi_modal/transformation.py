@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Set, assert_never, cast
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
 from openai.types.chat import (
     ChatCompletionContentPartImageParam,
@@ -29,10 +28,6 @@ from aidial_adapter_openai.utils.multi_modal_message import (
 )
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.text import decapitalize
-
-# Officially supported image types by GPT-4 Vision, GPT-4o
-SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
 
 
 class FileResource(BaseModel):
@@ -108,7 +103,7 @@ class ResourceProcessor(BaseModel):
             return None
 
         content_type = await dial_resource.guess_content_type()
-        if content_type in SUPPORTED_IMAGE_TYPES:
+        if content_type and content_type.startswith("image/"):
             result = ImageResource.from_resource(resource, None)
             self.images.append(result)
         else:
@@ -186,7 +181,7 @@ class ResourceProcessor(BaseModel):
 
     async def transform_messages(
         self, messages: List[dict]
-    ) -> List[MultiModalMessage] | DialException:
+    ) -> List[MultiModalMessage]:
         transformations = [
             await self.transform_message(message) for message in messages
         ]
@@ -198,7 +193,7 @@ class ResourceProcessor(BaseModel):
                 f"{idx}. {error.name}: {decapitalize(error.message)}"
                 for idx, error in enumerate(image_fails, start=1)
             )
-            return InvalidRequestError(message=msg, display_message=msg)
+            raise InvalidRequestError(message=msg, display_message=msg)
 
         transformations = cast(List[MultiModalMessage], transformations)
         return transformations

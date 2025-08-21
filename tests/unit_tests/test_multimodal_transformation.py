@@ -115,11 +115,11 @@ async def test_transform_messages_with_error(mock_resource_processor):
         }
     ]
 
-    result = await mock_resource_processor.transform_messages(messages)
+    with pytest.raises(DialException) as exc:
+        await mock_resource_processor.transform_messages(messages)
 
-    assert isinstance(result, DialException)
     assert (
-        result.message
+        exc.value.message
         == """
 The following files failed to process:
 1. not_found1.jpg: file not found

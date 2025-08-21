@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel
 
@@ -24,9 +23,6 @@ class ImageGenPrompt(BaseModel):
         result = await ResourceProcessor(
             file_storage=file_storage
         ).transform_messages(data["messages"])
-
-        if isinstance(result, DialException):
-            raise result
 
         text_prompt = ""
         images: List[Resource] = []
