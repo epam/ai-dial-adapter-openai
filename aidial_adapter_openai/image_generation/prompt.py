@@ -40,7 +40,7 @@ class ImageGenPrompt(BaseModel):
                         if item.get("type") == "text":
                             text_prompt += item["text"]
 
-            for image in message.image_metadatas:
+            for image in message.images:
                 images.append(image.image)
 
         if not text_prompt:

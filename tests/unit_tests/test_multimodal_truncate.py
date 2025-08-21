@@ -7,7 +7,7 @@ from aidial_sdk.exceptions import (
 from aidial_adapter_openai.gpt4_multi_modal.chat_completion import (
     multi_modal_truncate_prompt,
 )
-from aidial_adapter_openai.utils.image import ImageMetadata
+from aidial_adapter_openai.utils.image import ImageResource
 from aidial_adapter_openai.utils.image_tokenizer import GPT4O_IMAGE_TOKENIZER
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.resource import Resource
@@ -22,13 +22,13 @@ def test_multimodal_truncate_with_system_and_last_user_error():
     """
     transformations = [
         MultiModalMessage(
-            image_metadatas=[],
+            images=[],
             raw_message={"role": "system", "content": "this is four tokens"},
         ),
         MultiModalMessage(
-            image_metadatas=[
+            images=[
                 # Small image for 85 tokens
-                ImageMetadata(
+                ImageResource(
                     width=100,
                     height=100,
                     detail="low",
@@ -52,7 +52,7 @@ def test_multimodal_truncate_with_system_error():
     # 4 tokens for content + 3 tokens for message + 3 tokens for request = 10 tokens
     transformations = [
         MultiModalMessage(
-            image_metadatas=[],
+            images=[],
             raw_message={"role": "system", "content": "this is four tokens"},
         ),
     ]
@@ -69,7 +69,7 @@ def test_multimodal_truncate_with_system_error():
             [
                 # 4 tokens of content + 3 tokens for message + 1 token of role key = 8 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={
                         "role": "system",
                         "content": "this is four tokens",
@@ -77,7 +77,7 @@ def test_multimodal_truncate_with_system_error():
                 ),
                 # 8 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={
                         "role": "user",
                         "content": "this is four tokens",
@@ -85,7 +85,7 @@ def test_multimodal_truncate_with_system_error():
                 ),
                 # 8 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={
                         "role": "user",
                         "content": "this is four tokens",
@@ -101,7 +101,7 @@ def test_multimodal_truncate_with_system_error():
             [
                 # 8 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={
                         "role": "system",
                         "content": "this is four tokens",
@@ -109,7 +109,7 @@ def test_multimodal_truncate_with_system_error():
                 ),
                 # 8 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={
                         "role": "user",
                         "content": "this is four tokens",
@@ -125,7 +125,7 @@ def test_multimodal_truncate_with_system_error():
             [
                 # 8 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={
                         "role": "system",
                         "content": "this is four tokens",
@@ -133,7 +133,7 @@ def test_multimodal_truncate_with_system_error():
                 ),
                 # 8 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={
                         "role": "user",
                         "content": "this if four tokens",
@@ -141,8 +141,8 @@ def test_multimodal_truncate_with_system_error():
                 ),
                 # 85 (image) + 8 (textual) = 93 tokens
                 MultiModalMessage(
-                    image_metadatas=[
-                        ImageMetadata(
+                    images=[
+                        ImageResource(
                             width=100,
                             height=100,
                             detail="low",
@@ -171,7 +171,7 @@ def test_multimodal_truncate_with_system_error():
             [
                 # 8 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={
                         "role": "system",
                         "content": "this is four tokens",
@@ -179,7 +179,7 @@ def test_multimodal_truncate_with_system_error():
                 ),
                 # 4 tokens
                 MultiModalMessage(
-                    image_metadatas=[],
+                    images=[],
                     raw_message={"role": "user", "content": None},
                 ),
             ],

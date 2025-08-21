@@ -212,7 +212,7 @@ class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
         )
 
         # Processing image parts of message
-        for metadata in message.image_metadatas:
+        for metadata in message.images:
             tokens += self.image_tokenizer.tokenize(
                 width=metadata.width,
                 height=metadata.height,

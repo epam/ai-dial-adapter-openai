@@ -1,4 +1,4 @@
-from typing import Any, Generator, List, assert_never
+from typing import Generator, List, assert_never
 
 from aidial_sdk.chat_completion.request import CustomContent, Stage, Status
 from aidial_sdk.exceptions import RequestValidationError
@@ -208,7 +208,7 @@ def _convert_tool_call(
 
 def _convert_message(
     message: ChatCompletionMessageParam,
-) -> Generator[ResponseInputItemParam, Any, Any]:
+) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
         case "user" | "assistant" | "system" | "developer":
 
