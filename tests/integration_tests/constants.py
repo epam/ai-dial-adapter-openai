@@ -20,6 +20,15 @@ PDF_DOCUMENT_RESOURCE = Resource(
     data=(CURRENT_DIR / "assets" / "doc.pdf").read_bytes(),
 )
 
+UNSUPPORTED_IMAGE_RESOURCE = Resource(
+    type="image/bmp",
+    data=(CURRENT_DIR / "assets" / "image.bmp").read_bytes(),
+)
+
+UNSUPPORTED_DOCUMENT_RESOURCE = Resource(
+    type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    data=(CURRENT_DIR / "assets" / "table.xlsx").read_bytes(),
+)
 
 TEST_DEPLOYMENTS_CONFIG_PATH = os.getenv(
     "INTEGRATION_TEST_DEPLOYMENTS_CONFIG_PATH",

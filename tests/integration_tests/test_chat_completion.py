@@ -5,6 +5,9 @@ from typing import Generator, List
 import openai
 import pytest
 
+from tests.integration_tests.chat_completion.file_input import (
+    build_file_input_common,
+)
 from tests.integration_tests.chat_completion.test_case import (
     TestCase,
     TestSuite,
@@ -47,6 +50,7 @@ def create_test_cases(
             build_multi_system,
             build_tools_common,
             build_vision_common,
+            build_file_input_common,
         ]
     ),
     ids=lambda tc: tc.get_id() if isinstance(tc, TestCase) else "na",
@@ -81,10 +85,16 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
 
         expected = test_case.expected
         assert isinstance(actual_exc, expected.type)
-        actual_status_code = getattr(actual_exc, "status_code", None)
-        assert actual_status_code == expected.status_code
+
+        if (status_code := expected.status_code) is not None:
+            actual_status_code = getattr(actual_exc, "status_code", None)
+            assert actual_status_code == status_code
+
         if (message := expected.message) is not None:
             assert re.search(message, str(actual_exc))
+
+        if (display_message := expected.display_message) is not None:
+            assert re.search(display_message, str(actual_exc))
     else:
         actual_output = await run_chat_completion()
         assert test_case.expected(

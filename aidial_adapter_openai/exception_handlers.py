@@ -1,3 +1,5 @@
+import re
+
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InternalServerError
 from fastapi.requests import Request as FastAPIRequest
@@ -71,10 +73,43 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
     return InternalServerError(str(exc))
 
 
+def expose_error_message_to_user(exc: AdapterException) -> AdapterException:
+    if isinstance(exc, DialException) and exc.status_code == 400:
+        message = exc.message
+        if "this model does not support file content types" in message.lower():
+            exc.display_message = (
+                exc.display_message
+                or "The provided file attachments aren't supported."
+            )
+
+        match = re.search(
+            r"unsupported MIME type\s+(['\"])([^'\"]+)\1", message
+        )
+        if match:
+            mime_type = match[2]
+            exc.display_message = (
+                exc.display_message
+                or f"The file attachments of the MIME type {mime_type!r} aren't supported."
+            )
+
+        if (
+            "invalid image data" in message.lower()
+            or "the image data you provided does not represent a valid image"
+            in message.lower()
+        ):
+            exc.display_message = (
+                exc.display_message
+                or "The provided image attachment is either corrupt or of unsupported MIME type."
+            )
+
+    return exc
+
+
 def adapter_exception_handler(
     request: FastAPIRequest, e: Exception
 ) -> FastAPIResponse:
     adapter_exception = to_adapter_exception(e)
+    adapter_exception = expose_error_message_to_user(adapter_exception)
 
     logger.error(
         f"Caught exception: {type(e).__module__}.{type(e).__name__}. "
