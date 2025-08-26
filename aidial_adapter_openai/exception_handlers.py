@@ -15,6 +15,10 @@ from aidial_adapter_openai.utils.log_config import logger
 
 
 def to_adapter_exception(exc: Exception) -> AdapterException:
+    return _expose_error_message_to_user(_convert_to_adapter_exception(exc))
+
+
+def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
 
     if isinstance(exc, (DialException, ResponseWrapper)):
         return exc
@@ -73,7 +77,7 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
     return InternalServerError(str(exc))
 
 
-def expose_error_message_to_user(exc: AdapterException) -> AdapterException:
+def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
     if isinstance(exc, DialException) and exc.status_code == 400:
         message = exc.message
         if "this model does not support file content types" in message.lower():
@@ -109,7 +113,6 @@ def adapter_exception_handler(
     request: FastAPIRequest, e: Exception
 ) -> FastAPIResponse:
     adapter_exception = to_adapter_exception(e)
-    adapter_exception = expose_error_message_to_user(adapter_exception)
 
     logger.error(
         f"Caught exception: {type(e).__module__}.{type(e).__name__}. "
