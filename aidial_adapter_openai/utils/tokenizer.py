@@ -14,6 +14,7 @@ from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
 )
 from aidial_adapter_openai.utils.image_tokenizer import ImageTokenizer
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 
 MessageType = TypeVar("MessageType")
@@ -193,13 +194,14 @@ class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
         self.image_tokenizer = image_tokenizer
 
     def _accept_image_content_part(self, content_part: dict) -> int:
-        if (ty := content_part.get("type")) == "image_url":
-            return 0
+        if (ty := content_part.get("type")) != "image_url":
+            logger.warning(
+                f"Unexpected multi-modal content part of type {ty!r}. "
+                f"The tokenizer supports only plain text and image messages. "
+                "Tokens won't be accounted for this content part."
+            )
 
-        raise InternalServerError(
-            f"Unexpected multi-modal content part of type {ty!r}. "
-            f"The deployment only supports plain text and image messages."
-        )
+        return 0
 
     def tokenize_request_message(self, message: MultiModalMessage) -> int:
         tokens = self._tokens_per_request_message
@@ -212,7 +214,7 @@ class MultiModalTokenizer(BaseTokenizer[MultiModalMessage]):
         )
 
         # Processing image parts of message
-        for metadata in message.image_metadatas:
+        for metadata in message.images:
             tokens += self.image_tokenizer.tokenize(
                 width=metadata.width,
                 height=metadata.height,

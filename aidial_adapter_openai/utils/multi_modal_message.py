@@ -1,24 +1,17 @@
 from typing import List
 
-from openai.types.chat import (
-    ChatCompletionContentPartImageParam,
-    ChatCompletionContentPartTextParam,
-)
+from openai.types.chat import ChatCompletionContentPartTextParam
+from openai.types.chat.chat_completion_content_part_param import File
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.image import ImageDetail, ImageMetadata
+from aidial_adapter_openai.utils.image import ImageResource
 from aidial_adapter_openai.utils.resource import Resource
 
 
-def create_image_content_part(
-    image: Resource, detail: ImageDetail
-) -> ChatCompletionContentPartImageParam:
+def create_file_content_part(filename: str, resource: Resource) -> File:
     return {
-        "type": "image_url",
-        "image_url": {
-            "url": image.to_data_url(),
-            "detail": detail,
-        },
+        "type": "file",
+        "file": {"file_data": resource.to_data_url(), "filename": filename},
     }
 
 
@@ -30,5 +23,5 @@ def create_text_content_part(text: str) -> ChatCompletionContentPartTextParam:
 
 
 class MultiModalMessage(BaseModel):
-    image_metadatas: List[ImageMetadata]
+    images: List[ImageResource]
     raw_message: dict

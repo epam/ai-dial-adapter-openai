@@ -133,7 +133,6 @@ async def call_chat_completion(
                 request.headers,
                 endpoint,
                 creds,
-                is_stream,
                 storage,
                 api_version,
                 tokenizer,

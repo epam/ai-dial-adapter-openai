@@ -1,8 +1,15 @@
 from dataclasses import dataclass
-from typing import List, Optional, Set, cast
+from typing import List, Set, assert_never, cast
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
+from openai.types.chat import (
+    ChatCompletionContentPartImageParam,
+    ChatCompletionContentPartParam,
+)
+from openai.types.chat.chat_completion_assistant_message_param import (
+    ContentArrayOfContentPart,
+)
+from openai.types.chat.chat_completion_content_part_param import File
 from pydantic import BaseModel, Field
 
 from aidial_adapter_openai.dial_api.resource import (
@@ -13,23 +20,32 @@ from aidial_adapter_openai.dial_api.resource import (
     parse_attachment,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.image import ImageDetail, ImageMetadata
+from aidial_adapter_openai.utils.image import ImageResource
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import (
     MultiModalMessage,
-    create_image_content_part,
     create_text_content_part,
 )
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.text import decapitalize
 
-# Officially supported image types by GPT-4 Vision, GPT-4o
-SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-SUPPORTED_FILE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"]
+
+class FileResource(BaseModel):
+    name: str
+    resource: Resource
+
+    def to_content_part(self) -> File:
+        return {
+            "type": "file",
+            "file": {
+                "filename": self.name,
+                "file_data": self.resource.to_data_url(),
+            },
+        }
 
 
 @dataclass(order=True, frozen=True)
-class TransformationError:
+class Error:
     name: str
     message: str
 
@@ -39,24 +55,15 @@ class ResourceProcessor(BaseModel):
         arbitrary_types_allowed = True  # for errors
 
     file_storage: FileStorage | None
-    errors: Set[TransformationError] = Field(default_factory=set)
 
-    def collect_resource(
-        self,
-        meta: List[ImageMetadata],
-        result: Resource | TransformationError,
-        detail: Optional[ImageDetail],
-    ):
-        if isinstance(result, TransformationError):
-            self.errors.add(result)
-        else:
-            meta.append(ImageMetadata.from_resource(result, detail))
+    errors: Set[Error] = Field(default_factory=set)
+    images: List[ImageResource] = []
 
     async def try_download_resource(
         self, dial_resource: DialResource
-    ) -> Resource | TransformationError:
+    ) -> Resource | None:
         try:
-            resource = await dial_resource.download(self.file_storage)
+            return await dial_resource.download(self.file_storage)
         except Exception as e:
             logger.error(
                 f"Failed to download {dial_resource.entity_name}: {str(e)}"
@@ -68,52 +75,87 @@ class ResourceProcessor(BaseModel):
                 if isinstance(e, ValidationError)
                 else f"Failed to download the {dial_resource.entity_name}"
             )
-            return TransformationError(name=name, message=message)
+            self.errors.add(Error(name=name, message=message))
+            return None
 
-        return resource
-
-    async def download_attachment_images(
+    async def download_attachments(
         self, attachments: List[dict]
-    ) -> List[ImageMetadata]:
+    ) -> List[ChatCompletionContentPartImageParam | File]:
+
         if attachments:
             logger.debug(f"original attachments: {attachments}")
 
-        ret: List[ImageMetadata] = []
-
+        ret: List[ChatCompletionContentPartImageParam | File] = []
         for attachment in attachments:
-            dial_resource = AttachmentResource(
-                attachment=parse_attachment(attachment),
-                entity_name="image attachment",
-                supported_types=SUPPORTED_IMAGE_TYPES,
-            )
-            result = await self.try_download_resource(dial_resource)
-            self.collect_resource(ret, result, None)
-
+            if result := await self.download_attachment(attachment):
+                ret.append(result)
         return ret
 
-    async def download_content_images(
-        self, content: str | list
-    ) -> List[ImageMetadata]:
+    async def download_attachment(
+        self, attachment: dict
+    ) -> ChatCompletionContentPartImageParam | File | None:
+        dial_resource = AttachmentResource(
+            attachment=parse_attachment(attachment),
+            entity_name="attachment",
+        )
+
+        if not (resource := await self.try_download_resource(dial_resource)):
+            return None
+
+        content_type = await dial_resource.guess_content_type()
+        if content_type and content_type.startswith("image/"):
+            result = ImageResource.from_resource(resource, None)
+            self.images.append(result)
+        else:
+            name = await dial_resource.get_resource_name(self.file_storage)
+            result = FileResource(name=name, resource=resource)
+
+        return result.to_content_part()
+
+    async def download_image_content_part(
+        self, part: ChatCompletionContentPartImageParam
+    ) -> ChatCompletionContentPartImageParam | None:
+        image_url = part["image_url"]
+        detail = image_url.get("detail")
+        url = image_url.get("url")
+
+        dial_resource = URLResource(url=url, entity_name="image content part")
+        if not (resource := await self.try_download_resource(dial_resource)):
+            return None
+
+        result = ImageResource.from_resource(resource, detail)
+        self.images.append(result)
+        return result.to_content_part()
+
+    async def download_content_part(
+        self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
+    ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart | None:
+        match part["type"]:
+            case "image_url":
+                return await self.download_image_content_part(part)
+            case "text" | "refusal" | "input_audio" | "file":
+                return part
+            case _:
+                assert_never(part)
+
+    async def download_content(
+        self,
+        content: (
+            str
+            | List[ChatCompletionContentPartParam | ContentArrayOfContentPart]
+        ),
+    ) -> List[ChatCompletionContentPartParam | ContentArrayOfContentPart]:
         if isinstance(content, str):
-            return []
+            parts = [create_text_content_part(content)]
+        else:
+            parts = content
 
-        ret: List[ImageMetadata] = []
-
-        for content_part in content:
-            image_url = content_part.get("image_url")
-            if image_url and (url := image_url.get("url")):
-                detail = image_url.get("detail")
-                if detail not in [None, "auto", "low", "high"]:
-                    raise ValidationError("Unexpected image detail")
-
-                dial_resource = URLResource(
-                    url=url,
-                    entity_name="image",
-                    supported_types=SUPPORTED_IMAGE_TYPES,
-                )
-                result = await self.try_download_resource(dial_resource)
-                self.collect_resource(ret, result, detail)
-
+        ret: List[
+            ChatCompletionContentPartParam | ContentArrayOfContentPart
+        ] = []
+        for part in parts:
+            if result := await self.download_content_part(part):
+                ret.append(result)
         return ret
 
     async def transform_message(self, message: dict) -> MultiModalMessage:
@@ -121,32 +163,25 @@ class ResourceProcessor(BaseModel):
 
         content = message.get("content") or ""
         custom_content = message.pop("custom_content", None) or {}
-        attachments = custom_content.get("attachments") or []
+        attachments: List[dict] = custom_content.get("attachments") or []
 
-        attachment_meta = await self.download_attachment_images(attachments)
-        content_meta = await self.download_content_images(content)
-        meta = [*content_meta, *attachment_meta]
+        if isinstance(content, str) and not attachments:
+            return MultiModalMessage(images=[], raw_message=message)
 
-        if not meta:
-            return MultiModalMessage(image_metadatas=[], raw_message=message)
-
-        content_parts = (
-            [create_text_content_part(content)]
-            if isinstance(content, str)
-            else content
-        ) + [
-            create_image_content_part(meta.image, meta.detail)
-            for meta in attachment_meta
-        ]
+        content_parts = await self.download_content(content)
+        attachment_parts = await self.download_attachments(attachments)
 
         return MultiModalMessage(
-            image_metadatas=meta,
-            raw_message={**message, "content": content_parts},
+            images=self.images,
+            raw_message={
+                **message,
+                "content": content_parts + attachment_parts,
+            },
         )
 
     async def transform_messages(
         self, messages: List[dict]
-    ) -> List[MultiModalMessage] | DialException:
+    ) -> List[MultiModalMessage]:
         transformations = [
             await self.transform_message(message) for message in messages
         ]
@@ -158,7 +193,7 @@ class ResourceProcessor(BaseModel):
                 f"{idx}. {error.name}: {decapitalize(error.message)}"
                 for idx, error in enumerate(image_fails, start=1)
             )
-            return InvalidRequestError(message=msg, display_message=msg)
+            raise InvalidRequestError(message=msg, display_message=msg)
 
         transformations = cast(List[MultiModalMessage], transformations)
         return transformations
