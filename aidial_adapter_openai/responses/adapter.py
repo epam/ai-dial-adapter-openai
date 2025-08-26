@@ -2,7 +2,6 @@ import json
 import logging
 from typing import Any, AsyncIterator, Dict, List
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import Response as FastAPIResponse
 from openai import NOT_GIVEN, AsyncStream, BaseModel
@@ -11,7 +10,6 @@ from pydantic import Field
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.gpt4_multi_modal.chat_completion import USAGE
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
     ResourceProcessor,
 )
@@ -31,8 +29,6 @@ from aidial_adapter_openai.utils.parsers import (
 )
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from aidial_adapter_openai.utils.streaming import (
-    create_response_from_chunk,
-    create_stage_chunk,
     map_stream,
     map_stream_generator,
 )
@@ -121,15 +117,6 @@ async def chat_completion(
     transformed_messages = await ResourceProcessor(
         file_storage=file_storage
     ).transform_messages(request["messages"])
-
-    if isinstance(transformed_messages, DialException):
-        logger.error(
-            f"Failed to prepare request: {transformed_messages.message}"
-        )
-        chunk = create_stage_chunk("Usage", USAGE, is_stream)
-        return create_response_from_chunk(
-            chunk, transformed_messages, is_stream
-        )
 
     input_messages = convert_messages(
         [m.raw_message for m in transformed_messages]  # type: ignore

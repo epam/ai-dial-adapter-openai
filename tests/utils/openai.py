@@ -78,14 +78,20 @@ def user_with_attachment_data(
     }
 
 
-def user_with_image_content_part(
-    content: str, resource: Resource
+def user_with_file_content_part(
+    content: str, name: str, resource: Resource
 ) -> ChatCompletionUserMessageParam:
     return {
         "role": "user",
         "content": [
             {"type": "text", "text": content},
-            {"type": "image_url", "image_url": {"url": resource.to_data_url()}},
+            {
+                "type": "file",
+                "file": {
+                    "filename": name,
+                    "file_data": resource.to_data_url(),
+                },
+            },
         ],
     }
 
@@ -107,8 +113,8 @@ def user_with_attachment_url(
     }
 
 
-def user_with_image_url(
-    content: str, image: Resource
+def user_with_image_content_part(
+    content: str, resource: Resource
 ) -> ChatCompletionUserMessageParam:
     return {
         "role": "user",
@@ -116,7 +122,7 @@ def user_with_image_url(
             {"type": "text", "text": content},
             {
                 "type": "image_url",
-                "image_url": {"url": image.to_data_url()},
+                "image_url": {"url": resource.to_data_url()},
             },
         ],
     }
@@ -303,4 +309,5 @@ def is_valid_tool_call(
 class ExpectedException(BaseModel):
     type: type[APIError]
     message: str | None = None
+    display_message: str | None = None
     status_code: int | None = None

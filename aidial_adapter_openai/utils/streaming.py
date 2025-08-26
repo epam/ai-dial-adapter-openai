@@ -13,7 +13,6 @@ from typing import (
 )
 from uuid import uuid4
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.utils.merge_chunks import (
     cleanup_indices,
     merge_chat_completion_chunks,
@@ -198,54 +197,6 @@ async def generate_stream(
 
     if error:
         raise error
-
-
-def create_stage_chunk(name: str, content: str, stream: bool) -> dict:
-    id = generate_id()
-    created = generate_created()
-
-    stage = {
-        "index": 0,
-        "name": name,
-        "content": content,
-        "status": "completed",
-    }
-
-    custom_content = {"stages": [stage]}
-
-    return build_chunk(
-        id,
-        "stop",
-        {
-            "role": "assistant",
-            "content": "",
-            "custom_content": custom_content,
-        },
-        created,
-        stream,
-        usage={
-            "completion_tokens": 0,
-            "prompt_tokens": 0,
-            "total_tokens": 0,
-        },
-    )
-
-
-def create_response_from_chunk(
-    chunk: dict, exc: DialException | None, stream: bool
-) -> AsyncIterator[dict] | Response:
-    if not stream:
-        if exc is not None:
-            return exc.to_fastapi_response()
-        else:
-            return JSONResponse(content=chunk)
-
-    async def generator() -> AsyncIterator[dict]:
-        yield chunk
-        if exc is not None:
-            yield exc.json_error()
-
-    return generator()
 
 
 def block_response_to_streaming_chunk(response: dict) -> dict:

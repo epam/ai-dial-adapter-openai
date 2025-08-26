@@ -1,12 +1,10 @@
 from typing import Any, List, Mapping, Optional, Tuple
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from openai import AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    SUPPORTED_FILE_EXTS,
     ResourceProcessor,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds
@@ -24,8 +22,6 @@ from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
     chunk_to_dict,
-    create_response_from_chunk,
-    create_stage_chunk,
     debug_print,
     generate_stream,
     map_stream,
@@ -36,19 +32,6 @@ from aidial_adapter_openai.utils.truncate_prompt import (
     TruncatedTokens,
     truncate_prompt,
 )
-
-USAGE = f"""
-### Usage
-
-The application answers queries about attached images.
-Attach images and ask questions about them.
-
-Supported image types: {', '.join(SUPPORTED_FILE_EXTS)}.
-
-Examples of queries:
-- "Describe this picture" for one image,
-- "What are in these images? Is there any difference between them?" for multiple images.
-""".strip()
 
 
 def multi_modal_truncate_prompt(
@@ -73,7 +56,6 @@ async def gpt4o_chat_completion(
     request_headers: Mapping[str, str],
     endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
     creds: OpenAICreds,
-    is_stream: bool,
     file_storage: Optional[FileStorage],
     api_version: str,
     tokenizer: MultiModalTokenizer,
@@ -82,16 +64,10 @@ async def gpt4o_chat_completion(
     n: int = request.get("n") or 1
     messages: List[dict] = request.get("messages")
 
-    transform_result = await ResourceProcessor(
+    multi_modal_messages = await ResourceProcessor(
         file_storage=file_storage
     ).transform_messages(messages)
 
-    if isinstance(transform_result, DialException):
-        logger.error(f"Failed to prepare request: {transform_result.message}")
-        chunk = create_stage_chunk("Usage", USAGE, is_stream)
-        return create_response_from_chunk(chunk, transform_result, is_stream)
-
-    multi_modal_messages = transform_result
     discarded_messages = None
     max_prompt_tokens = request.pop("max_prompt_tokens", None)
     if max_prompt_tokens is not None:
