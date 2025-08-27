@@ -2,7 +2,6 @@ import json
 import logging
 from typing import Any, AsyncIterator, Dict, List
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import Response as FastAPIResponse
 from openai import (
@@ -12,11 +11,13 @@ from openai import (
     AsyncStream,
     BaseModel,
 )
+from openai.types.shared_params import Reasoning
+from pydantic import Field
 
-from aidial_adapter_openai.chat_completions.input import SupportedInputs
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
     _DEPRECATED_FUNCTION_API,
@@ -27,10 +28,10 @@ from aidial_adapter_openai.responses.converter import (
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from aidial_adapter_openai.utils.streaming import (
-    create_response_from_chunk,
-    create_stage_chunk,
     map_stream,
+    map_stream_generator,
 )
 
 
@@ -66,7 +67,7 @@ def _validate_request(request: Dict[str, Any]) -> None:
     ):
         errors.append(_DEPRECATED_FUNCTION_API)
 
-    if not (request.get("messages")):
+    if not request.get("messages"):
         errors.append("The request doesn't contain any messages.")
 
     if errors:
@@ -80,11 +81,31 @@ def _to_dict(x: BaseModel) -> dict:
     return ret
 
 
+class ResponsesConfig(ExtraAllowedModel):
+    reasoning: Reasoning | None = Field(
+        default=None,
+        description="Configuration options for [reasoning models](https://platform.openai.com/docs/guides/reasoning).",
+    )
+
+
+def _get_configuration(request: Dict[str, Any]) -> ResponsesConfig:
+    configuration = (
+        parse_configuration(ResponsesConfig, request) or ResponsesConfig()
+    )
+
+    if configuration.reasoning is None and (
+        reasoning_effort := request.get("reasoning_effort")
+    ):
+        configuration.reasoning = Reasoning(effort=reasoning_effort)
+
+    logger.debug(f"configuration: {configuration.json()}")
+    return configuration
+
+
 async def chat_completion(
     request: Dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
-    supported_inputs: SupportedInputs,
 ) -> AsyncIterator[dict] | dict | FastAPIResponse:
     _validate_request(request)
 
@@ -94,24 +115,7 @@ async def chat_completion(
 
     transformed_messages = await ResourceProcessor(
         file_storage=file_storage,
-        supported_image_types=supported_inputs.input_types,
     ).transform_messages(messages)
-
-    if isinstance(transformed_messages, DialException):
-        logger.error(
-            f"Failed to prepare request: {transformed_messages.message}"
-        )
-        chunk = None
-        if (usage := supported_inputs.usage_message) is not None:
-            chunk = create_stage_chunk(
-                model_name=model_name,
-                stage_title="Usage",
-                stage_content=usage,
-                stream=is_stream,
-            )
-        return create_response_from_chunk(
-            chunk=chunk, exc=transformed_messages, stream=is_stream
-        )
 
     input_messages = convert_messages(
         [m.raw_message for m in transformed_messages]  # type: ignore
@@ -125,6 +129,14 @@ async def chat_completion(
     if tool_choice := request.get("tool_choice"):
         res_tool_choice = convert_tool_choice(tool_choice)
 
+    max_output_tokens = (
+        request.get("max_tokens")
+        or request.get("max_completion_tokens")
+        or NOT_GIVEN
+    )
+
+    configuration = _get_configuration(request)
+
     response = await client.responses.create(
         model=model_name,
         stream=is_stream,
@@ -133,13 +145,16 @@ async def chat_completion(
         tool_choice=res_tool_choice,
         top_p=request.get("top_p") or NOT_GIVEN,
         temperature=request.get("temperature") or NOT_GIVEN,
-        max_output_tokens=request.get("max_tokens") or NOT_GIVEN,
+        max_output_tokens=max_output_tokens,
         parallel_tool_calls=request.get("parallel_tool_calls") or NOT_GIVEN,
+        **configuration.dict(),
     )
 
     if isinstance(response, AsyncStream):
         handler = EventHandler()
-        return map_stream(_to_dict, map_stream(handler.handle, response))
+        return map_stream(
+            _to_dict, map_stream_generator(handler.handle, response)
+        )
     else:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(

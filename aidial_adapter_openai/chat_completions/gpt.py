@@ -1,11 +1,9 @@
-from typing import Any, List, Mapping, Tuple
+from typing import List, Mapping, Tuple
 
-from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
+from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
-from aidial_adapter_openai.chat_completions.input import SupportedInputs
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
@@ -20,8 +18,6 @@ from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
     chunk_to_dict,
-    create_response_from_chunk,
-    create_stage_chunk,
     debug_print,
     generate_stream,
     map_stream,
@@ -50,23 +46,6 @@ def multi_modal_truncate_prompt(
     )
 
 
-def _validate_request(request: Any) -> List[Any]:
-    errors: List[str] = []
-
-    if (n := request.get("n")) not in [None, 1]:
-        errors.append(
-            f"The deployment doesn't support request.n parameter other than 1, but got {n}."
-        )
-
-    if not (messages := request.get("messages")):
-        errors.append("The request doesn't contain any messages.")
-
-    if errors:
-        raise RequestValidationError(" ".join(errors))
-
-    return messages
-
-
 def _extract_max_prompt_tokens(request: dict) -> int | None:
     if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
         return None
@@ -91,33 +70,16 @@ async def chat_completion(
     request_headers: Mapping[str, str],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
-    supported_inputs: SupportedInputs,
     tokenizer: Tokenizer,
     eliminate_empty_choices: bool,
 ):
-    messages = _validate_request(request)
+    n: int = request.get("n") or 1
+    messages: List[dict] = request["messages"]
 
-    transform_result = await ResourceProcessor(
-        file_storage=file_storage,
-        supported_image_types=supported_inputs.input_types,
+    multi_modal_messages = await ResourceProcessor(
+        file_storage=file_storage
     ).transform_messages(messages)
 
-    if isinstance(transform_result, DialException):
-        logger.error(f"Failed to prepare request: {transform_result.message}")
-        is_stream = bool(request.get("stream"))
-        chunk = None
-        if (usage := supported_inputs.usage_message) is not None:
-            chunk = create_stage_chunk(
-                model_name=model_name,
-                stage_title="Usage",
-                stage_content=usage,
-                stream=is_stream,
-            )
-        return create_response_from_chunk(
-            chunk=chunk, exc=transform_result, stream=is_stream
-        )
-
-    multi_modal_messages = transform_result
     discarded_messages = None
 
     if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
@@ -154,6 +116,7 @@ async def chat_completion(
         )
 
         body = generate_stream(
+            n=n,
             stream=map_stream(chunk_to_dict, response),
             get_prompt_tokens=lambda: estimated_prompt_tokens,
             tokenize_response=tokenizer.tokenize_response,

@@ -7,7 +7,7 @@ from aidial_sdk.utils.merge_chunks import (
 )
 from openai import APIError, AsyncAzureOpenAI, AsyncStream, NotGiven
 from openai._types import NOT_GIVEN
-from openai.types import CompletionUsage
+from openai.types import CompletionUsage, ReasoningEffort
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -78,14 +78,20 @@ def user_with_attachment_data(
     }
 
 
-def user_with_image_content_part(
-    content: str, resource: Resource
+def user_with_file_content_part(
+    content: str, name: str, resource: Resource
 ) -> ChatCompletionUserMessageParam:
     return {
         "role": "user",
         "content": [
             {"type": "text", "text": content},
-            {"type": "image_url", "image_url": {"url": resource.to_data_url()}},
+            {
+                "type": "file",
+                "file": {
+                    "filename": name,
+                    "file_data": resource.to_data_url(),
+                },
+            },
         ],
     }
 
@@ -107,8 +113,8 @@ def user_with_attachment_url(
     }
 
 
-def user_with_image_url(
-    content: str, image: Resource
+def user_with_image_content_part(
+    content: str, resource: Resource
 ) -> ChatCompletionUserMessageParam:
     return {
         "role": "user",
@@ -116,7 +122,7 @@ def user_with_image_url(
             {"type": "text", "text": content},
             {
                 "type": "image_url",
-                "image_url": {"url": image.to_data_url()},
+                "image_url": {"url": resource.to_data_url()},
             },
         ],
     }
@@ -158,6 +164,12 @@ class ChatCompletionResult(BaseModel):
         return self.response.choices[0].message
 
     @property
+    def stages(self) -> list[dict]:
+        return self.response.choices[0].message.dict()["custom_content"][
+            "stages"
+        ]
+
+    @property
     def content(self) -> str:
         return self.message.content or ""
 
@@ -190,12 +202,16 @@ async def chat_completion(
     deployment_id: str,
     messages: List[ChatCompletionMessageParam],
     stream: bool,
+    *,
     stop: List[str] | NotGiven = NOT_GIVEN,
+    max_completion_tokens: int | NotGiven = NOT_GIVEN,
     max_tokens: int | NotGiven = NOT_GIVEN,
     n: int | NotGiven = NOT_GIVEN,
     functions: List[Function] | NotGiven = NOT_GIVEN,
     tools: List[ChatCompletionToolParam] | NotGiven = NOT_GIVEN,
     temperature: float | NotGiven = NOT_GIVEN,
+    reasoning_effort: ReasoningEffort | NotGiven = NOT_GIVEN,
+    extra_body: dict | None = None,
 ) -> ChatCompletionResult:
     async def get_response() -> ChatCompletion:
         response = await client.chat.completions.create(
@@ -203,6 +219,7 @@ async def chat_completion(
             messages=messages,
             stream=stream,
             stop=stop,
+            max_completion_tokens=max_completion_tokens,
             max_tokens=max_tokens,
             temperature=temperature,
             n=n,
@@ -210,11 +227,15 @@ async def chat_completion(
             functions=functions,
             tool_choice="auto" if tools is not NOT_GIVEN else NOT_GIVEN,
             tools=tools or NOT_GIVEN,
+            reasoning_effort=reasoning_effort,
+            extra_body=extra_body,
         )
 
         if isinstance(response, AsyncStream):
 
-            chunks: List[dict] = []
+            chunks: List[dict] = [
+                {}
+            ]  # workaround for https://github.com/epam/ai-dial-sdk/pull/269
             async for chunk in response:
                 chunks.append(chunk.dict())
 
@@ -287,5 +308,6 @@ def is_valid_tool_call(
 
 class ExpectedException(BaseModel):
     type: type[APIError]
-    message: str
+    message: str | None = None
+    display_message: str | None = None
     status_code: int | None = None

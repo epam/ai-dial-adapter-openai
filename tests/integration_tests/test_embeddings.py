@@ -10,7 +10,7 @@ from tests.integration_tests.base import (
     sanitize_id_part,
 )
 from tests.integration_tests.constants import (
-    SAMPLE_DOG_RESOURCE,
+    IMAGE_RESOURCE,
     TEST_DEPLOYMENTS_CONFIG,
 )
 
@@ -83,7 +83,7 @@ def image_input_supported(
 async def test_embeddings_image_input(
     image_input_supported, model_name: str, client: openai.AsyncAzureOpenAI
 ):
-    resource = SAMPLE_DOG_RESOURCE
+    resource = IMAGE_RESOURCE
     image_attachment = {"type": resource.type, "data": resource.data_base64}
     response = await client.embeddings.create(
         model=model_name,

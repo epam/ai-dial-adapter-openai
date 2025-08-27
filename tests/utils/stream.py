@@ -83,6 +83,7 @@ def single_choice_chunk(
     delta: dict | None = None,
     logprobs: dict | None = None,
     usage: dict | None = None,
+    choice_index: int = 0,
     **kwargs,
 ) -> dict:
     return chunk(
@@ -91,13 +92,51 @@ def single_choice_chunk(
         model=model,
         object_=object_,
         choices=[
-            {
-                "index": 0,
-                "finish_reason": finish_reason,
-                "delta": delta or {},
-                **({"logprobs": logprobs} if logprobs else {}),
-            }
+            create_choice(
+                index=choice_index,
+                finish_reason=finish_reason,
+                delta=delta,
+                logprobs=logprobs,
+            ),
         ],
+        usage=usage,
+        **kwargs,
+    )
+
+
+def create_choice(
+    *,
+    index: int = 0,
+    finish_reason: str | None = None,
+    delta: dict | None = None,
+    logprobs: dict | None = None,
+    **kwargs,
+) -> dict:
+    return {
+        "index": index,
+        "finish_reason": finish_reason,
+        "delta": delta or {},
+        **({"logprobs": logprobs} if logprobs else {}),
+        **kwargs,
+    }
+
+
+def many_choices_chunk(
+    *,
+    id: str = "chatcmpl-test",
+    object_: str = "chat.completion.chunk",
+    created: int = 1695940483,
+    model: str = "gpt-4",
+    usage: dict | None = None,
+    choices: List[dict] | None = None,
+    **kwargs,
+) -> dict:
+    return chunk(
+        id=id,
+        created=created,
+        model=model,
+        object_=object_,
+        choices=choices or [],
         usage=usage,
         **kwargs,
     )

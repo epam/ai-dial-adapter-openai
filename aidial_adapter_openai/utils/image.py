@@ -1,6 +1,7 @@
 from io import BytesIO
 from typing import Literal, Optional, assert_never
 
+from openai.types.chat import ChatCompletionContentPartImageParam
 from PIL import Image
 from pydantic import BaseModel
 
@@ -25,7 +26,7 @@ def resolve_detail_level(
             assert_never(detail)
 
 
-class ImageMetadata(BaseModel):
+class ImageResource(BaseModel):
     """
     Image metadata extracted from the image data URL.
     """
@@ -38,7 +39,7 @@ class ImageMetadata(BaseModel):
     @classmethod
     def from_resource(
         cls, image: Resource, detail: Optional[ImageDetail]
-    ) -> "ImageMetadata":
+    ) -> "ImageResource":
         with Image.open(BytesIO(image.data)) as img:
             width, height = img.size
 
@@ -48,3 +49,12 @@ class ImageMetadata(BaseModel):
             height=height,
             detail=resolve_detail_level(width, height, detail or "auto"),
         )
+
+    def to_content_part(self) -> ChatCompletionContentPartImageParam:
+        return {
+            "type": "image_url",
+            "image_url": {
+                "url": self.image.to_data_url(),
+                "detail": self.detail,
+            },
+        }

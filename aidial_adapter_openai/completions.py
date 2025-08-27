@@ -41,7 +41,7 @@ async def chat_completion(
     deployment_id: str,
     app_config: ApplicationConfig,
 ):
-    if request.get("n") or 1 > 1:
+    if (request.get("n") or 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
     messages = request.get("messages") or []

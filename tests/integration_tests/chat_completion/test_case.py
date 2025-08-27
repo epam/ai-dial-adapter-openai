@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import functools
 from dataclasses import dataclass, field
 from typing import Callable, Iterator, List
 
 from openai import NOT_GIVEN, NotGiven
+from openai.types import ReasoningEffort
 from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
@@ -32,6 +32,7 @@ class TestCase:
     expected: Callable[[ChatCompletionResult], bool] | ExpectedException
 
     max_tokens: int | NotGiven
+    max_completion_tokens: int | NotGiven
     stop: List[str] | NotGiven
 
     n: int | NotGiven
@@ -39,6 +40,10 @@ class TestCase:
     functions: List[Function] | NotGiven
     tools: List[ChatCompletionToolParam] | NotGiven
     temperature: float | NotGiven
+
+    reasoning_effort: ReasoningEffort | NotGiven
+
+    extra_body: dict | None
 
     def get_id(self):
         upstream_idx = self.deployment_config.upstream_idx
@@ -80,12 +85,17 @@ class TestSuite:
                 streaming=self.streaming,
                 messages=messages,
                 expected=expected,
-                max_tokens=kwargs.get("max_tokens") or NOT_GIVEN,
-                stop=kwargs.get("stop") or NOT_GIVEN,
-                n=kwargs.get("n") or NOT_GIVEN,
-                functions=kwargs.get("functions") or NOT_GIVEN,
-                tools=kwargs.get("tools") or NOT_GIVEN,
-                temperature=kwargs.get("temperature") or NOT_GIVEN,
+                max_tokens=kwargs.pop("max_tokens", None) or NOT_GIVEN,
+                max_completion_tokens=kwargs.pop("max_completion_tokens", None)
+                or NOT_GIVEN,
+                stop=kwargs.pop("stop", None) or NOT_GIVEN,
+                n=kwargs.pop("n", None) or NOT_GIVEN,
+                functions=kwargs.pop("functions", None) or NOT_GIVEN,
+                tools=kwargs.pop("tools", None) or NOT_GIVEN,
+                temperature=kwargs.pop("temperature", None) or NOT_GIVEN,
+                reasoning_effort=kwargs.pop("reasoning_effort", None)
+                or NOT_GIVEN,
+                extra_body=kwargs,
             )
         )
         return self
@@ -111,32 +121,37 @@ class TestSuite:
         case_builder(suite)
         return suite
 
+    @property
+    def supports_system_prompt(self):
+        return self.deployment_config.model_features.systemPromptSupported
 
-def exclude_deployments(
-    deployment_types: List[ChatCompletionDeploymentType],
-):
-    def wrapper(func: TestSuiteBuilder):
-        @functools.wraps(func)
-        def wrapped(s: TestSuite):
-            if s.deployment_type in deployment_types:
-                return
-            return func(s)
+    @property
+    def supports_vision(self):
+        types = self.deployment_config.model_attachments or []
+        return any(
+            ty.startswith("image/") or ty.startswith("*/") for ty in types
+        )
 
-        return wrapped
+    @property
+    def supports_reasoning(self):
+        return self.deployment_config.model_features.reasoningSupported
 
-    return wrapper
+    @property
+    def supports_reasoning_summary(self):
+        return self.deployment_config.model_features.reasoningSummarySupported
 
+    @property
+    def supports_function_calling(self):
+        return self.deployment_config.model_features.toolsSupported
 
-def include_deployments(
-    deployment_types: List[ChatCompletionDeploymentType],
-):
-    def wrapper(func: TestSuiteBuilder):
-        @functools.wraps(func)
-        def wrapped(s: TestSuite):
-            if s.deployment_type not in deployment_types:
-                return
-            return func(s)
+    @property
+    def supports_parallel_function_calling(self):
+        return self.deployment_config.model_features.parallelToolCallsSupported
 
-        return wrapped
+    @property
+    def supports_stop(self):
+        return self.deployment_config.model_features.stopSupported
 
-    return wrapper
+    @property
+    def supports_temperature(self):
+        return self.deployment_config.model_features.temperatureSupported

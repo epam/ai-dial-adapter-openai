@@ -4,7 +4,7 @@ Implemented based on the official recipe: https://cookbook.openai.com/examples/h
 
 import json
 from abc import abstractmethod
-from typing import Any, Callable, Generic, List, NoReturn, TypeVar
+from typing import Any, Callable, Generic, List, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
@@ -14,6 +14,7 @@ from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
 )
 from aidial_adapter_openai.utils.image_tokenizer import ImageTokenizer
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 
 MessageType = TypeVar("MessageType")
@@ -121,35 +122,35 @@ class BaseTokenizer(Generic[MessageType]):
         pass
 
 
-def _tokenize_raw_message(
-    raw_message: dict,
+def _tokenize_message(
+    message: dict,
     tokens_per_name: int,
     tokenize_text: Callable[[str], int],
     tokenize_multi_modal_content_part: Callable[[Any], int],
 ) -> int:
     tokens = 0
-    for key, value in raw_message.items():
+    for key, value in message.items():
         if key == "name":
             tokens += tokens_per_name
 
         elif key == "content":
-            if isinstance(value, list):
-                for content_part in value:
-                    if content_part["type"] == "text":
-                        tokens += tokenize_text(content_part["text"])
-                    else:
-                        tokens += tokenize_multi_modal_content_part(
-                            content_part
-                        )
-
-            elif isinstance(value, str):
-                tokens += tokenize_text(value)
-            elif value is None:
-                pass
-            else:
-                raise InternalServerError(
-                    f"Unexpected type of content in message: {type(value)}"
-                )
+            match value:
+                case None:
+                    pass
+                case list():
+                    for content_part in value:
+                        if content_part["type"] == "text":
+                            tokens += tokenize_text(content_part["text"])
+                        else:
+                            tokens += tokenize_multi_modal_content_part(
+                                content_part
+                            )
+                case str():
+                    tokens += tokenize_text(value)
+                case _:
+                    raise InternalServerError(
+                        f"Unexpected type of content in message: {type(value)}"
+                    )
 
         elif key == "role":
             if isinstance(value, str):
@@ -170,43 +171,49 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
         super().__init__(model)
         self.image_tokenizer = image_tokenizer
 
-    def _reject_image(self) -> NoReturn:
-        raise InternalServerError(
-            "Unexpected message with an image. "
-            "The deployment only supports plain text messages. "
-            "Remove the image from the request or declare the deployment as a multi-modal one "
-            "in the OpenAI adapter configuration to avoid the error."
+    def _warn_content_type(self, ty: Any) -> None:
+        logger.warning(
+            f"Unexpected multi-modal content part of type {ty!r}. "
+            f"The tokenizer doesn't support this type of content part. "
+            "Tokens won't be accounted for this content part."
         )
 
-    def _accept_image_content_part(self, content_part: dict) -> int:
-        if (ty := content_part.get("type")) == "image_url":
-            if self.image_tokenizer is None:
-                self._reject_image()
-            return 0
-
-        raise InternalServerError(
-            f"Unsupported multi-modal content part of type {ty!r}."
+    def _warn_image(self) -> None:
+        logger.warning(
+            "Unexpected image attachment or content part. "
+            "The tokenizer doesn't support images. "
+            "Tokens won't be accounted for the images."
         )
+
+    def _on_multi_modal_content_part(self, content_part: dict) -> int:
+        ty = content_part.get("type")
+        if ty != "image_url" or (
+            ty == "image_url" and self.image_tokenizer is None
+        ):
+            self._warn_content_type(ty)
+
+        return 0
 
     def tokenize_request_message(self, message: MultiModalMessage) -> int:
         tokens = self._tokens_per_request_message
 
-        tokens += _tokenize_raw_message(
-            raw_message=message.raw_message,
+        tokens += _tokenize_message(
+            message=message.raw_message,
             tokens_per_name=self._tokens_per_request_message_name,
             tokenize_text=self.tokenize_text,
-            tokenize_multi_modal_content_part=self._accept_image_content_part,
+            tokenize_multi_modal_content_part=self._on_multi_modal_content_part,
         )
 
-        # Processing image parts of the message
-        for metadata in message.image_metadatas:
-            if self.image_tokenizer is None:
-                self._reject_image()
+        if self.image_tokenizer is None and message.images:
+            self._warn_image()
 
-            tokens += self.image_tokenizer.tokenize(
-                width=metadata.width,
-                height=metadata.height,
-                detail=metadata.detail,
-            )
+        # Processing image parts of message
+        for metadata in message.images:
+            if self.image_tokenizer is not None:
+                tokens += self.image_tokenizer.tokenize(
+                    width=metadata.width,
+                    height=metadata.height,
+                    detail=metadata.detail,
+                )
 
         return tokens

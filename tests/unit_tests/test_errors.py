@@ -7,18 +7,20 @@ import pytest
 import respx
 from respx.types import SideEffectTypes
 
-from aidial_adapter_openai.chat_completions.input import image_inputs_supported
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
-from aidial_adapter_openai.utils.multi_modal_message import (
-    create_image_content_part,
-)
 from tests.conftest import create_test_client
-from tests.integration_tests.constants import SAMPLE_DOG_RESOURCE
+from tests.integration_tests.constants import IMAGE_RESOURCE
 from tests.utils.dictionary import exclude_keys
-from tests.utils.stream import OpenAIStream, single_choice_chunk
+from tests.utils.openai import user_with_image_content_part
+from tests.utils.stream import (
+    OpenAIStream,
+    create_choice,
+    many_choices_chunk,
+    single_choice_chunk,
+)
 
 
 def assert_equal(actual: Any, expected: Any):
@@ -301,7 +303,7 @@ async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-async def test_interrupted_stream(test_app: httpx.AsyncClient):
+async def test_interrupted_stream_single_choice(test_app: httpx.AsyncClient):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant", "content": "hello"}),
     )
@@ -338,6 +340,65 @@ async def test_interrupted_stream(test_app: httpx.AsyncClient):
                 "total_tokens": 10,
             },
         )
+    )
+    expected_stream.assert_response_content(response, assert_equal)
+
+
+@respx.mock
+async def test_interrupted_stream_many_choices(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "hello1"}, choice_index=0
+        ),
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "hello2"}, choice_index=1
+        ),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [{"role": "user", "content": "Test content"}],
+            "stream": True,
+            "n": 3,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+
+    expected_stream = OpenAIStream(
+        single_choice_chunk(
+            choice_index=0,
+            delta={"role": "assistant", "content": "hello1"},
+        ),
+        many_choices_chunk(
+            choices=[
+                create_choice(
+                    index=1,
+                    delta={"role": "assistant", "content": "hello2"},
+                    finish_reason="length",
+                ),
+                create_choice(index=0, finish_reason="length"),
+                create_choice(index=2, finish_reason="length"),
+            ],
+            usage={
+                "completion_tokens": 4,
+                "prompt_tokens": 9,
+                "total_tokens": 13,
+            },
+        ),
     )
     expected_stream.assert_response_content(response, assert_equal)
 
@@ -732,14 +793,7 @@ async def test_unexpected_multi_modal_input_streaming(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={
             "stream": True,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        create_image_content_part(SAMPLE_DOG_RESOURCE, "auto")
-                    ],
-                }
-            ],
+            "messages": [user_with_image_content_part("test", IMAGE_RESOURCE)],
         },
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
@@ -878,20 +932,7 @@ async def test_invalid_image_url_streaming_gpt4o():
             single_choice_chunk(
                 model="app",
                 finish_reason="stop",
-                delta={
-                    "role": "assistant",
-                    "content": "",
-                    "custom_content": {
-                        "stages": [
-                            {
-                                "index": 0,
-                                "name": "Usage",
-                                "content": image_inputs_supported().usage_message,
-                                "status": "completed",
-                            }
-                        ]
-                    },
-                },
+                delta={"role": "assistant", "content": ""},
                 usage={
                     "completion_tokens": 0,
                     "prompt_tokens": 0,
@@ -992,7 +1033,7 @@ async def test_missing_tiktoken_model(test_app: httpx.AsyncClient):
         "error": {
             "code": "500",
             "message": """
-Could not find tokenizer for the model 'my-favorite-model' in the tiktoken package. Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING variable in the adapter OpenAI environment: TIKTOKEN_MODEL_MAPPING='{"my-favorite-model": $prefix}', where $prefix is one of: "o1-", "o3-", "chatgpt-4o-", "gpt-4o-", "gpt-4-", "gpt-3.5-turbo-", "gpt-35-turbo-". Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken.
+Could not find tokenizer for the model 'my-favorite-model' in the tiktoken package. Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING variable in the adapter OpenAI environment: TIKTOKEN_MODEL_MAPPING='{"my-favorite-model": $prefix}', where $prefix is one of: "o1-", "o3-", "o4-mini-", "gpt-5-", "gpt-4.5-", "gpt-4.1-", "chatgpt-4o-", "gpt-4o-", "gpt-4-", "gpt-3.5-turbo-", "gpt-35-turbo-", "gpt-oss-". Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken.
 """.strip(),
             "type": "internal_server_error",
         }

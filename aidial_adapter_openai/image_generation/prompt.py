@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel
 
-from aidial_adapter_openai.chat_completions.input import image_inputs_supported
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
@@ -23,12 +21,8 @@ class ImageGenPrompt(BaseModel):
         cls, data: Any, file_storage: FileStorage | None
     ) -> ImageGenPrompt:
         result = await ResourceProcessor(
-            file_storage=file_storage,
-            supported_image_types=image_inputs_supported().input_types,
+            file_storage=file_storage
         ).transform_messages(data["messages"])
-
-        if isinstance(result, DialException):
-            raise result
 
         text_prompt = ""
         images: List[Resource] = []
@@ -42,7 +36,7 @@ class ImageGenPrompt(BaseModel):
                         if item.get("type") == "text":
                             text_prompt += item["text"]
 
-            for image in message.image_metadatas:
+            for image in message.images:
                 images.append(image.image)
 
         if not text_prompt:

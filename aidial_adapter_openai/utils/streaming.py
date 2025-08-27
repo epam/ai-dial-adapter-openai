@@ -4,14 +4,15 @@ from typing import (
     Any,
     AsyncIterator,
     Callable,
+    Generator,
     Generic,
     List,
     Optional,
+    Set,
     TypeVar,
 )
 from uuid import uuid4
 
-from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.utils.merge_chunks import (
     cleanup_indices,
     merge_chat_completion_chunks,
@@ -64,6 +65,7 @@ def build_chunk(
 
 async def generate_stream(
     *,
+    n: int,
     stream: AsyncIterator[dict],
     get_prompt_tokens: Callable[[], int],
     tokenize_response: Callable[[ChatCompletionResponse], int],
@@ -101,10 +103,29 @@ async def generate_stream(
             }
         return chunk
 
-    def set_finish_reason(chunk: dict | None, finish_reason: str) -> dict:
+    def set_default_finish_reasons(
+        chunk: dict | None,
+        missing_indices: Set[int],
+        default_finish_reason: str,
+    ) -> dict:
+        def _set_reason(choice: dict) -> dict:
+            if choice.get("finish_reason") is None:
+                choice["finish_reason"] = default_finish_reason
+            return choice
+
         chunk = chunk or empty_chunk
-        chunk["choices"] = chunk.get("choices") or [{"index": 0, "delta": {}}]
-        chunk["choices"][0]["finish_reason"] = finish_reason
+        choices = chunk.setdefault("choices", [])
+
+        for choice in choices:
+            index = choice.get("index")
+            if index in missing_indices:
+                missing_indices.discard(index)
+                _set_reason(choice)
+
+        for index in sorted(missing_indices):
+            choice = {"index": index, "delta": {}}
+            choices.append(_set_reason(choice))
+
         return chunk
 
     def set_discarded_messages(chunk: dict | None, indices: list[int]) -> dict:
@@ -157,72 +178,25 @@ async def generate_stream(
         last_chunk = set_usage(last_chunk, response_snapshot)
 
     if not error:
-        has_finish_reason = response_snapshot.has_finish_reason
+        missing_finish_reasons = response_snapshot.get_missing_finish_reasons(n)
 
         if response_snapshot.is_empty:
             logger.warning("Received 0 chunks")
-        elif not has_finish_reason:
-            logger.warning("Didn't receive chunk with the finish reason")
+        elif missing_finish_reasons:
+            logger.warning(
+                "Didn't receive finish reasons for all completion choices"
+            )
 
-        if not has_finish_reason:
-            last_chunk = set_finish_reason(last_chunk, "length")
-
-        if response_snapshot.usage is None:
-            last_chunk = set_usage(last_chunk, response_snapshot)
+        if missing_finish_reasons:
+            last_chunk = set_default_finish_reasons(
+                last_chunk, missing_finish_reasons, "length"
+            )
 
     if last_chunk:
         yield last_chunk
 
     if error:
         raise error
-
-
-def create_stage_chunk(
-    *, model_name: str, stage_title: str, stage_content: str, stream: bool
-) -> dict:
-    id = generate_id()
-    created = generate_created()
-
-    stage = {
-        "index": 0,
-        "name": stage_title,
-        "content": stage_content,
-        "status": "completed",
-    }
-
-    custom_content = {"stages": [stage]}
-
-    return build_chunk(
-        id,
-        "stop",
-        {
-            "role": "assistant",
-            "content": "",
-            "custom_content": custom_content,
-        },
-        created,
-        stream,
-        usage={
-            "completion_tokens": 0,
-            "prompt_tokens": 0,
-            "total_tokens": 0,
-        },
-        model=model_name,
-    )
-
-
-def create_response_from_chunk(
-    *, chunk: dict | None, exc: DialException, stream: bool
-) -> AsyncIterator[dict] | Response:
-    if not stream:
-        return exc.to_fastapi_response()
-
-    async def generator() -> AsyncIterator[dict]:
-        if chunk is not None:
-            yield chunk
-        yield exc.json_error()
-
-    return generator()
 
 
 def block_response_to_streaming_chunk(response: dict) -> dict:
@@ -300,6 +274,14 @@ def create_server_response(
 
 T = TypeVar("T")
 V = TypeVar("V")
+
+
+async def map_stream_generator(
+    func: Callable[[T], Generator[V, None, None]], iterator: AsyncIterator[T]
+) -> AsyncIterator[V]:
+    async for item in iterator:
+        for new_item in func(item):
+            yield new_item
 
 
 async def map_stream(
