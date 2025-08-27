@@ -773,7 +773,7 @@ async def test_invalid_chunk_stream_from_upstream(
 
 @respx.mock
 async def test_unexpected_multi_modal_input_streaming(
-    test_app: httpx.AsyncClient,
+    test_app: httpx.AsyncClient, caplog
 ):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant"}),
@@ -801,15 +801,26 @@ async def test_unexpected_multi_modal_input_streaming(
         },
     )
 
-    expected_response = {
-        "error": {
-            "code": "500",
-            "message": "Unexpected message with an image. The deployment only supports plain text messages. Remove the image from the request or declare the deployment as a multi-modal one in the OpenAI adapter configuration to avoid the error.",
-            "type": "internal_server_error",
-        }
-    }
-    assert response.status_code == 500
-    assert response.json() == expected_response
+    log_messages = [record.message for record in caplog.records]
+    assert sorted(log_messages) == sorted(
+        [
+            "Unexpected multi-modal content part of type 'image_url'. The tokenizer doesn't support this type of content parts. Tokens won't be accounted for this content part.",
+            "Unexpected image attachment or content part. The tokenizer doesn't support images. Tokens won't be accounted for the images.",
+        ]
+    )
+
+    assert response.status_code == 200
+    mock_stream.assert_response_content(
+        response,
+        assert_equal_no_dynamic_fields,
+        usages={
+            2: {
+                "prompt_tokens": 8,
+                "completion_tokens": 2,
+                "total_tokens": 10,
+            }
+        },
+    )
 
 
 @respx.mock
@@ -831,6 +842,8 @@ async def test_invalid_image_url_streaming_catch_all(
     )
 
     image_url = "http://xyz.com/image.png"
+
+    respx.get(image_url).respond(status_code=404, content="Not Found")
 
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
@@ -857,7 +870,7 @@ async def test_invalid_image_url_streaming_catch_all(
         },
     )
 
-    error_message = f"The following files failed to process:\n1. {image_url}: failed to download the image"
+    error_message = f"The following files failed to process:\n1. {image_url}: failed to download the image content part"
 
     response_stream = OpenAIStream(
         {
@@ -870,7 +883,7 @@ async def test_invalid_image_url_streaming_catch_all(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 400
     response_stream.assert_response_content(
         response, assert_equal_no_dynamic_fields
     )
@@ -901,6 +914,8 @@ async def test_invalid_image_url_streaming_gpt4o():
 
         image_url = "http://xyz.com/image.png"
 
+        respx.get(image_url).respond(status_code=404, content="Not Found")
+
         response = await test_app.post(
             "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
             json={
@@ -926,19 +941,9 @@ async def test_invalid_image_url_streaming_gpt4o():
             },
         )
 
-        error_message = f"The following files failed to process:\n1. {image_url}: failed to download the image"
+        error_message = f"The following files failed to process:\n1. {image_url}: failed to download the image content part"
 
         response_stream = OpenAIStream(
-            single_choice_chunk(
-                model="app",
-                finish_reason="stop",
-                delta={"role": "assistant", "content": ""},
-                usage={
-                    "completion_tokens": 0,
-                    "prompt_tokens": 0,
-                    "total_tokens": 0,
-                },
-            ),
             {
                 "error": {
                     "code": "400",
@@ -949,7 +954,7 @@ async def test_invalid_image_url_streaming_gpt4o():
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 400
         response_stream.assert_response_content(
             response, assert_equal_no_dynamic_fields
         )

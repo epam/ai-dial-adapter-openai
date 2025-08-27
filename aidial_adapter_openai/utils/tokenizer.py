@@ -174,7 +174,7 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
     def _warn_content_type(self, ty: Any) -> None:
         logger.warning(
             f"Unexpected multi-modal content part of type {ty!r}. "
-            f"The tokenizer doesn't support this type of content part. "
+            f"The tokenizer doesn't support this type of content parts. "
             "Tokens won't be accounted for this content part."
         )
 
