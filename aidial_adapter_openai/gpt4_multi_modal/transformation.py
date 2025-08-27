@@ -158,7 +158,9 @@ class ResourceProcessor(BaseModel):
                 ret.append(result)
         return ret
 
-    async def transform_message(self, message: dict) -> MultiModalMessage:
+    async def transform_message_unsafe(
+        self, message: dict
+    ) -> MultiModalMessage:
         message = message.copy()
 
         content = message.get("content") or ""
@@ -179,11 +181,23 @@ class ResourceProcessor(BaseModel):
             },
         )
 
+    async def transform_message(
+        self, idx: int, message: dict
+    ) -> MultiModalMessage:
+        try:
+            return await self.transform_message_unsafe(message)
+        except (TypeError, LookupError, AttributeError) as e:
+            logger.exception("Invalid message")
+            raise InvalidRequestError(
+                message=f"Invalid message: {str(e)}", param=f"messages[{idx}]"
+            )
+
     async def transform_messages(
         self, messages: List[dict]
     ) -> List[MultiModalMessage]:
         transformations = [
-            await self.transform_message(message) for message in messages
+            await self.transform_message(idx, message)
+            for idx, message in enumerate(messages)
         ]
 
         if self.errors:

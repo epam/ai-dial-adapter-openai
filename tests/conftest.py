@@ -66,7 +66,7 @@ async def create_test_client(
 ):
     app = create_app(init_telemetry=False, app_config=app_config)
     async with httpx.AsyncClient(
-        transport=ASGITransport(app=app),  # type: ignore
+        transport=ASGITransport(app=app, raise_app_exceptions=False),  # type: ignore
         base_url=base_url,
         timeout=_TEST_TIMEOUT,
     ) as client:

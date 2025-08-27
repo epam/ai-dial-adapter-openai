@@ -89,19 +89,21 @@ def mock_resource_processor():
     ],
 )
 async def test_transform_message(
-    mock_resource_processor,
+    mock_resource_processor: ResourceProcessor,
     message,
     expected_tokens,
     expected_content,
 ):
-    result = await mock_resource_processor.transform_message(message)
+    result = await mock_resource_processor.transform_message(0, message)
 
     assert isinstance(result, MultiModalMessage)
     assert result.raw_message.get("custom_content") is None
     assert result.raw_message["content"] == expected_content
 
 
-async def test_transform_messages_with_error(mock_resource_processor):
+async def test_transform_messages_with_error(
+    mock_resource_processor: ResourceProcessor,
+):
     messages = [
         {
             "role": "user",
@@ -128,13 +130,15 @@ The following files failed to process:
     )
 
 
-async def test_transform_message_with_error(mock_resource_processor):
+async def test_transform_message_with_error(
+    mock_resource_processor: ResourceProcessor,
+):
     message = {
         "role": "user",
         "content": "",
         "custom_content": {"attachments": [{"url": "not_found.jpg"}]},
     }
-    await mock_resource_processor.transform_message(message)
+    await mock_resource_processor.transform_message(0, message)
     assert mock_resource_processor.errors
     assert len(mock_resource_processor.errors) == 1
     image_fail = list(mock_resource_processor.errors)[0]
@@ -276,7 +280,7 @@ async def test_transform_message_with_error(mock_resource_processor):
     ],
 )
 async def test_transform_messages(
-    mock_resource_processor,
+    mock_resource_processor: ResourceProcessor,
     messages,
     expected_transformations,
 ):
