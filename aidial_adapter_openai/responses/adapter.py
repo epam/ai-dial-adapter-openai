@@ -103,6 +103,7 @@ def _get_configuration(request: Dict[str, Any]) -> ResponsesConfig:
 
 
 async def chat_completion(
+    *,
     request: Dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,

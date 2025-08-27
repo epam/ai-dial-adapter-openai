@@ -1,18 +1,17 @@
 from urllib.parse import urlparse
 
+from pydantic import SecretStr
 from typing_extensions import override
 
 from aidial_adapter_openai.dial_api.resource import ValidationError
 from aidial_adapter_openai.dial_api.storage import Bucket, FileStorage
-from aidial_adapter_openai.utils.auth import Auth
 
 
 class MockFileStorage(FileStorage):
     def __init__(self):
         super().__init__(
             dial_url="http://dial-core",
-            upload_dir="upload_dir",
-            auth=Auth(name="api-key", value="dummy-api-key"),
+            api_key=SecretStr("dummy-api-key"),
         )
 
     @override

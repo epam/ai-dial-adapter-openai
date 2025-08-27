@@ -65,8 +65,8 @@ def _extract_max_prompt_tokens(request: dict) -> int | None:
 
 
 async def chat_completion(
+    *,
     request: dict,
-    model_name: str,
     request_headers: Mapping[str, str],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
@@ -75,6 +75,7 @@ async def chat_completion(
 ):
     n: int = request.get("n") or 1
     messages: List[dict] = request["messages"]
+    model_name = request["model"]
 
     multi_modal_messages = await ResourceProcessor(
         file_storage=file_storage

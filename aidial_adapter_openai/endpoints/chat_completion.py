@@ -60,7 +60,7 @@ async def call_chat_completion(
     request["model"] = request.get("model") or deployment_id
 
     upstream_endpoint = _get_upstream_endpoint(request_headers)
-    storage = create_file_storage("images", request_headers)
+    file_storage = create_file_storage(request_headers)
 
     deployment = app_config.get_chat_completion_deployment_type(
         deployment_id, upstream_endpoint
@@ -70,16 +70,22 @@ async def call_chat_completion(
     creds = await get_credentials(request_headers)
     client = endpoint.get_client({**creds, "api_version": api_version})
 
-    tiktoken_model = (
-        app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id) or deployment_id
-    )
-
     match deployment_type:
         case ChatCompletionDeploymentType.COMPLETIONS_API:
-            return await completion(request, client, deployment_id, app_config)
+            templates = app_config.COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES
+            prompt_template = templates.get(deployment_id)
+            return await completion(
+                request=request,
+                client=client,
+                prompt_template=prompt_template,
+            )
 
         case ChatCompletionDeploymentType.RESPONSES_API:
-            return await responses(request, client, storage)
+            return await responses(
+                request=request,
+                client=client,
+                file_storage=file_storage,
+            )
 
         case (
             ChatCompletionDeploymentType.DALLE3
@@ -92,32 +98,41 @@ async def call_chat_completion(
                 client = client.with_options(api_version=api_version)
 
             return await image_generation(
-                model, request, deployment_id, client, storage
+                model=model,
+                request=request,
+                client=client,
+                file_storage=file_storage,
             )
 
         case (
             ChatCompletionDeploymentType.MISTRAL
             | ChatCompletionDeploymentType.DATABRICKS
         ):
-            return await non_gpt_chat_completion(request, client)
+            return await non_gpt_chat_completion(request=request, client=client)
 
         case (
             ChatCompletionDeploymentType.GPT4O
             | ChatCompletionDeploymentType.GPT4O_MINI
-            | ChatCompletionDeploymentType.GPT_TEXT_ONLY
+            | ChatCompletionDeploymentType.GPT_GENERIC
         ):
+
+            tiktoken_model = (
+                app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id)
+                or deployment_id
+            )
+
             tokenizer = Tokenizer(
                 model=tiktoken_model,
                 image_tokenizer=get_image_tokenizer(deployment_type),
             )
+
             return await gpt_chat_completion(
-                request,
-                deployment_id,
-                request_headers,
-                client,
-                storage,
-                tokenizer,
-                app_config.ELIMINATE_EMPTY_CHOICES,
+                request=request,
+                request_headers=request_headers,
+                client=client,
+                file_storage=file_storage,
+                tokenizer=tokenizer,
+                eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
             )
 
         case _:

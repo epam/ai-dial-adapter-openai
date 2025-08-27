@@ -65,7 +65,7 @@ async def upload_attachments_data_to_storage(
             continue
 
         file_metadata = await file_storage.upload_file_as_base64(
-            attachment["data"], attachment["type"]
+            "images", attachment["data"], attachment["type"]
         )
 
         del attachment["data"]
@@ -76,9 +76,9 @@ _Config = TypeVar("_Config", bound=BaseModel)
 
 
 async def chat_completion(
+    *,
     model: ImageGenerationModel[_Config],
     request: Any,
-    model_name: str,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
 ):
@@ -88,6 +88,7 @@ async def chat_completion(
     prompt = await ImageGenPrompt.from_request(request, file_storage)
 
     is_stream = bool(request.get("stream"))
+    model_name = request["model"]
 
     config_cls = model.get_configuration()
     response_format = model.get_response_format()

@@ -76,13 +76,13 @@ class VectorizeResponse(BaseModel):
 
 
 async def embeddings(
+    *,
+    request: dict,
     creds: OpenAICreds,
-    deployment: str,
     endpoint: str,
     file_storage: FileStorage | None,
-    data: dict,
 ) -> EmbeddingResponse:
-    input = EmbeddingsRequest.parse_obj(data)
+    input = EmbeddingsRequest.parse_obj(request)
 
     async def on_text(text: str) -> str:
         return text
@@ -122,7 +122,8 @@ async def embeddings(
     n = len(vectors)
     usage = Usage(prompt_tokens=n, total_tokens=n)
 
-    return EmbeddingResponse(model=deployment, data=vectors, usage=usage)
+    model_name = request["model"]
+    return EmbeddingResponse(model=model_name, data=vectors, usage=usage)
 
 
 async def _get_image_embedding(

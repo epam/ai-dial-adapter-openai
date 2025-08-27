@@ -7,7 +7,7 @@ from aidial_adapter_openai.utils.streaming import chunk_to_dict, map_stream
 
 
 async def chat_completion(
-    request: dict, client: AsyncAzureOpenAI | AsyncOpenAI
+    *, request: dict, client: AsyncAzureOpenAI | AsyncOpenAI
 ):
     response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
         await call_with_extra_body(client.chat.completions.create, request)

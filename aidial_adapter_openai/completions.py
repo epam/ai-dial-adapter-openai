@@ -4,7 +4,6 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types import Completion
 
-from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     build_chunk,
@@ -36,28 +35,22 @@ def convert_to_chat_completions_response(
 
 
 async def chat_completion(
+    *,
     request: Dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
-    deployment_id: str,
-    app_config: ApplicationConfig,
+    prompt_template: str | None,
 ):
     if (request.get("n") or 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
-    messages = request.get("messages") or []
+    messages = request.pop("messages")
     if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
     prompt = messages[-1].get("content") or ""
 
-    if (
-        template := app_config.COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES.get(
-            deployment_id
-        )
-    ) is not None:
-        prompt = template.format(prompt=prompt)
-
-    del request["messages"]
+    if prompt_template is not None:
+        prompt = prompt_template.format(prompt=prompt)
 
     response = await call_with_extra_body(
         client.completions.create,
