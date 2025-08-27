@@ -12,9 +12,15 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
 from tests.conftest import create_test_client
-from tests.integration_tests.constants import IMAGE_RESOURCE
+from tests.integration_tests.constants import (
+    IMAGE_RESOURCE,
+    PDF_DOCUMENT_RESOURCE,
+)
 from tests.utils.dictionary import exclude_keys
-from tests.utils.openai import user_with_image_content_part
+from tests.utils.openai import (
+    user_with_file_content_part,
+    user_with_image_content_part,
+)
 from tests.utils.stream import (
     OpenAIStream,
     create_choice,
@@ -793,7 +799,13 @@ async def test_unexpected_multi_modal_input_streaming(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={
             "stream": True,
-            "messages": [user_with_image_content_part("test", IMAGE_RESOURCE)],
+            "messages": [
+                user_with_image_content_part("image1", IMAGE_RESOURCE),
+                user_with_image_content_part("image2", IMAGE_RESOURCE),
+                user_with_file_content_part(
+                    "file1", "file1", PDF_DOCUMENT_RESOURCE
+                ),
+            ],
         },
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
@@ -804,8 +816,8 @@ async def test_unexpected_multi_modal_input_streaming(
     log_messages = [record.message for record in caplog.records]
     assert sorted(log_messages) == sorted(
         [
-            "Unexpected multi-modal content part of type 'image_url'. The tokenizer doesn't support this type of content parts. Tokens won't be accounted for this content part.",
-            "Unexpected image attachment or content part. The tokenizer doesn't support images. Tokens won't be accounted for the images.",
+            "Content part type 'file' not supported by the tokenizer. Tokens for this content part will be ignored.",
+            "Content part type 'image_url' not supported by the tokenizer. Tokens for this content part will be ignored.",
         ]
     )
 
@@ -815,9 +827,9 @@ async def test_unexpected_multi_modal_input_streaming(
         assert_equal_no_dynamic_fields,
         usages={
             2: {
-                "prompt_tokens": 8,
+                "prompt_tokens": 21,
                 "completion_tokens": 2,
-                "total_tokens": 10,
+                "total_tokens": 23,
             }
         },
     )

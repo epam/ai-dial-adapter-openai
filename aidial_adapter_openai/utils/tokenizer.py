@@ -3,8 +3,8 @@ Implemented based on the official recipe: https://cookbook.openai.com/examples/h
 """
 
 import json
-from abc import abstractmethod
-from typing import Any, Callable, Generic, List, TypeVar
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Generic, List, Set, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
@@ -36,7 +36,7 @@ def _get_tiktoken_error_message(model: str) -> str:
     )
 
 
-class BaseTokenizer(Generic[MessageType]):
+class BaseTokenizer(ABC, Generic[MessageType]):
     """
     Tokenizer for chat completion requests and responses.
     """
@@ -164,33 +164,24 @@ def _tokenize_message(
 
 class Tokenizer(BaseTokenizer[MultiModalMessage]):
     image_tokenizer: ImageTokenizer | None
+    warnings: Set[str]
 
     def __init__(
         self, *, model: str, image_tokenizer: ImageTokenizer | None = None
     ):
         super().__init__(model)
         self.image_tokenizer = image_tokenizer
-
-    def _warn_content_type(self, ty: Any) -> None:
-        logger.warning(
-            f"Unexpected multi-modal content part of type {ty!r}. "
-            f"The tokenizer doesn't support this type of content parts. "
-            "Tokens won't be accounted for this content part."
-        )
-
-    def _warn_image(self) -> None:
-        logger.warning(
-            "Unexpected image attachment or content part. "
-            "The tokenizer doesn't support images. "
-            "Tokens won't be accounted for the images."
-        )
+        self.warnings = set()
 
     def _on_multi_modal_content_part(self, content_part: dict) -> int:
         ty = content_part.get("type")
         if ty != "image_url" or (
             ty == "image_url" and self.image_tokenizer is None
         ):
-            self._warn_content_type(ty)
+            self.warnings.add(
+                f"Content part type {ty!r} not supported by the tokenizer. "
+                "Tokens for this content part will be ignored."
+            )
 
         return 0
 
@@ -204,9 +195,6 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
             tokenize_multi_modal_content_part=self._on_multi_modal_content_part,
         )
 
-        if self.image_tokenizer is None and message.images:
-            self._warn_image()
-
         # Processing image parts of message
         for metadata in message.images:
             if self.image_tokenizer is not None:
@@ -215,5 +203,16 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
                     height=metadata.height,
                     detail=metadata.detail,
                 )
+
+        return tokens
+
+    def tokenize_request(
+        self, original_request: dict, messages: List[MultiModalMessage]
+    ) -> int:
+        tokens = super().tokenize_request(original_request, messages)
+
+        for warning in self.warnings:
+            logger.warning(warning)
+        self.warnings.clear()
 
         return tokens
