@@ -931,9 +931,8 @@ async def test_error_invalid_image_url(stream: bool):
         assert response.status_code == 400
         assert response.json() == {
             "error": {
-                "message": "'str' object has no attribute 'get'",
+                "message": "'image_url' expected to be a dictionary, but got 'str'",
                 "type": "invalid_request_error",
-                "param": "messages[0].content[1]",
                 "code": "400",
             }
         }

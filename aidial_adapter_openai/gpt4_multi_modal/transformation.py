@@ -28,7 +28,13 @@ from aidial_adapter_openai.utils.multi_modal_message import (
 )
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.text import decapitalize
-from aidial_adapter_openai.utils.validation import RequestValidationMixin
+from aidial_adapter_openai.utils.validation import (
+    ensure_dict,
+    ensure_list,
+    ensure_list_or_str,
+    ensure_str,
+    ensure_str_or_none,
+)
 
 
 class FileResource(BaseModel):
@@ -51,7 +57,7 @@ class Error:
     message: str
 
 
-class ResourceProcessor(RequestValidationMixin, BaseModel):
+class ResourceProcessor(BaseModel):
     class Config:
         arbitrary_types_allowed = True  # for errors
 
@@ -87,10 +93,9 @@ class ResourceProcessor(RequestValidationMixin, BaseModel):
             logger.debug(f"original attachments: {attachments}")
 
         ret: List[ChatCompletionContentPartImageParam | File] = []
-        for idx, attachment in enumerate(attachments):
-            with self.path_(idx):
-                if result := await self.download_attachment(attachment):
-                    ret.append(result)
+        for attachment in attachments:
+            if result := await self.download_attachment(attachment):
+                ret.append(result)
         return ret
 
     async def download_attachment(
@@ -117,21 +122,22 @@ class ResourceProcessor(RequestValidationMixin, BaseModel):
     async def download_image_content_part(
         self, part: ChatCompletionContentPartImageParam
     ) -> ChatCompletionContentPartImageParam | None:
-        image_url = part["image_url"]
-        detail = image_url.get("detail")
-        url = image_url.get("url")
+        image_url = ensure_dict("image_url", part["image_url"])
+        detail = ensure_str_or_none("image_url.detail", image_url.get("detail"))
+        url = ensure_str("image_url.url", image_url.get("url"))
 
         dial_resource = URLResource(url=url, entity_name="image content part")
         if not (resource := await self.try_download_resource(dial_resource)):
             return None
 
-        result = ImageResource.from_resource(resource, detail)
+        result = ImageResource.from_resource(resource, detail)  # type: ignore
         self.images.append(result)
         return result.to_content_part()
 
     async def download_content_part(
         self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
     ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart | None:
+        ensure_dict("content part", part)
         match part["type"]:
             case "image_url":
                 return await self.download_image_content_part(part)
@@ -155,27 +161,27 @@ class ResourceProcessor(RequestValidationMixin, BaseModel):
         ret: List[
             ChatCompletionContentPartParam | ContentArrayOfContentPart
         ] = []
-        for idx, part in enumerate(parts):
-            with self.path_(idx):
-                if result := await self.download_content_part(part):
-                    ret.append(result)
+        for part in parts:
+            if result := await self.download_content_part(part):
+                ret.append(result)
         return ret
 
     async def transform_message(self, message: dict) -> MultiModalMessage:
-        message = message.copy()
+        message = ensure_dict("message", message).copy()
 
-        content = message.get("content") or ""
-        custom_content = message.pop("custom_content", None) or {}
-        attachments: List[dict] = custom_content.get("attachments") or []
+        content = ensure_list_or_str("content", message.get("content") or "")
+        custom_content = ensure_dict(
+            "custom_content", message.pop("custom_content", {})
+        )
+        attachments = ensure_list(
+            "attachments", custom_content.get("attachments") or []
+        )
 
         if isinstance(content, str) and not attachments:
             return MultiModalMessage(images=[], raw_message=message)
 
-        with self.path_("content"):
-            content_parts = await self.download_content(content)
-
-        with self.path_("custom_content", "attachments"):
-            attachment_parts = await self.download_attachments(attachments)
+        content_parts = await self.download_content(content)
+        attachment_parts = await self.download_attachments(attachments)
 
         return MultiModalMessage(
             images=self.images,
@@ -188,10 +194,9 @@ class ResourceProcessor(RequestValidationMixin, BaseModel):
     async def transform_messages(
         self, messages: List[dict]
     ) -> List[MultiModalMessage]:
-        transformations: List[MultiModalMessage] = []
-        for idx, message in enumerate(messages):
-            with self.path_("messages", idx):
-                transformations.append(await self.transform_message(message))
+        transformations = [
+            await self.transform_message(message) for message in messages
+        ]
 
         if self.errors:
             image_fails = sorted(list(self.errors))

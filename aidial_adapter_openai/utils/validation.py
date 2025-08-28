@@ -1,40 +1,43 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import List
+from typing import Any
 
 from aidial_sdk.exceptions import InvalidRequestError
-from pydantic import BaseModel
 
 
-@dataclass
-class _PathContext:
-    validator: RequestValidationMixin
-    original_path: List[str | int]
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type in (TypeError, LookupError, AttributeError):
-            raise InvalidRequestError(
-                message=str(exc_value),
-                param=self.validator.display_path(),
-            ) from exc_value
-
-        self.validator.path = self.original_path
-        return False
+def ensure_dict(name: str, value: Any) -> dict:
+    if isinstance(value, dict):
+        return value
+    raise InvalidRequestError(
+        f"{name!r} expected to be a dictionary, but got {type(value).__name__!r}"
+    )
 
 
-class RequestValidationMixin(BaseModel):
-    path: List[str | int] = []
+def ensure_str_or_none(name: str, value: Any) -> str | None:
+    if isinstance(value, str) or value is None:
+        return value
+    raise InvalidRequestError(
+        f"{name!r} expected to be a string, but got {type(value).__name__!r}"
+    )
 
-    def display_path(self) -> str:
-        return "".join(
-            f"[{repr(p)}]" if isinstance(p, int) else f".{p}" for p in self.path
-        ).lstrip(".")
 
-    def path_(self, *key: str | int) -> _PathContext:
-        old_path = self.path.copy()
-        self.path.extend(key)
-        return _PathContext(validator=self, original_path=old_path)
+def ensure_list_or_str(name: str, value: Any) -> list | str:
+    if isinstance(value, (str, list)):
+        return value
+    raise InvalidRequestError(
+        f"{name!r} expected to be a list or string, but got {type(value).__name__!r}"
+    )
+
+
+def ensure_str(name: str, value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    raise InvalidRequestError(
+        f"{name!r} expected to be a string, but got {type(value).__name__!r}"
+    )
+
+
+def ensure_list(name: str, value: Any) -> list:
+    if isinstance(value, list):
+        return value
+    raise InvalidRequestError(
+        f"{name!r} expected to be a list, but got {type(value).__name__!r}"
+    )
