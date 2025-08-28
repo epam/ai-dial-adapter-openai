@@ -19,6 +19,7 @@
             ]
         },
         "gpt-5-2025-08-07": {
+            "overrideName": "gpt-5-2025-08-07",
             "type": "chat",
             "upstreams": [
                 {
