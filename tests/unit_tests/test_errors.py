@@ -915,7 +915,8 @@ async def test_error_invalid_image_url(stream: bool):
                     {
                         "role": "user",
                         "content": [
-                            {"type": "image_url", "image_url": "whatever"}
+                            {"type": "text", "text": "test"},
+                            {"type": "image_url", "image_url": "whatever"},
                         ],
                     }
                 ],
@@ -930,9 +931,9 @@ async def test_error_invalid_image_url(stream: bool):
         assert response.status_code == 400
         assert response.json() == {
             "error": {
-                "message": "Invalid message: 'str' object has no attribute 'get'",
+                "message": "'str' object has no attribute 'get'",
                 "type": "invalid_request_error",
-                "param": "messages[0]",
+                "param": "messages[0].content[1]",
                 "code": "400",
             }
         }

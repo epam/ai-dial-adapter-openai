@@ -94,7 +94,7 @@ async def test_transform_message(
     expected_tokens,
     expected_content,
 ):
-    result = await mock_resource_processor.transform_message(0, message)
+    result = await mock_resource_processor.transform_message(message)
 
     assert isinstance(result, MultiModalMessage)
     assert result.raw_message.get("custom_content") is None
@@ -138,7 +138,7 @@ async def test_transform_message_with_error(
         "content": "",
         "custom_content": {"attachments": [{"url": "not_found.jpg"}]},
     }
-    await mock_resource_processor.transform_message(0, message)
+    await mock_resource_processor.transform_message(message)
     assert mock_resource_processor.errors
     assert len(mock_resource_processor.errors) == 1
     image_fail = list(mock_resource_processor.errors)[0]

@@ -28,6 +28,7 @@ from aidial_adapter_openai.utils.multi_modal_message import (
 )
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.text import decapitalize
+from aidial_adapter_openai.utils.validation import RequestValidationMixin
 
 
 class FileResource(BaseModel):
@@ -50,7 +51,7 @@ class Error:
     message: str
 
 
-class ResourceProcessor(BaseModel):
+class ResourceProcessor(RequestValidationMixin, BaseModel):
     class Config:
         arbitrary_types_allowed = True  # for errors
 
@@ -86,9 +87,10 @@ class ResourceProcessor(BaseModel):
             logger.debug(f"original attachments: {attachments}")
 
         ret: List[ChatCompletionContentPartImageParam | File] = []
-        for attachment in attachments:
-            if result := await self.download_attachment(attachment):
-                ret.append(result)
+        for idx, attachment in enumerate(attachments):
+            with self.path_(idx):
+                if result := await self.download_attachment(attachment):
+                    ret.append(result)
         return ret
 
     async def download_attachment(
@@ -153,14 +155,13 @@ class ResourceProcessor(BaseModel):
         ret: List[
             ChatCompletionContentPartParam | ContentArrayOfContentPart
         ] = []
-        for part in parts:
-            if result := await self.download_content_part(part):
-                ret.append(result)
+        for idx, part in enumerate(parts):
+            with self.path_(idx):
+                if result := await self.download_content_part(part):
+                    ret.append(result)
         return ret
 
-    async def transform_message_unsafe(
-        self, message: dict
-    ) -> MultiModalMessage:
+    async def transform_message(self, message: dict) -> MultiModalMessage:
         message = message.copy()
 
         content = message.get("content") or ""
@@ -170,8 +171,11 @@ class ResourceProcessor(BaseModel):
         if isinstance(content, str) and not attachments:
             return MultiModalMessage(images=[], raw_message=message)
 
-        content_parts = await self.download_content(content)
-        attachment_parts = await self.download_attachments(attachments)
+        with self.path_("content"):
+            content_parts = await self.download_content(content)
+
+        with self.path_("custom_content", "attachments"):
+            attachment_parts = await self.download_attachments(attachments)
 
         return MultiModalMessage(
             images=self.images,
@@ -181,24 +185,13 @@ class ResourceProcessor(BaseModel):
             },
         )
 
-    async def transform_message(
-        self, idx: int, message: dict
-    ) -> MultiModalMessage:
-        try:
-            return await self.transform_message_unsafe(message)
-        except (TypeError, LookupError, AttributeError) as e:
-            logger.exception("Invalid message")
-            raise InvalidRequestError(
-                message=f"Invalid message: {str(e)}", param=f"messages[{idx}]"
-            )
-
     async def transform_messages(
         self, messages: List[dict]
     ) -> List[MultiModalMessage]:
-        transformations = [
-            await self.transform_message(idx, message)
-            for idx, message in enumerate(messages)
-        ]
+        transformations: List[MultiModalMessage] = []
+        for idx, message in enumerate(messages):
+            with self.path_("messages", idx):
+                transformations.append(await self.transform_message(message))
 
         if self.errors:
             image_fails = sorted(list(self.errors))
