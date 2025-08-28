@@ -1,4 +1,4 @@
-from typing import List, Mapping, Tuple
+from typing import Callable, List, Mapping, Tuple
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
@@ -9,10 +9,6 @@ from aidial_adapter_openai.chat_completions.transformation import (
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.caching import get_response_headers_for_caching
-from aidial_adapter_openai.utils.chat_completion_response import (
-    ChatCompletionBlock,
-)
-from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
@@ -30,7 +26,7 @@ from aidial_adapter_openai.utils.truncate_prompt import (
 )
 
 
-def multi_modal_truncate_prompt(
+def _multi_modal_truncate_prompt(
     request: dict,
     messages: List[MultiModalMessage],
     max_prompt_tokens: int,
@@ -64,6 +60,31 @@ def _extract_max_prompt_tokens(request: dict) -> int | None:
     return max_prompt_tokens
 
 
+def _truncate_messages(
+    request: dict, messages: List[MultiModalMessage], tokenizer: Tokenizer
+) -> Tuple[
+    List[MultiModalMessage],
+    DiscardedMessages | None,
+    Callable[[], TruncatedTokens],
+]:
+    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
+        messages, discarded_indices, prompt_tokens = (
+            _multi_modal_truncate_prompt(
+                request=request,
+                messages=messages,
+                max_prompt_tokens=max_prompt_tokens,
+                tokenizer=tokenizer,
+            )
+        )
+        return messages, discarded_indices, lambda: prompt_tokens
+    else:
+
+        def get_prompt_tokens():
+            return tokenizer.tokenize_request(request, messages)
+
+        return (messages, None, get_prompt_tokens)
+
+
 async def chat_completion(
     *,
     request: dict,
@@ -81,27 +102,9 @@ async def chat_completion(
         file_storage=file_storage
     ).transform_messages(messages)
 
-    discarded_messages = None
-
-    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
-        multi_modal_messages, discarded_messages, estimated_prompt_tokens = (
-            multi_modal_truncate_prompt(
-                request=request,
-                messages=multi_modal_messages,
-                max_prompt_tokens=max_prompt_tokens,
-                tokenizer=tokenizer,
-            )
-        )
-        logger.debug(
-            f"prompt tokens after truncation: {estimated_prompt_tokens}"
-        )
-    else:
-        estimated_prompt_tokens = tokenizer.tokenize_request(
-            request, multi_modal_messages
-        )
-        logger.debug(
-            f"prompt tokens without truncation: {estimated_prompt_tokens}"
-        )
+    multi_modal_messages, discarded_messages, get_prompt_tokens = (
+        _truncate_messages(request, multi_modal_messages, tokenizer)
+    )
 
     request["messages"] = [m.raw_message for m in multi_modal_messages]
 
@@ -113,13 +116,13 @@ async def chat_completion(
         response_headers = get_response_headers_for_caching(
             request_headers=request_headers,
             request_body=request,
-            get_request_tokens=lambda: estimated_prompt_tokens,
+            get_request_tokens=get_prompt_tokens,
         )
 
         body = generate_stream(
             n=n,
             stream=map_stream(chunk_to_dict, response),
-            get_prompt_tokens=lambda: estimated_prompt_tokens,
+            get_prompt_tokens=get_prompt_tokens,
             tokenize_response=tokenizer.tokenize_response,
             model=model_name,
             discarded_messages=discarded_messages,
@@ -136,25 +139,12 @@ async def chat_completion(
         actual_prompt_tokens: int | None = None
         if usage := response.usage:
             actual_prompt_tokens = usage.prompt_tokens
-            if actual_prompt_tokens != estimated_prompt_tokens:
-                logger.warning(
-                    f"Estimated prompt tokens ({estimated_prompt_tokens}) don't match the actual ones ({actual_prompt_tokens})"
-                )
-
-            actual_completion_tokens = usage.completion_tokens
-            estimated_completion_tokens = tokenizer.tokenize_response(
-                ChatCompletionBlock(response=body)
-            )
-            if actual_completion_tokens != estimated_completion_tokens:
-                logger.warning(
-                    f"Estimated completion tokens ({estimated_completion_tokens}) don't match the actual ones ({actual_completion_tokens})"
-                )
 
         response_headers = get_response_headers_for_caching(
             request_headers=request_headers,
             request_body=request,
             get_request_tokens=lambda: actual_prompt_tokens
-            or estimated_prompt_tokens,
+            or get_prompt_tokens(),
         )
 
         return ResponseWithHeaders(headers=response_headers, body=body)

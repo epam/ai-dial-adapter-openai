@@ -4,7 +4,7 @@ import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
 from aidial_adapter_openai.chat_completions.gpt import (
-    multi_modal_truncate_prompt,
+    _multi_modal_truncate_prompt,
 )
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
@@ -28,7 +28,7 @@ def plain_text_truncate_prompt(
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
 ) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
-    (msgs, disc, tokens) = multi_modal_truncate_prompt(
+    (msgs, disc, tokens) = _multi_modal_truncate_prompt(
         request=request,
         messages=[
             MultiModalMessage(images=[], raw_message=m) for m in messages
