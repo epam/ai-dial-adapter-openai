@@ -13,7 +13,10 @@ from tiktoken.model import MODEL_PREFIX_TO_ENCODING
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
 )
-from aidial_adapter_openai.utils.image_tokenizer import ImageTokenizer
+from aidial_adapter_openai.utils.image_tokenizer import (
+    IMAGE_SUPPORTING_DEPLOYMENTS,
+    ImageTokenizer,
+)
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 
@@ -175,11 +178,17 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
 
     def _on_multi_modal_content_part(self, content_part: dict) -> int:
         ty = content_part.get("type")
-        if ty != "image_url" or (
-            ty == "image_url" and self.image_tokenizer is None
-        ):
+        if ty == "image_url" and self.image_tokenizer is None:
+            env_vars = " or ".join(IMAGE_SUPPORTING_DEPLOYMENTS)
             self.warnings.add(
-                f"Content part type {ty!r} not supported by the tokenizer. "
+                "Image content detected, however, the image tokenization algorithm is not known for this deployment. "
+                "Tokens for the image will be ignored. "
+                f"Declare the deployment in either {env_vars} to specify the image tokenization algorithm."
+            )
+
+        if ty != "image_url":
+            self.warnings.add(
+                f"Content part type {ty!r} is not supported by the tokenizer. "
                 "Tokens for this content part will be ignored."
             )
 

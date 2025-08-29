@@ -816,8 +816,12 @@ async def test_unexpected_multi_modal_input_streaming(
     log_messages = [record.message for record in caplog.records]
     assert sorted(log_messages) == sorted(
         [
-            "Content part type 'file' not supported by the tokenizer. Tokens for this content part will be ignored.",
-            "Content part type 'image_url' not supported by the tokenizer. Tokens for this content part will be ignored.",
+            "Content part type 'file' is not supported by the tokenizer. "
+            "Tokens for this content part will be ignored.",
+            "Image content detected, however, the image tokenization algorithm is not known for this deployment. "
+            "Tokens for the image will be ignored. "
+            "Declare the deployment in either GPT4O_DEPLOYMENTS or GPT4O_MINI_DEPLOYMENTS "
+            "to specify the image tokenization algorithm.",
         ]
     )
 
