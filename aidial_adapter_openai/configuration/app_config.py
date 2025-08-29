@@ -46,7 +46,6 @@ class ApplicationConfig(ExtraForbidModel):
     DATABRICKS_DEPLOYMENTS: List[str] = []
     GPT4O_DEPLOYMENTS: List[str] = []
     GPT4O_MINI_DEPLOYMENTS: List[str] = []
-    GPT_OSS_DEPLOYMENTS: List[str] = []
     AZURE_AI_VISION_DEPLOYMENTS: List[str] = []
 
     API_VERSIONS_MAPPING: Dict[str, str] = {}
@@ -93,12 +92,6 @@ class ApplicationConfig(ExtraForbidModel):
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
-        if deployment_id in self.GPT_OSS_DEPLOYMENTS:
-            return DeploymentAPIType(
-                deployment_type=ChatCompletionDeploymentType.GPT_OSS,
-                endpoint=chat_completions_parser.parse(upstream_endpoint),
-            )
-
         if endpoint := completions_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
                 deployment_type=ChatCompletionDeploymentType.COMPLETIONS_API,
@@ -132,8 +125,6 @@ class ApplicationConfig(ExtraForbidModel):
                 self.GPT4O_DEPLOYMENTS.append(deployment_id)
             case ChatCompletionDeploymentType.GPT4O_MINI:
                 self.GPT4O_MINI_DEPLOYMENTS.append(deployment_id)
-            case ChatCompletionDeploymentType.GPT_OSS:
-                self.GPT_OSS_DEPLOYMENTS.append(deployment_id)
             case (
                 ChatCompletionDeploymentType.GPT_GENERIC
                 | ChatCompletionDeploymentType.RESPONSES_API
@@ -163,7 +154,6 @@ class ApplicationConfig(ExtraForbidModel):
                 "DATABRICKS_DEPLOYMENTS",
                 "GPT4O_DEPLOYMENTS",
                 "GPT4O_MINI_DEPLOYMENTS",
-                "GPT_OSS_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
             )

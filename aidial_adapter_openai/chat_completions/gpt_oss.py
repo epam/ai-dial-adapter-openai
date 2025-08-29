@@ -84,7 +84,7 @@ class _ResponseTransformer(BaseModel):
 _T = TypeVar("_T", bound=AsyncIterator[dict] | dict)
 
 
-def on_gpt_oss_response_body(response: _T) -> _T:
+def extract_reasoning_tokens(response: _T) -> _T:
     if isinstance(response, dict):
         return _ResponseTransformer(streaming=False)(response)
     else:

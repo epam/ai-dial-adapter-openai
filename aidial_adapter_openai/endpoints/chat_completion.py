@@ -7,7 +7,7 @@ from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
 from aidial_adapter_openai.chat_completions.gpt_oss import (
-    on_gpt_oss_response_body,
+    extract_reasoning_tokens,
 )
 from aidial_adapter_openai.chat_completions.non_gpt import (
     chat_completion as non_gpt_chat_completion,
@@ -108,7 +108,7 @@ async def call_chat_completion(
         case D.MISTRAL | D.DATABRICKS:
             return await non_gpt_chat_completion(request=request, client=client)
 
-        case D.GPT4O | D.GPT4O_MINI | D.GPT_OSS | D.GPT_GENERIC:
+        case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
 
             tiktoken_model = (
                 app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id)
@@ -129,9 +129,7 @@ async def call_chat_completion(
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
             )
 
-            if deployment_type == D.GPT_OSS:
-                response.body = on_gpt_oss_response_body(response.body)
-
+            response.body = extract_reasoning_tokens(response.body)
             return response
 
         case _:
