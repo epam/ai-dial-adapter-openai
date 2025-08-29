@@ -4,7 +4,7 @@ import os
 from typing import Dict, List, assert_never
 
 from aidial_adapter_openai.configuration.deployment_type import (
-    ChatCompletionDeploymentType as D,
+    ChatCompletionDeploymentType as ChatCompletionDeploymentType,
 )
 from aidial_adapter_openai.configuration.deprecations import (
     check_deprecated_env_vars,
@@ -29,7 +29,7 @@ from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 
 class DeploymentAPIType(ExtraForbidModel):
-    deployment_type: D
+    deployment_type: ChatCompletionDeploymentType
     endpoint: AzureOpenAIEndpoint | OpenAIEndpoint
 
 
@@ -46,6 +46,7 @@ class ApplicationConfig(ExtraForbidModel):
     DATABRICKS_DEPLOYMENTS: List[str] = []
     GPT4O_DEPLOYMENTS: List[str] = []
     GPT4O_MINI_DEPLOYMENTS: List[str] = []
+    GPT_OSS_DEPLOYMENTS: List[str] = []
     AZURE_AI_VISION_DEPLOYMENTS: List[str] = []
 
     API_VERSIONS_MAPPING: Dict[str, str] = {}
@@ -58,74 +59,86 @@ class ApplicationConfig(ExtraForbidModel):
     ) -> DeploymentAPIType:
         if deployment_id in self.GPT_IMAGE_1_DEPLOYMENTS:
             return DeploymentAPIType(
-                deployment_type=D.GPT_IMAGE_1,
+                deployment_type=ChatCompletionDeploymentType.GPT_IMAGE_1,
                 endpoint=image_gen_parser.parse(upstream_endpoint),
             )
 
         if deployment_id in self.DALLE3_DEPLOYMENTS:
             return DeploymentAPIType(
-                deployment_type=D.DALLE3,
+                deployment_type=ChatCompletionDeploymentType.DALLE3,
                 endpoint=image_gen_parser.parse(upstream_endpoint),
             )
 
         if deployment_id in self.MISTRAL_DEPLOYMENTS:
             return DeploymentAPIType(
-                deployment_type=D.MISTRAL,
+                deployment_type=ChatCompletionDeploymentType.MISTRAL,
                 endpoint=no_endpoint_parser.parse(upstream_endpoint),
             )
 
         if deployment_id in self.DATABRICKS_DEPLOYMENTS:
             return DeploymentAPIType(
-                deployment_type=D.DATABRICKS,
+                deployment_type=ChatCompletionDeploymentType.DATABRICKS,
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
         if deployment_id in self.GPT4O_DEPLOYMENTS:
             return DeploymentAPIType(
-                deployment_type=D.GPT4O,
+                deployment_type=ChatCompletionDeploymentType.GPT4O,
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
         if deployment_id in self.GPT4O_MINI_DEPLOYMENTS:
             return DeploymentAPIType(
-                deployment_type=D.GPT4O_MINI,
+                deployment_type=ChatCompletionDeploymentType.GPT4O_MINI,
+                endpoint=chat_completions_parser.parse(upstream_endpoint),
+            )
+
+        if deployment_id in self.GPT_OSS_DEPLOYMENTS:
+            return DeploymentAPIType(
+                deployment_type=ChatCompletionDeploymentType.GPT_OSS,
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
         if endpoint := completions_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
-                deployment_type=D.COMPLETIONS_API,
+                deployment_type=ChatCompletionDeploymentType.COMPLETIONS_API,
                 endpoint=endpoint,
             )
 
         if endpoint := responses_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
-                deployment_type=D.RESPONSES_API,
+                deployment_type=ChatCompletionDeploymentType.RESPONSES_API,
                 endpoint=endpoint,
             )
 
         return DeploymentAPIType(
-            deployment_type=D.GPT_GENERIC,
+            deployment_type=ChatCompletionDeploymentType.GPT_GENERIC,
             endpoint=chat_completions_parser.parse(upstream_endpoint),
         )
 
     def add_deployment(
-        self, deployment_id: str, deployment_type: D
+        self, deployment_id: str, deployment_type: ChatCompletionDeploymentType
     ) -> ApplicationConfig:
         match deployment_type:
-            case D.GPT_IMAGE_1:
+            case ChatCompletionDeploymentType.GPT_IMAGE_1:
                 self.GPT_IMAGE_1_DEPLOYMENTS.append(deployment_id)
-            case D.DALLE3:
+            case ChatCompletionDeploymentType.DALLE3:
                 self.DALLE3_DEPLOYMENTS.append(deployment_id)
-            case D.MISTRAL:
+            case ChatCompletionDeploymentType.MISTRAL:
                 self.MISTRAL_DEPLOYMENTS.append(deployment_id)
-            case D.DATABRICKS:
+            case ChatCompletionDeploymentType.DATABRICKS:
                 self.DATABRICKS_DEPLOYMENTS.append(deployment_id)
-            case D.GPT4O:
+            case ChatCompletionDeploymentType.GPT4O:
                 self.GPT4O_DEPLOYMENTS.append(deployment_id)
-            case D.GPT4O_MINI:
+            case ChatCompletionDeploymentType.GPT4O_MINI:
                 self.GPT4O_MINI_DEPLOYMENTS.append(deployment_id)
-            case D.GPT_GENERIC | D.RESPONSES_API | D.COMPLETIONS_API:
+            case ChatCompletionDeploymentType.GPT_OSS:
+                self.GPT_OSS_DEPLOYMENTS.append(deployment_id)
+            case (
+                ChatCompletionDeploymentType.GPT_GENERIC
+                | ChatCompletionDeploymentType.RESPONSES_API
+                | ChatCompletionDeploymentType.COMPLETIONS_API
+            ):
                 pass
             case _:
                 assert_never(deployment_type)
@@ -150,6 +163,7 @@ class ApplicationConfig(ExtraForbidModel):
                 "DATABRICKS_DEPLOYMENTS",
                 "GPT4O_DEPLOYMENTS",
                 "GPT4O_MINI_DEPLOYMENTS",
+                "GPT_OSS_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
             )

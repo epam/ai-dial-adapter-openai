@@ -273,12 +273,27 @@
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-ai-foundry-service-name.openai.azure.com",
+                    "endpoint": "https://azure-ai-foundry-service-name.services.ai.azure.com/models",
                     "key": "optional-api-key"
                 }
             ],
             "features": {
                 "toolsSupported": false
+            }
+        },
+        "gpt-oss-120b": {
+            "overrideName": "gpt-oss-120b",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-ai-foundry-service-name.services.ai.azure.com/models/chat/completions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "parallelToolCallsSupported": false,
+                "reasoningSupported": true,
+                "reasoningSummarySupported": true
             }
         }
     }

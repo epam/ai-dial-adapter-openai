@@ -6,13 +6,16 @@ from openai import AsyncAzureOpenAI
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
+from aidial_adapter_openai.chat_completions.gpt_oss import (
+    on_gpt_oss_response_body,
+)
 from aidial_adapter_openai.chat_completions.non_gpt import (
     chat_completion as non_gpt_chat_completion,
 )
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
-    ChatCompletionDeploymentType,
+    ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.image_generation.generation import (
@@ -72,7 +75,7 @@ async def call_chat_completion(
     client = endpoint.get_client({**creds, "api_version": api_version})
 
     match deployment_type:
-        case ChatCompletionDeploymentType.COMPLETIONS_API:
+        case D.COMPLETIONS_API:
             templates = app_config.COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES
             prompt_template = templates.get(deployment_id)
             return await completion(
@@ -81,17 +84,14 @@ async def call_chat_completion(
                 prompt_template=prompt_template,
             )
 
-        case ChatCompletionDeploymentType.RESPONSES_API:
+        case D.RESPONSES_API:
             return await responses(
                 request=request,
                 client=client,
                 file_storage=file_storage,
             )
 
-        case (
-            ChatCompletionDeploymentType.DALLE3
-            | ChatCompletionDeploymentType.GPT_IMAGE_1
-        ):
+        case D.DALLE3 | D.GPT_IMAGE_1:
             model = ImageGenerationModel.create(deployment_type)
 
             if isinstance(client, AsyncAzureOpenAI):
@@ -105,17 +105,10 @@ async def call_chat_completion(
                 file_storage=file_storage,
             )
 
-        case (
-            ChatCompletionDeploymentType.MISTRAL
-            | ChatCompletionDeploymentType.DATABRICKS
-        ):
+        case D.MISTRAL | D.DATABRICKS:
             return await non_gpt_chat_completion(request=request, client=client)
 
-        case (
-            ChatCompletionDeploymentType.GPT4O
-            | ChatCompletionDeploymentType.GPT4O_MINI
-            | ChatCompletionDeploymentType.GPT_GENERIC
-        ):
+        case D.GPT4O | D.GPT4O_MINI | D.GPT_OSS | D.GPT_GENERIC:
 
             tiktoken_model = (
                 app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id)
@@ -127,7 +120,7 @@ async def call_chat_completion(
                 image_tokenizer=get_image_tokenizer(deployment_type),
             )
 
-            return await gpt_chat_completion(
+            response = await gpt_chat_completion(
                 request=request,
                 request_headers=request_headers,
                 client=client,
@@ -135,6 +128,11 @@ async def call_chat_completion(
                 tokenizer=tokenizer,
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
             )
+
+            if deployment_type == D.GPT_OSS:
+                response.body = on_gpt_oss_response_body(response.body)
+
+            return response
 
         case _:
             assert_never(deployment_type)
