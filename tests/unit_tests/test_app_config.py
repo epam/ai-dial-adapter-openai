@@ -3,7 +3,7 @@ from aidial_sdk.exceptions import InvalidRequestError
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
-    ChatCompletionDeploymentType as ChatCompletionDeploymentType,
+    ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
@@ -39,7 +39,7 @@ def test_app_config_chat_openai_platform(origin: str, deployment: str):
         f"{origin}/whatever1/whatever2/chat/completions",
     )
 
-    assert ty.deployment_type == ChatCompletionDeploymentType.GPT_GENERIC
+    assert ty.deployment_type == D.GPT_GENERIC
     endpoint = ty.endpoint
     assert isinstance(endpoint, OpenAIEndpoint)
     assert endpoint.base_url == f"{origin}/whatever1/whatever2"
@@ -53,7 +53,7 @@ def test_app_config_chat_azure(
         f"{origin}/whatever1/whatever2/openai/deployments/{deployment_name}/chat/completions",
     )
 
-    assert ty.deployment_type == ChatCompletionDeploymentType.GPT_GENERIC
+    assert ty.deployment_type == D.GPT_GENERIC
     assert ty.endpoint == AzureOpenAIEndpoint(
         azure_endpoint=f"{origin}/whatever1/whatever2",
         azure_deployment=deployment_name,
@@ -65,7 +65,7 @@ def test_app_config_chat_responses_azure_prev_gen(origin: str, deployment: str):
         deployment, f"{origin}/whatever1/whatever2/openai/responses"
     )
 
-    assert ty.deployment_type == ChatCompletionDeploymentType.RESPONSES_API
+    assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == AzureOpenAIEndpoint(
         azure_endpoint=f"{origin}/whatever1/whatever2"
     )
@@ -76,7 +76,7 @@ def test_app_config_chat_responses_azure_next_gen(origin: str, deployment: str):
         deployment, f"{origin}/whatever1/whatever2/openai/v1/responses"
     )
 
-    assert ty.deployment_type == ChatCompletionDeploymentType.RESPONSES_API
+    assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == OpenAIEndpoint(
         base_url=f"{origin}/whatever1/whatever2/openai/v1"
     )
@@ -89,7 +89,7 @@ def test_app_config_chat_responses_openai_platform(
         deployment, f"{origin}/whatever1/whatever2/responses"
     )
 
-    assert ty.deployment_type == ChatCompletionDeploymentType.RESPONSES_API
+    assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == OpenAIEndpoint(
         base_url=f"{origin}/whatever1/whatever2"
     )
@@ -100,14 +100,14 @@ def test_app_config_chat_completions_azure_next_gen(
 ):
     ty = (
         ApplicationConfig()
-        .add_deployment(deployment, ChatCompletionDeploymentType.GPT4O)
+        .add_deployment(deployment, D.GPT4O)
         .get_chat_completion_deployment_type(
             deployment,
             f"{origin}/whatever1/whatever2/openai/v1/chat/completions",
         )
     )
 
-    assert ty.deployment_type == ChatCompletionDeploymentType.GPT4O
+    assert ty.deployment_type == D.GPT4O
     assert ty.endpoint == OpenAIEndpoint(
         base_url=f"{origin}/whatever1/whatever2/openai/v1"
     )
@@ -119,7 +119,7 @@ def test_app_config_chat_invalid(origin: str, deployment: str):
     with pytest.raises(InvalidRequestError) as exc_info:
         (
             ApplicationConfig()
-            .add_deployment(deployment, ChatCompletionDeploymentType.GPT4O)
+            .add_deployment(deployment, D.GPT4O)
             .get_chat_completion_deployment_type(
                 deployment, f"{origin}/whatever1/whatever2/responses"
             )
@@ -134,14 +134,14 @@ def test_app_config_dalle_azure(
 ):
     ty = (
         ApplicationConfig()
-        .add_deployment(deployment, ChatCompletionDeploymentType.DALLE3)
+        .add_deployment(deployment, D.DALLE3)
         .get_chat_completion_deployment_type(
             deployment,
             f"{origin}/whatever1/whatever2/openai/deployments/{deployment_name}/images/generations",
         )
     )
 
-    assert ty.deployment_type == ChatCompletionDeploymentType.DALLE3
+    assert ty.deployment_type == D.DALLE3
     assert ty.endpoint == AzureOpenAIEndpoint(
         azure_endpoint=f"{origin}/whatever1/whatever2",
         azure_deployment=deployment_name,

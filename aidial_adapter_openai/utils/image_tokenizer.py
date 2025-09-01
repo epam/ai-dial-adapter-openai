@@ -56,6 +56,8 @@ GPT4O_MINI_IMAGE_TOKENIZER = ImageTokenizer(
     low_detail_tokens=2833, tokens_per_tile=5667
 )
 
+IMAGE_SUPPORTING_DEPLOYMENTS = ["GPT4O_DEPLOYMENTS", "GPT4O_MINI_DEPLOYMENTS"]
+
 
 def get_image_tokenizer(
     deployment_type: ChatCompletionDeploymentType,
