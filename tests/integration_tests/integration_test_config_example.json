@@ -282,11 +282,10 @@
             }
         },
         "gpt-oss-120b": {
-            "overrideName": "gpt-oss-120b",
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-ai-foundry-service-name.services.ai.azure.com/models/chat/completions",
+                    "endpoint": "https://azure-ai-foundry-service-name.openia.azure.com/openai/deployments/gpt-oss-120b/chat/completions",
                     "key": "optional-api-key"
                 }
             ],
