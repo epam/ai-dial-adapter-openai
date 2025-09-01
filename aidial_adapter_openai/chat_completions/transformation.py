@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Set, assert_never, cast
+from typing import List, Set, assert_never
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai.types.chat import (
@@ -187,13 +187,12 @@ class ResourceProcessor(BaseModel):
         ]
 
         if self.errors:
-            image_fails = sorted(list(self.errors))
+            fails = sorted(list(self.errors))
             msg = "The following files failed to process:\n"
             msg += "\n".join(
                 f"{idx}. {error.name}: {decapitalize(error.message)}"
-                for idx, error in enumerate(image_fails, start=1)
+                for idx, error in enumerate(fails, start=1)
             )
             raise InvalidRequestError(message=msg, display_message=msg)
 
-        transformations = cast(List[MultiModalMessage], transformations)
         return transformations

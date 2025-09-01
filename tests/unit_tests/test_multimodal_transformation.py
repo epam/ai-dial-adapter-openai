@@ -1,7 +1,7 @@
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+from aidial_adapter_openai.chat_completions.transformation import (
     Error,
     ResourceProcessor,
 )
@@ -89,10 +89,7 @@ def mock_resource_processor():
     ],
 )
 async def test_transform_message(
-    mock_resource_processor,
-    message,
-    expected_tokens,
-    expected_content,
+    mock_resource_processor, message, expected_tokens, expected_content
 ):
     result = await mock_resource_processor.transform_message(message)
 
@@ -276,9 +273,7 @@ async def test_transform_message_with_error(mock_resource_processor):
     ],
 )
 async def test_transform_messages(
-    mock_resource_processor,
-    messages,
-    expected_transformations,
+    mock_resource_processor, messages, expected_transformations
 ):
     result = await mock_resource_processor.transform_messages(messages)
     assert result == expected_transformations

@@ -69,7 +69,7 @@ async def generate_stream(
     stream: AsyncIterator[dict],
     get_prompt_tokens: Callable[[], int],
     tokenize_response: Callable[[ChatCompletionResponse], int],
-    deployment: str,
+    model: str,
     discarded_messages: Optional[list[int]],
     eliminate_empty_choices: bool,
 ) -> AsyncIterator[dict]:
@@ -77,7 +77,7 @@ async def generate_stream(
     empty_chunk = build_chunk(
         id=generate_id(),
         created=generate_created(),
-        model=deployment,
+        model=model,
         is_stream=True,
         message={},
         finish_reason=None,

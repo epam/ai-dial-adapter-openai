@@ -39,7 +39,7 @@ def test_app_config_chat_openai_platform(origin: str, deployment: str):
         f"{origin}/whatever1/whatever2/chat/completions",
     )
 
-    assert ty.deployment_type == D.GPT_TEXT_ONLY
+    assert ty.deployment_type == D.GPT_GENERIC
     endpoint = ty.endpoint
     assert isinstance(endpoint, OpenAIEndpoint)
     assert endpoint.base_url == f"{origin}/whatever1/whatever2"
@@ -53,7 +53,7 @@ def test_app_config_chat_azure(
         f"{origin}/whatever1/whatever2/openai/deployments/{deployment_name}/chat/completions",
     )
 
-    assert ty.deployment_type == D.GPT_TEXT_ONLY
+    assert ty.deployment_type == D.GPT_GENERIC
     assert ty.endpoint == AzureOpenAIEndpoint(
         azure_endpoint=f"{origin}/whatever1/whatever2",
         azure_deployment=deployment_name,

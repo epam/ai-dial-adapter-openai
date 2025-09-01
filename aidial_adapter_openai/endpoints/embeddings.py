@@ -17,19 +17,27 @@ from aidial_adapter_openai.utils.request import (
 
 async def embedding(deployment_id: str, request: Request):
     app_config = get_request_app_config(request)
-    data = await parse_body(request)
+    request_body = await parse_body(request)
 
     # See note for /chat/completions endpoint
-    data["model"] = data.get("model") or deployment_id
+    request_body["model"] = request_body.get("model") or deployment_id
 
     creds = await get_credentials(request)
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
     if deployment_id in app_config.AZURE_AI_VISION_DEPLOYMENTS:
-        storage = create_file_storage("images", request.headers)
+        file_storage = create_file_storage(request.headers)
         return await azure_ai_vision_embeddings(
-            creds, deployment_id, upstream_endpoint, storage, data
+            request=request_body,
+            creds=creds,
+            endpoint=upstream_endpoint,
+            file_storage=file_storage,
         )
 
-    return await openai_embeddings(creds, upstream_endpoint, api_version, data)
+    return await openai_embeddings(
+        request=request_body,
+        creds=creds,
+        endpoint=upstream_endpoint,
+        api_version=api_version,
+    )
