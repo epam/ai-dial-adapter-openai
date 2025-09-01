@@ -9,6 +9,7 @@ from aidial_adapter_openai.chat_completions.transformation import (
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.caching import get_response_headers_for_caching
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
@@ -76,11 +77,19 @@ def _truncate_messages(
                 tokenizer=tokenizer,
             )
         )
+
+        logger.debug(
+            f"estimated prompt tokens after truncation: {prompt_tokens}, "
+            f"discarded messages indices: {discarded_indices}"
+        )
+
         return messages, discarded_indices, lambda: prompt_tokens
     else:
 
-        def get_prompt_tokens():
-            return tokenizer.tokenize_request(request, messages)
+        def get_prompt_tokens() -> int:
+            prompt_tokens = tokenizer.tokenize_request(request, messages)
+            logger.debug(f"estimated prompt tokens: {prompt_tokens}")
+            return prompt_tokens
 
         return (messages, None, get_prompt_tokens)
 
