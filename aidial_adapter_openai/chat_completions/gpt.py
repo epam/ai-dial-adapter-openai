@@ -26,7 +26,7 @@ from aidial_adapter_openai.utils.truncate_prompt import (
 )
 
 
-def _multi_modal_truncate_prompt(
+def multi_modal_truncate_prompt(
     request: dict,
     messages: List[MultiModalMessage],
     max_prompt_tokens: int,
@@ -69,7 +69,7 @@ def _truncate_messages(
 ]:
     if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
         messages, discarded_indices, prompt_tokens = (
-            _multi_modal_truncate_prompt(
+            multi_modal_truncate_prompt(
                 request=request,
                 messages=messages,
                 max_prompt_tokens=max_prompt_tokens,

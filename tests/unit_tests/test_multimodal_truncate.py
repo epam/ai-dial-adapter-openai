@@ -5,7 +5,7 @@ from aidial_sdk.exceptions import (
 )
 
 from aidial_adapter_openai.chat_completions.gpt import (
-    _multi_modal_truncate_prompt,
+    multi_modal_truncate_prompt,
 )
 from aidial_adapter_openai.utils.image import ImageResource
 from aidial_adapter_openai.utils.image_tokenizer import GPT4O_IMAGE_TOKENIZER
@@ -45,7 +45,7 @@ def test_multimodal_truncate_with_system_and_last_user_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemAndLastUserError):
-        _multi_modal_truncate_prompt({}, transformations, 15, tokenizer)
+        multi_modal_truncate_prompt({}, transformations, 15, tokenizer)
 
 
 def test_multimodal_truncate_with_system_error():
@@ -57,7 +57,7 @@ def test_multimodal_truncate_with_system_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemError):
-        _multi_modal_truncate_prompt({}, transformations, 9, tokenizer)
+        multi_modal_truncate_prompt({}, transformations, 9, tokenizer)
 
 
 @pytest.mark.parametrize(
@@ -193,7 +193,7 @@ def test_multimodal_truncate(
     transformations, max_prompt_tokens, discarded_messages, used_tokens
 ):
     truncated, actual_discarded_messages, actual_used_tokens = (
-        _multi_modal_truncate_prompt(
+        multi_modal_truncate_prompt(
             {},
             transformations,
             max_prompt_tokens,
