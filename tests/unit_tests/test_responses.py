@@ -23,9 +23,9 @@ async def test_response_model_name(test_app: httpx.AsyncClient):
             status_code=200, content=json.dumps(dummy_response.dict())
         )
 
-    respx.post(
-        "http://localhost:5001/openai/v1/responses?api-version=preview"
-    ).mock(side_effect=check_request)
+    respx.post("http://localhost:5001/openai/v1/responses").mock(
+        side_effect=check_request
+    )
 
     response = await test_app.post(
         "/openai/deployments/adapter-deployment-name/chat/completions?api-version=2023-03-15-preview",

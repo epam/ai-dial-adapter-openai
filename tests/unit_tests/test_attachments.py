@@ -1,13 +1,13 @@
 import pytest
 
+from aidial_adapter_openai.chat_completions.transformation import (
+    Error,
+    ResourceProcessor,
+)
 from aidial_adapter_openai.dial_api.resource import (
     AttachmentResource,
     URLResource,
     parse_attachment,
-)
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    Error,
-    ResourceProcessor,
 )
 from aidial_adapter_openai.utils.resource import Resource
 from tests.utils.images import data_url, pic_1_1

@@ -13,17 +13,12 @@ from aidial_adapter_openai.utils.parsers import (
 RESPONSE_CASES = [
     (
         "https://test.com/openai/v1/responses",
-        AzureOpenAIEndpoint(
-            azure_base_url="https://test.com/openai/v1",
-            next_gen_api=True,
-        ),
+        OpenAIEndpoint(base_url="https://test.com/openai/v1"),
     ),
     (
         "https://test.com/openai/responses",
         AzureOpenAIEndpoint(
-            azure_endpoint="https://test.com",
-            azure_deployment=None,
-            next_gen_api=False,
+            azure_endpoint="https://test.com", azure_deployment=None
         ),
     ),
 ]

@@ -1,6 +1,7 @@
 from typing import Any, AsyncIterator, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.image import Image
 from pydantic import BaseModel
 
@@ -8,11 +9,6 @@ from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.image_generation.prompt import ImageGenPrompt
-from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    OpenAIEndpoint,
-)
 from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
 
 IMG_USAGE = {
@@ -69,7 +65,7 @@ async def upload_attachments_data_to_storage(
             continue
 
         file_metadata = await file_storage.upload_file_as_base64(
-            attachment["data"], attachment["type"]
+            "images", attachment["data"], attachment["type"]
         )
 
         del attachment["data"]
@@ -80,25 +76,23 @@ _Config = TypeVar("_Config", bound=BaseModel)
 
 
 async def chat_completion(
+    *,
     model: ImageGenerationModel[_Config],
-    data: Any,
-    deployment: str,
-    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint,
-    creds: OpenAICreds,
-    is_stream: bool,
+    request: Any,
+    client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
-    api_version: str,
 ):
-    if data.get("n", 1) > 1:
+    if request.get("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
-    client = endpoint.get_client({**creds, "api_version": api_version})
+    prompt = await ImageGenPrompt.from_request(request, file_storage)
 
-    prompt = await ImageGenPrompt.from_request(data, file_storage)
+    is_stream = bool(request.get("stream"))
+    model_name = request["model"]
 
     config_cls = model.get_configuration()
     response_format = model.get_response_format()
-    config = parse_configuration(config_cls, data) or config_cls()
+    config = parse_configuration(config_cls, request) or config_cls()
     extra_body = config.dict(exclude_none=True)
 
     images = [
@@ -108,7 +102,7 @@ async def chat_completion(
 
     if prompt.images:
         model_response = await client.images.edit(
-            model=deployment,
+            model=model_name,
             image=images,  # type: ignore
             prompt=prompt.text_prompt,
             response_format=response_format,
@@ -116,7 +110,7 @@ async def chat_completion(
         )
     else:
         model_response = await client.images.generate(
-            model=deployment,
+            model=model_name,
             prompt=prompt.text_prompt,
             response_format=response_format,
             extra_body=extra_body,

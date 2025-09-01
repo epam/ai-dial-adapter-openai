@@ -39,7 +39,7 @@ def test_app_config_chat_openai_platform(origin: str, deployment: str):
         f"{origin}/whatever1/whatever2/chat/completions",
     )
 
-    assert ty.deployment_type == D.GPT_TEXT_ONLY
+    assert ty.deployment_type == D.GPT_GENERIC
     endpoint = ty.endpoint
     assert isinstance(endpoint, OpenAIEndpoint)
     assert endpoint.base_url == f"{origin}/whatever1/whatever2"
@@ -53,7 +53,7 @@ def test_app_config_chat_azure(
         f"{origin}/whatever1/whatever2/openai/deployments/{deployment_name}/chat/completions",
     )
 
-    assert ty.deployment_type == D.GPT_TEXT_ONLY
+    assert ty.deployment_type == D.GPT_GENERIC
     assert ty.endpoint == AzureOpenAIEndpoint(
         azure_endpoint=f"{origin}/whatever1/whatever2",
         azure_deployment=deployment_name,
@@ -67,7 +67,7 @@ def test_app_config_chat_responses_azure_prev_gen(origin: str, deployment: str):
 
     assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == AzureOpenAIEndpoint(
-        azure_endpoint=f"{origin}/whatever1/whatever2", next_gen_api=False
+        azure_endpoint=f"{origin}/whatever1/whatever2"
     )
 
 
@@ -77,9 +77,8 @@ def test_app_config_chat_responses_azure_next_gen(origin: str, deployment: str):
     )
 
     assert ty.deployment_type == D.RESPONSES_API
-    assert ty.endpoint == AzureOpenAIEndpoint(
-        azure_base_url=f"{origin}/whatever1/whatever2/openai/v1",
-        next_gen_api=True,
+    assert ty.endpoint == OpenAIEndpoint(
+        base_url=f"{origin}/whatever1/whatever2/openai/v1"
     )
 
 
@@ -93,6 +92,24 @@ def test_app_config_chat_responses_openai_platform(
     assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == OpenAIEndpoint(
         base_url=f"{origin}/whatever1/whatever2"
+    )
+
+
+def test_app_config_chat_completions_azure_next_gen(
+    origin: str, deployment: str
+):
+    ty = (
+        ApplicationConfig()
+        .add_deployment(deployment, D.GPT4O)
+        .get_chat_completion_deployment_type(
+            deployment,
+            f"{origin}/whatever1/whatever2/openai/v1/chat/completions",
+        )
+    )
+
+    assert ty.deployment_type == D.GPT4O
+    assert ty.endpoint == OpenAIEndpoint(
+        base_url=f"{origin}/whatever1/whatever2/openai/v1"
     )
 
 

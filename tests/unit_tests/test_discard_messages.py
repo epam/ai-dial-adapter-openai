@@ -3,9 +3,15 @@ from typing import List, Tuple
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.gpt import plain_text_truncate_prompt
-from aidial_adapter_openai.utils.tokenizer import PlainTextTokenizer
-from aidial_adapter_openai.utils.truncate_prompt import DiscardedMessages
+from aidial_adapter_openai.chat_completions.gpt import (
+    multi_modal_truncate_prompt,
+)
+from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.truncate_prompt import (
+    DiscardedMessages,
+    TruncatedTokens,
+)
 
 PlainTextMessages = List[dict]
 MaxPromptTokens = int
@@ -14,6 +20,26 @@ TestCase = Tuple[
     MaxPromptTokens,
     Tuple[PlainTextMessages, DiscardedMessages],
 ]
+
+
+def plain_text_truncate_prompt(
+    request: dict,
+    messages: List[dict],
+    max_prompt_tokens: int,
+    tokenizer: Tokenizer,
+) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
+    (msgs, disc, tokens) = multi_modal_truncate_prompt(
+        request=request,
+        messages=[
+            MultiModalMessage(images=[], raw_message=m) for m in messages
+        ],
+        max_prompt_tokens=max_prompt_tokens,
+        tokenizer=tokenizer,
+    )
+
+    msgs = [m.raw_message for m in msgs]
+    return (msgs, disc, tokens)
+
 
 normal_cases: List[TestCase] = [
     (
@@ -139,7 +165,7 @@ def test_discarded_messages_without_error(
     max_prompt_tokens: int,
     response: Tuple[List[dict], List[int]],
 ):
-    tokenizer = PlainTextTokenizer(model="gpt-4")
+    tokenizer = Tokenizer(model="gpt-4")
     truncated_messages, discarded_messages, _used_tokens = (
         plain_text_truncate_prompt({}, messages, max_prompt_tokens, tokenizer)
     )
@@ -154,7 +180,7 @@ def test_discarded_messages_with_error(
     max_prompt_tokens: int,
     error_message: str,
 ):
-    tokenizer = PlainTextTokenizer(model="gpt-4")
+    tokenizer = Tokenizer(model="gpt-4")
 
     with pytest.raises(DialException) as e_info:
         plain_text_truncate_prompt({}, messages, max_prompt_tokens, tokenizer)
