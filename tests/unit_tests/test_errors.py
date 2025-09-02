@@ -1059,3 +1059,44 @@ Could not find tokenizer for the model 'my-favorite-model' in the tiktoken packa
             "type": "internal_server_error",
         }
     }
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_error_invalid_image_url(stream: bool):
+    app_config = (
+        ApplicationConfig()
+        .add_deployment("app", ChatCompletionDeploymentType.GPT4O)
+        .map_to_tiktoken_model("app", "gpt-4")
+    )
+
+    upstream_url = "http://test-upstream/openai/deployments/upstream-deployment/chat/completions"
+
+    async with create_test_client(app_config=app_config) as http_client:
+        response = await http_client.post(
+            "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
+            json={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "test"},
+                            {"type": "image_url", "image_url": "whatever"},
+                        ],
+                    }
+                ],
+                "stream": stream,
+            },
+            headers={
+                "X-UPSTREAM-KEY": "dummy-upstream-api-key",
+                "X-UPSTREAM-ENDPOINT": upstream_url,
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {
+            "error": {
+                "message": "'image_url' expected to be dict, but got str",
+                "type": "invalid_request_error",
+                "code": "400",
+            }
+        }

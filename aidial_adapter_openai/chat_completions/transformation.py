@@ -28,6 +28,13 @@ from aidial_adapter_openai.utils.multi_modal_message import (
 )
 from aidial_adapter_openai.utils.resource import Resource
 from aidial_adapter_openai.utils.text import decapitalize
+from aidial_adapter_openai.utils.validation import (
+    ensure_dict,
+    ensure_list,
+    ensure_list_or_str,
+    ensure_str,
+    ensure_str_or_none,
+)
 
 
 class FileResource(BaseModel):
@@ -115,21 +122,22 @@ class ResourceProcessor(BaseModel):
     async def download_image_content_part(
         self, part: ChatCompletionContentPartImageParam
     ) -> ChatCompletionContentPartImageParam | None:
-        image_url = part["image_url"]
-        detail = image_url.get("detail")
-        url = image_url.get("url")
+        image_url = ensure_dict("image_url", part["image_url"])
+        detail = ensure_str_or_none("image_url.detail", image_url.get("detail"))
+        url = ensure_str("image_url.url", image_url.get("url"))
 
         dial_resource = URLResource(url=url, entity_name="image content part")
         if not (resource := await self.try_download_resource(dial_resource)):
             return None
 
-        result = ImageResource.from_resource(resource, detail)
+        result = ImageResource.from_resource(resource, detail)  # type: ignore
         self.images.append(result)
         return result.to_content_part()
 
     async def download_content_part(
         self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
     ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart | None:
+        ensure_dict("content part", part)
         match part["type"]:
             case "image_url":
                 return await self.download_image_content_part(part)
@@ -159,11 +167,15 @@ class ResourceProcessor(BaseModel):
         return ret
 
     async def transform_message(self, message: dict) -> MultiModalMessage:
-        message = message.copy()
+        message = ensure_dict("message", message).copy()
 
-        content = message.get("content") or ""
-        custom_content = message.pop("custom_content", None) or {}
-        attachments: List[dict] = custom_content.get("attachments") or []
+        content = ensure_list_or_str("content", message.get("content") or "")
+        custom_content = ensure_dict(
+            "custom_content", message.pop("custom_content", {})
+        )
+        attachments = ensure_list(
+            "attachments", custom_content.get("attachments") or []
+        )
 
         if isinstance(content, str) and not attachments:
             return MultiModalMessage(images=[], raw_message=message)
