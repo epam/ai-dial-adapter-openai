@@ -155,3 +155,15 @@ class TestSuite:
     @property
     def supports_temperature(self):
         return self.deployment_config.model_features.temperatureSupported
+
+    @property
+    def supports_response_format_json_object(self):
+        return (
+            self.deployment_config.model_features.responseFormatJsonObjectSupported
+        )
+
+    @property
+    def supports_response_format_json_schema(self):
+        return (
+            self.deployment_config.model_features.responseFormatJsonSchemaSupported
+        )
