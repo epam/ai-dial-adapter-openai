@@ -89,7 +89,10 @@ def mock_resource_processor():
     ],
 )
 async def test_transform_message(
-    mock_resource_processor, message, expected_tokens, expected_content
+    mock_resource_processor: ResourceProcessor,
+    message,
+    expected_tokens,
+    expected_content,
 ):
     result = await mock_resource_processor.transform_message(message)
 
@@ -98,7 +101,9 @@ async def test_transform_message(
     assert result.raw_message["content"] == expected_content
 
 
-async def test_transform_messages_with_error(mock_resource_processor):
+async def test_transform_messages_with_error(
+    mock_resource_processor: ResourceProcessor,
+):
     messages = [
         {
             "role": "user",
@@ -125,7 +130,9 @@ The following files failed to process:
     )
 
 
-async def test_transform_message_with_error(mock_resource_processor):
+async def test_transform_message_with_error(
+    mock_resource_processor: ResourceProcessor,
+):
     message = {
         "role": "user",
         "content": "",
@@ -273,7 +280,9 @@ async def test_transform_message_with_error(mock_resource_processor):
     ],
 )
 async def test_transform_messages(
-    mock_resource_processor, messages, expected_transformations
+    mock_resource_processor: ResourceProcessor,
+    messages,
+    expected_transformations,
 ):
     result = await mock_resource_processor.transform_messages(messages)
     assert result == expected_transformations
