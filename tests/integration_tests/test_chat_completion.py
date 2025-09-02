@@ -8,6 +8,9 @@ import pytest
 from tests.integration_tests.chat_completion.file_input import (
     build_file_input_common,
 )
+from tests.integration_tests.chat_completion.response_format import (
+    build_response_format,
+)
 from tests.integration_tests.chat_completion.test_case import (
     TestCase,
     TestSuite,
@@ -51,6 +54,7 @@ def create_test_cases(
             build_tools_common,
             build_vision_common,
             build_file_input_common,
+            build_response_format,
         ]
     ),
     ids=lambda tc: tc.get_id() if isinstance(tc, TestCase) else "na",
@@ -74,6 +78,7 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
             tools=test_case.tools,
             temperature=test_case.temperature,
             reasoning_effort=test_case.reasoning_effort,
+            response_format=test_case.response_format,
             extra_body=test_case.extra_body,
         )
 
