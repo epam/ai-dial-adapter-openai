@@ -116,6 +116,7 @@ def adapter_exception_handler(
 
     logger.error(
         f"Caught exception: {type(e).__module__}.{type(e).__name__}. "
-        f"Converted to the adapter exception: {adapter_exception!r}"
+        f"Converted to the adapter exception: {adapter_exception!r}",
+        exc_info=e,
     )
     return adapter_exception.to_fastapi_response()
