@@ -12,7 +12,9 @@ def convert_response_format(
     response_format: ResponseFormat,
 ) -> ResponseFormatTextConfigParam:
     match response_format["type"]:
-        case "text" | "json_object":
+        case "text":
+            return response_format
+        case "json_object":
             return response_format
         case "json_schema":
             json_schema: JSONSchema = response_format["json_schema"]

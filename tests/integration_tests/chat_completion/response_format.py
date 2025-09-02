@@ -16,7 +16,7 @@ def _assert_valid_json(text: str) -> Any:
 
 def build_response_format(s: TestSuite) -> None:
     if s.supports_reasoning:
-        be_brief = {"max_completion_tokens": 512}
+        be_brief: dict = {"max_completion_tokens": 512}
     else:
         be_brief = {"max_tokens": 32}
 
@@ -29,7 +29,7 @@ def build_response_format(s: TestSuite) -> None:
             name="response_format.json_object",
             messages=messages,
             response_format={"type": "json_object"},
-            **be_brief,  # type: ignore
+            **be_brief,
             expected=lambda r: isinstance(
                 _assert_valid_json(r.content), (dict, list)
             ),
