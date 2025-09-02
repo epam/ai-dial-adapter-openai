@@ -29,7 +29,7 @@ def build_response_format(s: TestSuite) -> None:
             name="response_format.json_object",
             messages=messages,
             response_format={"type": "json_object"},
-            **be_brief,
+            **be_brief,  # type: ignore
             expected=lambda r: isinstance(
                 _assert_valid_json(r.content), (dict, list)
             ),

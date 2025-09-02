@@ -78,6 +78,7 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
             tools=test_case.tools,
             temperature=test_case.temperature,
             reasoning_effort=test_case.reasoning_effort,
+            response_format=test_case.response_format,
             extra_body=test_case.extra_body,
         )
 
