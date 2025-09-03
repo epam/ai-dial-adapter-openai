@@ -11,6 +11,7 @@ from openai import (
     AsyncStream,
     BaseModel,
 )
+from openai.types.responses import ResponseTextConfigParam
 from openai.types.shared_params import Reasoning
 from pydantic import Field
 
@@ -27,6 +28,7 @@ from aidial_adapter_openai.responses.converter import (
     convert_tools,
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
+from aidial_adapter_openai.responses.request import convert_response_format
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from aidial_adapter_openai.utils.streaming import (
@@ -46,7 +48,6 @@ def _validate_request(request: Dict[str, Any]) -> None:
     unsupported_params: List[str] = []
     for param in [
         "stop",
-        "response_format",
         "seed",
         "top_logprobs",
         "logprobs",
@@ -138,6 +139,12 @@ async def chat_completion(
 
     configuration = _get_configuration(request)
 
+    text = NOT_GIVEN
+    if response_format := request.get("response_format"):
+        text = ResponseTextConfigParam(
+            format=convert_response_format(response_format)
+        )
+
     response = await client.responses.create(
         model=model_name,
         stream=is_stream,
@@ -148,6 +155,7 @@ async def chat_completion(
         temperature=request.get("temperature") or NOT_GIVEN,
         max_output_tokens=max_output_tokens,
         parallel_tool_calls=request.get("parallel_tool_calls") or NOT_GIVEN,
+        text=text,
         **configuration.dict(),
     )
 

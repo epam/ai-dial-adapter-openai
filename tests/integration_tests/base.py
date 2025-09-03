@@ -46,6 +46,9 @@ class Features(ExtraAllowedModel):
     reasoningSummarySupported: bool = False
     stopSupported: bool = True
 
+    responseFormatJsonObjectSupported: bool = True
+    responseFormatJsonSchemaSupported: bool = True
+
 
 class ModelConfig(ExtraAllowedModel):
     type: Literal["chat", "embedding"]

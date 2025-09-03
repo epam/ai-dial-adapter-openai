@@ -7,7 +7,10 @@
                     "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-35-turbo-0125/chat/completions",
                     "key": "optional-api-key"
                 }
-            ]
+            ],
+            "features": {
+                "responseFormatJsonSchemaSupported": false
+            }
         },
         "gpt-35-turbo-1106": {
             "type": "chat",
@@ -16,7 +19,10 @@
                     "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-35-turbo-1106/chat/completions",
                     "key": "optional-api-key"
                 }
-            ]
+            ],
+            "features": {
+                "responseFormatJsonSchemaSupported": false
+            }
         },
         "gpt-5-2025-08-07": {
             "overrideName": "gpt-5-2025-08-07",
@@ -48,7 +54,8 @@
             ],
             "features": {
                 "parallelToolCallsSupported": false,
-                "reasoningSupported": true
+                "reasoningSupported": true,
+                "responseFormatJsonSchemaSupported": false
             },
             "inputAttachmentTypes": [
                 "image/*"
@@ -118,7 +125,8 @@
                 }
             ],
             "features": {
-                "parallelToolCallsSupported": false
+                "parallelToolCallsSupported": false,
+                "responseFormatJsonSchemaSupported": false
             }
         },
         "gpt-4.1-2025-04-14": {
@@ -165,6 +173,9 @@
                     "key": "optional-api-key"
                 }
             ],
+            "features": {
+                "responseFormatJsonSchemaSupported": false
+            },
             "inputAttachmentTypes": [
                 "image/*"
             ]
@@ -232,7 +243,9 @@
                 "maxTokensSupported": false,
                 "reasoningSupported": true,
                 "stopSupported": false,
-                "temperatureSupported": false
+                "temperatureSupported": false,
+                "responseFormatJsonObjectSupported": false,
+                "responseFormatJsonSchemaSupported": false
             }
         },
         "o3-mini-2025-01-31": {
@@ -292,7 +305,8 @@
             "features": {
                 "parallelToolCallsSupported": false,
                 "reasoningSupported": true,
-                "reasoningSummarySupported": true
+                "reasoningSummarySupported": true,
+                "responseFormatJsonSchemaSupported": false
             }
         }
     }
