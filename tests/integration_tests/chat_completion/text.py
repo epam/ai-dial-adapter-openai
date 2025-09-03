@@ -9,7 +9,7 @@ from tests.utils.openai import ExpectedException, ai, sys, user
 
 def build_text_common(s: TestSuite) -> None:
     if s.supports_reasoning:
-        be_brief = {"max_completion_tokens": 512}
+        be_brief: dict = {"max_completion_tokens": 512}
     else:
         be_brief = {"max_tokens": 32}
 
@@ -60,13 +60,13 @@ def build_text_common(s: TestSuite) -> None:
     s.test_case(
         name="empty user message",
         messages=[user("")],
-        **be_brief,  # type: ignore
+        **be_brief,
     )
 
     s.test_case(
         name="single space user message",
         messages=[user(" ")],
-        **be_brief,  # type: ignore
+        **be_brief,
     )
 
     if s.supports_reasoning:
@@ -136,7 +136,7 @@ def build_text_common(s: TestSuite) -> None:
             messages=[user("2+3=?")],
             temperature=0.42,
             expected=lambda s: "5" in s.content,
-            **be_brief,  # type: ignore
+            **be_brief,
         )
 
 
