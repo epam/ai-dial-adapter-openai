@@ -223,6 +223,7 @@ async def test_error_during_streaming_stopped(test_app: httpx.AsyncClient):
                 "message": "Error test",
                 "type": "runtime_error",
                 "code": "500",
+                "extra_error_field": "extra_error_value",
             }
         },
     )
@@ -270,6 +271,7 @@ async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
                 "message": "Error test",
                 "type": "runtime_error",
                 "code": "500",
+                "extra_error_field": "extra_error_value",
             }
         },
     )

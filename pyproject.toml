@@ -40,7 +40,7 @@ pillow = "10.3.0"
 azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
 aiohttp = "3.12.14"
-aidial-sdk = { version = "0.22.1", extras = ["telemetry"] }
+aidial-sdk = { version = "0.24.0", extras = ["telemetry"] }
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.0"

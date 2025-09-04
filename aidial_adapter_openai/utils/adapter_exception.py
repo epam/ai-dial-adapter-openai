@@ -71,11 +71,12 @@ def _parse_dial_exception(
         and (error := obj.get("error"))
         and isinstance(error, dict)
     ):
-        message = error.get("message") or "Unknown error"
-        code = error.get("code")
-        type = error.get("type")
-        param = error.get("param")
-        display_message = error.get("display_message")
+        error = error.copy()
+        message = error.pop("message", None) or "Unknown error"
+        code = error.pop("code", None)
+        type = error.pop("type", None)
+        param = error.pop("param", None)
+        display_message = error.pop("display_message", None)
 
         # Content filter codes for DALL-E3 and GPT-Image-1 are different
         # from the GPT content filter code.
@@ -94,6 +95,7 @@ def _parse_dial_exception(
             code=code,
             display_message=display_message,
             headers=dict(headers.items()),
+            **error,
         )
 
     return None
