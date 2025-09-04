@@ -1,4 +1,4 @@
-from typing import Callable, List, Mapping, Tuple
+from typing import AsyncIterator, Callable, List, Mapping, Tuple
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
@@ -102,7 +102,7 @@ async def chat_completion(
     file_storage: FileStorage | None,
     tokenizer: Tokenizer,
     eliminate_empty_choices: bool,
-):
+) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
     n: int = request.get("n") or 1
     messages: List[dict] = request["messages"]
     model_name = request["model"]
@@ -143,7 +143,6 @@ async def chat_completion(
         body = response.to_dict()
         if discarded_messages is not None:
             body |= {"statistics": {"discarded_messages": discarded_messages}}
-        debug_print("response", body)
 
         actual_prompt_tokens: int | None = None
         if usage := response.usage:
@@ -156,4 +155,5 @@ async def chat_completion(
             or get_prompt_tokens(),
         )
 
+        debug_print("response", body)
         return ResponseWithHeaders(headers=response_headers, body=body)
