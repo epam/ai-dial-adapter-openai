@@ -56,6 +56,299 @@ winget install GnuWin32.Make
 For convenience, the tool folder can be added to the PATH environment variable as `C:\Program Files (x86)\GnuWin32\bin`.
 The command definitions inside Makefile should be cross-platform to keep the development environment setup simple.
 
+## Chat completions deployments
+
+The adapter is able to convert certain upstream APIs to the [DIAL Chat Completions API](https://dialx.ai/dial_api#operation/sendChatCompletionRequest) *(which an extension of Azure [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat))*.
+
+Chat Completions deployments are exposed via the endpoint:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions
+```
+
+### Supported upstream chat APIs
+
+1. Azure OpenAI Chat Completions API (Last generation API)
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+There are three free variables in the config related to deployment ids.
+Each of those corresponds to an HTTP request initiated by the DIAL client:
+
+1. `DIAL_DEPLOYMENT_ID` - it's the deployment id visible to the DIAL Client via DIAL deployment listing. The client will be using the id to call the model by sending the request `POST ${DIAL_CORE_ORIGIN}/openai/deployments/${DIAL_DEPLOYMENT_ID}/chat/completions`
+2. `ADAPTER_DEPLOYMENT_ID` - the deployment id that the OpenAI adapter will receive when DIAL Core will call `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions`. This identifier is the should be used in environment variables defining [deployment categories](#categories-of-deployments).
+3. `AZURE_OPENAI_DEPLOYMENT_ID` - the Azure OpenAI deployment called by the OpenAI adapter.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as DIAL Client
+    participant C as DIAL Core
+    participant A as OpenAI Adapter
+    participant AZ as Azure OpenAI
+    participant OP as OpenAI Platform
+
+    Note over U,C: DIAL_DEPLOYMENT_ID
+    U->>C: POST /openai/deployments/<br>${DIAL_DEPLOYMENT_ID}/chat/completions
+
+    Note over C,A: ADAPTER_DEPLOYMENT_ID
+    C->>A: POST ${ADAPTER_ORIGIN}/openai/deployments/<br>${ADAPTER_DEPLOYMENT_ID}/chat/completions
+
+    alt Azure OpenAI upstream
+        Note over A,AZ: AZURE_OPENAI_DEPLOYMENT_ID
+        A->>AZ: POST https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/<br>openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/<br>chat/completions
+        Note right of A: Auth: api-key (if provided) or Azure AD via DefaultAzureCredential
+        AZ-->>A: JSON or SSE stream
+    else OpenAI Platform upstream
+        A->>OP: POST https://api.openai.com/v1/chat/completions<br>(with "model"=${OPENAI_MODEL_NAME}, api-key)
+        OP-->>A: JSON or SSE stream
+    end
+
+    A-->>C: Normalized response (headers/stream)
+    C-->>U: Response to client
+```
+
+Typically, these three variable take the same value dictated by the name of the Azure OpenAI deployment. They may not be the case, if you want to create multiple DIAL deployments calling the same Azure OpenAI endpoints but [configured](#configurable-models) differently.
+
+The [DefaultAzureCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential?view=azure-python) is used to authenticate requests to Azure when the api-key is missing from the upstream configuration.
+
+1. Azure OpenAI Chat Completions API (Next generation API)
+
+The Next generation API (aka [v1 API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle?tabs=key#next-generation-api)) doesn't include the deployment id in the URL:
+
+* Last generation API: `POST https://SERVICE_NAME.openai.azure.com/openai/deployments/gpt-4o/chat/completions`
+* Next generation API: `POST https://SERVICE_NAME.openai.azure.com/openai/v1/chat/completions`
+
+The DIAL configuration changes accordingly:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ],
+    }
+  }
+}
+```
+
+</details>
+
+Since the deployment id isn't included in the upstream URL, we specify it the `overrideName` field. If the field is missing, then the model name will take value of `model` field from the original chat completion request if it was present, or `${ADAPTER_DEPLOYMENT_ID}` otherwise.
+
+1. OpenAI Platform [Chat Completions API](https://platform.openai.com/docs/api-reference/chat/create)
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${OPENAI_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://api.openai.com/v1/chat/completions",
+          "key": "${API_KEY}"
+        }
+      ],
+    }
+  }
+}
+```
+
+</details>
+
+Note the difference from the Azure OpenAI configuration:
+
+* The API key is required.
+* Added `overrideName` field that specifies the name of the upstream OpenAI model. The upstream URL doesn't include the model name *(as it was in Azure case)*, so we specify it in the `overrideName` field. If the field is missing, then the model name will take value of `model` field from the original chat completion request if it was present, or `${ADAPTER_DEPLOYMENT_ID}` otherwise.
+
+1. Azure OpenAI Responses API (Next generation API)
+
+Certain advanced features of OpenAI models, such as [reasoning summary](https://platform.openai.com/docs/guides/reasoning#reasoning-summaries), are only accessible via Responses API and not accessible via Chat Completions API.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/responses",
+          "key": "${API_KEY}"
+        }
+      ],
+    }
+  }
+}
+```
+
+</details>
+
+As in other cases were the upstream URL is missing deployment id, we specify it in the `overrideName` field.
+
+The last generation API is also supported via an URLs in the following format:
+
+```text
+"endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/responses",
+```
+
+## Embedding deployments
+
+The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API](https://dialx.ai/dial_api#operation/sendEmbeddingsRequest) *(which an extension of Azure [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create))*.
+
+Embeddings deployments are exposed via the endpoint:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
+```
+
+### Supported upstream embedding APIs
+
+1. Azure OpenAI Embeddings API (Last generation API)
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/embeddings",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+1. Azure OpenAI Embeddings API (Next generation API)
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/embeddings",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+1. OpenAI Platform [Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create)
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${OPENAI_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://api.openai.com/v1/embeddings",
+          "key": "${API_KEY}"
+        }
+      ],
+    }
+  }
+}
+```
+
+</details>
+
+1. Azure multimodal embeddings
+
+The adapter supports [Azure Multimodal embeddings](https://learn.microsoft.com/en-us/azure/ai-services/computer-vision/concept-image-retrieval).
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${COMPUTER_VISION_SERVICE_NAME}.cognitiveservices.azure.com",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!IMPORTANT]
+> `${ADAPTER_DEPLOYMENT_ID}` must be added to the env variable `AZURE_AI_VISION_DEPLOYMENTS` to enable the embeddings deployment.
+
+The multimodal embeddings model supports text and images as inputs.
+
+Since the original OpenAI embeddings API only support text inputs, the image inputs should be passed in the `custom_input` request field as via URL or in base64-encoded format:
+
+```sh
+curl -X POST "${DIAL_CORE_ORIGIN}/deployments/${DIAL_DEPLOYMENT_ID}/embeddings" -v \
+  -H "api-key:${DIAL_API_KEY}" \
+  -H "content-type:application/json" \
+  -d '{"input": ["cat", "fish"], "custom_input": [{"type": "image/png", "url": "https://learn.microsoft.com/azure/ai-services/computer-vision/media/quickstarts/presentation.png"}]}'
+```
+
+The response will contain three embedding vectors, each corresponding to one of the inputs in the original request.
+
+## Tokenization
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` and customize it for your environment.
