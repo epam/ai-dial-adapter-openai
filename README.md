@@ -281,16 +281,6 @@ The adapter also supports **legacy** [Completions API](https://platform.openai.c
 
 </details>
 
-## Embedding deployments
-
-The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API](https://dialx.ai/dial_api#operation/sendEmbeddingsRequest) *(which is an extension of Azure [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create))*.
-
-Embeddings deployments are exposed via the endpoint:
-
-```text
-POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
-```
-
 ### Tokenization of chat completion requests/responses
 
 One of the promises that the adapter makes is that all chat completions responses from the adapter will contain information about token usage *(that is consumed prompt tokens and completion tokens)*.
@@ -352,6 +342,16 @@ If the adapter deployment id could not be resolved by `tiktoken`, then the adapt
 If deployment is registered in `GPT4O_DEPLOYMENTS` or in `GPT4O_MINI_DEPLOYMENTS`, then a corresponding image tokenization algorithm is used described in [the Azure documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/overview#image-input-tokens).
 
 Otherwise, images aren't tokenized - the image tokens are assumed to be equal to 0.
+
+## Embedding deployments
+
+The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API](https://dialx.ai/dial_api#operation/sendEmbeddingsRequest) *(which is an extension of Azure [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create))*.
+
+Embeddings deployments are exposed via the endpoint:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
+```
 
 ### Supported upstream embedding APIs
 
