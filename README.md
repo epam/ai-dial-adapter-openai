@@ -227,6 +227,60 @@ The last generation API is also supported via an URLs in the following format:
 "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/responses",
 ```
 
+#### Azure [OpenAI Images API](https://platform.openai.com/docs/api-reference/images/create)
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/images/generations",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ],
+    }
+  }
+}
+```
+
+</details>
+
+The supported upstream models are `dall-e-3` and `gpt-image-1`. This is the values that`AZURE_OPENAI_DEPLOYMENT_ID` variable could take.
+
+> [!IMPORTANT]
+> The DALL·E 3 adapter deployment must be declared in `DALLE3_DEPLOYMENTS` env variable, and GPT-Image 1 deployment - in `GPT_IMAGE_1_DEPLOYMENTS`.
+
+#### OpenAI Completions API
+
+The adapter also supports **legacy** [Completions API](https://platform.openai.com/docs/api-reference/completions/create) both for Azure-style upstream endpoints and OpenAI Platform-style endpoints:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${OPENAI_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://api.openai.com/v1/completions",
+          "key": "${API_KEY}"
+        }
+      ],
+    }
+  }
+}
+```
+
+</details>
+
 ## Embedding deployments
 
 The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API](https://dialx.ai/dial_api#operation/sendEmbeddingsRequest) *(which is an extension of Azure [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create))*.
@@ -236,6 +290,68 @@ Embeddings deployments are exposed via the endpoint:
 ```text
 POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
 ```
+
+### Tokenization of chat completion requests/responses
+
+One of the promises that the adapter makes is that all chat completions responses from the adapter will contain information about token usage *(that is consumed prompt tokens and completion tokens)*.
+
+However, by default neither Azure OpenAI, nor OpenAI Platform returns token usage for streaming requests *(that is those with `stream` field set to `True`)*.
+
+Therefore, the adapter has to tokenize both request and response when the upstream doesn't provide the usage. Moreover, the tokenization on the adapter side is required when the request has `max_prompt_tokens` field. This field tells to how many tokens the incoming request must be truncated to before being sent to the upstream.
+
+#### How to minimize adapter-side tokenization
+
+The tokenization algorithm is CPU heavy and therefore may throttle requests under high load. Therefore, it's important to minimize the cases when the tokenization is required.
+
+Azure OpenAI and OpenAI Platform return token usage for streaming request when [include_usage](https://platform.openai.com/docs/api-reference/chat/create#chat-create-stream_options) option is enabled in the chat completion request. We recommend to reset this option in the DIAL Core configuration via `defaults` field. This will decrease adapter's CPU usage.
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "...",
+      "upstreams": ["..."],
+      "defaults": {
+        "stream_options": {
+          "include_usage": true
+        }
+      }
+    }
+  }
+}
+```
+
+#### Tokenization algorithm
+
+How does the adapter know which deployment has which tokenization algorithm?
+
+The adapter doesn't do tokenization for:
+
+1. deployments registered in `DATABRICKS_DEPLOYMENTS` and `MISTRAL_DEPLOYMENTS` env vars. It's expected upstream for these deployments are going to return the token usage.
+2. deployments supported by the following APIs:
+   1. legacy Completions API
+   2. Images API
+   3. Responses API
+
+For the rest of the deployments, the tokenization is determined in the following way.
+
+> [!IMPORTANT]
+> Adapter-side tokenization of documents, audio and video files aren't currently supported in the adapter. Such multi-modal content is evaluated to zero tokens.
+
+##### Text tokenization
+
+The adapter is using the [tiktoken](https://github.com/openai/tiktoken) library as a tokenizer for OpenAI models.
+
+`TIKTOKEN_MODEL_MAPPING` env variable defines a mapping from adapter deployment ids to the model identifies which are know to [tiktoken](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py).
+
+If the adapter deployment id could not be resolved by `tiktoken`, then the adapter throws an internal server error explaining the issue.
+
+##### Image tokenization
+
+If deployment is registered in `GPT4O_DEPLOYMENTS` or in `GPT4O_MINI_DEPLOYMENTS`, then a corresponding image tokenization algorithm is used described in [the Azure documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/overview#image-input-tokens).
+
+Otherwise, images aren't tokenized - the image tokens are assumed to be equal to 0.
 
 ### Supported upstream embedding APIs
 
@@ -351,8 +467,6 @@ curl -X POST "${DIAL_CORE_ORIGIN}/deployments/${DIAL_DEPLOYMENT_ID}/embeddings" 
 
 The response will contain three embedding vectors, each corresponding to one of the inputs in the original request.
 
-## Tokenization
-
 ## Environment Variables
 
 Copy `.env.example` to `.env` and customize it for your environment.
@@ -381,7 +495,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 |---|---|---|
 |LOG_LEVEL|INFO|Log level. Use DEBUG for dev purposes and INFO in prod|
 |WEB_CONCURRENCY|1|Number of workers for the server|
-|TIKTOKEN_MODEL_MAPPING|`{}`|Mapping from the request deployment id to [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). Required for the tokenization of chat completion requests/responses on the adapter side when the upstream model doesn't return the token usage. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. You don't need to add a deployment to the mapping if it's already named so that it matches one of the `tiktoken` models. You can check it by running `python -c "from tiktoken.model import encoding_name_for_model as e; print(e('my-deployment-name'))"`. All chat completion models require tokenization via tiktoken except the one declared in `DATABRICKS_DEPLOYMENTS`, `MISTRAL_DEPLOYMENTS` and `DALLE3_DEPLOYMENTS` variables.|
+|TIKTOKEN_MODEL_MAPPING|`{}`|Mapping from the request deployment id to [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). Required for the tokenization of chat completion requests/responses on the adapter side when the upstream model doesn't return the token usage. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. You don't need to add a deployment to the mapping if it's already named so that it matches one of the `tiktoken` models. You can check it by running `python -c "from tiktoken.model import encoding_name_for_model as e; print(e('my-deployment-name'))"`. All chat completion models require [tokenization](#tokenization-of-chat-completion-requestsresponses) via tiktoken except the one declared in `DATABRICKS_DEPLOYMENTS`, `MISTRAL_DEPLOYMENTS`, GPT_IMAGE_1_DEPLOYMENTS, and `DALLE3_DEPLOYMENTS` variables.|
 |DIAL_USE_FILE_STORAGE|False|Save image model artifacts to DIAL File storage (DALL-E images are uploaded to the DIAL file storage and its base64 encodings are replaced with links to the storage)|
 |DIAL_URL||URL of the core DIAL server (required when DIAL_USE_FILE_STORAGE=True)|
 |NON_STREAMING_DEPLOYMENTS|``|Comma-separated list of deployments which do not support streaming. The adapter is going to emulate the streaming by calling the model and converting its response into a single-chunk stream. Example: `"o1-mini,o1-preview"`|
