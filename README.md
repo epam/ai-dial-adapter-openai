@@ -227,6 +227,57 @@ The last generation API is also supported via an URLs in the following format:
 "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/responses"
 ```
 
+#### Azure AI Foundry Chat Completions API
+
+Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deployed to an Azure AI Foundry service. They are accessible via:
+
+* Azure AI model inference endpoint or
+* Azure OpenAI endpoint
+
+<details><summary>DIAL Core Config (Azure AI model inference endpoint)</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/models/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+<details><summary>DIAL Core Config (Azure OpenAI endpoint)</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.openai.azure.com/openai/deployments/gpt-oss-120b/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
 #### Azure [OpenAI Images API](https://platform.openai.com/docs/api-reference/images/create)
 
 <details><summary>DIAL Core Config</summary>
