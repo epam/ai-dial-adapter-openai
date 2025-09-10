@@ -2,11 +2,8 @@
 Implemented based on the official recipe: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
 """
 
-import asyncio
 import json
-import os
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Coroutine, Generic, List, Set, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
@@ -16,6 +13,7 @@ from tiktoken.model import MODEL_PREFIX_TO_ENCODING
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
 )
+from aidial_adapter_openai.utils.concurrency import run_in_threadpool
 from aidial_adapter_openai.utils.image_tokenizer import (
     IMAGE_SUPPORTING_DEPLOYMENTS,
     ImageTokenizer,
@@ -42,21 +40,6 @@ def _get_tiktoken_error_message(model: str) -> str:
     )
 
 
-_TOKENIZER_THREAD_POOL_SIZE = int(
-    os.getenv("TOKENIZER_THREAD_POOL_SIZE", 2 * (os.cpu_count() or 4))
-)
-_TOKENIZER_THREAD_POOL = ThreadPoolExecutor(
-    max_workers=_TOKENIZER_THREAD_POOL_SIZE
-)
-
-
-async def count_tokens(encoding: Encoding, text: str) -> int:
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        _TOKENIZER_THREAD_POOL, lambda: len(encoding.encode(text))
-    )
-
-
 class BaseTokenizer(ABC, Generic[MessageType]):
     """
     Tokenizer for chat completion requests and responses.
@@ -74,7 +57,7 @@ class BaseTokenizer(ABC, Generic[MessageType]):
             raise InternalServerError(_get_tiktoken_error_message(model)) from e
 
     async def tokenize_text(self, text: str) -> int:
-        return await count_tokens(self.encoding, text)
+        return await run_in_threadpool(lambda: len(self.encoding.encode(text)))
 
     async def tokenize_response(self, resp: ChatCompletionResponse) -> int:
         return sum(
