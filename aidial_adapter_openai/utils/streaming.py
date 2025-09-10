@@ -4,6 +4,7 @@ from typing import (
     Any,
     AsyncIterator,
     Callable,
+    Coroutine,
     Generic,
     List,
     Optional,
@@ -65,8 +66,10 @@ def build_chunk(
 async def generate_stream(
     *,
     stream: AsyncIterator[dict],
-    get_prompt_tokens: Callable[[], int],
-    tokenize_response: Callable[[ChatCompletionResponse], int],
+    get_prompt_tokens: Callable[[], Coroutine[None, None, int]],
+    tokenize_response: Callable[
+        [ChatCompletionResponse], Coroutine[None, None, int]
+    ],
     deployment: str,
     discarded_messages: Optional[list[int]],
     eliminate_empty_choices: bool,
@@ -81,13 +84,15 @@ async def generate_stream(
         finish_reason=None,
     )
 
-    def set_usage(chunk: dict | None, resp: ChatCompletionResponse) -> dict:
+    async def set_usage(
+        chunk: dict | None, resp: ChatCompletionResponse
+    ) -> dict:
         chunk = chunk or empty_chunk
 
         # Do not fail the whole response if tokenization has failed
         try:
-            completion_tokens = tokenize_response(resp)
-            prompt_tokens = get_prompt_tokens()
+            completion_tokens = await tokenize_response(resp)
+            prompt_tokens = await get_prompt_tokens()
         except Exception as e:
             logger.exception(
                 f"caught exception while tokenization: {type(e).__module__}.{type(e).__name__}. "
@@ -154,7 +159,7 @@ async def generate_stream(
     if response_snapshot.usage is None and (
         not error or response_snapshot.has_messages
     ):
-        last_chunk = set_usage(last_chunk, response_snapshot)
+        last_chunk = await set_usage(last_chunk, response_snapshot)
 
     if not error:
         has_finish_reason = response_snapshot.has_finish_reason
@@ -168,7 +173,7 @@ async def generate_stream(
             last_chunk = set_finish_reason(last_chunk, "length")
 
         if response_snapshot.usage is None:
-            last_chunk = set_usage(last_chunk, response_snapshot)
+            last_chunk = await set_usage(last_chunk, response_snapshot)
 
     if last_chunk:
         yield last_chunk

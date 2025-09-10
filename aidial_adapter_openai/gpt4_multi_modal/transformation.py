@@ -41,7 +41,7 @@ class ResourceProcessor(BaseModel):
     file_storage: FileStorage | None
     errors: Set[TransformationError] = Field(default_factory=set)
 
-    def collect_resource(
+    async def collect_resource(
         self,
         meta: List[ImageMetadata],
         result: Resource | TransformationError,
@@ -50,7 +50,7 @@ class ResourceProcessor(BaseModel):
         if isinstance(result, TransformationError):
             self.errors.add(result)
         else:
-            meta.append(ImageMetadata.from_resource(result, detail))
+            meta.append(await ImageMetadata.from_resource(result, detail))
 
     async def try_download_resource(
         self, dial_resource: DialResource
@@ -87,7 +87,7 @@ class ResourceProcessor(BaseModel):
                 supported_types=SUPPORTED_IMAGE_TYPES,
             )
             result = await self.try_download_resource(dial_resource)
-            self.collect_resource(ret, result, None)
+            await self.collect_resource(ret, result, None)
 
         return ret
 
@@ -112,7 +112,7 @@ class ResourceProcessor(BaseModel):
                     supported_types=SUPPORTED_IMAGE_TYPES,
                 )
                 result = await self.try_download_resource(dial_resource)
-                self.collect_resource(ret, result, detail)
+                await self.collect_resource(ret, result, detail)
 
         return ret
 

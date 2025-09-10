@@ -16,7 +16,7 @@ from aidial_adapter_openai.utils.tokenizer import MultiModalTokenizer
 tokenizer = MultiModalTokenizer("gpt-4o", GPT4O_IMAGE_TOKENIZER)
 
 
-def test_multimodal_truncate_with_system_and_last_user_error():
+async def test_multimodal_truncate_with_system_and_last_user_error():
     """
     Only system messages fit
     """
@@ -45,10 +45,10 @@ def test_multimodal_truncate_with_system_and_last_user_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemAndLastUserError):
-        multi_modal_truncate_prompt({}, transformations, 15, tokenizer)
+        await multi_modal_truncate_prompt({}, transformations, 15, tokenizer)
 
 
-def test_multimodal_truncate_with_system_error():
+async def test_multimodal_truncate_with_system_error():
     # 4 tokens for content + 3 tokens for message + 3 tokens for request = 10 tokens
     transformations = [
         MultiModalMessage(
@@ -57,7 +57,7 @@ def test_multimodal_truncate_with_system_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemError):
-        multi_modal_truncate_prompt({}, transformations, 9, tokenizer)
+        await multi_modal_truncate_prompt({}, transformations, 9, tokenizer)
 
 
 @pytest.mark.parametrize(
@@ -189,11 +189,11 @@ def test_multimodal_truncate_with_system_error():
         ),
     ],
 )
-def test_multimodal_truncate(
+async def test_multimodal_truncate(
     transformations, max_prompt_tokens, discarded_messages, used_tokens
 ):
     truncated, actual_discarded_messages, actual_used_tokens = (
-        multi_modal_truncate_prompt(
+        await multi_modal_truncate_prompt(
             {},
             transformations,
             max_prompt_tokens,
