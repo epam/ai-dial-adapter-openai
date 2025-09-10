@@ -42,13 +42,18 @@ def _get_tiktoken_error_message(model: str) -> str:
     )
 
 
-_TOKENIZER_POOL = ThreadPoolExecutor(max_workers=2 * (os.cpu_count() or 4))
+_TOKENIZER_THREAD_POOL_SIZE = int(
+    os.getenv("TOKENIZER_THREAD_POOL_SIZE", 2 * (os.cpu_count() or 4))
+)
+_TOKENIZER_THREAD_POOL = ThreadPoolExecutor(
+    max_workers=_TOKENIZER_THREAD_POOL_SIZE
+)
 
 
 async def count_tokens(encoding: Encoding, text: str) -> int:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
-        _TOKENIZER_POOL, lambda: len(encoding.encode(text))
+        _TOKENIZER_THREAD_POOL, lambda: len(encoding.encode(text))
     )
 
 
