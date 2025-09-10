@@ -52,19 +52,19 @@ Examples of queries:
 """.strip()
 
 
-def multi_modal_truncate_prompt(
+async def multi_modal_truncate_prompt(
     request: dict,
     messages: List[MultiModalMessage],
     max_prompt_tokens: int,
     tokenizer: MultiModalTokenizer,
 ) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
-    return truncate_prompt(
+    return await truncate_prompt(
         messages=messages,
         message_tokens=tokenizer.tokenize_request_message,
         is_system_message=lambda message: message.raw_message["role"]
         == "system",
         max_prompt_tokens=max_prompt_tokens,
-        initial_prompt_tokens=tokenizer.tokenize_request(request, []),
+        initial_prompt_tokens=await tokenizer.tokenize_request(request, []),
     )
 
 
@@ -113,7 +113,7 @@ async def gpt4o_chat_completion(
     max_prompt_tokens = request.pop("max_prompt_tokens", None)
     if max_prompt_tokens is not None:
         multi_modal_messages, discarded_messages, estimated_prompt_tokens = (
-            multi_modal_truncate_prompt(
+            await multi_modal_truncate_prompt(
                 request=request,
                 messages=multi_modal_messages,
                 max_prompt_tokens=max_prompt_tokens,
@@ -124,7 +124,7 @@ async def gpt4o_chat_completion(
             f"prompt tokens after truncation: {estimated_prompt_tokens}"
         )
     else:
-        estimated_prompt_tokens = tokenizer.tokenize_request(
+        estimated_prompt_tokens = await tokenizer.tokenize_request(
             request, multi_modal_messages
         )
         logger.debug(
@@ -146,9 +146,12 @@ async def gpt4o_chat_completion(
             get_request_tokens=lambda: estimated_prompt_tokens,
         )
 
+        async def get_prompt_tokens():
+            return estimated_prompt_tokens
+
         body = generate_stream(
             stream=map_stream(chunk_to_dict, response),
-            get_prompt_tokens=lambda: estimated_prompt_tokens,
+            get_prompt_tokens=get_prompt_tokens,
             tokenize_response=tokenizer.tokenize_response,
             deployment=deployment,
             discarded_messages=discarded_messages,
