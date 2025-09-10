@@ -1,5 +1,4 @@
 from typing import (
-    Any,
     AsyncIterator,
     Callable,
     Coroutine,
@@ -15,7 +14,7 @@ from aidial_sdk.exceptions import RequestValidationError
 
 _T = TypeVar("_T")
 
-_Coro = Coroutine[_T, Any, Any]
+_Coro = Coroutine[None, None, _T]
 _Tokens = List[int]
 
 

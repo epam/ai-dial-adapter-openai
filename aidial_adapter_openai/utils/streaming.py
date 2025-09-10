@@ -4,6 +4,7 @@ from typing import (
     Any,
     AsyncIterator,
     Callable,
+    Coroutine,
     Generator,
     Generic,
     List,
@@ -67,8 +68,10 @@ async def generate_stream(
     *,
     n: int,
     stream: AsyncIterator[dict],
-    get_prompt_tokens: Callable[[], int],
-    tokenize_response: Callable[[ChatCompletionResponse], int],
+    get_prompt_tokens: Callable[[], Coroutine[None, None, int]],
+    tokenize_response: Callable[
+        [ChatCompletionResponse], Coroutine[None, None, int]
+    ],
     model: str,
     discarded_messages: Optional[list[int]],
     eliminate_empty_choices: bool,
@@ -83,13 +86,15 @@ async def generate_stream(
         finish_reason=None,
     )
 
-    def set_usage(chunk: dict | None, resp: ChatCompletionResponse) -> dict:
+    async def set_usage(
+        chunk: dict | None, resp: ChatCompletionResponse
+    ) -> dict:
         chunk = chunk or empty_chunk
 
         # Do not fail the whole response if tokenization has failed
         try:
-            completion_tokens = tokenize_response(resp)
-            prompt_tokens = get_prompt_tokens()
+            completion_tokens = await tokenize_response(resp)
+            prompt_tokens = await get_prompt_tokens()
         except Exception as e:
             logger.exception(
                 f"caught exception while tokenization: {type(e).__module__}.{type(e).__name__}. "
@@ -175,7 +180,7 @@ async def generate_stream(
     if response_snapshot.usage is None and (
         not error or response_snapshot.has_messages
     ):
-        last_chunk = set_usage(last_chunk, response_snapshot)
+        last_chunk = await set_usage(last_chunk, response_snapshot)
 
     if not error:
         missing_finish_reasons = response_snapshot.get_missing_finish_reasons(n)

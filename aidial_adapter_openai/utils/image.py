@@ -5,6 +5,7 @@ from openai.types.chat import ChatCompletionContentPartImageParam
 from PIL import Image
 from pydantic import BaseModel
 
+from aidial_adapter_openai.utils.concurrency import run_in_threadpool
 from aidial_adapter_openai.utils.resource import Resource
 
 DetailLevel = Literal["low", "high"]
@@ -37,7 +38,7 @@ class ImageResource(BaseModel):
     detail: DetailLevel
 
     @classmethod
-    def from_resource(
+    def _from_resource(
         cls, image: Resource, detail: Optional[ImageDetail]
     ) -> "ImageResource":
         with Image.open(BytesIO(image.data)) as img:
@@ -48,6 +49,14 @@ class ImageResource(BaseModel):
             width=width,
             height=height,
             detail=resolve_detail_level(width, height, detail or "auto"),
+        )
+
+    @classmethod
+    async def from_resource(
+        cls, image: Resource, detail: Optional[ImageDetail]
+    ) -> "ImageResource":
+        return await run_in_threadpool(
+            lambda: cls._from_resource(image, detail)
         )
 
     def to_content_part(self) -> ChatCompletionContentPartImageParam:

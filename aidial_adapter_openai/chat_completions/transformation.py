@@ -111,7 +111,7 @@ class ResourceProcessor(BaseModel):
 
         content_type = await dial_resource.guess_content_type()
         if content_type and content_type.startswith("image/"):
-            result = ImageResource.from_resource(resource, None)
+            result = await ImageResource.from_resource(resource, None)
             self.images.append(result)
         else:
             name = await dial_resource.get_resource_name(self.file_storage)
@@ -130,7 +130,7 @@ class ResourceProcessor(BaseModel):
         if not (resource := await self.try_download_resource(dial_resource)):
             return None
 
-        result = ImageResource.from_resource(resource, detail)  # type: ignore
+        result = await ImageResource.from_resource(resource, detail)  # type: ignore
         self.images.append(result)
         return result.to_content_part()
 
