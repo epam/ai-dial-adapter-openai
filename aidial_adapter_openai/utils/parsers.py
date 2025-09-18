@@ -72,7 +72,7 @@ def _parse_endpoint(
         )
 
     # Solely for Response API (last generation)
-    # https://github.com/MicrosoftDocs/azure-ai-docs/commit/a8f37469a3ce23fcee32512d37068a9627b470d3#diff-a379a6b7b341ba9e352ab413b170b27e33790719a8631fff5d3eeac4d0a33b26R147
+    # https://github.com/MicrosoftDocs/azure-ai-docs/commit/a8f37469a3ce23fcee32512d37068a9627b470d3#diff-a379a6b7b341ba9e352ab413b170b27e33790719a8631fff5d3eeac4d0a33b26R147-R153
     if match := re.fullmatch("(.+?)/openai", endpoint):
         return AzureOpenAIEndpoint(azure_endpoint=match[1])
 
