@@ -10,5 +10,5 @@ concurrency:
 
 jobs:
   run_tests:
-    uses: epam/ai-dial-ci/.github/workflows/python_docker_pr.yml@2.4.1
+    uses: epam/ai-dial-ci/.github/workflows/python_docker_pr.yml@2.5.0
     secrets: inherit
