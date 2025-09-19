@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "aidial-adapter-openai"
-version = "0.32.0rc"
+version = "0.33.0rc"
 description = "DIAL adapter for OpenAI"
 authors = [{ name = "EPAM RAIL", email = "SpecialEPM-DIALDevTeam@epam.com" }]
 license = "Apache-2.0"
@@ -15,8 +15,8 @@ requires-python = ">=3.11,<3.13"
 dynamic = ["dependencies"]
 
 [project.urls]
-Homepage = "https://epam-rail.com"
-Documentation = "https://epam-rail.com/dial_api"
+Homepage = "https://dialx.ai/"
+Documentation = "https://dialx.ai/dial_api"
 Repository = "https://github.com/epam/ai-dial-adapter-openai"
 
 [project.scripts]
