@@ -830,6 +830,9 @@ Given that the API largely evolves in a backward-compatible way, we introduced `
 
 Keeping the mapping current is the DIAL operations team’s responsibility, not the application developer’s.
 
+> [!NOTE]
+> API version is irrelevant for the upstreams that use Response API or v1 Chat Completions API, since these APIs aren't versioned.
+
 ## Server performance configuration
 
 There are two environment variables that control server performance:
