@@ -65,6 +65,7 @@ async def test_dalle3_configuration_success(
             "model": "test-dall-e-3",
             "prompt": "test",
             "response_format": "b64_json",
+            "n": 1,
             **remove_nones(conf or {}),
         }
         return httpx.Response(

@@ -1,6 +1,6 @@
-from typing import Any, AsyncIterator, TypeVar
+from typing import Any, AsyncIterator, List, TypeVar
 
-from aidial_sdk.exceptions import InternalServerError, RequestValidationError
+from aidial_sdk.exceptions import InternalServerError
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.image import Image
 from pydantic import BaseModel
@@ -11,45 +11,56 @@ from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.image_generation.prompt import ImageGenPrompt
 from aidial_adapter_openai.utils.streaming import build_chunk, generate_id
 
-IMG_USAGE = {
-    "prompt_tokens": 0,
-    "completion_tokens": 1,
-    "total_tokens": 1,
-}
+
+def _get_usage(n: int) -> dict:
+    return {
+        "prompt_tokens": 0,
+        "completion_tokens": n,
+        "total_tokens": n,
+    }
 
 
-def create_custom_content(image: Image, content_type: str) -> Any:
+def create_custom_content(images: List[Image], content_type: str) -> dict:
     attachments = []
 
-    if revised_prompt := image.revised_prompt:
-        attachments.append({"title": "Revised prompt", "data": revised_prompt})
+    for idx, image in enumerate(images, start=1):
+        index = "" if len(images) == 1 else f" #{idx}"
 
-    if (data := image.b64_json) is None:
-        raise InternalServerError(
-            "The model didn't return the base64 encoding of an image"
+        if revised_prompt := image.revised_prompt:
+            attachments.append(
+                {"title": f"Revised prompt{index}", "data": revised_prompt}
+            )
+
+        if (data := image.b64_json) is None:
+            raise InternalServerError(
+                "The model didn't return the base64 encoding of an image"
+            )
+
+        attachments.append(
+            {"title": f"Image{index}", "type": content_type, "data": data}
         )
 
-    attachments.append({"title": "Image", "type": content_type, "data": data})
-
-    return {"custom_content": {"attachments": attachments}}
+    return {"attachments": attachments}
 
 
 async def generate_stream(
-    id: str, created: int, message_content: Any
+    id: str, n: int, created: int, message_content: Any
 ) -> AsyncIterator[dict]:
     yield build_chunk(id, None, {"role": "assistant"}, created, True)
     yield build_chunk(id, None, message_content, created, True)
-    yield build_chunk(id, "stop", {}, created, True, usage=IMG_USAGE)
+    yield build_chunk(id, "stop", {}, created, True, usage=_get_usage(n))
 
 
-def generate_response(id: str, created: int, message_content: Any) -> dict:
+def generate_response(
+    id: str, n: int, created: int, message_content: Any
+) -> dict:
     return build_chunk(
         id,
         "stop",
-        {"role": "assistant", **message_content},
+        {"role": "assistant"} | message_content,
         created,
         False,
-        usage=IMG_USAGE,
+        usage=_get_usage(n),
     )
 
 
@@ -82,11 +93,10 @@ async def chat_completion(
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
 ):
-    if request.get("n", 1) > 1:
-        raise RequestValidationError("The deployment doesn't support n > 1")
 
     prompt = await ImageGenPrompt.from_request(request, file_storage)
 
+    n = int(request.get("n", 1))
     is_stream = bool(request.get("stream"))
     model_name = request["model"]
 
@@ -106,6 +116,7 @@ async def chat_completion(
             image=images,  # type: ignore
             prompt=prompt.text_prompt,
             response_format=response_format,
+            n=n,
             extra_body=extra_body,
         )
     else:
@@ -113,6 +124,7 @@ async def chat_completion(
             model=model_name,
             prompt=prompt.text_prompt,
             response_format=response_format,
+            n=n,
             extra_body=extra_body,
         )
 
@@ -121,10 +133,10 @@ async def chat_completion(
     if not images:
         raise InternalServerError("The model didn't return an image")
 
-    image = images[0]
     image_content_type = model.get_image_content_type(config)
-    custom_content = create_custom_content(image, image_content_type)
-    message_content = {"content": "", **custom_content}
+
+    custom_content = create_custom_content(images, image_content_type)
+    message_content = {"content": "", "custom_content": custom_content}
 
     if file_storage is not None:
         await upload_attachments_data_to_storage(custom_content, file_storage)
@@ -133,6 +145,6 @@ async def chat_completion(
     created = model_response.created
 
     if is_stream:
-        return generate_stream(id, created, message_content)
+        return generate_stream(id, n, created, message_content)
     else:
-        return generate_response(id, created, message_content)
+        return generate_response(id, n, created, message_content)
