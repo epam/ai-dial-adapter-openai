@@ -787,55 +787,56 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
 
 ## API versioning
 
-The adapter provides Azure-flavour of OpenAI Chat Completions API.
+The adapter provides an Azure-flavour of the OpenAI Chat Completions API.
 
-The Azure API is a variation of the OpenAI Platform API. The main difference is that Azure API includes deployment id and has the required [api-version](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/reference#rest-api-versioning) query parameter:
+Azure’s API is a variant of the OpenAI Platform API. The key differences are the deployment ID in the path and the required [`api-version`](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/reference#rest-api-versioning) query parameter:
 
 ```txt
 OpenAI Platform: POST https://api.openai.com/v1/chat/completions
 Azure OpenAI:    POST https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-06-01
 ```
 
-The `api-version` parameter was supposed to track backward-compatible changes in the API. It was supposed to be used by the Azure OpenAI client deliberately - OpenAI SDK libraries require this parameter to be specified.
+The `api-version` parameter tracks API changes, and the OpenAI SDK requires it.
 
-Consider an application calling Azure OpenAI via DIAL. One has to pin a certain Azure OpenAI API version *(presumably the last one)*. As the time goes by, the new API versions are releases with new features, along with the OpenAI SDKs that support these features. So the application developer needs not only to bump OpenAI SDK version but also to bump the Azure OpenAI API version. This complicate application maintenance.
+Consider an application calling Azure OpenAI via DIAL. You typically pin an Azure OpenAI API version *(usually the latest)*. Over time, new API versions ship with new features, and SDKs add support for them. This means the application developer must bump both the SDK version and the Azure OpenAI API version - adding maintenance overhead.
 
-Moreover, certain Azure OpenAI API versions are getting retired, which breaks the existing applications that are still using them.
+Moreover, some Azure OpenAI API versions are retired, breaking applications that still depend on them.
 
-`API_VERSIONS_MAPPING` variable was designed to solve these maintenance issues.
+In practice, most changes between API versions have been backward-compatible, so clients generally want to use the latest version.
 
-1. The deprecated versions may be mapped onto the existing versions, so the DIAL application won't break:
+Given that the API largely evolves in a backward-compatible way, we introduced `API_VERSIONS_MAPPING` to reduce version-management burden:
 
-```txt
-DIAL Client:
-  client = AsyncAzureOpenAI(api_version="2023-01-01-preview", ...)
-  response = await client.chat.completions.create(...)
+1. **Map deprecated to current versions** so DIAL apps don’t break:
 
-OpenAI Adapter:
-  API_VERSIONS_MAPPING={"2023-01-01-preview":"2025-06-01"}
-```
+   ```txt
+   DIAL Client:
+     client = AsyncAzureOpenAI(api_version="2023-01-01-preview", ...)
+     response = await client.chat.completions.create(...)
 
-1. The default API version could be defined by mapping the empty string to this latest API version.
+   OpenAI Adapter:
+     API_VERSIONS_MAPPING={"2023-01-01-preview":"2025-06-01"}
+   ```
 
-By doing so the DIAL application delegates the tracking of the [latest API version](https://github.com/Azure/azure-rest-api-specs/tree/main/specification/cognitiveservices/resource-manager/Microsoft.CognitiveServices) to the DIAL itself:
+2. **Define a default version** by mapping the empty string to the latest version. This delegates tracking of the latest API version to DIAL:
 
-```txt
-DIAL Client:
-  client = AsyncAzureOpenAI(api_version="", ...)
-  response = await client.chat.completions.create(...)
+   ```txt
+   DIAL Client:
+     client = AsyncAzureOpenAI(api_version="", ...)
+     response = await client.chat.completions.create(...)
 
-OpenAI Adapter:
-  API_VERSIONS_MAPPING={"":"2025-06-01"}
-```
+   OpenAI Adapter:
+     API_VERSIONS_MAPPING={"":"2025-06-01"}
+   ```
 
-It's on the DIAL operations responsibility to keep the latest API version up-to-date, so the DIAL application developer.
+Keeping the mapping current is the DIAL operations team’s responsibility, not the application developer’s.
 
 ## Server performance configuration
 
-There two env variables controlling server performance:
+There are two environment variables that control server performance:
 
-1. `WEB_CONCURRENCY` *(default=1)* defines the number of worker processes spawned by the [uvicorn](https://www.uvicorn.org/deployment/#running-from-the-command-line) server. The processes are running independently from each other. The parent uvicorn process takes case of load balancing of the incoming requests between the processes. The processes are scheduled to different CPU cores by OS thereby achieving true parallelism. This is important when server does CPU-heavy request processing which is mainly the request/response [tokenization](#tokenization-of-chat-completion-requestsresponses). For the full CPU utilization it's recommended to set the value to the number of logical CPUs, however the default equal 1 is enough if you don't expect much of CPU-load (see [minimizing tokenization](#how-to-minimize-adapter-side-tokenization)).
-2. `THREAD_POOL_SIZE` *(default=#logical CPUs+4)* defines the size of the thread pool for CPU-heavy tasks of which there is currently only one - the request/response [tokenization](#tokenization-of-chat-completion-requestsresponses). This variable essentially determines the capacity of the critical section for the CPU-heavy tasks. That is, no more that `THREAD_POOL_SIZE` tasks could be executing at the same time. Note, that it doesn't block execution of requests that do not involve CPU-heavy tasks such as health checks or embedding requests.
+1. `WEB_CONCURRENCY` *(default = 1)* — the number of worker processes spawned by [uvicorn](https://www.uvicorn.org/deployment/#running-from-the-command-line). Workers run independently; the parent uvicorn process handles load balancing across them. The OS schedules workers on different CPU cores, enabling true parallelism. This matters when the server performs CPU-intensive work, primarily request/response [tokenization](#tokenization-of-chat-completion-requestsresponses). For full CPU utilization, set this to the number of **logical CPUs**. However, the default of 1 is fine if you don’t expect much CPU load (see [minimizing tokenization](#how-to-minimize-adapter-side-tokenization)).
+
+2. `THREAD_POOL_SIZE` *(default = logical CPUs + 4)* — the size of the thread pool used for CPU-heavy tasks (currently, only request/response [tokenization](#tokenization-of-chat-completion-requestsresponses)). This effectively caps how many CPU-bound tasks can run simultaneously: no more than `THREAD_POOL_SIZE` at a time. Note that this does not block requests without CPU-heavy work (e.g., health checks or embeddings requests).
 
 ## Lint
 
