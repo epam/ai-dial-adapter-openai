@@ -1,6 +1,6 @@
 import os
-import shutil
 from pathlib import Path
+from typing import List
 from urllib.parse import urlparse
 
 from pydantic import SecretStr
@@ -41,6 +41,7 @@ class DummyFileStorage(FileStorage):
 
 class MockFileStorage(FileStorage):
     root_dir: Path
+    files: List[Path]
 
     @classmethod
     def create(cls, root_dir: Path) -> "MockFileStorage":
@@ -49,6 +50,7 @@ class MockFileStorage(FileStorage):
             dial_url="http://test-dial-url",
             api_key=SecretStr("test-dial-api-key"),
             root_dir=root_dir,
+            files=[],
         )
 
     def _parse_filename(self, name: str) -> int:
@@ -74,7 +76,9 @@ class MockFileStorage(FileStorage):
         ext = ".png" if content_type == "image/png" else ".jpeg"
         name = self._get_fresh_filename() + ext
 
-        (self.root_dir / name).write_bytes(content)
+        file = self.root_dir / name
+        file.write_bytes(content)
+        self.files.append(file)
 
         return FileMetadata(
             name=name,
@@ -95,4 +99,8 @@ class MockFileStorage(FileStorage):
 
     def __exit__(self, *args, **kwargs):
         if get_env_bool("INTEGRATION_TEST_CLEANUP_MOCK_STORAGE"):
-            shutil.rmtree(self.root_dir)
+            for file in self.files:
+                file.unlink(missing_ok=True)
+
+        if not os.listdir(self.root_dir):
+            self.root_dir.rmdir()

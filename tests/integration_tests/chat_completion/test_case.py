@@ -147,6 +147,10 @@ class TestSuite:
         return self.deployment_config.model_features.imageGenerationSupported
 
     @property
+    def supports_image_editing(self):
+        return self.deployment_config.model_features.imageEditingSupported
+
+    @property
     def supports_reasoning(self):
         return self.deployment_config.model_features.reasoningSupported
 

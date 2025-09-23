@@ -318,7 +318,8 @@
                 }
             ],
             "features": {
-                "imageGenerationSupported": true
+                "imageGenerationSupported": true,
+                "imageEditingSupported": true
             }
         },
         "dall-e-3": {

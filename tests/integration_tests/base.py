@@ -46,6 +46,7 @@ class Features(ExtraAllowedModel):
     reasoningSummarySupported: bool = False
     stopSupported: bool = True
     imageGenerationSupported: bool = False
+    imageEditingSupported: bool = False
 
     responseFormatJsonObjectSupported: bool = True
     responseFormatJsonSchemaSupported: bool = True

@@ -9,8 +9,11 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
 from tests.integration_tests.base import DeploymentConfig
-from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
-from tests.utils.openai import chat_completion, user
+from tests.integration_tests.constants import (
+    IMAGE_RESOURCE,
+    TEST_DEPLOYMENTS_CONFIG,
+)
+from tests.utils.openai import chat_completion, user, user_with_attachment_url
 from tests.utils.storage import MockFileStorage
 
 
@@ -80,6 +83,30 @@ async def test_text_to_image(
     )
 
     assert len(response.response.choices) == 2
+
+    for attachments in response.all_attachments:
+        image_attachments = [a for a in attachments if a.get("url")]
+        assert len(image_attachments) == 1
+
+
+async def test_image_to_image(
+    client: openai.AsyncAzureOpenAI, deployment: D, stream: bool
+) -> None:
+    if not deployment.model_features.imageEditingSupported:
+        pytest.skip("Image editing isn't supported by this model")
+
+    response = await chat_completion(
+        client,
+        stream=stream,
+        deployment_id=deployment.model_name,
+        messages=[
+            user_with_attachment_url(
+                "Replace the background with outer space", IMAGE_RESOURCE
+            ),
+        ],
+    )
+
+    assert len(response.response.choices) == 1
 
     for attachments in response.all_attachments:
         image_attachments = [a for a in attachments if a.get("url")]
