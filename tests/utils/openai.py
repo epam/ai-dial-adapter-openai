@@ -60,8 +60,9 @@ def ai_tools(
 
 def user(
     content: str | List[ChatCompletionContentPartParam],
+    **kwargs,
 ) -> ChatCompletionUserMessageParam:
-    return {"role": "user", "content": content}
+    return {"role": "user", "content": content, **kwargs}  # type: ignore
 
 
 def user_with_attachment_data(

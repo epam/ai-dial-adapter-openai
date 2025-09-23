@@ -155,6 +155,17 @@ class DeploymentConfig(BaseModel, Generic[_T]):
         else:
             return f"{id_}/upstream:{self.upstream_idx}"
 
+    @property
+    def supports_vision(self):
+        types = self.model_attachments or []
+        return any(
+            ty.startswith("image/") or ty.startswith("*/") for ty in types
+        )
+
+    @property
+    def supports_reasoning(self):
+        return self.model_features.reasoningSupported
+
 
 class TestDeployments(BaseModel):
     __test__ = False

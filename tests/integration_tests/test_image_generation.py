@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 from unittest.mock import patch
 
 import openai
@@ -40,24 +40,28 @@ _deployments: List[D] = list(
 if _deployments:
 
     @pytest.fixture(params=_deployments, ids=lambda d: d.display_config())
-    def deployment(request) -> D:
+    def imagen_deployment(request) -> D:
         return request.param
 
 else:
 
     @pytest.fixture
-    def deployment(request) -> D:
+    def imagen_deployment(request) -> D:
         pytest.skip("No image generation deployments were found")
 
 
 @pytest.fixture
-def client(create_openai_client, deployment: D) -> openai.AsyncAzureOpenAI:
-    return create_openai_client(deployment)
+def vision_deployment() -> D:
+    vision_deployments: List[D] = [
+        d
+        for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments
+        if d.supports_vision and not d.supports_reasoning
+    ]
 
-
-@pytest.fixture
-def deployment_id(deployment: D) -> str:
-    return deployment.model_name
+    if vision_deployments:
+        return vision_deployments[0]
+    else:
+        pytest.skip("No vision deployments were found")
 
 
 @pytest.fixture(params=[True, False], ids=lambda b: "stream" if b else "block")
@@ -66,39 +70,59 @@ def stream(request) -> bool:
 
 
 async def test_text_to_image(
-    client: openai.AsyncAzureOpenAI, deployment: D, stream: bool
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    imagen_deployment: D,
+    vision_deployment: D,
+    stream: bool,
 ) -> None:
-    if deployment.type_ == ChatCompletionDeploymentType.DALLE3:
+    if imagen_deployment.type_ == ChatCompletionDeploymentType.DALLE3:
         # DALLE-3 doesn't support n>1
         n = 1
     else:
         n = 2
 
     response = await chat_completion(
-        client,
+        create_openai_client(imagen_deployment),
         n=n,
         stream=stream,
-        deployment_id=deployment.model_name,
-        messages=[user("generate an image of a cat")],
+        deployment_id=imagen_deployment.model_name,
+        messages=[user("Generate an image of a cat")],
     )
 
-    assert len(response.response.choices) == 2
+    assert len(response.response.choices) == n
 
     for attachments in response.all_attachments:
         image_attachments = [a for a in attachments if a.get("url")]
         assert len(image_attachments) == 1
 
+        evaluation = await chat_completion(
+            create_openai_client(vision_deployment),
+            stream=False,
+            deployment_id=vision_deployment.model_name,
+            messages=[
+                user(
+                    "What animal do you see on the image: tiger, cat, dog, or whale? Reply with a SINGLE word.",
+                    custom_content={"attachments": [image_attachments[0]]},
+                )
+            ],
+        )
+
+        assert "cat" in evaluation.content.lower()
+
 
 async def test_image_to_image(
-    client: openai.AsyncAzureOpenAI, deployment: D, stream: bool
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    vision_deployment: D,
+    imagen_deployment: D,
+    stream: bool,
 ) -> None:
-    if not deployment.model_features.imageEditingSupported:
+    if not imagen_deployment.model_features.imageEditingSupported:
         pytest.skip("Image editing isn't supported by this model")
 
     response = await chat_completion(
-        client,
+        create_openai_client(imagen_deployment),
         stream=stream,
-        deployment_id=deployment.model_name,
+        deployment_id=imagen_deployment.model_name,
         messages=[
             user_with_attachment_url(
                 "Replace the background with outer space", IMAGE_RESOURCE
@@ -111,3 +135,17 @@ async def test_image_to_image(
     for attachments in response.all_attachments:
         image_attachments = [a for a in attachments if a.get("url")]
         assert len(image_attachments) == 1
+
+        evaluation = await chat_completion(
+            create_openai_client(vision_deployment),
+            stream=False,
+            deployment_id=vision_deployment.model_name,
+            messages=[
+                user(
+                    "What kind of a background do you see on the image: forest, desert, space, or a beach. Reply with a SINGLE word.",
+                    custom_content={"attachments": [image_attachments[0]]},
+                )
+            ],
+        )
+
+        assert "space" in evaluation.content.lower()
