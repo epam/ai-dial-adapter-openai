@@ -132,20 +132,19 @@ async def test_image_to_image(
 
     assert len(response.response.choices) == 1
 
-    for attachments in response.all_attachments:
-        image_attachments = [a for a in attachments if a.get("url")]
-        assert len(image_attachments) == 1
+    image_attachments = [a for a in response.attachments if a.get("url")]
+    assert len(image_attachments) == 1
 
-        evaluation = await chat_completion(
-            create_openai_client(vision_deployment),
-            stream=False,
-            deployment_id=vision_deployment.model_name,
-            messages=[
-                user(
-                    "What kind of a background do you see on the image: forest, desert, space, or a beach. Reply with a SINGLE word.",
-                    custom_content={"attachments": [image_attachments[0]]},
-                )
-            ],
-        )
+    evaluation = await chat_completion(
+        create_openai_client(vision_deployment),
+        stream=False,
+        deployment_id=vision_deployment.model_name,
+        messages=[
+            user(
+                "What kind of a background do you see on the image: forest, desert, space, or a beach. Reply with a SINGLE word.",
+                custom_content={"attachments": [image_attachments[0]]},
+            )
+        ],
+    )
 
-        assert "space" in evaluation.content.lower()
+    assert "space" in evaluation.content.lower()
