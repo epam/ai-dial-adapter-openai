@@ -38,7 +38,7 @@ def create_test_cases(
 ) -> Generator[TestCase, None, None]:
     for streaming in (False, True):
         for deployment in TEST_DEPLOYMENTS_CONFIG.chat_deployments:
-            if not deployment.model_features.oneShotImageGenerationSupported:
+            if not deployment.model_features.imageGenerationSupported:
                 suite = TestSuite(deployment, streaming)
                 for builder in builders:
                     builder(suite)

@@ -31,7 +31,7 @@ D = DeploymentConfig[ChatCompletionDeploymentType]
 _deployments: List[D] = list(
     d
     for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments
-    if d.model_features.oneShotImageGenerationSupported
+    if d.model_features.imageGenerationSupported
 )
 
 if _deployments:
@@ -63,14 +63,24 @@ def stream(request) -> bool:
 
 
 async def test_text_to_image(
-    client: openai.AsyncAzureOpenAI, deployment_id: str, stream: bool
+    client: openai.AsyncAzureOpenAI, deployment: D, stream: bool
 ) -> None:
+    if deployment.type_ == ChatCompletionDeploymentType.DALLE3:
+        # DALLE-3 doesn't support n>1
+        n = 1
+    else:
+        n = 2
+
     response = await chat_completion(
         client,
+        n=n,
         stream=stream,
-        deployment_id=deployment_id,
-        messages=[user("Generate an image of a cat")],
+        deployment_id=deployment.model_name,
+        messages=[user("generate an image of a cat")],
     )
 
-    image_attachments = [a for a in response.attachments if a.get("url")]
-    assert len(image_attachments) == 1
+    assert len(response.response.choices) == 2
+
+    for attachments in response.all_attachments:
+        image_attachments = [a for a in attachments if a.get("url")]
+        assert len(image_attachments) == 1

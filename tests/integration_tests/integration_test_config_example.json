@@ -318,7 +318,7 @@
                 }
             ],
             "features": {
-                "oneShotImageGenerationSupported": true
+                "imageGenerationSupported": true
             }
         },
         "dall-e-3": {
@@ -330,7 +330,7 @@
                 }
             ],
             "features": {
-                "oneShotImageGenerationSupported": true
+                "imageGenerationSupported": true
             }
         }
     }

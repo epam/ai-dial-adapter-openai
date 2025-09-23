@@ -170,10 +170,15 @@ class ChatCompletionResult(BaseModel):
         ]
 
     @property
-    def attachments(self) -> list[dict]:
-        return self.response.choices[0].message.dict()["custom_content"][
-            "attachments"
+    def all_attachments(self) -> list[list[dict]]:
+        return [
+            choice.message.dict()["custom_content"]["attachments"]
+            for choice in self.response.choices
         ]
+
+    @property
+    def attachments(self) -> list[dict]:
+        return self.all_attachments[0]
 
     @property
     def content(self) -> str:
