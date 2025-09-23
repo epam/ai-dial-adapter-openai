@@ -45,6 +45,7 @@ class Features(ExtraAllowedModel):
     reasoningSupported: bool = False
     reasoningSummarySupported: bool = False
     stopSupported: bool = True
+    oneShotImageGenerationSupported: bool = False
 
     responseFormatJsonObjectSupported: bool = True
     responseFormatJsonSchemaSupported: bool = True
@@ -145,6 +146,13 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                     )
                 )
         return configs
+
+    def display_config(self) -> str:
+        id_ = sanitize_id_part(self.id_)
+        if self.upstream_idx is None:
+            return id_
+        else:
+            return f"{id_}/upstream:{self.upstream_idx}"
 
 
 class TestDeployments(BaseModel):

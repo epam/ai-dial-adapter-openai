@@ -170,6 +170,12 @@ class ChatCompletionResult(BaseModel):
         ]
 
     @property
+    def attachments(self) -> list[dict]:
+        return self.response.choices[0].message.dict()["custom_content"][
+            "attachments"
+        ]
+
+    @property
     def content(self) -> str:
         return self.message.content or ""
 
@@ -199,10 +205,10 @@ class ChatCompletionResult(BaseModel):
 
 async def chat_completion(
     client: AsyncAzureOpenAI,
+    *,
     deployment_id: str,
     messages: List[ChatCompletionMessageParam],
     stream: bool,
-    *,
     stop: List[str] | NotGiven = NOT_GIVEN,
     max_completion_tokens: int | NotGiven = NOT_GIVEN,
     max_tokens: int | NotGiven = NOT_GIVEN,

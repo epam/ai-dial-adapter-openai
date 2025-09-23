@@ -102,6 +102,7 @@ async def test_dalle3_configuration_success(
 
     expected_response = {
         "created": 43,
+        "model": "test-dall-e-3",
         "id": lambda x: isinstance(x, str),
         "object": "chat.completion",
         "choices": [

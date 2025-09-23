@@ -143,6 +143,12 @@ class TestSuite:
         )
 
     @property
+    def supports_image_generation(self):
+        return (
+            self.deployment_config.model_features.oneShotImageGenerationSupported
+        )
+
+    @property
     def supports_reasoning(self):
         return self.deployment_config.model_features.reasoningSupported
 

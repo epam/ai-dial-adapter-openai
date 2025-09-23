@@ -38,10 +38,11 @@ def create_test_cases(
 ) -> Generator[TestCase, None, None]:
     for streaming in (False, True):
         for deployment in TEST_DEPLOYMENTS_CONFIG.chat_deployments:
-            suite = TestSuite(deployment, streaming)
-            for builder in builders:
-                builder(suite)
-            yield from suite
+            if not deployment.model_features.oneShotImageGenerationSupported:
+                suite = TestSuite(deployment, streaming)
+                for builder in builders:
+                    builder(suite)
+                yield from suite
 
 
 @pytest.mark.parametrize(
@@ -67,9 +68,9 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
     async def run_chat_completion() -> ChatCompletionResult:
         return await chat_completion(
             client,
-            test_case.deployment_config.model_name,
-            test_case.messages,
-            test_case.streaming,
+            deployment_id=test_case.deployment_config.model_name,
+            messages=test_case.messages,
+            stream=test_case.streaming,
             stop=test_case.stop,
             max_tokens=test_case.max_tokens,
             max_completion_tokens=test_case.max_completion_tokens,

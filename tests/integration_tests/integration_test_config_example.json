@@ -308,6 +308,30 @@
                 "reasoningSummarySupported": true,
                 "responseFormatJsonSchemaSupported": false
             }
+        },
+        "gpt-image-1": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-image-1-2025-04-15/images/generations",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "oneShotImageGenerationSupported": true
+            }
+        },
+        "dall-e-3": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/dall-e-3/images/generations",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "oneShotImageGenerationSupported": true
+            }
         }
     }
 }
