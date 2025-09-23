@@ -92,7 +92,9 @@ async def test_text_to_image(
     assert len(response.response.choices) == n
 
     for attachments in response.all_attachments:
-        image_attachments = [a for a in attachments if a.get("url")]
+        image_attachments = [
+            a for a in attachments if "image" in a.get("type", "")
+        ]
         assert len(image_attachments) == 1
 
         evaluation = await chat_completion(
@@ -132,7 +134,9 @@ async def test_image_to_image(
 
     assert len(response.response.choices) == 1
 
-    image_attachments = [a for a in response.attachments if a.get("url")]
+    image_attachments = [
+        a for a in response.attachments if "image" in a.get("type", "")
+    ]
     assert len(image_attachments) == 1
 
     evaluation = await chat_completion(
