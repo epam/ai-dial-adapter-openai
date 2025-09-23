@@ -1,13 +1,21 @@
+import os
+import shutil
+from pathlib import Path
 from urllib.parse import urlparse
 
 from pydantic import SecretStr
 from typing_extensions import override
 
 from aidial_adapter_openai.dial_api.resource import ValidationError
-from aidial_adapter_openai.dial_api.storage import Bucket, FileStorage
+from aidial_adapter_openai.dial_api.storage import (
+    Bucket,
+    FileMetadata,
+    FileStorage,
+)
+from aidial_adapter_openai.utils.env import get_env_bool
 
 
-class MockFileStorage(FileStorage):
+class DummyFileStorage(FileStorage):
     def __init__(self):
         super().__init__(
             dial_url="http://dial-core",
@@ -29,3 +37,62 @@ class MockFileStorage(FileStorage):
         if not (parsed_url.scheme and parsed_url.netloc):
             raise ValidationError("Not a valid URL")
         return b"test-content"
+
+
+class MockFileStorage(FileStorage):
+    root_dir: Path
+
+    @classmethod
+    def create(cls, root_dir: Path) -> "MockFileStorage":
+        root_dir.mkdir(parents=True, exist_ok=True)
+        return cls(
+            dial_url="http://test-dial-url",
+            api_key=SecretStr("test-dial-api-key"),
+            root_dir=root_dir,
+        )
+
+    def _parse_filename(self, name: str) -> int:
+        try:
+            return int(name.split(".")[0])
+        except Exception:
+            return 0
+
+    def _get_fresh_file_index(self) -> int:
+        if not (files := os.listdir(self.root_dir)):
+            return 1
+
+        max_index = max(self._parse_filename(f) for f in files)
+        return max_index + 1
+
+    def _get_fresh_filename(self) -> str:
+        return f"{self._get_fresh_file_index():0>3}"
+
+    async def upload(
+        self, upload_dir: str, filename: str, content_type: str, content: bytes
+    ) -> FileMetadata:
+
+        ext = ".png" if content_type == "image/png" else ".jpeg"
+        name = self._get_fresh_filename() + ext
+
+        (self.root_dir / name).write_bytes(content)
+
+        return FileMetadata(
+            name=name,
+            parentPath=os.path.dirname(name),
+            bucket="mock-bucket",
+            url=f"files/mock-bucket/{name}",
+        )
+
+    async def download_file(self, link: str) -> bytes:
+        filename = link.removeprefix("files/mock-bucket/")
+        return (self.root_dir / filename).read_bytes()
+
+    async def get_human_readable_name(self, link: str) -> str:
+        return link.removeprefix("files/mock-bucket/")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        if get_env_bool("INTEGRATION_TEST_CLEANUP_MOCK_STORAGE"):
+            shutil.rmtree(self.root_dir)

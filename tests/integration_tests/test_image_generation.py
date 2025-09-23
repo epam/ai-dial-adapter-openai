@@ -1,4 +1,3 @@
-import tempfile
 from pathlib import Path
 from typing import List
 from unittest.mock import patch
@@ -11,22 +10,20 @@ from aidial_adapter_openai.configuration.deployment_type import (
 )
 from tests.integration_tests.base import DeploymentConfig
 from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
-from tests.utils.mock_storage import MockFileStorage
 from tests.utils.openai import chat_completion, user
+from tests.utils.storage import MockFileStorage
 
 
 @pytest.fixture(autouse=True)
-def mock_storage():
-    storage_dir = Path(__file__).parent / "mock-storage"
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    base_dir = Path(tempfile.mkdtemp(dir=storage_dir))
-    storage = MockFileStorage.create(base_dir)
-    with patch(
-        "aidial_adapter_openai.endpoints.chat_completion.create_file_storage",
-        return_value=storage,
-    ):
-        yield storage
-        # storage.cleanup()  # NOTE: Comment out for debugging
+def mock_storage(request):
+    test_name = request.node.name
+    root_dir = Path(__file__).parent / "mock-storage" / test_name
+    with MockFileStorage.create(root_dir) as storage:
+        with patch(
+            "aidial_adapter_openai.endpoints.chat_completion.create_file_storage",
+            return_value=storage,
+        ):
+            yield storage
 
 
 D = DeploymentConfig[ChatCompletionDeploymentType]

@@ -11,7 +11,7 @@ from aidial_adapter_openai.dial_api.resource import (
 )
 from aidial_adapter_openai.utils.resource import Resource
 from tests.utils.images import data_url, pic_1_1
-from tests.utils.storage import MockFileStorage
+from tests.utils.storage import DummyFileStorage
 
 
 @pytest.mark.parametrize(
@@ -93,7 +93,7 @@ async def test_guess_attachment_type(attachment, expected_type):
 async def test_get_attachment_name(attachment, expected_name):
     assert (
         await AttachmentResource(attachment=attachment).get_resource_name(
-            MockFileStorage()
+            DummyFileStorage()
         )
         == expected_name
     )
@@ -136,7 +136,7 @@ async def test_download_image_url(url: str, expected_result: Resource | Error):
         entity_name="image",
         supported_types=["image/png"],
     )
-    processor = ResourceProcessor(file_storage=MockFileStorage())
+    processor = ResourceProcessor(file_storage=DummyFileStorage())
     result = await processor.try_download_resource(resource)
     if isinstance(expected_result, Resource):
         assert result == expected_result
@@ -215,7 +215,7 @@ async def test_download_attachment_image(
         entity_name="image",
         supported_types=["image/png"],
     )
-    processor = ResourceProcessor(file_storage=MockFileStorage())
+    processor = ResourceProcessor(file_storage=DummyFileStorage())
     result = await processor.try_download_resource(resource)
     if isinstance(expected_result, Resource):
         assert result == expected_result
