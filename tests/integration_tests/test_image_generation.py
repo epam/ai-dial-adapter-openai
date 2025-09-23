@@ -91,6 +91,10 @@ async def test_text_to_image(
 
     assert len(response.response.choices) == n
 
+    assert response.usage is not None
+    assert response.usage.prompt_tokens == 0
+    assert response.usage.completion_tokens == n
+
     for attachments in response.all_attachments:
         image_attachments = [
             a for a in attachments if "image" in a.get("type", "")
@@ -133,6 +137,10 @@ async def test_image_to_image(
     )
 
     assert len(response.response.choices) == 1
+
+    assert response.usage is not None
+    assert response.usage.prompt_tokens == 0
+    assert response.usage.completion_tokens == 1
 
     image_attachments = [
         a for a in response.attachments if "image" in a.get("type", "")
