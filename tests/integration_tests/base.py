@@ -45,6 +45,8 @@ class Features(ExtraAllowedModel):
     reasoningSupported: bool = False
     reasoningSummarySupported: bool = False
     stopSupported: bool = True
+    imageGenerationSupported: bool = False
+    imageEditingSupported: bool = False
 
     responseFormatJsonObjectSupported: bool = True
     responseFormatJsonSchemaSupported: bool = True
@@ -145,6 +147,24 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                     )
                 )
         return configs
+
+    def display_config(self) -> str:
+        id_ = sanitize_id_part(self.id_)
+        if self.upstream_idx is None:
+            return id_
+        else:
+            return f"{id_}/upstream:{self.upstream_idx}"
+
+    @property
+    def supports_vision(self):
+        types = self.model_attachments or []
+        return any(
+            ty.startswith("image/") or ty.startswith("*/") for ty in types
+        )
+
+    @property
+    def supports_reasoning(self):
+        return self.model_features.reasoningSupported
 
 
 class TestDeployments(BaseModel):

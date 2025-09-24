@@ -60,8 +60,9 @@ def ai_tools(
 
 def user(
     content: str | List[ChatCompletionContentPartParam],
+    **kwargs,
 ) -> ChatCompletionUserMessageParam:
-    return {"role": "user", "content": content}
+    return {"role": "user", "content": content, **kwargs}  # type: ignore
 
 
 def user_with_attachment_data(
@@ -170,6 +171,17 @@ class ChatCompletionResult(BaseModel):
         ]
 
     @property
+    def all_attachments(self) -> list[list[dict]]:
+        return [
+            choice.message.dict()["custom_content"]["attachments"]
+            for choice in self.response.choices
+        ]
+
+    @property
+    def attachments(self) -> list[dict]:
+        return self.all_attachments[0]
+
+    @property
     def content(self) -> str:
         return self.message.content or ""
 
@@ -199,10 +211,10 @@ class ChatCompletionResult(BaseModel):
 
 async def chat_completion(
     client: AsyncAzureOpenAI,
+    *,
     deployment_id: str,
     messages: List[ChatCompletionMessageParam],
     stream: bool,
-    *,
     stop: List[str] | NotGiven = NOT_GIVEN,
     max_completion_tokens: int | NotGiven = NOT_GIVEN,
     max_tokens: int | NotGiven = NOT_GIVEN,

@@ -137,10 +137,15 @@ class TestSuite:
 
     @property
     def supports_vision(self):
-        types = self.deployment_config.model_attachments or []
-        return any(
-            ty.startswith("image/") or ty.startswith("*/") for ty in types
-        )
+        return self.deployment_config.supports_vision
+
+    @property
+    def supports_image_generation(self):
+        return self.deployment_config.model_features.imageGenerationSupported
+
+    @property
+    def supports_image_editing(self):
+        return self.deployment_config.model_features.imageEditingSupported
 
     @property
     def supports_reasoning(self):

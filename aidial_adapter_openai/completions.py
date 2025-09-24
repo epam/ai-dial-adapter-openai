@@ -21,6 +21,7 @@ def convert_to_chat_completions_response(
 ) -> Dict[str, Any]:
     converted_chunk = build_chunk(
         id=chunk.id,
+        model=chunk.model,
         finish_reason=chunk.choices[0].finish_reason,
         message={
             "content": sanitize_text(chunk.choices[0].text),

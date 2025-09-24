@@ -1,7 +1,6 @@
 import logging
 from time import time
 from typing import (
-    Any,
     AsyncIterator,
     Callable,
     Coroutine,
@@ -39,9 +38,11 @@ def generate_created() -> int:
 
 
 def build_chunk(
+    *,
     id: str,
+    model: str,
     finish_reason: Optional[str],
-    message: Any,
+    message: dict | List[dict],
     created: int,
     is_stream: bool,
     **extra,
@@ -49,17 +50,19 @@ def build_chunk(
     message_key = "delta" if is_stream else "message"
     object_name = "chat.completion.chunk" if is_stream else "chat.completion"
 
+    messages = [message] if isinstance(message, dict) else message
+
+    choices = [
+        {"index": index, message_key: msg, "finish_reason": finish_reason}
+        for (index, msg) in enumerate(messages)
+    ]
+
     return {
         "id": id,
+        "model": model,
         "object": object_name,
         "created": created,
-        "choices": [
-            {
-                "index": 0,
-                message_key: message,
-                "finish_reason": finish_reason,
-            }
-        ],
+        "choices": choices,
         **extra,
     }
 
