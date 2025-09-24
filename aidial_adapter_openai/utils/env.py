@@ -25,7 +25,12 @@ def get_env_list(name: str) -> List[str] | None:
 
 def get_env_dict(key: str) -> Dict[str, str] | None:
     if (value := os.getenv(key)) is not None:
-        return json.loads(value)
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Environment variable {key!r} is not a valid JSON: {value!r}"
+            ) from e
     return None
 
 
