@@ -2,9 +2,10 @@ import json
 import logging
 from typing import Dict, Generator, assert_never
 
+import openai
+import pydantic
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InternalServerError
-from openai import BaseModel
 from openai.types.chat.chat_completion_chunk import (
     ChatCompletionChunk,
     Choice,
@@ -101,54 +102,54 @@ from aidial_adapter_openai.responses.response import (
 from aidial_adapter_openai.utils.log_config import logger
 
 
-class ErrorBody(BaseModel):
+class ErrorBody(openai.BaseModel):
     message: str
     code: str | None = None
     param: str | None = None
 
 
-class ErrorChunk(BaseModel):
+class ErrorChunk(openai.BaseModel):
     error: ErrorBody
 
 
-class EventHandler(BaseModel):
-    _id: str | None = None
-    _created: int | None = None
-    _model: str | None = None
+class EventHandler(pydantic.BaseModel):
+    id_: str | None = None
+    created_: int | None = None
+    model_: str | None = None
 
-    _tool_calls: Dict[str, int] = {}
+    tool_calls: Dict[str, int] = {}
     """Map item_id for a tool call onto its index in the chat completion response
     """
 
-    _stages: int = 0
+    stages: int = 0
     """Number of stages attached to the choice"""
 
     @property
     def id(self) -> str:
-        if self._id is None:
+        if self.id_ is None:
             raise DialException("Response ID is not set")
-        return self._id
+        return self.id_
 
     @property
     def created(self) -> int:
-        if self._created is None:
+        if self.created_ is None:
             raise DialException("Response creation time is not set")
-        return self._created
+        return self.created_
 
     @property
     def model(self) -> str:
-        if self._model is None:
+        if self.model_ is None:
             raise DialException("Response model is not set")
-        return self._model
+        return self.model_
 
     def _append_to_stage(
         self, stage_index: int, content: str
     ) -> Generator[ChatCompletionChunk, None, None]:
-        for index in range(self._stages, stage_index + 1):
+        for index in range(self.stages, stage_index + 1):
             suffix = "" if index == 0 else f" #{index+1}"
             yield self._open_stage(index, "Reasoning" + suffix)
 
-        self._stages = max(self._stages, stage_index + 1)
+        self.stages = max(self.stages, stage_index + 1)
 
         yield self._chunk(
             choice=Choice(
@@ -219,8 +220,8 @@ class EventHandler(BaseModel):
         name: str,
         call_id: str,
     ) -> ChatCompletionChunk:
-        idx = len(self._tool_calls)
-        self._tool_calls[item_id] = idx
+        idx = len(self.tool_calls)
+        self.tool_calls[item_id] = idx
 
         return self._chunk(
             choice=Choice(
@@ -241,7 +242,7 @@ class EventHandler(BaseModel):
         )
 
     def _tool_call_delta(self, item_id: str, delta: str) -> ChatCompletionChunk:
-        if (idx := self._tool_calls.get(item_id)) is None:
+        if (idx := self.tool_calls.get(item_id)) is None:
             raise InternalServerError(
                 "Cannot add delta to an unopened tool call"
             )
@@ -270,9 +271,9 @@ class EventHandler(BaseModel):
 
         match event:
             case ResponseCreatedEvent(response=response):
-                self._id = response.id
-                self._created = int(response.created_at)
-                self._model = response.model
+                self.id_ = response.id
+                self.created_ = int(response.created_at)
+                self.model_ = response.model
                 yield self._chunk(
                     choice=Choice(index=0, delta=ChoiceDelta(role="assistant"))
                 )
