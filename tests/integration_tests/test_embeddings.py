@@ -7,7 +7,6 @@ from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from tests.integration_tests.base import (
     DeploymentConfig,
     EmbeddingsDeploymentType,
-    sanitize_id_part,
 )
 from tests.integration_tests.constants import (
     IMAGE_RESOURCE,
@@ -26,15 +25,7 @@ def app_config() -> ApplicationConfig:
 
 if _deployments:
 
-    def _display_config(deployment: D) -> str:
-        upstream_idx = deployment.upstream_idx
-        parts = [
-            sanitize_id_part(deployment.id_),
-            *([] if upstream_idx is None else [f"upstream:{upstream_idx}"]),
-        ]
-        return "/".join(parts)
-
-    @pytest.fixture(params=_deployments, ids=_display_config)
+    @pytest.fixture(params=_deployments, ids=lambda d: d.display_config())
     def deployment(request) -> D:
         return request.param
 

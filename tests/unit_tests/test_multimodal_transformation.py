@@ -9,7 +9,7 @@ from aidial_adapter_openai.utils.image import ImageResource
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.resource import Resource
 from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
-from tests.utils.storage import MockFileStorage
+from tests.utils.storage import DummyFileStorage
 
 TOKENS_FOR_TEXT = 10
 TOKENS_FOR_IMAGE = 20
@@ -36,7 +36,7 @@ def text(text: str) -> dict:
 
 @pytest.fixture
 def mock_resource_processor():
-    return ResourceProcessor(file_storage=MockFileStorage())
+    return ResourceProcessor(file_storage=DummyFileStorage())
 
 
 @pytest.mark.parametrize(
