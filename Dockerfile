@@ -31,7 +31,7 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
 
 # Runtime libs for arm64
 RUN if [ "$TARGETARCH" = "arm64" ] || [ "$(apk --print-arch)" = "aarch64" ]; then \
-      apk add --no-cache libffi; \
+      apk add --no-cache libffi libstdc++; \
     fi
 
 # fix CVE-2023-52425
