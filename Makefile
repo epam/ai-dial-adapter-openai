@@ -1,6 +1,6 @@
 PORT ?= 5001
 IMAGE_NAME ?= ai-dial-adapter-openai
-PLATFORM ?= linux/arm64
+PLATFORM ?= linux/amd64
 VENV_DIR ?= .venv
 POETRY ?= $(VENV_DIR)/bin/poetry
 POETRY_VERSION ?= 2.1.1
@@ -40,7 +40,7 @@ integration_test: install
 	$(POETRY) run -- nox -s integration_test -- $(ARGS)
 
 docker_serve:
-	docker build --progress=plain --platform $(PLATFORM) -t $(IMAGE_NAME):dev .
+	docker build --platform $(PLATFORM) -t $(IMAGE_NAME):dev .
 	docker run --platform $(PLATFORM) --env-file ./.env --rm -p $(PORT):5000 $(IMAGE_NAME):dev
 
 help:
