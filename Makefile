@@ -40,7 +40,7 @@ integration_test: install
 	$(POETRY) run -- nox -s integration_test -- $(ARGS)
 
 docker_serve:
-	docker build --platform $(PLATFORM) -t $(IMAGE_NAME):dev .
+	docker build --progress=plain --platform $(PLATFORM) -t $(IMAGE_NAME):dev .
 	docker run --platform $(PLATFORM) --env-file ./.env --rm -p $(PORT):5000 $(IMAGE_NAME):dev
 
 help:
