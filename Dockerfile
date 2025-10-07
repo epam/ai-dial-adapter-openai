@@ -48,4 +48,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
 
 ENV TIKTOKEN_CACHE_DIR=/app/tiktoken_cache
 
-ENTRYPOINT ["docker_entrypoint.sh"]
+ENTRYPOINT ["/docker_entrypoint.sh"]
