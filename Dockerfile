@@ -1,12 +1,7 @@
 FROM python:3.11-alpine AS builder
-ARG TARGETARCH
 
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
-# Installing Rust to build tiktoken from source on arm64
-RUN apk add --no-cache alpine-sdk linux-headers \
-    && if [ "$TARGETARCH" = "arm64" ] || [ "$(apk --print-arch)" = "aarch64" ]; then \
-         apk add --no-cache rust cargo libffi-dev pkgconf openssl-dev; \
-       fi
+RUN apk add --no-cache alpine-sdk linux-headers
 RUN pip install poetry==2.1.1
 
 WORKDIR /app
@@ -25,14 +20,8 @@ COPY aidial_adapter_openai aidial_adapter_openai
 RUN poetry install --no-interaction --no-ansi --no-cache --only main
 
 FROM python:3.11-alpine AS server
-ARG TARGETARCH
 
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
-
-# Runtime libs for arm64
-RUN if [ "$TARGETARCH" = "arm64" ] || [ "$(apk --print-arch)" = "aarch64" ]; then \
-      apk add --no-cache libffi libstdc++; \
-    fi
 
 # fix CVE-2023-52425
 RUN apk upgrade --no-cache libexpat
@@ -44,7 +33,7 @@ RUN apk upgrade --no-cache sqlite-libs
 WORKDIR /app
 
 # Copy the sources and virtual env. No poetry.
-RUN adduser --uid 1001 --disabled-password --gecos "" appuser
+RUN adduser -u 1001 --disabled-password --gecos "" appuser
 COPY --chown=appuser --from=builder /app .
 
 COPY ./scripts/docker_entrypoint.sh /docker_entrypoint.sh
