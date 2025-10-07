@@ -1,6 +1,6 @@
 PORT ?= 5001
 IMAGE_NAME ?= ai-dial-adapter-openai
-PLATFORM ?= linux/amd64
+PLATFORM ?= linux/arm64
 VENV_DIR ?= .venv
 POETRY ?= $(VENV_DIR)/bin/poetry
 POETRY_VERSION ?= 2.1.1
