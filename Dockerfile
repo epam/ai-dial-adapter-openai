@@ -49,4 +49,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
 
 ENV TIKTOKEN_CACHE_DIR=/app/tiktoken_cache
 
-CMD uvicorn aidial_adapter_openai.app:app --host 0.0.0.0 --port 5000 --timeout-keep-alive ${TIMEOUT_KEEP_ALIVE:-5}
+CMD uvicorn aidial_adapter_openai.app:app  --host 0.0.0.0 --port 5000 --timeout-keep-alive ${TIMEOUT_KEEP_ALIVE:-5}
