@@ -73,11 +73,14 @@ class FileStorage(BaseModel):
         log.debug(f"Uploaded file: url={url}, metadata={meta}")
         return meta
 
-    async def upload_file_as_base64(
-        self, upload_dir: str, data: str, content_type: str
+    async def upload_file(
+        self, upload_dir: str, data: str | bytes, content_type: str
     ) -> FileMetadata:
         filename = _compute_hash_digest(data)
-        content: bytes = base64.b64decode(data)
+        if isinstance(data, str):
+            content: bytes = base64.b64decode(data)
+        else:
+            content = data
         return await self.upload(upload_dir, filename, content_type, content)
 
     def attachment_link_to_url(self, link: str) -> str:
@@ -116,8 +119,10 @@ async def download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
     return response.read()
 
 
-def _compute_hash_digest(file_content: str) -> str:
-    return hashlib.sha256(file_content.encode()).hexdigest()
+def _compute_hash_digest(file_content: str | bytes) -> str:
+    if isinstance(file_content, str):
+        file_content = file_content.encode()
+    return hashlib.sha256(file_content).hexdigest()
 
 
 DIAL_USE_FILE_STORAGE = get_env_bool("DIAL_USE_FILE_STORAGE", False)
