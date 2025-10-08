@@ -1,4 +1,6 @@
+import asyncio
 import base64
+import json
 from typing import Any, Dict, List
 
 import fastapi
@@ -14,6 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import DIAL_URL, FileStorage
+from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
@@ -83,11 +86,12 @@ def _user_facing_error(
 
 
 async def _create_job(
-    *, stage: Stage, endpoint: str, body: Dict[str, Any]
+    *, stage: Stage, endpoint: str, headers: dict, body: Dict[str, Any]
 ) -> str:
     resp = await get_http_client().post(
-        url=endpoint,
+        url=f"{endpoint}/jobs",
         json=body,
+        headers=headers,
         params={"api-version": "preview"},
     )
 
@@ -104,25 +108,36 @@ async def _create_job(
 
 async def _poll_job(
     *,
+    response: DIALResponse,
     choice: Choice,
     stage: Stage,
     storage: FileStorage | None,
     endpoint: str,
+    headers: dict,
     job_id: str,
+    polling_interval: float,
 ) -> None:
-    job_url = f"{endpoint}/{job_id}"
+    job_url = f"{endpoint}/jobs/{job_id}"
 
     while True:
-        response = await get_http_client().get(
-            url=job_url, params={"api-version": "preview"}
+        await asyncio.sleep(polling_interval)
+
+        job_status_response = await get_http_client().get(
+            url=job_url,
+            headers=headers,
+            params={"api-version": "preview"},
         )
 
-        if not response.is_success:
+        if not job_status_response.is_success:
             raise _user_facing_error(
-                "Polling video generation job status failed", response
+                "Polling video generation job status failed",
+                job_status_response,
             )
 
-        job_info = response.json()
+        job_info = job_status_response.json()
+
+        logger.debug(f"job status: {json.dumps(job_info)}")
+
         status = job_info.get("status")
 
         if status:
@@ -135,6 +150,10 @@ async def _poll_job(
                     "Video generation succeeded but no generations found"
                 )
 
+            response.set_usage(
+                prompt_tokens=0, completion_tokens=len(generations)
+            )
+
             for idx, generation in enumerate(generations, start=1):
                 title = "video"
                 if len(generations) > 1:
@@ -143,7 +162,9 @@ async def _poll_job(
                 generation_id = generation.get("id")
                 video_url = f"{endpoint}/{generation_id}/content/video"
                 video_response = await get_http_client().get(
-                    url=video_url, params={"api-version": "preview"}
+                    url=video_url,
+                    headers=headers,
+                    params={"api-version": "preview"},
                 )
                 if not video_response.is_success:
                     raise _user_facing_error(
@@ -152,10 +173,11 @@ async def _poll_job(
                     )
 
                 video_bytes = video_response.content
+                content_type = "video/mp4"
 
                 if storage:
                     file_metadata = await storage.upload_file(
-                        "videos", video_bytes, "video/mp4"
+                        "videos", video_bytes, content_type
                     )
                     url = file_metadata["url"]
                     data = None
@@ -164,7 +186,7 @@ async def _poll_job(
                     data = base64.b64encode(video_bytes).decode("utf-8")
 
                 choice.add_attachment(
-                    title=title, type="video/mp4", url=url, data=data
+                    title=title, type=content_type, url=url, data=data
                 )
 
             return
@@ -188,10 +210,20 @@ def _get_prompt(request_body: Dict[str, Any]) -> str:
     return prompt
 
 
+def _get_headers(creds: OpenAICreds) -> Dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if key := creds.get("api_key"):
+        headers["api_key"] = key
+    if token := creds.get("azure_ad_token"):
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 async def chat_completion(
     *,
     request: fastapi.Request,
     request_body: Dict[str, Any],
+    creds: OpenAICreds,
     deployment_id: str,
     upstream_endpoint: str,
     file_storage: FileStorage | None,
@@ -209,7 +241,11 @@ async def chat_completion(
     )
     response = DIALResponse(request=dial_request)
 
+    headers = _get_headers(creds)
+
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
+        response.set_model(model_name)
+
         with response.create_single_choice() as choice:
             with choice.create_stage(name="Generation") as stage:
                 job_id = await _create_job(
@@ -219,23 +255,28 @@ async def chat_completion(
                         **configuration.dict(),
                     },
                     stage=stage,
+                    headers=headers,
                     endpoint=upstream_endpoint,
                 )
 
                 await _poll_job(
+                    response=response,
                     choice=choice,
                     stage=stage,
                     job_id=job_id,
+                    headers=headers,
                     storage=file_storage,
                     endpoint=upstream_endpoint,
+                    polling_interval=3.0,
                 )
 
     stream = response._generate_stream(_handler)
 
-    if request.stream:
+    if dial_request.stream:
         return StreamingResponse(
             await to_streaming_response(stream),
             media_type="text/event-stream",
         )
     else:
-        return JSONResponse(content=await to_block_response(stream))
+        content = await to_block_response(stream)
+        return JSONResponse(content=content)

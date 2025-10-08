@@ -34,16 +34,17 @@ class FileStorage(BaseModel):
         return {"api-key": self.api_key.get_secret_value()}
 
     async def _get_bucket(self) -> Bucket:
-        if self.bucket is None:
-            response = await get_http_client().get(
-                f"{self.dial_url}/v1/bucket",
-                headers=self.headers,
-            )
-            response.raise_for_status()
-            self.bucket = response.json()
-            log.debug(f"bucket: {self.bucket}")
+        if self.bucket is not None:
+            return self.bucket
 
-        return self.bucket
+        response = await get_http_client().get(
+            f"{self.dial_url}/v1/bucket",
+            headers=self.headers,
+        )
+        response.raise_for_status()
+        bucket = self.bucket = response.json()
+        log.debug(f"bucket: {bucket}")
+        return bucket
 
     async def _get_user_bucket(self) -> str:
         bucket = await self._get_bucket()

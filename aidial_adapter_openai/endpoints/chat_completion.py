@@ -100,6 +100,7 @@ async def call_chat_completion(
             return await azure_video_gen(
                 request=request,
                 request_body=request_body,
+                creds=creds,
                 deployment_id=deployment_id,
                 upstream_endpoint=upstream_endpoint,
                 file_storage=file_storage,

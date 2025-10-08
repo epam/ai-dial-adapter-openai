@@ -339,7 +339,7 @@
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/v1/video/generations/jobs",
+                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/v1/video/generations",
                     "key": "optional-api-key"
                 }
             ]

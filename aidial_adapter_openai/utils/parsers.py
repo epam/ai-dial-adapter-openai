@@ -111,7 +111,7 @@ embeddings_parser = EndpointParser(name="embeddings")
 responses_parser = EndpointParser(name="responses")
 no_endpoint_parser = EndpointParser(name=None)
 completions_parser = CompletionsParser()
-azure_video_api_parser = EndpointParser(name="video/generations/jobs")
+azure_video_api_parser = EndpointParser(name="video/generations")
 
 
 async def parse_body(request: Request) -> Dict[str, Any]:

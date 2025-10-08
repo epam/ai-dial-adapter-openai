@@ -57,19 +57,25 @@ async def test_text_to_video(
     videogen_deployment: D,
     stream: bool,
 ) -> None:
+    config = {
+        "n_seconds": 1,
+        "n_variants": 2,
+    }
+
     response = await chat_completion(
         create_openai_client(videogen_deployment),
         stream=stream,
         deployment_id=videogen_deployment.model_name,
         messages=[user("a cat with octopus tentacles riding a bike on Mars")],
+        extra_body={"custom_fields": {"configuration": config}},
     )
 
     assert response.usage is not None
     assert response.usage.prompt_tokens == 0
-    assert response.usage.completion_tokens == 1
+    assert response.usage.completion_tokens == 2
 
     for attachments in response.all_attachments:
         video_attachments = [
             a for a in attachments if "video" in a.get("type", "")
         ]
-        assert len(video_attachments) == 1
+        assert len(video_attachments) == 2
