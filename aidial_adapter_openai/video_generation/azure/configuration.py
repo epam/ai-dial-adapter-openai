@@ -6,7 +6,7 @@ _supported_dimensions = "The following dimensions are supported: 480x480, 854x48
 
 
 class VideoGenerationConfig(ExtraAllowedModel):
-    """The configuration is modelled after the official spec:
+    """Modelled following the official spec:
     https://github.com/Azure/azure-rest-api-specs/blob/main/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L6730
     """
 

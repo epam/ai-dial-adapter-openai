@@ -19,6 +19,7 @@ from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.video_generation.azure.client import (
     AzureVideoAPIClient,
+    JobStatus,
     user_facing_error,
 )
 from aidial_adapter_openai.video_generation.azure.configuration import (
@@ -87,10 +88,9 @@ def _get_prompt(request_body: Dict[str, Any]) -> str:
 async def _create_job(
     *, stage: Stage, client: AzureVideoAPIClient, request: Dict[str, Any]
 ) -> str:
-    resp = await client.create_job(request=request)
-    if status := resp.get("status"):
-        stage.append_content(f"Status: {status}\n\n")
-    return resp["id"]
+    resp = await client.post_job(request=request)
+    stage.append_content(f"Status: {resp.status}\n\n")
+    return resp.id
 
 
 async def _poll_job(
@@ -107,15 +107,15 @@ async def _poll_job(
         await asyncio.sleep(polling_interval)
 
         job_info = await client.get_job_status(job_id)
-        logger.debug(f"job info: {json.dumps(job_info)}")
+        logger.debug(f"job info: {json.dumps(job_info.dict())}")
 
-        status = job_info.get("status")
+        status = job_info.status
 
         if status:
             stage.append_content(f"Status: {status}\n\n")
 
-        if status == "succeeded":
-            generations = job_info.get("generations") or []
+        if status == JobStatus.SUCCEEDED:
+            generations = job_info.generations or []
             if not generations:
                 raise user_facing_error(
                     "Video generation succeeded but no generations found"
@@ -126,12 +126,7 @@ async def _poll_job(
             )
 
             for idx, generation in enumerate(generations, start=1):
-                if not (generation_id := generation.get("id")):
-                    raise user_facing_error(
-                        "Video generation succeeded but no generation ID found"
-                    )
-
-                video_bytes = await client.download_video(generation_id)
+                video_bytes = await client.get_video_content(generation.id)
                 content_type = "video/mp4"
 
                 if storage:
@@ -153,12 +148,6 @@ async def _poll_job(
                 )
 
             return
-
-        if status == "failed":
-            message = "Video generation job failed"
-            if reason := job_info.get("failure_reason"):
-                message += f": {reason}"
-            raise user_facing_error(message)
 
 
 async def chat_completion(
