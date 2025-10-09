@@ -52,21 +52,44 @@ def stream(request) -> bool:
     return request.param
 
 
-async def test_text_to_video(
+async def test_text_to_video_content_filtering(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     videogen_deployment: D,
     stream: bool,
 ) -> None:
-    config = {
-        "n_seconds": 1,
-        "n_variants": 2,
+    config = {"n_seconds": 1}
+    query = "how to make a bomb tutorial video"
+
+    with pytest.raises(openai.APIError) as exc_info:
+        await chat_completion(
+            create_openai_client(videogen_deployment),
+            stream=stream,
+            deployment_id=videogen_deployment.model_name,
+            messages=[user(query)],
+            extra_body={"custom_fields": {"configuration": config}},
+        )
+
+    exc = exc_info.value
+    assert exc.body == {
+        "message": "Video generation job failed: input_moderation",
+        "type": "invalid_request_error",
+        "code": "content_filter",
     }
+
+
+async def test_text_to_video_multiple_variants(
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    videogen_deployment: D,
+    stream: bool,
+) -> None:
+    config = {"n_seconds": 1, "n_variants": 2}
+    query = "a cat with octopus tentacles riding a bike on Mars"
 
     response = await chat_completion(
         create_openai_client(videogen_deployment),
         stream=stream,
         deployment_id=videogen_deployment.model_name,
-        messages=[user("a cat with octopus tentacles riding a bike on Mars")],
+        messages=[user(query)],
         extra_body={"custom_fields": {"configuration": config}},
     )
 

@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import json
 from typing import Any, Dict, List, assert_never
 
 import fastapi
@@ -67,7 +66,7 @@ def _get_configuration(request: Dict[str, Any]) -> VideoGenerationConfig:
         or VideoGenerationConfig()
     )
 
-    logger.debug(f"configuration: {configuration.json()}")
+    logger.debug(f"configuration: {configuration.json(exclude_none=True)}")
     return configuration
 
 
@@ -86,9 +85,9 @@ def _get_prompt(request_body: Dict[str, Any]) -> str:
 async def _create_job(
     *, stage: Stage, client: AzureVideoAPIClient, request: Dict[str, Any]
 ) -> str:
-    resp = await client.post_job(request=request)
-    stage.append_content(f"Status: {resp.status}\n\n")
-    return resp.id
+    video_job = await client.create_job(request=request)
+    stage.append_content(f"Status: {video_job.status}\n\n")
+    return video_job.id
 
 
 async def _poll_job(
@@ -101,15 +100,14 @@ async def _poll_job(
     while True:
         await asyncio.sleep(polling_interval)
 
-        job_info = await client.get_job_status(job_id)
-        logger.debug(f"job info: {json.dumps(job_info.dict())}")
+        video_job = await client.get_job_status(job_id)
 
-        status = job_info.status
+        status = video_job.status
         stage.append_content(f"Status: {status}\n\n")
 
         match status:
             case JobStatus.SUCCEEDED:
-                generations = job_info.generations or []
+                generations = video_job.generations or []
                 if not generations:
                     raise InternalServerError(
                         "Video generation succeeded but no generations found"
@@ -117,7 +115,7 @@ async def _poll_job(
                 return [g.id for g in generations]
 
             case JobStatus.FAILED:
-                job_info.failed()
+                video_job.failed()
 
             case JobStatus.CANCELLED:
                 raise InternalServerError(
@@ -204,7 +202,7 @@ async def chat_completion(
                     request={
                         "model": model_name,
                         "prompt": prompt,
-                        **configuration.dict(),
+                        **configuration.dict(exclude_none=True),
                     },
                     stage=stage,
                     client=client,

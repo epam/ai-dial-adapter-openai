@@ -1,8 +1,9 @@
+import json
 from enum import Enum
 from typing import Dict, List, Literal, NoReturn, Self
 
 import httpx
-from aidial_sdk.exceptions import InternalServerError
+from aidial_sdk.exceptions import InternalServerError, InvalidRequestError
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
@@ -18,6 +19,9 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+
+    def __str__(self):
+        return self.value
 
 
 class VideoGeneration(BaseModel):
@@ -37,7 +41,7 @@ class VideoGenerationJob(BaseModel):
     status: JobStatus
     generations: List[VideoGeneration] | None = None
     failure_reason: (
-        str | Literal["input_moderation", "input_moderation"] | None
+        str | Literal["input_moderation", "internal_error"] | None
     ) = None
 
     def raise_on_failure(self) -> Self:
@@ -46,10 +50,18 @@ class VideoGenerationJob(BaseModel):
         return self
 
     def failed(self) -> NoReturn:
+        assert self.status == JobStatus.FAILED
+
         message = "Video generation job failed"
         if reason := self.failure_reason:
             message += f": {reason}"
-        raise _user_facing_error(message)
+
+            if reason == "input_moderation":
+                raise InvalidRequestError(
+                    code="content_filter", message=message
+                )
+
+        raise _internal_server_error(message)
 
 
 class AzureVideoAPIClient(BaseModel):
@@ -77,17 +89,19 @@ class AzureVideoAPIClient(BaseModel):
     def _client_options(self) -> dict:
         return {"headers": self._headers, "params": self._params}
 
-    async def post_job(self, request: dict) -> VideoGenerationJob:
+    async def create_job(self, request: dict) -> VideoGenerationJob:
         url = f"{self.base_url}/jobs"
         resp = await self._client.post(
             url=url, json=request, **self._client_options
         )
         if not resp.is_success:
-            raise _user_facing_error(
+            raise _internal_server_error(
                 "Video generation job creation failed", resp
             )
 
-        return VideoGenerationJob.parse_obj(resp.json()).raise_on_failure()
+        resp_body = resp.json()
+        logger.debug(f"job created: {json.dumps(resp_body)}")
+        return VideoGenerationJob.parse_obj(resp_body).raise_on_failure()
 
     async def get_job_status(self, job_id: str) -> VideoGenerationJob:
         url = f"{self.base_url}/jobs/{job_id}"
@@ -95,11 +109,13 @@ class AzureVideoAPIClient(BaseModel):
         resp = await get_http_client().get(url=url, **self._client_options)
 
         if not resp.is_success:
-            raise _user_facing_error(
+            raise _internal_server_error(
                 "Getting the status of a video generation job failed", resp
             )
 
-        return VideoGenerationJob.parse_obj(resp.json()).raise_on_failure()
+        resp_body = resp.json()
+        logger.debug(f"job status polled: {json.dumps(resp_body)}")
+        return VideoGenerationJob.parse_obj(resp_body).raise_on_failure()
 
     async def get_video_content(self, generation_id: str) -> bytes:
         url = f"{self.base_url}/{generation_id}/content/video"
@@ -107,18 +123,18 @@ class AzureVideoAPIClient(BaseModel):
         resp = await get_http_client().get(url=url, **self._client_options)
 
         if not resp.is_success:
-            raise _user_facing_error(
+            raise _internal_server_error(
                 "Fetching generated video content failed", resp
             )
 
         return resp.content
 
 
-def _user_facing_error(
+def _internal_server_error(
     message: str, response: httpx.Response | None = None
 ) -> InternalServerError:
     if response:
         logger.error(f"{message}: {response.status_code} {response.text}")
     else:
         logger.error(message)
-    return InternalServerError(message=message, display_message=message)
+    return InternalServerError(message=message)
