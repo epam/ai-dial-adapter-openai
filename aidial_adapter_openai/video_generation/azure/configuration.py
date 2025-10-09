@@ -12,11 +12,11 @@ class VideoGenerationConfig(ExtraAllowedModel):
 
     width: int = Field(
         default=480,
-        description=f"The height of the video. {_supported_dimensions}",
+        description=f"The width of the video. {_supported_dimensions}",
     )
     height: int = Field(
         default=480,
-        description=f"The width of the video. {_supported_dimensions}",
+        description=f"The height of the video. {_supported_dimensions}",
     )
     n_seconds: int | None = Field(
         default=None,
