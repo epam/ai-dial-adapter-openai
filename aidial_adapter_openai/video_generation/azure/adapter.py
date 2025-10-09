@@ -12,42 +12,18 @@ from aidial_sdk.chat_completion import Stage
 from aidial_sdk.exceptions import RequestValidationError
 from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import Field
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import DIAL_URL, FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
-from aidial_adapter_openai.video_generation.azure_client import (
+from aidial_adapter_openai.video_generation.azure.client import (
     AzureVideoAPIClient,
     user_facing_error,
 )
-
-_supported_dimensions = "The following dimensions are supported: 480x480, 854x480, 720x720, 1280x720, 1080x1080 and 1920x1080 in both landscape and portrait orientations."
-
-
-class VideoGenerationConfig(ExtraAllowedModel):
-    """The configuration is modelled after the official spec:
-    https://github.com/Azure/azure-rest-api-specs/blob/main/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L6730
-    """
-
-    width: int = Field(
-        default=480,
-        description=f"The height of the video. {_supported_dimensions}",
-    )
-    height: int = Field(
-        default=480,
-        description=f"The width of the video. {_supported_dimensions}",
-    )
-    n_seconds: int | None = Field(
-        default=None,
-        description="The duration of the video generation job. Must be between 1 and 20 seconds.",
-    )
-    n_variants: int | None = Field(
-        default=None,
-        description="The number of videos to create as variants for this job. Must be between 1 and 5. Smaller dimensions allow more variants.",
-    )
+from aidial_adapter_openai.video_generation.azure.configuration import (
+    VideoGenerationConfig,
+)
 
 
 def _validate_request(request: Dict[str, Any]) -> None:
@@ -94,6 +70,18 @@ def _get_configuration(request: Dict[str, Any]) -> VideoGenerationConfig:
 
     logger.debug(f"configuration: {configuration.json()}")
     return configuration
+
+
+def _get_prompt(request_body: Dict[str, Any]) -> str:
+    messages = request_body["messages"]
+    prompt = messages[-1].get("content") or ""
+    if not isinstance(prompt, str):
+        raise RequestValidationError(
+            "The last message must contain a text content."
+        )
+    if not prompt.strip():
+        raise RequestValidationError("The prompt cannot be empty.")
+    return prompt
 
 
 async def _create_job(
@@ -171,18 +159,6 @@ async def _poll_job(
             if reason := job_info.get("failure_reason"):
                 message += f": {reason}"
             raise user_facing_error(message)
-
-
-def _get_prompt(request_body: Dict[str, Any]) -> str:
-    messages = request_body["messages"]
-    prompt = messages[-1].get("content") or ""
-    if not isinstance(prompt, str):
-        raise RequestValidationError(
-            "The last message must contain a text content."
-        )
-    if not prompt.strip():
-        raise RequestValidationError("The prompt cannot be empty.")
-    return prompt
 
 
 async def chat_completion(

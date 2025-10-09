@@ -34,7 +34,7 @@ from aidial_adapter_openai.utils.request import (
 )
 from aidial_adapter_openai.utils.streaming import create_server_response
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
-from aidial_adapter_openai.video_generation.azure import (
+from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
 )
 
