@@ -306,6 +306,61 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
 > [!IMPORTANT]
 > The DALL·E 3 adapter deployment must be declared in `DALLE3_DEPLOYMENTS` env variable, and GPT-Image 1 deployment - in `GPT_IMAGE_1_DEPLOYMENTS`.
 
+#### [Azure OpenAI Video API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/video-generation-quickstart)
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/video/generations",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+The supported upstream models are `sora`. This is the value that `AZURE_OPENAI_DEPLOYMENT_ID` variable can take.
+
+The video generation models support configuration via the `custom_fields.configuration` field in the chat completion request:
+
+```json
+{
+  "model": "sora",
+  "messages": [
+    {
+      "role": "user",
+      "content": "A cat playing with a ball of yarn"
+    }
+  ],
+  "custom_fields": {
+    "configuration": {
+      "width": 480,
+      "height": 480,
+      "n_seconds": 5,
+      "n_variants": 1
+    }
+  }
+}
+```
+
+Width and height are defaulted to 480x480 if not specified.
+
+Find the details in the [Azure API specification](https://github.com/Azure/azure-rest-api-specs/blob/691227eb0ccbaf57f8fda11e52692b4dd8600ccb/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L6730-L6763).
+
+> [!NOTE]
+> `n_variants>1` results in multiple video attachments to a **single chat completion choice**.
+
 #### OpenAI Completions API
 
 The adapter also supports **legacy** [Completions API](https://platform.openai.com/docs/api-reference/completions/create) both for Azure-style upstream endpoints and OpenAI Platform-style endpoints:
