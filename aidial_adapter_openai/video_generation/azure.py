@@ -4,13 +4,12 @@ import json
 from typing import Any, Dict, List
 
 import fastapi
-import httpx
 from aidial_sdk.chat_completion import Choice
 from aidial_sdk.chat_completion import Request
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.chat_completion import Stage
-from aidial_sdk.exceptions import InternalServerError, RequestValidationError
+from aidial_sdk.exceptions import RequestValidationError
 from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import Field
@@ -18,14 +17,21 @@ from pydantic import Field
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import DIAL_URL, FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
+from aidial_adapter_openai.video_generation.azure_client import (
+    AzureVideoAPIClient,
+    user_facing_error,
+)
 
 _supported_dimensions = "The following dimensions are supported: 480x480, 854x480, 720x720, 1280x720, 1080x1080 and 1920x1080 in both landscape and portrait orientations."
 
 
 class VideoGenerationConfig(ExtraAllowedModel):
+    """The configuration is modelled after the official spec:
+    https://github.com/Azure/azure-rest-api-specs/blob/main/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L6730
+    """
+
     width: int = Field(
         default=480,
         description=f"The height of the video. {_supported_dimensions}",
@@ -90,35 +96,13 @@ def _get_configuration(request: Dict[str, Any]) -> VideoGenerationConfig:
     return configuration
 
 
-def _user_facing_error(
-    message: str, response: httpx.Response | None = None
-) -> InternalServerError:
-    if response:
-        logger.error(f"{message}: {response.status_code} {response.text}")
-    else:
-        logger.error(message)
-    return InternalServerError(message=message, display_message=message)
-
-
 async def _create_job(
-    *, stage: Stage, endpoint: str, headers: dict, body: Dict[str, Any]
+    *, stage: Stage, client: AzureVideoAPIClient, request: Dict[str, Any]
 ) -> str:
-    resp = await get_http_client().post(
-        url=f"{endpoint}/jobs",
-        json=body,
-        headers=headers,
-        params={"api-version": "preview"},
-    )
-
-    if not resp.is_success:
-        raise _user_facing_error("Video generation job creation failed", resp)
-
-    resp_body = resp.json()
-
-    if status := resp_body.get("status"):
+    resp = await client.create_job(request=request)
+    if status := resp.get("status"):
         stage.append_content(f"Status: {status}\n\n")
-
-    return resp_body["id"]
+    return resp["id"]
 
 
 async def _poll_job(
@@ -127,31 +111,15 @@ async def _poll_job(
     choice: Choice,
     stage: Stage,
     storage: FileStorage | None,
-    endpoint: str,
-    headers: dict,
+    client: AzureVideoAPIClient,
     job_id: str,
     polling_interval: float,
 ) -> None:
-    job_url = f"{endpoint}/jobs/{job_id}"
-
     while True:
         await asyncio.sleep(polling_interval)
 
-        job_status_response = await get_http_client().get(
-            url=job_url,
-            headers=headers,
-            params={"api-version": "preview"},
-        )
-
-        if not job_status_response.is_success:
-            raise _user_facing_error(
-                "Polling video generation job status failed",
-                job_status_response,
-            )
-
-        job_info = job_status_response.json()
-
-        logger.debug(f"job status: {json.dumps(job_info)}")
+        job_info = await client.get_job_status(job_id)
+        logger.debug(f"job info: {json.dumps(job_info)}")
 
         status = job_info.get("status")
 
@@ -161,7 +129,7 @@ async def _poll_job(
         if status == "succeeded":
             generations = job_info.get("generations") or []
             if not generations:
-                raise _user_facing_error(
+                raise user_facing_error(
                     "Video generation succeeded but no generations found"
                 )
 
@@ -170,35 +138,27 @@ async def _poll_job(
             )
 
             for idx, generation in enumerate(generations, start=1):
-                title = "video"
-                if len(generations) > 1:
-                    title += f" #{idx}"
-
-                generation_id = generation.get("id")
-                video_url = f"{endpoint}/{generation_id}/content/video"
-                video_response = await get_http_client().get(
-                    url=video_url,
-                    headers=headers,
-                    params={"api-version": "preview"},
-                )
-                if not video_response.is_success:
-                    raise _user_facing_error(
-                        "Fetching generated video content failed",
-                        video_response,
+                if not (generation_id := generation.get("id")):
+                    raise user_facing_error(
+                        "Video generation succeeded but no generation ID found"
                     )
 
-                video_bytes = video_response.content
+                video_bytes = await client.download_video(generation_id)
                 content_type = "video/mp4"
 
                 if storage:
-                    file_metadata = await storage.upload_file(
+                    metadata = await storage.upload_file(
                         "videos", video_bytes, content_type
                     )
-                    url = file_metadata["url"]
+                    url = metadata["url"]
                     data = None
                 else:
                     url = None
                     data = base64.b64encode(video_bytes).decode("utf-8")
+
+                title = "video"
+                if len(generations) > 1:
+                    title += f" #{idx}"
 
                 choice.add_attachment(
                     title=title, type=content_type, url=url, data=data
@@ -210,7 +170,7 @@ async def _poll_job(
             message = "Video generation job failed"
             if reason := job_info.get("failure_reason"):
                 message += f": {reason}"
-            raise _user_facing_error(message)
+            raise user_facing_error(message)
 
 
 def _get_prompt(request_body: Dict[str, Any]) -> str:
@@ -223,15 +183,6 @@ def _get_prompt(request_body: Dict[str, Any]) -> str:
     if not prompt.strip():
         raise RequestValidationError("The prompt cannot be empty.")
     return prompt
-
-
-def _get_headers(creds: OpenAICreds) -> Dict[str, str]:
-    headers = {"Content-Type": "application/json"}
-    if key := creds.get("api_key"):
-        headers["api_key"] = key
-    if token := creds.get("azure_ad_token"):
-        headers["Authorization"] = f"Bearer {token}"
-    return headers
 
 
 async def chat_completion(
@@ -256,7 +207,7 @@ async def chat_completion(
     )
     response = DIALResponse(request=dial_request)
 
-    headers = _get_headers(creds)
+    client = AzureVideoAPIClient(creds=creds, base_url=upstream_endpoint)
 
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
         response.set_model(model_name)
@@ -264,14 +215,13 @@ async def chat_completion(
         with response.create_single_choice() as choice:
             with choice.create_stage(name="Generation") as stage:
                 job_id = await _create_job(
-                    body={
+                    request={
                         "model": model_name,
                         "prompt": prompt,
                         **configuration.dict(),
                     },
                     stage=stage,
-                    headers=headers,
-                    endpoint=upstream_endpoint,
+                    client=client,
                 )
 
                 await _poll_job(
@@ -279,9 +229,8 @@ async def chat_completion(
                     choice=choice,
                     stage=stage,
                     job_id=job_id,
-                    headers=headers,
                     storage=file_storage,
-                    endpoint=upstream_endpoint,
+                    client=client,
                     polling_interval=3.0,
                 )
 
