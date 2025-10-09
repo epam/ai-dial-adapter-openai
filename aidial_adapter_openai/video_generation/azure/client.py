@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Literal, Self
+from typing import Dict, List, Literal, NoReturn, Self
 
 import httpx
 from aidial_sdk.exceptions import InternalServerError
@@ -8,16 +8,6 @@ from pydantic import BaseModel
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger
-
-
-def user_facing_error(
-    message: str, response: httpx.Response | None = None
-) -> InternalServerError:
-    if response:
-        logger.error(f"{message}: {response.status_code} {response.text}")
-    else:
-        logger.error(message)
-    return InternalServerError(message=message, display_message=message)
 
 
 class JobStatus(str, Enum):
@@ -52,11 +42,14 @@ class VideoGenerationJob(BaseModel):
 
     def raise_on_failure(self) -> Self:
         if self.status == JobStatus.FAILED:
-            message = "Video generation job failed"
-            if reason := self.failure_reason:
-                message += f": {reason}"
-            raise user_facing_error(message)
+            self.failed()
         return self
+
+    def failed(self) -> NoReturn:
+        message = "Video generation job failed"
+        if reason := self.failure_reason:
+            message += f": {reason}"
+        raise _user_facing_error(message)
 
 
 class AzureVideoAPIClient(BaseModel):
@@ -90,7 +83,7 @@ class AzureVideoAPIClient(BaseModel):
             url=url, json=request, **self._client_options
         )
         if not resp.is_success:
-            raise user_facing_error(
+            raise _user_facing_error(
                 "Video generation job creation failed", resp
             )
 
@@ -102,7 +95,7 @@ class AzureVideoAPIClient(BaseModel):
         resp = await get_http_client().get(url=url, **self._client_options)
 
         if not resp.is_success:
-            raise user_facing_error(
+            raise _user_facing_error(
                 "Getting the status of a video generation job failed", resp
             )
 
@@ -114,8 +107,18 @@ class AzureVideoAPIClient(BaseModel):
         resp = await get_http_client().get(url=url, **self._client_options)
 
         if not resp.is_success:
-            raise user_facing_error(
+            raise _user_facing_error(
                 "Fetching generated video content failed", resp
             )
 
         return resp.content
+
+
+def _user_facing_error(
+    message: str, response: httpx.Response | None = None
+) -> InternalServerError:
+    if response:
+        logger.error(f"{message}: {response.status_code} {response.text}")
+    else:
+        logger.error(message)
+    return InternalServerError(message=message, display_message=message)

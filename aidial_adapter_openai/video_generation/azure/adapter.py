@@ -1,15 +1,14 @@
 import asyncio
 import base64
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, assert_never
 
 import fastapi
 from aidial_sdk.chat_completion import Choice
-from aidial_sdk.chat_completion import Request
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.chat_completion import Stage
-from aidial_sdk.exceptions import RequestValidationError
+from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -20,7 +19,6 @@ from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.video_generation.azure.client import (
     AzureVideoAPIClient,
     JobStatus,
-    user_facing_error,
 )
 from aidial_adapter_openai.video_generation.azure.configuration import (
     VideoGenerationConfig,
@@ -95,14 +93,11 @@ async def _create_job(
 
 async def _poll_job(
     *,
-    response: DIALResponse,
-    choice: Choice,
     stage: Stage,
-    storage: FileStorage | None,
     client: AzureVideoAPIClient,
     job_id: str,
     polling_interval: float,
-) -> None:
+) -> List[str]:
     while True:
         await asyncio.sleep(polling_interval)
 
@@ -110,44 +105,70 @@ async def _poll_job(
         logger.debug(f"job info: {json.dumps(job_info.dict())}")
 
         status = job_info.status
+        stage.append_content(f"Status: {status}\n\n")
 
-        if status:
-            stage.append_content(f"Status: {status}\n\n")
-
-        if status == JobStatus.SUCCEEDED:
-            generations = job_info.generations or []
-            if not generations:
-                raise user_facing_error(
-                    "Video generation succeeded but no generations found"
-                )
-
-            response.set_usage(
-                prompt_tokens=0, completion_tokens=len(generations)
-            )
-
-            for idx, generation in enumerate(generations, start=1):
-                video_bytes = await client.get_video_content(generation.id)
-                content_type = "video/mp4"
-
-                if storage:
-                    metadata = await storage.upload_file(
-                        "videos", video_bytes, content_type
+        match status:
+            case JobStatus.SUCCEEDED:
+                generations = job_info.generations or []
+                if not generations:
+                    raise InternalServerError(
+                        "Video generation succeeded but no generations found"
                     )
-                    url = metadata["url"]
-                    data = None
-                else:
-                    url = None
-                    data = base64.b64encode(video_bytes).decode("utf-8")
+                return [g.id for g in generations]
 
-                title = "video"
-                if len(generations) > 1:
-                    title += f" #{idx}"
+            case JobStatus.FAILED:
+                job_info.failed()
 
-                choice.add_attachment(
-                    title=title, type=content_type, url=url, data=data
+            case JobStatus.CANCELLED:
+                raise InternalServerError(
+                    "Video generation job has been cancelled"
                 )
 
-            return
+            case (
+                JobStatus.PREPROCESSING
+                | JobStatus.QUEUED
+                | JobStatus.RUNNING
+                | JobStatus.PROCESSING
+            ):
+                continue
+            case _:
+                raise InternalServerError(f"Unexpected job status: {status}")
+                assert_never(status)
+
+
+async def _download_videos(
+    *,
+    response: DIALResponse,
+    choice: Choice,
+    client: AzureVideoAPIClient,
+    video_ids: List[str],
+    storage: FileStorage | None,
+):
+    n = len(video_ids)
+    response.set_usage(
+        prompt_tokens=0,
+        completion_tokens=n,
+    )
+
+    for idx, video_id in enumerate(video_ids, start=1):
+        video_bytes = await client.get_video_content(video_id)
+        content_type = "video/mp4"
+
+        if storage:
+            metadata = await storage.upload_file(
+                "videos", video_bytes, content_type
+            )
+            url = metadata["url"]
+            data = None
+        else:
+            url = None
+            data = base64.b64encode(video_bytes).decode("utf-8")
+
+        title = "video" if n == 1 else f"video #{idx}"
+
+        choice.add_attachment(
+            title=title, type=content_type, url=url, data=data
+        )
 
 
 async def chat_completion(
@@ -165,7 +186,7 @@ async def chat_completion(
     prompt = _get_prompt(request_body)
     configuration = _get_configuration(request_body)
 
-    dial_request = await Request.from_request(
+    dial_request = await DIALRequest.from_request(
         request=request,
         deployment_id=deployment_id,
         base_url=DIAL_URL,
@@ -189,14 +210,19 @@ async def chat_completion(
                     client=client,
                 )
 
-                await _poll_job(
+                video_ids = await _poll_job(
+                    stage=stage,
+                    client=client,
+                    job_id=job_id,
+                    polling_interval=3.0,
+                )
+
+                await _download_videos(
                     response=response,
                     choice=choice,
-                    stage=stage,
-                    job_id=job_id,
                     storage=file_storage,
                     client=client,
-                    polling_interval=3.0,
+                    video_ids=video_ids,
                 )
 
     stream = response._generate_stream(_handler)
