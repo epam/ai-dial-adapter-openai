@@ -1,5 +1,6 @@
 from typing import Mapping, assert_never
 
+import fastapi
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
@@ -33,6 +34,9 @@ from aidial_adapter_openai.utils.request import (
 )
 from aidial_adapter_openai.utils.streaming import create_server_response
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.video_generation.azure.adapter import (
+    chat_completion as azure_video_gen,
+)
 
 
 def _get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:
@@ -48,7 +52,8 @@ async def call_chat_completion(
     *,
     app_config: ApplicationConfig,
     deployment_id: str,
-    request: dict,
+    request: fastapi.Request,
+    request_body: dict,
     request_headers: Mapping[str, str],
     api_version: str,
 ):
@@ -60,7 +65,7 @@ async def call_chat_completion(
     # Azure and non-Azure deployments.
     # Therefore, we provide the "model" field for all deployments here.
     # The same goes for /embeddings endpoint.
-    request["model"] = request.get("model") or deployment_id
+    request_body["model"] = request_body.get("model") or deployment_id
 
     upstream_endpoint = _get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
@@ -79,15 +84,25 @@ async def call_chat_completion(
             templates = app_config.COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES
             prompt_template = templates.get(deployment_id)
             return await completion(
-                request=request,
+                request=request_body,
                 client=client,
                 prompt_template=prompt_template,
             )
 
         case D.RESPONSES_API:
             return await responses(
-                request=request,
+                request=request_body,
                 client=client,
+                file_storage=file_storage,
+            )
+
+        case D.AZURE_VIDEO_API:
+            return await azure_video_gen(
+                request=request,
+                request_body=request_body,
+                creds=creds,
+                deployment_id=deployment_id,
+                upstream_endpoint=upstream_endpoint,
                 file_storage=file_storage,
             )
 
@@ -100,13 +115,15 @@ async def call_chat_completion(
 
             return await image_generation(
                 model=model,
-                request=request,
+                request=request_body,
                 client=client,
                 file_storage=file_storage,
             )
 
         case D.MISTRAL | D.DATABRICKS:
-            return await non_gpt_chat_completion(request=request, client=client)
+            return await non_gpt_chat_completion(
+                request=request_body, client=client
+            )
 
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
 
@@ -121,7 +138,7 @@ async def call_chat_completion(
             )
 
             response = await gpt_chat_completion(
-                request=request,
+                request=request_body,
                 request_headers=request_headers,
                 client=client,
                 file_storage=file_storage,
@@ -155,7 +172,8 @@ async def chat_completion(deployment_id: str, request: Request):
         emulate_streaming,
         await call_chat_completion(
             deployment_id=deployment_id,
-            request=request_body,
+            request=request,
+            request_body=request_body,
             request_headers=request.headers,
             api_version=api_version,
             app_config=app_config,

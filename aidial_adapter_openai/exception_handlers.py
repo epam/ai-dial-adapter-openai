@@ -1,8 +1,10 @@
 import re
 
+import fastapi
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InternalServerError
 from fastapi.requests import Request as FastAPIRequest
+from fastapi.responses import JSONResponse
 from fastapi.responses import Response as FastAPIResponse
 from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError
 
@@ -107,6 +109,17 @@ def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
             )
 
     return exc
+
+
+def fastapi_exception_handler(
+    request: FastAPIRequest, exc: Exception
+) -> FastAPIResponse:
+    assert isinstance(exc, fastapi.HTTPException)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.detail,
+        headers=exc.headers,
+    )
 
 
 def adapter_exception_handler(

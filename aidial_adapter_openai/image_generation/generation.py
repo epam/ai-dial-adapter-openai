@@ -57,7 +57,7 @@ async def upload_attachment_to_storage(
     ):
         return
 
-    file_metadata = await file_storage.upload_file_as_base64(
+    file_metadata = await file_storage.upload_file(
         "images", attachment["data"], attachment["type"]
     )
 
