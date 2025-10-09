@@ -19,6 +19,7 @@ from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
     OpenAIEndpoint,
+    azure_video_api_parser,
     chat_completions_parser,
     completions_parser,
     image_gen_parser,
@@ -104,6 +105,12 @@ class ApplicationConfig(ExtraForbidModel):
                 endpoint=endpoint,
             )
 
+        if endpoint := azure_video_api_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.AZURE_VIDEO_API,
+                endpoint=endpoint,
+            )
+
         return DeploymentAPIType(
             deployment_type=D.GPT_GENERIC,
             endpoint=chat_completions_parser.parse(upstream_endpoint),
@@ -125,7 +132,12 @@ class ApplicationConfig(ExtraForbidModel):
                 self.GPT4O_DEPLOYMENTS.append(deployment_id)
             case D.GPT4O_MINI:
                 self.GPT4O_MINI_DEPLOYMENTS.append(deployment_id)
-            case D.GPT_GENERIC | D.RESPONSES_API | D.COMPLETIONS_API:
+            case (
+                D.GPT_GENERIC
+                | D.RESPONSES_API
+                | D.COMPLETIONS_API
+                | D.AZURE_VIDEO_API
+            ):
                 pass
             case _:
                 assert_never(deployment_type)
