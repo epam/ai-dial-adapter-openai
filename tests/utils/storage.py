@@ -69,12 +69,23 @@ class MockFileStorage(FileStorage):
     def _get_fresh_filename(self) -> str:
         return f"{self._get_fresh_file_index():0>3}"
 
+    @staticmethod
+    def _get_file_extension(content_type: str) -> str:
+        if content_type == "image/png":
+            return "png"
+        elif content_type == "image/jpeg":
+            return "jpeg"
+        elif content_type == "video/mp4":
+            return "mp4"
+        else:
+            return content_type.replace("/", "_")
+
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
 
-        ext = ".png" if content_type == "image/png" else ".jpeg"
-        name = self._get_fresh_filename() + ext
+        ext = self._get_file_extension(content_type)
+        name = self._get_fresh_filename() + "." + ext
 
         file = self.root_dir / name
         file.write_bytes(content)
