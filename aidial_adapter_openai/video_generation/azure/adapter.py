@@ -17,6 +17,7 @@ from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.video_generation.azure.client import (
     AzureVideoAPIClient,
+    CreateVideoGenerationRequest,
     JobStatus,
 )
 from aidial_adapter_openai.video_generation.azure.configuration import (
@@ -83,7 +84,10 @@ def _get_prompt(request_body: Dict[str, Any]) -> str:
 
 
 async def _create_job(
-    *, stage: Stage, client: AzureVideoAPIClient, request: Dict[str, Any]
+    *,
+    stage: Stage,
+    client: AzureVideoAPIClient,
+    request: CreateVideoGenerationRequest,
 ) -> str:
     video_job = await client.create_job(request=request)
     stage.append_content(f"Status: {video_job.status}\n\n")
@@ -199,11 +203,15 @@ async def chat_completion(
         with response.create_single_choice() as choice:
             with choice.create_stage(name="Generation") as stage:
                 job_id = await _create_job(
-                    request={
-                        "model": model_name,
-                        "prompt": prompt,
-                        **configuration.dict(exclude_none=True),
-                    },
+                    request=CreateVideoGenerationRequest(
+                        model=model_name,
+                        prompt=prompt,
+                        width=configuration.width,
+                        height=configuration.height,
+                        n_seconds=configuration.n_seconds,
+                        n_variants=configuration.n_variants,
+                        inpaint_items=None,
+                    ),
                     stage=stage,
                     client=client,
                 )

@@ -32,6 +32,32 @@ class VideoGeneration(BaseModel):
     id: str
 
 
+class MediaItemType(str, Enum):
+    image = "image"
+    video = "video"
+
+
+class InpaintItem(BaseModel):
+    frame_index: int
+    type: MediaItemType
+    file_name: str
+
+
+class CreateVideoGenerationRequest(BaseModel):
+    """Modelled following the official spec:
+    https://github.com/Azure/azure-rest-api-specs/blob/aae85aa3e7e4fda95ea2d3abac0ba1d8159db214/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L6730
+    """
+
+    model: str
+    prompt: str
+
+    width: int
+    height: int
+    n_seconds: int | None
+    n_variants: int | None
+    inpaint_items: List[InpaintItem] | None
+
+
 class VideoGenerationJob(BaseModel):
     """Modelled following the official spec:
     https://github.com/Azure/azure-rest-api-specs/blob/aae85aa3e7e4fda95ea2d3abac0ba1d8159db214/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L16123
@@ -89,10 +115,14 @@ class AzureVideoAPIClient(BaseModel):
     def _client_options(self) -> dict:
         return {"headers": self._headers, "params": self._params}
 
-    async def create_job(self, request: dict) -> VideoGenerationJob:
+    async def create_job(
+        self, request: CreateVideoGenerationRequest
+    ) -> VideoGenerationJob:
         url = f"{self.base_url}/jobs"
         resp = await self._client.post(
-            url=url, json=request, **self._client_options
+            url=url,
+            json=request.dict(exclude_none=True),
+            **self._client_options,
         )
         if not resp.is_success:
             raise _internal_server_error(
