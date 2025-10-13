@@ -61,7 +61,7 @@ def _validate_request(request: Dict[str, Any]) -> None:
         raise RequestValidationError(" ".join(errors))
 
 
-def _get_configuration(request: Dict[str, Any]) -> VideoGenerationConfig:
+def _get_configuration(request: dict) -> VideoGenerationConfig:
     configuration = (
         parse_configuration(VideoGenerationConfig, request)
         or VideoGenerationConfig()
@@ -71,9 +71,9 @@ def _get_configuration(request: Dict[str, Any]) -> VideoGenerationConfig:
     return configuration
 
 
-def _get_prompt(request_body: Dict[str, Any]) -> str:
-    messages = request_body["messages"]
-    prompt = messages[-1].get("content") or ""
+def _get_prompt(request: DIALRequest) -> str:
+    messages = request.messages
+    prompt = messages[-1].content
     if not isinstance(prompt, str):
         raise RequestValidationError(
             "The last message must contain a text content."
@@ -185,14 +185,16 @@ async def chat_completion(
     _validate_request(request_body)
 
     model_name = request_body["model"]
-    prompt = _get_prompt(request_body)
-    configuration = _get_configuration(request_body)
 
     dial_request = await DIALRequest.from_request(
         request=request,
         deployment_id=deployment_id,
         base_url=DIAL_URL,
     )
+
+    prompt = _get_prompt(dial_request)
+    configuration = _get_configuration(request_body)
+
     response = DIALResponse(request=dial_request)
 
     client = AzureVideoAPIClient(creds=creds, base_url=upstream_endpoint)
