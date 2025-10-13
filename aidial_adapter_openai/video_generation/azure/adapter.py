@@ -11,6 +11,7 @@ from aidial_sdk.chat_completion import Stage
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
 from fastapi.responses import JSONResponse, StreamingResponse
+from httpx._types import RequestFiles
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import DIAL_URL, FileStorage
@@ -18,11 +19,14 @@ from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.video_generation.azure.client import (
     AzureVideoAPIClient,
-    CreateVideoGenerationRequest,
-    JobStatus,
 )
 from aidial_adapter_openai.video_generation.azure.configuration import (
     VideoGenerationConfig,
+)
+from aidial_adapter_openai.video_generation.azure.prompt import VideoGenPrompt
+from aidial_adapter_openai.video_generation.azure.types import (
+    CreateVideoGenerationRequest,
+    JobStatus,
 )
 
 
@@ -98,8 +102,9 @@ async def _create_job(
     stage: Stage,
     client: AzureVideoAPIClient,
     request: CreateVideoGenerationRequest,
+    files: RequestFiles,
 ) -> str:
-    video_job = await client.create_job(request=request)
+    video_job = await client.create_job(request=request, files=files)
     stage.append_content(f"Status: {video_job.status}\n\n")
     return video_job.id
 
@@ -195,15 +200,15 @@ async def chat_completion(
     _validate_request(request_body)
 
     model_name = request_body["model"]
+    configuration = _get_configuration(request_body)
+    prompt = await VideoGenPrompt.from_request(request_body, file_storage)
+    inpaint_items, files = prompt.get_files()
 
     dial_request = await DIALRequest.from_request(
         request=request,
         deployment_id=deployment_id,
         base_url=DIAL_URL,
     )
-
-    prompt = _get_prompt(dial_request)
-    configuration = _get_configuration(request_body)
 
     response = DIALResponse(request=dial_request)
 
@@ -217,13 +222,14 @@ async def chat_completion(
                 job_id = await _create_job(
                     request=CreateVideoGenerationRequest(
                         model=model_name,
-                        prompt=prompt,
+                        prompt=prompt.prompt,
                         width=configuration.width,
                         height=configuration.height,
                         n_seconds=configuration.n_seconds,
                         n_variants=configuration.n_variants,
-                        inpaint_items=None,
+                        inpaint_items=inpaint_items,
                     ),
+                    files=files,
                     stage=stage,
                     client=client,
                 )
