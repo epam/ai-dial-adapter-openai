@@ -50,7 +50,7 @@ class VideoGenPrompt(BaseModel):
         return cls(prompt=prompt, resources=resources)
 
     def get_files(self) -> Tuple[List[InpaintItem], RequestFiles]:
-        items, files = [], {}
+        items, files = [], []
 
         image_idx = 1
         video_idx = 1
@@ -73,6 +73,6 @@ class VideoGenPrompt(BaseModel):
 
             file_name = f"{idx}{ext}"
             items.append(InpaintItem(type=ty, file_name=file_name))
-            files[file_name] = (file_name, resource.data, resource.type)
+            files.append(("files", (file_name, resource.data, resource.type)))
 
         return items, files

@@ -4,7 +4,6 @@ from typing import Any, Dict, List, assert_never
 
 import fastapi
 from aidial_sdk.chat_completion import Choice
-from aidial_sdk.chat_completion import Message as DIALMessage
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.chat_completion import Stage
@@ -74,27 +73,6 @@ def _get_configuration(request: dict) -> VideoGenerationConfig:
 
     logger.debug(f"configuration: {configuration.json(exclude_none=True)}")
     return configuration
-
-
-def _get_last_message(request: DIALRequest) -> DIALMessage:
-    messages = request.messages
-    if len(messages) == 0:
-        raise RequestValidationError("Expected at least one message.")
-    return messages[-1]
-
-
-def _get_prompt(request: DIALRequest) -> str:
-    prompt = _get_last_message(request)
-
-    if not isinstance(prompt, str):
-        raise RequestValidationError(
-            "The last message must contain a text content."
-        )
-
-    if not prompt.strip():
-        raise RequestValidationError("The prompt cannot be empty.")
-
-    return prompt
 
 
 async def _create_job(
@@ -220,7 +198,7 @@ async def chat_completion(
         with response.create_single_choice() as choice:
             with choice.create_stage(name="Generation") as stage:
                 job_id = await _create_job(
-                    request=CreateVideoGenerationRequest(
+                    request=CreateVideoGenerationRequest.create(
                         model=model_name,
                         prompt=prompt.prompt,
                         width=configuration.width,

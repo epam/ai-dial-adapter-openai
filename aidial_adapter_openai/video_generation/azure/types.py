@@ -39,6 +39,10 @@ class InpaintItem(BaseModel):
     file_name: str
 
 
+class InpaintItems(BaseModel):
+    __root__: List[InpaintItem]
+
+
 class CreateVideoGenerationRequest(BaseModel):
     """Modelled following the official spec:
     https://github.com/Azure/azure-rest-api-specs/blob/aae85aa3e7e4fda95ea2d3abac0ba1d8159db214/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L6730
@@ -51,4 +55,31 @@ class CreateVideoGenerationRequest(BaseModel):
     height: int
     n_seconds: int | None
     n_variants: int | None
-    inpaint_items: List[InpaintItem] | None
+    inpaint_items: str | None
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        model: str,
+        prompt: str,
+        width: int,
+        height: int,
+        n_seconds: int | None,
+        n_variants: int | None,
+        inpaint_items: List[InpaintItem] | None,
+    ) -> "CreateVideoGenerationRequest":
+        inpaint_items_str = (
+            InpaintItems(__root__=inpaint_items).json()
+            if inpaint_items
+            else None
+        )
+        return cls(
+            model=model,
+            prompt=prompt,
+            width=width,
+            height=height,
+            n_seconds=n_seconds,
+            n_variants=n_variants,
+            inpaint_items=inpaint_items_str,
+        )

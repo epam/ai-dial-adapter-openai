@@ -77,11 +77,19 @@ class AzureVideoAPIClient(BaseModel):
         self, request: CreateVideoGenerationRequest, files: RequestFiles
     ) -> VideoGenerationJob:
         url = f"{self.base_url}/jobs"
+
+        client_options = self._client_options
+        if files:
+            client_options["headers"].pop("Content-Type", None)
+
+        request_body = request.dict(exclude_none=True)
+
         resp = await self._client.post(
             url=url,
-            json=request.dict(exclude_none=True),
+            json=request_body if not files else None,
+            data=request_body if files else None,
             files=files,
-            **self._client_options,
+            **client_options,
         )
         if not resp.is_success:
             raise _internal_server_error(

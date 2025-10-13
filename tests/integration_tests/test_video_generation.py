@@ -119,9 +119,7 @@ async def test_image_to_video(
         stream=stream,
         deployment_id=videogen_deployment.model_name,
         messages=[
-            user_with_attachment_url(
-                "animate the dog from the video", IMAGE_RESOURCE
-            ),
+            user_with_attachment_url("animate the dog", IMAGE_RESOURCE),
         ],
         extra_body={"custom_fields": {"configuration": config}},
     )
