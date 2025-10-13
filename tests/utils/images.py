@@ -1,4 +1,4 @@
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 
 pic_1_1 = Resource.from_base64(
     type="image/png",

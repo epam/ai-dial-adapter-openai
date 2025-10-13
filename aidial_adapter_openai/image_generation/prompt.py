@@ -9,7 +9,7 @@ from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 
 
 class ImageGenPrompt(BaseModel):

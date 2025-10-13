@@ -30,9 +30,7 @@ async def plain_text_truncate_prompt(
 ) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
     (msgs, disc, tokens) = await multi_modal_truncate_prompt(
         request=request,
-        messages=[
-            MultiModalMessage(images=[], raw_message=m) for m in messages
-        ],
+        messages=[MultiModalMessage(raw_message=m) for m in messages],
         max_prompt_tokens=max_prompt_tokens,
         tokenizer=tokenizer,
     )

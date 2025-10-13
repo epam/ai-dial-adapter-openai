@@ -20,13 +20,14 @@ from aidial_adapter_openai.dial_api.resource import (
     parse_attachment,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.image import ImageResource
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import (
     MultiModalMessage,
     create_text_content_part,
 )
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.resource.file import FileResource
+from aidial_adapter_openai.utils.resource.image import ImageResource
 from aidial_adapter_openai.utils.text import decapitalize
 from aidial_adapter_openai.utils.validation import (
     ensure_dict,
@@ -35,20 +36,6 @@ from aidial_adapter_openai.utils.validation import (
     ensure_str,
     ensure_str_or_none,
 )
-
-
-class FileResource(BaseModel):
-    name: str
-    resource: Resource
-
-    def to_content_part(self) -> File:
-        return {
-            "type": "file",
-            "file": {
-                "filename": self.name,
-                "file_data": self.resource.to_data_url(),
-            },
-        }
 
 
 @dataclass(order=True, frozen=True)
@@ -65,6 +52,7 @@ class ResourceProcessor(BaseModel):
 
     errors: Set[Error] = Field(default_factory=set)
     images: List[ImageResource] = []
+    files: List[FileResource] = []
 
     async def try_download_resource(
         self, dial_resource: DialResource
@@ -116,6 +104,7 @@ class ResourceProcessor(BaseModel):
         else:
             name = await dial_resource.get_resource_name(self.file_storage)
             result = FileResource(name=name, resource=resource)
+            self.files.append(result)
 
         return result.to_content_part()
 
@@ -178,13 +167,14 @@ class ResourceProcessor(BaseModel):
         )
 
         if isinstance(content, str) and not attachments:
-            return MultiModalMessage(images=[], raw_message=message)
+            return MultiModalMessage(raw_message=message)
 
         content_parts = await self.download_content(content)
         attachment_parts = await self.download_attachments(attachments)
 
         return MultiModalMessage(
             images=self.images,
+            files=self.files,
             raw_message={
                 **message,
                 "content": content_parts + attachment_parts,

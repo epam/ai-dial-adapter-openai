@@ -9,7 +9,7 @@ from aidial_adapter_openai.dial_api.resource import (
     URLResource,
     parse_attachment,
 )
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 from tests.utils.images import data_url, pic_1_1
 from tests.utils.storage import DummyFileStorage
 
