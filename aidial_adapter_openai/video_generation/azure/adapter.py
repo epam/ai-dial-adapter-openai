@@ -10,6 +10,7 @@ from aidial_sdk.chat_completion import Stage
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
 from fastapi.responses import JSONResponse, StreamingResponse
+from httpx._types import RequestFiles
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import DIAL_URL, FileStorage
@@ -17,10 +18,14 @@ from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.video_generation.azure.client import (
     AzureVideoAPIClient,
-    JobStatus,
 )
 from aidial_adapter_openai.video_generation.azure.configuration import (
     VideoGenerationConfig,
+)
+from aidial_adapter_openai.video_generation.azure.prompt import VideoGenPrompt
+from aidial_adapter_openai.video_generation.azure.types import (
+    CreateVideoGenerationRequest,
+    JobStatus,
 )
 
 
@@ -60,7 +65,7 @@ def _validate_request(request: Dict[str, Any]) -> None:
         raise RequestValidationError(" ".join(errors))
 
 
-def _get_configuration(request: Dict[str, Any]) -> VideoGenerationConfig:
+def _get_configuration(request: dict) -> VideoGenerationConfig:
     configuration = (
         parse_configuration(VideoGenerationConfig, request)
         or VideoGenerationConfig()
@@ -70,22 +75,14 @@ def _get_configuration(request: Dict[str, Any]) -> VideoGenerationConfig:
     return configuration
 
 
-def _get_prompt(request_body: Dict[str, Any]) -> str:
-    messages = request_body["messages"]
-    prompt = messages[-1].get("content") or ""
-    if not isinstance(prompt, str):
-        raise RequestValidationError(
-            "The last message must contain a text content."
-        )
-    if not prompt.strip():
-        raise RequestValidationError("The prompt cannot be empty.")
-    return prompt
-
-
 async def _create_job(
-    *, stage: Stage, client: AzureVideoAPIClient, request: Dict[str, Any]
+    *,
+    stage: Stage,
+    client: AzureVideoAPIClient,
+    request: CreateVideoGenerationRequest,
+    files: RequestFiles,
 ) -> str:
-    video_job = await client.create_job(request=request)
+    video_job = await client.create_job(request=request, files=files)
     stage.append_content(f"Status: {video_job.status}\n\n")
     return video_job.id
 
@@ -181,14 +178,16 @@ async def chat_completion(
     _validate_request(request_body)
 
     model_name = request_body["model"]
-    prompt = _get_prompt(request_body)
     configuration = _get_configuration(request_body)
+    prompt = await VideoGenPrompt.from_request(request_body, file_storage)
+    inpaint_items, files = prompt.get_files()
 
     dial_request = await DIALRequest.from_request(
         request=request,
         deployment_id=deployment_id,
         base_url=DIAL_URL,
     )
+
     response = DIALResponse(request=dial_request)
 
     client = AzureVideoAPIClient(creds=creds, base_url=upstream_endpoint)
@@ -199,11 +198,16 @@ async def chat_completion(
         with response.create_single_choice() as choice:
             with choice.create_stage(name="Generation") as stage:
                 job_id = await _create_job(
-                    request={
-                        "model": model_name,
-                        "prompt": prompt,
-                        **configuration.dict(exclude_none=True),
-                    },
+                    request=CreateVideoGenerationRequest.create(
+                        model=model_name,
+                        prompt=prompt.prompt,
+                        width=configuration.width,
+                        height=configuration.height,
+                        n_seconds=configuration.n_seconds,
+                        n_variants=configuration.n_variants,
+                        inpaint_items=inpaint_items,
+                    ),
+                    files=files,
                     stage=stage,
                     client=client,
                 )

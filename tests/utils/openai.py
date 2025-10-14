@@ -34,7 +34,7 @@ from openai.types.chat.completion_create_params import Function, ResponseFormat
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 from tests.utils.json import match_objects
 
 
