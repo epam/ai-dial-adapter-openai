@@ -60,7 +60,7 @@ class AzureVideoAPIClient(BaseModel):
     def _headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if key := self.creds.get("api_key"):
-            headers["api_key"] = key
+            headers["api-key"] = key
         if token := self.creds.get("azure_ad_token"):
             headers["Authorization"] = f"Bearer {token}"
         return headers
