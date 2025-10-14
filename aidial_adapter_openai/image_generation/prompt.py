@@ -8,8 +8,9 @@ from pydantic import BaseModel
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.dial_api.request import collect_message_text_content
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 
 
 class ImageGenPrompt(BaseModel):
@@ -28,13 +29,7 @@ class ImageGenPrompt(BaseModel):
         images: List[Resource] = []
 
         for message in result:
-            if content := message.raw_message.get("content"):
-                if isinstance(content, str):
-                    text_prompt += content
-                elif isinstance(content, list):
-                    for item in content:
-                        if item.get("type") == "text":
-                            text_prompt += item["text"]
+            text_prompt += collect_message_text_content(message.raw_message)
 
             for image in message.images:
                 images.append(image.image)

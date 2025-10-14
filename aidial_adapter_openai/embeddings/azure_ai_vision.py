@@ -47,7 +47,7 @@ from aidial_adapter_openai.dial_api.resource import AttachmentResource
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 
 # The latest Image Analysis API offers two models:
 # * version 2023-04-15 which supports text search in many languages,

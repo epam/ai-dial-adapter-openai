@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 from tests.integration_tests.base import TestDeployments
 
 _log = logging.getLogger(__name__)

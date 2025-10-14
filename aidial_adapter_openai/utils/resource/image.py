@@ -6,7 +6,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.concurrency import run_in_threadpool
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 
 DetailLevel = Literal["low", "high"]
 ImageDetail = DetailLevel | Literal["auto"]

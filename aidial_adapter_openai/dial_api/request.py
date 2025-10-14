@@ -21,3 +21,15 @@ def parse_configuration(cls: Type[_T], data: Any) -> _T | None:
         msg = f"Invalid request. Path: 'custom_field.configuration.{path}', error: {error['msg']}"
 
         raise RequestValidationError(msg)
+
+
+def collect_message_text_content(message: dict) -> str:
+    text = ""
+    if content := message.get("content"):
+        if isinstance(content, str):
+            text += content
+        elif isinstance(content, list):
+            for item in content:
+                if item.get("type") == "text":
+                    text += item["text"]
+    return text

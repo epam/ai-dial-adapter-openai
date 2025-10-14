@@ -5,9 +5,9 @@ from aidial_adapter_openai.chat_completions.transformation import (
     Error,
     ResourceProcessor,
 )
-from aidial_adapter_openai.utils.image import ImageResource
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.resource.image import ImageResource
 from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
 from tests.utils.storage import DummyFileStorage
 
@@ -154,7 +154,6 @@ async def test_transform_message_with_error(
             [{"role": "user", "content": "Hello"}],
             [
                 MultiModalMessage(
-                    images=[],
                     raw_message={"role": "user", "content": "Hello"},
                 )
             ],
@@ -170,7 +169,6 @@ async def test_transform_message_with_error(
             ],
             [
                 MultiModalMessage(
-                    images=[],
                     raw_message={"role": "system", "content": "Hello"},
                 ),
                 MultiModalMessage(
@@ -199,11 +197,9 @@ async def test_transform_message_with_error(
             ],
             [
                 MultiModalMessage(
-                    images=[],
                     raw_message={"role": "system", "content": "Hello"},
                 ),
                 MultiModalMessage(
-                    images=[],
                     raw_message={
                         "role": "user",
                         "content": [

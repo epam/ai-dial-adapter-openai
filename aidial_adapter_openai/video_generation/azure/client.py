@@ -1,35 +1,19 @@
 import json
-from enum import Enum
 from typing import Dict, List, Literal, NoReturn, Self
 
 import httpx
 from aidial_sdk.exceptions import InternalServerError, InvalidRequestError
+from httpx._types import RequestFiles
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger
-
-
-class JobStatus(str, Enum):
-    PREPROCESSING = "preprocessing"
-    QUEUED = "queued"
-    RUNNING = "running"
-    PROCESSING = "processing"
-    CANCELLED = "cancelled"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-
-    def __str__(self):
-        return self.value
-
-
-class VideoGeneration(BaseModel):
-    """Modelled following the official spec:
-    https://github.com/Azure/azure-rest-api-specs/blob/aae85aa3e7e4fda95ea2d3abac0ba1d8159db214/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L16081
-    """
-
-    id: str
+from aidial_adapter_openai.video_generation.azure.types import (
+    CreateVideoGenerationRequest,
+    JobStatus,
+    VideoGeneration,
+)
 
 
 class VideoGenerationJob(BaseModel):
@@ -89,10 +73,23 @@ class AzureVideoAPIClient(BaseModel):
     def _client_options(self) -> dict:
         return {"headers": self._headers, "params": self._params}
 
-    async def create_job(self, request: dict) -> VideoGenerationJob:
+    async def create_job(
+        self, request: CreateVideoGenerationRequest, files: RequestFiles
+    ) -> VideoGenerationJob:
         url = f"{self.base_url}/jobs"
+
+        client_options = self._client_options
+        if files:
+            client_options["headers"].pop("Content-Type", None)
+
+        request_body = request.dict(exclude_none=True)
+
         resp = await self._client.post(
-            url=url, json=request, **self._client_options
+            url=url,
+            json=request_body if not files else None,
+            data=request_body if files else None,
+            files=files,
+            **client_options,
         )
         if not resp.is_success:
             raise _internal_server_error(
