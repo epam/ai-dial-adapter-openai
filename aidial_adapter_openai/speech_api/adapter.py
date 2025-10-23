@@ -1,3 +1,4 @@
+import base64
 from typing import Any, AsyncIterator, Literal
 
 from aidial_sdk.exceptions import RequestValidationError
@@ -17,24 +18,25 @@ from aidial_adapter_openai.utils.streaming import (
     generate_created,
     generate_id,
 )
+from aidial_adapter_openai.utils.tokenizer import Tokenizer
 
 
-def _get_usage(n: int) -> dict:
+def _get_usage(prompt_tokens: int) -> dict:
     return {
-        "prompt_tokens": 0,
-        # TODO: We actually need to tokenize the input
-        "completion_tokens": n,
-        "total_tokens": n,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": 0,
+        "total_tokens": prompt_tokens,
     }
 
 
 def create_assistant_message(data: bytes, content_type: str) -> dict:
+    data_base64 = base64.b64encode(data).decode()
     return {
         "role": "assistant",
         "content": "",
         "custom_content": {
             "attachments": [
-                {"title": "Audio", "type": content_type, "data": data}
+                {"title": "Audio", "type": content_type, "data": data_base64}
             ]
         },
     }
@@ -76,7 +78,8 @@ class Configuration(BaseModel):
         ),
     )
     voice: str | Voices | None = Field(
-        default=None, description="The voice to use when generating the audio."
+        default="alloy",
+        description="The voice to use when generating the audio.",
     )
     speed: float | None = Field(
         default=None,
@@ -96,17 +99,21 @@ async def chat_completion(
     request: Any,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
+    tokenizer: Tokenizer,
 ):
-    if (request.get("n") or 1) > 1:
-        raise RequestValidationError("The deployment doesn't support n > 1")
+    n = int(request.get("n", 1))
+    if n != 1:
+        raise RequestValidationError(
+            "The deployment doesn't support n other than 1."
+        )
 
     messages = request.pop("messages")
     if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
     prompt = collect_message_text_content(messages[-1]).strip()
+    prompt_tokens = await tokenizer.tokenize_text(prompt)
 
-    n = int(request.get("n", 1))
     is_stream = bool(request.get("stream"))
     model_name = request["model"]
 
@@ -126,7 +133,7 @@ async def chat_completion(
     )
 
     audio_data = response.read()
-    audio_format = "audio/" + (config.response_format or "mp3")
+    audio_format = response.response.headers.get("content-type") or "audio/mpeg"
 
     message = create_assistant_message(audio_data, audio_format)
     await upload_message_attachments_to_storage(file_storage, message)
@@ -138,7 +145,7 @@ async def chat_completion(
         finish_reason="stop",
         message=message,
         is_stream=is_stream,
-        usage=_get_usage(n),
+        usage=_get_usage(prompt_tokens),
     )
 
     if is_stream:
