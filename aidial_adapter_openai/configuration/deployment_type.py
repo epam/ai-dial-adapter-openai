@@ -12,3 +12,4 @@ class ChatCompletionDeploymentType(StrEnum):
     RESPONSES_API = "RESPONSES_API"
     COMPLETIONS_API = "COMPLETIONS_API"
     AZURE_VIDEO_API = "VIDEO_API"
+    SPEECH_API = "SPEECH_API"

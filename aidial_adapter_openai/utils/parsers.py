@@ -107,6 +107,7 @@ class CompletionsParser(ExtraForbidModel):
 
 chat_completions_parser = EndpointParser(name="chat/completions")
 image_gen_parser = EndpointParser(name="images/generations")
+speech_parser = EndpointParser(name="audio/speech")
 embeddings_parser = EndpointParser(name="embeddings")
 responses_parser = EndpointParser(name="responses")
 no_endpoint_parser = EndpointParser(name=None)

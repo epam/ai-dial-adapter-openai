@@ -24,6 +24,9 @@ from aidial_adapter_openai.image_generation.generation import (
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.responses.adapter import chat_completion as responses
+from aidial_adapter_openai.speech_api.adapter import (
+    chat_completion as speech_gen,
+)
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
@@ -103,6 +106,13 @@ async def call_chat_completion(
                 creds=creds,
                 deployment_id=deployment_id,
                 upstream_endpoint=upstream_endpoint,
+                file_storage=file_storage,
+            )
+
+        case D.SPEECH_API:
+            return await speech_gen(
+                request=request_body,
+                client=client,
                 file_storage=file_storage,
             )
 
