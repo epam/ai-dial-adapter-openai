@@ -2,7 +2,7 @@ import base64
 from typing import Any, AsyncIterator, Literal
 
 from aidial_sdk.exceptions import RequestValidationError
-from openai import NOT_GIVEN, AsyncAzureOpenAI, AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from aidial_adapter_openai.dial_api.attachment import (
@@ -42,7 +42,7 @@ def create_assistant_message(data: bytes, content_type: str) -> dict:
     }
 
 
-def collect_instructions(messages: list[dict]) -> str | None:
+def collect_system_messages(messages: list[dict]) -> str | None:
     ret = ""
     for message in messages:
         if message.get("role") in ("system", "developer"):
@@ -119,17 +119,15 @@ async def chat_completion(
 
     config = parse_configuration(Configuration, request) or Configuration()
 
-    instructions = collect_instructions(messages) or ""
-    instructions += config.instructions or ""
-    instructions = instructions.strip()
+    if system_message := collect_system_messages(messages):
+        config.instructions = (
+            system_message + "\n" + (config.instructions or "")
+        ).strip() or None
 
     extra_body = config.dict(exclude_none=True)
 
     response = await client.audio.speech.create(
-        input=prompt,
-        model=model_name,
-        instructions=instructions or NOT_GIVEN,
-        **extra_body,
+        input=prompt, model=model_name, **extra_body
     )
 
     audio_data = response.read()

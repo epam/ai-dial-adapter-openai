@@ -360,6 +360,8 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 
 > [!NOTE]
 > `n_variants>1` results in multiple video attachments to a **single chat completion choice**.
+> [!IMPORTANT]
+> The `response.usage.completion_tokens` takes value of the **total number of generated videos**. Meaning that the videos of different length and resolution will be reported to use the same number of tokens (one).
 
 #### OpenAI Completions API
 
@@ -421,7 +423,7 @@ You also need to set the default tokenizer via the adapter env variable:
 TIKTOKEN_MODEL_MAPPING={"${MISTRAL_MODEL_NAME}":"gpt-4o"}
 ```
 
-The tokenizer will be used as a proxy tokenizer when tokenization on the adapter side is required *(that is when the request includes `max_prompt_tokens` parameter)*.
+The tokenizer will be used as a proxy tokenizer when tokenization on the adapter side is required *(that is when only when the request includes `max_prompt_tokens` parameter)*.
 
 ### Tokenization of chat completion requests/responses
 
