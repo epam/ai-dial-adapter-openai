@@ -46,6 +46,13 @@ class ResponseWrapper(Exception):
             }
         }
 
+    def to_dial_exception(self) -> DialException:
+        return DialException(
+            status_code=self.status_code,
+            message=self.content,
+            headers=dict(self.headers or {}),
+        )
+
 
 AdapterException = ResponseWrapper | DialException
 
