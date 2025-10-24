@@ -55,7 +55,7 @@ class ApplicationConfig(ExtraForbidModel):
     NON_STREAMING_DEPLOYMENTS: List[str] = []
     ELIMINATE_EMPTY_CHOICES: bool = False
 
-    AUDIO_API_VERSION: str = "2025-03-01-preview"
+    AUDIO_AZURE_API_VERSION: str = "2025-03-01-preview"
 
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
@@ -116,7 +116,7 @@ class ApplicationConfig(ExtraForbidModel):
 
         if endpoint := speech_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
-                deployment_type=D.SPEECH_API,
+                deployment_type=D.AUDIO_SPEECH_API,
                 endpoint=endpoint,
             )
 
@@ -146,7 +146,7 @@ class ApplicationConfig(ExtraForbidModel):
                 | D.RESPONSES_API
                 | D.COMPLETIONS_API
                 | D.AZURE_VIDEO_API
-                | D.SPEECH_API
+                | D.AUDIO_SPEECH_API
             ):
                 pass
             case _:
@@ -196,8 +196,8 @@ class ApplicationConfig(ExtraForbidModel):
                     "GPT_IMAGE_1_AZURE_API_VERSION": get_env_var(
                         os.getenv, "GPT_IMAGE_1_AZURE_API_VERSION"
                     ),
-                    "AUDIO_API_VERSION": get_env_var(
-                        os.getenv, "AUDIO_API_VERSION"
+                    "AUDIO_AZURE_API_VERSION": get_env_var(
+                        os.getenv, "AUDIO_AZURE_API_VERSION"
                     ),
                     "ELIMINATE_EMPTY_CHOICES": get_env_var(
                         get_env_bool,

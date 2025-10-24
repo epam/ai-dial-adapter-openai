@@ -4,6 +4,9 @@ import fastapi
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
+from aidial_adapter_openai.audio_api.adapter import (
+    chat_completion as audio_speech_gen,
+)
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
@@ -24,9 +27,6 @@ from aidial_adapter_openai.image_generation.generation import (
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.responses.adapter import chat_completion as responses
-from aidial_adapter_openai.speech_api.adapter import (
-    chat_completion as speech_gen,
-)
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
@@ -135,13 +135,13 @@ async def call_chat_completion(
                 request=request_body, client=client
             )
 
-        case D.SPEECH_API:
+        case D.AUDIO_SPEECH_API:
             if isinstance(client, AsyncAzureOpenAI):
                 client = client.with_options(
-                    api_version=app_config.AUDIO_API_VERSION
+                    api_version=app_config.AUDIO_AZURE_API_VERSION
                 )
 
-            return await speech_gen(
+            return await audio_speech_gen(
                 request=request_body,
                 client=client,
                 file_storage=file_storage,

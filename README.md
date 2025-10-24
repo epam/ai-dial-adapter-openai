@@ -426,6 +426,54 @@ TIKTOKEN_MODEL_MAPPING={"${MISTRAL_MODEL_NAME}":"gpt-4o"}
 
 The tokenizer will be used as a proxy tokenizer when tokenization on the adapter side is required *(that is when only when the request includes `max_prompt_tokens` parameter)*.
 
+#### Azure Audio API
+
+The adapter supports models connected via [Azure Audio API](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#audio-api).
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AUDIO_API_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_AUDIO_API_DEPLOYMENT_ID/audio/speech",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+##### Text-to-speech models (TTS)
+
+Set `AZURE_AUDIO_API_DEPLOYMENT_ID` variable to one of the [text-to-speech models](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#text-to-speech-models-preview) supported by Azure Audio API.
+
+At the moment of writing, these are: `tts`, `tts-hd`, and `gpt-4o-mini-tts`.
+
+The adapter takes the last user message as a text prompt and sends it to the upstream as `input` parameter. The input text is limited to 4096 characters. The text is being translated into speech audio by the upstream model. The audio file is returned as an attachment in the chat completion response.
+
+System instructions are used to set the tone of the synthesized speech.
+
+The adapter supports the following configuration for the TTS models:
+
+```text
+{
+  "instruction": "Speak in a cheerful tone.", # optional, sets the tone; appended the system message from the chat completion request
+  "voice": "allow", # one of the preset voices
+  "speed": 1.0, # speech speed multiplier
+  "response_format": "mp3" # one of the supported audio formats
+}
+```
+
+Find the configuration details in the [specification](https://github.com/Azure/azure-rest-api-specs/blob/4c5ec9b4e0b961799cc11f6051f240d18f093c38/specification/cognitiveservices/data-plane/AzureOpenAI/inference/preview/2025-04-01-preview/inference.yaml#L5287-L5323) for speech generation requests in Azure.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
@@ -631,7 +679,7 @@ The following variables cluster all deployments into the groups of deployments w
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
-|AUDIO_API_VERSION|2025-03-01-preview|The API version for requests to the Azure OpenAI Audio API endpoints.|
+|AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
 
 Deployments that do not fall into any of the categories are considered to support text-to-text chat completion OpenAI API or text embeddings OpenAI API.
 
