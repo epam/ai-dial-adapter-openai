@@ -474,6 +474,11 @@ The adapter supports the following configuration for the TTS models:
 
 Find the configuration details in the [Azure specification](https://github.com/Azure/azure-rest-api-specs/blob/4c5ec9b4e0b961799cc11f6051f240d18f093c38/specification/cognitiveservices/data-plane/AzureOpenAI/inference/preview/2025-04-01-preview/inference.yaml#L5287-L5323) or in the [OpenAI Platform specification](https://platform.openai.com/docs/api-reference/audio/createSpeech?api-mode=chat).
 
+The usage is computed in the following way:
+
+1. `gpt-4o-mini-tts` - prompt tokens are computed using `gpt-4o` tiktoken algorithm. Completion tokens are set to zero.
+2. `tts` and `tts-hd` - there is no official documentation on the pricing for these models. You need to manually configure the tokenizer via the `TIKTOKEN_MODEL_MAPPING` env variable to enable token usage reporting for these models: `TIKTOKEN_MODEL_MAPPING='{"tts":"gpt-4o","tts-hd":"gpt-4o"}'`. The input will be tokenized and the number of tokens will be reported in the response `usage.prompt_tokens`. Output tokens are set to zero.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
