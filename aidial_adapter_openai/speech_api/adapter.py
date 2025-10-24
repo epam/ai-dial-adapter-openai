@@ -101,10 +101,9 @@ async def chat_completion(
     file_storage: FileStorage | None,
     tokenizer: Tokenizer,
 ):
-    n = int(request.get("n", 1))
-    if n != 1:
+    if (n := request.get("n")) not in [None, 1]:
         raise RequestValidationError(
-            "The deployment doesn't support n other than 1."
+            f"The deployment doesn't support request.n parameter other than 1, but got {n}."
         )
 
     messages = request.pop("messages")
