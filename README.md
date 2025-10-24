@@ -430,6 +430,10 @@ The tokenizer will be used as a proxy tokenizer when tokenization on the adapter
 
 The adapter supports models connected via [Azure Audio API](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#audio-api).
 
+##### Text-to-speech models (TTS)
+
+Set `AZURE_DEPLOYMENT_ID` variable to one of the [text-to-speech models](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#text-to-speech-models-preview) supported by Azure Audio API:
+
 <details><summary>DIAL Core Config</summary>
 
 ```json
@@ -440,7 +444,7 @@ The adapter supports models connected via [Azure Audio API](https://learn.micros
       "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AUDIO_API_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
-          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_AUDIO_API_DEPLOYMENT_ID/audio/speech",
+          "endpoint": "https://${AZURE_SERVICE_NAME}.(openai|cognitiveservices).azure.com/openai/deployments/${AZURE_DEPLOYMENT_ID/audio/speech",
           "key": "${OPTIONAL_API_KEY}"
         }
       ]
@@ -450,10 +454,6 @@ The adapter supports models connected via [Azure Audio API](https://learn.micros
 ```
 
 </details>
-
-##### Text-to-speech models (TTS)
-
-Set `AZURE_AUDIO_API_DEPLOYMENT_ID` variable to one of the [text-to-speech models](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#text-to-speech-models-preview) supported by Azure Audio API.
 
 At the moment of writing, these are: `tts`, `tts-hd`, and `gpt-4o-mini-tts`.
 
@@ -472,7 +472,7 @@ The adapter supports the following configuration for the TTS models:
 }
 ```
 
-Find the configuration details in the [specification](https://github.com/Azure/azure-rest-api-specs/blob/4c5ec9b4e0b961799cc11f6051f240d18f093c38/specification/cognitiveservices/data-plane/AzureOpenAI/inference/preview/2025-04-01-preview/inference.yaml#L5287-L5323) for speech generation requests in Azure.
+Find the configuration details in the [Azure specification](https://github.com/Azure/azure-rest-api-specs/blob/4c5ec9b4e0b961799cc11f6051f240d18f093c38/specification/cognitiveservices/data-plane/AzureOpenAI/inference/preview/2025-04-01-preview/inference.yaml#L5287-L5323) or in the [OpenAI Platform specification](https://platform.openai.com/docs/api-reference/audio/createSpeech?api-mode=chat).
 
 ### Tokenization of chat completion requests/responses
 
