@@ -4,7 +4,7 @@ from typing import Any, AsyncIterator
 from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 
-from aidial_adapter_openai.audio_api.configuration import Configuration
+from aidial_adapter_openai.audio_api.speech.configuration import Configuration
 from aidial_adapter_openai.dial_api.attachment import (
     upload_message_attachments_to_storage,
 )

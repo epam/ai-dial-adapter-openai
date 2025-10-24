@@ -4,7 +4,7 @@ import fastapi
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
-from aidial_adapter_openai.audio_api.adapter import (
+from aidial_adapter_openai.audio_api.speech.adapter import (
     chat_completion as audio_speech_gen,
 )
 from aidial_adapter_openai.chat_completions.gpt import (
