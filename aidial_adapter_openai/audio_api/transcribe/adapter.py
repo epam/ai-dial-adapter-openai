@@ -82,7 +82,7 @@ def _create_usage(
 def _get_usage(
     chunk: TranscriptionTextDoneEvent | Transcription | TranscriptionVerbose,
 ) -> dict | None:
-    # NOTE: whisper has completely different API of responses
+    # NOTE: whisper has completely different API for its responses
     duration: Any | None = getattr(chunk, "duration", None)
     if duration is not None and isinstance(duration, (float, int)):
         return _create_usage(prompt_tokens=int(duration))
@@ -94,7 +94,8 @@ def _get_usage(
     if (type := usage_dict.get("type")) is None:
         return None
 
-    # NOTE: gpt-4o returns usage in tokens, whisper - in seconds.
+    # NOTE: gpt-4o supposed to return usage in tokens, whisper - in seconds,
+    # however whisper doesn't return usage field at all.
     if type == "tokens":
         return _create_usage(
             prompt_tokens=usage_dict.get("input_tokens"),
