@@ -45,7 +45,7 @@ class VideoGenerationJob(BaseModel):
                     code="content_filter", message=message
                 )
 
-        raise _internal_server_error(message)
+        raise InternalServerError(message=message)
 
 
 class AzureVideoAPIClient(BaseModel):
@@ -91,10 +91,7 @@ class AzureVideoAPIClient(BaseModel):
             files=files,
             **client_options,
         )
-        if not resp.is_success:
-            raise _internal_server_error(
-                "Video generation job creation failed", resp
-            )
+        resp.raise_for_status()
 
         resp_body = resp.json()
         logger.debug(f"job created: {json.dumps(resp_body)}")
@@ -104,11 +101,7 @@ class AzureVideoAPIClient(BaseModel):
         url = f"{self.base_url}/jobs/{job_id}"
 
         resp = await get_http_client().get(url=url, **self._client_options)
-
-        if not resp.is_success:
-            raise _internal_server_error(
-                "Getting the status of a video generation job failed", resp
-            )
+        resp.raise_for_status()
 
         resp_body = resp.json()
         logger.debug(f"job status polled: {json.dumps(resp_body)}")
@@ -118,20 +111,5 @@ class AzureVideoAPIClient(BaseModel):
         url = f"{self.base_url}/{generation_id}/content/video"
 
         resp = await get_http_client().get(url=url, **self._client_options)
-
-        if not resp.is_success:
-            raise _internal_server_error(
-                "Fetching generated video content failed", resp
-            )
-
+        resp.raise_for_status()
         return resp.content
-
-
-def _internal_server_error(
-    message: str, response: httpx.Response | None = None
-) -> InternalServerError:
-    if response:
-        logger.error(f"{message}: {response.status_code} {response.text}")
-    else:
-        logger.error(message)
-    return InternalServerError(message=message)
