@@ -23,6 +23,7 @@ class VideoGeneration(BaseModel):
     """
 
     id: str
+    n_seconds: int
 
 
 class MediaItemType(str, Enum):
