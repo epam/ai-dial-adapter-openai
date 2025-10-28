@@ -5,8 +5,10 @@ import openai
 from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.audio import (
+    Transcription,
     TranscriptionTextDeltaEvent,
     TranscriptionTextDoneEvent,
+    TranscriptionVerbose,
 )
 
 from aidial_adapter_openai.dial_api.request import collect_message_text_content
@@ -51,6 +53,19 @@ async def download_audio_file(
 
     raise RequestValidationError(
         "No audio attachment found in the last message"
+    )
+
+
+def _extract_usage(
+    chunk: TranscriptionTextDoneEvent | Transcription | TranscriptionVerbose,
+) -> dict | None:
+    usage_dict: dict | None = getattr(chunk, "usage", None)  # type: ignore
+    if usage_dict is None:
+        return None
+
+    return _create_usage(
+        prompt_tokens=usage_dict.get("input_tokens") or 0,
+        completion_tokens=usage_dict.get("output_tokens") or 0,
     )
 
 
@@ -121,7 +136,7 @@ async def chat_completion(
                     case TranscriptionTextDoneEvent():
                         yield gen_chunk(
                             content="",
-                            usage=_create_usage(0, 0),  # TODO
+                            usage=_extract_usage(chunk),
                             finish_reason="stop",
                         )
 
@@ -133,6 +148,6 @@ async def chat_completion(
         return gen_chunk(
             role="assistant",
             content=response.text,
+            usage=_extract_usage(response),
             finish_reason="stop",
-            usage=_create_usage(0, 0),  # TODO
         )

@@ -7,6 +7,9 @@ from openai import AsyncAzureOpenAI
 from aidial_adapter_openai.audio_api.speech.adapter import (
     chat_completion as audio_speech_gen,
 )
+from aidial_adapter_openai.audio_api.transcribe.adapter import (
+    chat_completion as audio_transcriptions_gen,
+)
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
@@ -146,6 +149,13 @@ async def call_chat_completion(
                 client=client,
                 file_storage=file_storage,
                 tokenizer=_get_tokenizer(),
+            )
+
+        case D.AUDIO_TRANSCRIPTIONS_API:
+            return await audio_transcriptions_gen(
+                request=request_body,
+                client=client,
+                file_storage=file_storage,
             )
 
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
