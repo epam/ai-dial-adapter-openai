@@ -138,25 +138,27 @@ async def call_chat_completion(
                 request=request_body, client=client
             )
 
-        case D.AUDIO_SPEECH_API:
+        case D.AUDIO_SPEECH_API | D.AUDIO_TRANSCRIPTIONS_API:
             if isinstance(client, AsyncAzureOpenAI):
                 client = client.with_options(
                     api_version=app_config.AUDIO_AZURE_API_VERSION
                 )
 
-            return await audio_speech_gen(
-                request=request_body,
-                client=client,
-                file_storage=file_storage,
-                tokenizer=_get_tokenizer(),
-            )
-
-        case D.AUDIO_TRANSCRIPTIONS_API:
-            return await audio_transcriptions_gen(
-                request=request_body,
-                client=client,
-                file_storage=file_storage,
-            )
+            if deployment_type == D.AUDIO_SPEECH_API:
+                return await audio_speech_gen(
+                    request=request_body,
+                    client=client,
+                    file_storage=file_storage,
+                    tokenizer=_get_tokenizer(),
+                )
+            elif deployment_type == D.AUDIO_TRANSCRIPTIONS_API:
+                return await audio_transcriptions_gen(
+                    request=request_body,
+                    client=client,
+                    file_storage=file_storage,
+                )
+            else:
+                assert_never(deployment_type)
 
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
 
