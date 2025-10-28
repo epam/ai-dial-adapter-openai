@@ -14,6 +14,7 @@ from httpx._types import RequestFiles
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import DIAL_URL, FileStorage
+from aidial_adapter_openai.exception_handlers import dial_exception_decorator
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.video_generation.azure.client import (
@@ -194,6 +195,7 @@ async def chat_completion(
 
     client = AzureVideoAPIClient(creds=creds, base_url=upstream_endpoint)
 
+    @dial_exception_decorator
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
         response.set_model(model_name)
 
