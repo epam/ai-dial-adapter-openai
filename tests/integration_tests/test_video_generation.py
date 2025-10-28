@@ -85,7 +85,7 @@ async def test_text_to_video_multiple_variants(
     videogen_deployment: D,
     stream: bool,
 ) -> None:
-    config = {"n_seconds": 1, "n_variants": 2}
+    config = {"n_seconds": 2, "n_variants": 2}
     query = "a cat with octopus tentacles riding a bike on Mars"
 
     response = await chat_completion(
@@ -98,7 +98,7 @@ async def test_text_to_video_multiple_variants(
 
     assert response.usage is not None
     assert response.usage.prompt_tokens == 0
-    assert response.usage.completion_tokens == 2
+    assert response.usage.completion_tokens == 4
 
     for attachments in response.all_attachments:
         video_attachments = [
