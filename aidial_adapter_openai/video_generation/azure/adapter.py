@@ -27,6 +27,7 @@ from aidial_adapter_openai.video_generation.azure.prompt import VideoGenPrompt
 from aidial_adapter_openai.video_generation.azure.types import (
     CreateVideoGenerationRequest,
     JobStatus,
+    VideoGeneration,
 )
 
 
@@ -94,7 +95,7 @@ async def _poll_job(
     client: AzureVideoAPIClient,
     job_id: str,
     polling_interval: float,
-) -> List[str]:
+) -> List[VideoGeneration]:
     while True:
         await asyncio.sleep(polling_interval)
 
@@ -110,7 +111,7 @@ async def _poll_job(
                     raise InternalServerError(
                         "Video generation succeeded but no generations found"
                     )
-                return [g.id for g in generations]
+                return generations
 
             case JobStatus.FAILED:
                 video_job.failed()
@@ -137,17 +138,18 @@ async def _download_videos(
     response: DIALResponse,
     choice: Choice,
     client: AzureVideoAPIClient,
-    video_ids: List[str],
+    video_generations: List[VideoGeneration],
     storage: FileStorage | None,
 ):
-    n = len(video_ids)
+    n = len(video_generations)
+    seconds = sum(v.n_seconds for v in video_generations)
     response.set_usage(
         prompt_tokens=0,
-        completion_tokens=n,
+        completion_tokens=seconds,
     )
 
-    for idx, video_id in enumerate(video_ids, start=1):
-        video_bytes = await client.get_video_content(video_id)
+    for idx, video_generation in enumerate(video_generations, start=1):
+        video_bytes = await client.get_video_content(video_generation.id)
         content_type = "video/mp4"
 
         if storage:
@@ -214,7 +216,7 @@ async def chat_completion(
                     client=client,
                 )
 
-                video_ids = await _poll_job(
+                video_generations = await _poll_job(
                     stage=stage,
                     client=client,
                     job_id=job_id,
@@ -226,7 +228,7 @@ async def chat_completion(
                     choice=choice,
                     storage=file_storage,
                     client=client,
-                    video_ids=video_ids,
+                    video_generations=video_generations,
                 )
 
     stream = response._generate_stream(_handler)

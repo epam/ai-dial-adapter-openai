@@ -361,6 +361,10 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 > [!NOTE]
 > `n_variants>1` results in multiple video attachments to a **single chat completion choice**.
 
+> [!IMPORTANT]
+> Prompt tokens in the usage are set to zero.
+> Completion tokens are set to the overall number of seconds in the generated video(s).
+
 #### OpenAI Completions API
 
 The adapter also supports **legacy** [Completions API](https://platform.openai.com/docs/api-reference/completions/create) both for Azure-style upstream endpoints and OpenAI Platform-style endpoints:
