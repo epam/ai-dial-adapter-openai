@@ -25,6 +25,7 @@ from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
     ChatCompletionStreamingChunk,
 )
+from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 
@@ -63,7 +64,7 @@ def build_chunk(
         "object": object_name,
         "created": created,
         "choices": choices,
-        **extra,
+        **remove_nones(extra),
     }
 
 
