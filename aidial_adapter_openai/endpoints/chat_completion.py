@@ -4,6 +4,9 @@ import fastapi
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
+from aidial_adapter_openai.audio_api.speech.adapter import (
+    chat_completion as audio_speech_gen,
+)
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
@@ -79,6 +82,13 @@ async def call_chat_completion(
     creds = await get_credentials(request_headers)
     client = endpoint.get_client({**creds, "api_version": api_version})
 
+    def _get_tokenizer() -> Tokenizer:
+        tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
+            deployment_id, deployment_id
+        )
+        image_tokenizer = get_image_tokenizer(deployment_type)
+        return Tokenizer(model=tiktoken_model, image_tokenizer=image_tokenizer)
+
     match deployment_type:
         case D.COMPLETIONS_API:
             templates = app_config.COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES
@@ -125,24 +135,27 @@ async def call_chat_completion(
                 request=request_body, client=client
             )
 
+        case D.AUDIO_SPEECH_API:
+            if isinstance(client, AsyncAzureOpenAI):
+                client = client.with_options(
+                    api_version=app_config.AUDIO_AZURE_API_VERSION
+                )
+
+            return await audio_speech_gen(
+                request=request_body,
+                client=client,
+                file_storage=file_storage,
+                tokenizer=_get_tokenizer(),
+            )
+
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
-
-            tiktoken_model = (
-                app_config.TIKTOKEN_MODEL_MAPPING.get(deployment_id)
-                or deployment_id
-            )
-
-            tokenizer = Tokenizer(
-                model=tiktoken_model,
-                image_tokenizer=get_image_tokenizer(deployment_type),
-            )
 
             response = await gpt_chat_completion(
                 request=request_body,
                 request_headers=request_headers,
                 client=client,
                 file_storage=file_storage,
-                tokenizer=tokenizer,
+                tokenizer=_get_tokenizer(),
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
             )
 
