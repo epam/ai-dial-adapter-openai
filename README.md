@@ -77,7 +77,7 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completi
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/chat/completions",
@@ -148,7 +148,7 @@ The DIAL configuration changes accordingly:
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
       "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/chat/completions",
@@ -174,7 +174,7 @@ Because the deployment ID is not included in the upstream URL, specify it in the
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
       "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://api.openai.com/v1/chat/completions",
@@ -205,7 +205,7 @@ Certain advanced features of OpenAI models, such as [reasoning summary](https://
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
       "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/responses",
@@ -242,7 +242,7 @@ Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deplo
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
       "overrideName": "${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/models/chat/completions",
@@ -264,7 +264,7 @@ Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deplo
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
       "overrideName": "${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.openai.azure.com/openai/deployments/gpt-oss-120b/chat/completions",
@@ -287,7 +287,7 @@ Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deplo
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/images/generations",
@@ -316,7 +316,7 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
       "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/video/generations",
@@ -361,6 +361,10 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 > [!NOTE]
 > `n_variants>1` results in multiple video attachments to a **single chat completion choice**.
 
+> [!IMPORTANT]
+> Prompt tokens in the usage are set to zero.
+> Completion tokens are set to the overall number of seconds in the generated video(s).
+
 #### OpenAI Completions API
 
 The adapter also supports **legacy** [Completions API](https://platform.openai.com/docs/api-reference/completions/create) both for Azure-style upstream endpoints and OpenAI Platform-style endpoints:
@@ -373,7 +377,7 @@ The adapter also supports **legacy** [Completions API](https://platform.openai.c
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
       "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://api.openai.com/v1/completions",
@@ -386,6 +390,95 @@ The adapter also supports **legacy** [Completions API](https://platform.openai.c
 ```
 
 </details>
+
+#### Mistral Chat Completion API
+
+The Mistral Platform provides [Chat Completions API](https://docs.mistral.ai/api/#tag/chat), therefore, it could be connected to via the adapter:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${MISTRAL_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${MISTRAL_MODEL_NAME}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://api.mistral.ai/v1/chat/completions",
+          "key": "${MISTRAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Where `MISTRAL_MODEL_NAME` is one of the available [models](https://docs.mistral.ai/getting-started/models/models_overview/) on the Platform.
+
+You also need to set the default tokenizer via the adapter env variable:
+
+```ini
+TIKTOKEN_MODEL_MAPPING={"${MISTRAL_MODEL_NAME}":"gpt-4o"}
+```
+
+The tokenizer will be used as a proxy tokenizer when tokenization on the adapter side is required *(that is when only when the request includes `max_prompt_tokens` parameter)*.
+
+#### Azure Audio API
+
+The adapter supports models connected via [Azure Audio API](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#audio-api).
+
+##### Text-to-speech models (TTS)
+
+Set `AZURE_DEPLOYMENT_ID` variable to one of the [text-to-speech models](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#text-to-speech-models-preview) supported by Azure Audio API:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AUDIO_API_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_SERVICE_NAME}.(openai|cognitiveservices).azure.com/openai/deployments/${AZURE_DEPLOYMENT_ID/audio/speech",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+At the moment of writing, these are: `tts`, `tts-hd`, and `gpt-4o-mini-tts`.
+
+The adapter takes the last user message as a text prompt and sends it to the upstream as `input` parameter. The input text is limited to 4096 characters. The text is being translated into speech audio by the upstream model. The audio file is returned as an attachment in the chat completion response.
+
+System instructions are used to set the tone of the synthesized speech.
+
+The adapter supports the following configuration for the TTS models:
+
+```text
+{
+  "instruction": "Speak in a cheerful tone.", # optional, sets the tone; appended the system message from the chat completion request
+  "voice": "allow", # one of the preset voices
+  "speed": 1.0, # speech speed multiplier
+  "response_format": "mp3" # one of the supported audio formats
+}
+```
+
+Find the configuration details in the [Azure specification](https://github.com/Azure/azure-rest-api-specs/blob/4c5ec9b4e0b961799cc11f6051f240d18f093c38/specification/cognitiveservices/data-plane/AzureOpenAI/inference/preview/2025-04-01-preview/inference.yaml#L5287-L5323) or in the [OpenAI Platform specification](https://platform.openai.com/docs/api-reference/audio/createSpeech?api-mode=chat).
+
+The usage is computed in the following way:
+
+1. `gpt-4o-mini-tts` - prompt tokens are computed using `gpt-4o` tiktoken algorithm. Completion tokens are set to zero.
+2. `tts` and `tts-hd` - there is no official documentation on the pricing for these models. You need to manually configure the tokenizer via the `TIKTOKEN_MODEL_MAPPING` env variable to enable token usage reporting for these models: `TIKTOKEN_MODEL_MAPPING='{"tts":"gpt-4o","tts-hd":"gpt-4o"}'`. The input will be tokenized and the number of tokens will be reported in the response `usage.prompt_tokens`. Output tokens are set to zero.
 
 ### Tokenization of chat completion requests/responses
 
@@ -470,7 +563,7 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/embeddings",
@@ -494,7 +587,7 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
       "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/embeddings",
@@ -518,7 +611,7 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
       "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
       "upstreams": [
         {
           "endpoint": "https://api.openai.com/v1/embeddings",
@@ -543,7 +636,7 @@ The adapter supports [Azure Multimodal embeddings](https://learn.microsoft.com/e
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
-      "endpoint": "${ADAPTER_ORIGIN}/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
       "upstreams": [
         {
           "endpoint": "https://${COMPUTER_VISION_SERVICE_NAME}.cognitiveservices.azure.com",
@@ -592,6 +685,7 @@ The following variables cluster all deployments into the groups of deployments w
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
+|AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
 
 Deployments that do not fall into any of the categories are considered to support text-to-text chat completion OpenAI API or text embeddings OpenAI API.
 
