@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 from typing import Callable, List
 from unittest.mock import patch
@@ -16,6 +15,7 @@ from tests.integration_tests.constants import (
 )
 from tests.utils.openai import chat_completion, user, user_with_attachment_data
 from tests.utils.storage import MockFileStorage
+from tests.utils.string import is_close_enough
 
 
 @pytest.fixture(autouse=True)
@@ -67,14 +67,6 @@ else:
 
 
 @pytest.fixture
-def any_tts_deployment() -> D:
-    if _tts_deployments:
-        return _tts_deployments[0]
-    else:
-        pytest.skip("No TTS deployments were found")
-
-
-@pytest.fixture
 def any_stt_deployment() -> D:
     if _stt_deployments:
         return _stt_deployments[0]
@@ -92,12 +84,6 @@ def text_query() -> str:
     return "Call me Ishmael. Some years ago, never mind how long precisely, having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world."
 
 
-def _sanitize_text(s: str) -> str:
-    ret = re.sub("[^a-z]", " ", s.lower())
-    ret = re.sub("( )+", " ", ret)
-    return ret.strip()
-
-
 async def test_text_to_speech_and_back(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     tts_deployment: DeploymentConfig,
@@ -105,7 +91,6 @@ async def test_text_to_speech_and_back(
     stream: bool,
     text_query: str,
 ):
-
     response = await chat_completion(
         create_openai_client(tts_deployment),
         stream=stream,
@@ -128,7 +113,7 @@ async def test_text_to_speech_and_back(
             ],
         )
 
-        assert _sanitize_text(text_query) in _sanitize_text(evaluation.content)
+        assert is_close_enough(text_query, evaluation.content)
 
 
 async def test_speech_to_text(
@@ -137,7 +122,6 @@ async def test_speech_to_text(
     text_query: str,
     stream: bool,
 ):
-
     response = await chat_completion(
         create_openai_client(stt_deployment),
         stream=stream,
@@ -145,4 +129,4 @@ async def test_speech_to_text(
         messages=[user_with_attachment_data(" ", AUDIO_RESOURCE)],
     )
 
-    assert _sanitize_text(text_query) in _sanitize_text(response.content)
+    assert is_close_enough(text_query, response.content)

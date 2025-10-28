@@ -1,3 +1,4 @@
+import mimetypes
 import os
 from pathlib import Path
 from typing import List
@@ -71,21 +72,13 @@ class MockFileStorage(FileStorage):
 
     @staticmethod
     def _get_file_extension(content_type: str) -> str:
-        if content_type == "image/png":
-            return "png"
-        elif content_type == "image/jpeg":
-            return "jpeg"
-        elif content_type == "video/mp4":
-            return "mp4"
-        else:
-            return content_type.replace("/", "_")
+        return mimetypes.guess_extension(content_type) or ".bin"
 
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
-
         ext = self._get_file_extension(content_type)
-        name = self._get_fresh_filename() + "." + ext
+        name = self._get_fresh_filename() + ext
 
         file = self.root_dir / name
         file.write_bytes(content)

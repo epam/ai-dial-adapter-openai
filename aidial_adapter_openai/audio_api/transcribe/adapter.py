@@ -57,9 +57,8 @@ async def download_audio_file(
                 if (data := await _download_file(attachment)) is None:
                     continue
 
-                ext = mimetypes.guess_extension(type) or "audio/mp3"
-
-                return Resource(type=type, data=data), f"file.{ext}"
+                ext = mimetypes.guess_extension(type) or ".mp3"
+                return Resource(type=type, data=data), f"file{ext}"
 
     raise RequestValidationError(
         "No audio attachment found in the last message"
