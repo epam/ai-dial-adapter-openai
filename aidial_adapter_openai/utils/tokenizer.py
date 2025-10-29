@@ -28,15 +28,19 @@ _TIKTOKEN_MODEL_PREFIXES = [
     f'"{p}"' for p in MODEL_PREFIX_TO_ENCODING.keys() if not p.startswith("ft:")
 ]
 
+_DEFAULT_TOKENIZER_MODEL = "gpt-4o"
+_DEFAULT_TOKENIZER_ENCODING = encoding_for_model(_DEFAULT_TOKENIZER_MODEL)
 
-def _get_tiktoken_error_message(model: str) -> str:
+
+def _get_tiktoken_warning_message(model: str) -> str:
     var_name = "TIKTOKEN_MODEL_MAPPING"
 
     return (
         f"Could not find tokenizer for the model {model!r} in the tiktoken package. "
         f"Consider mapping the model to an existing tokenizer via {var_name} variable in the adapter OpenAI environment: "
         f'{var_name}=\'{{"{model}": $prefix}}\', where $prefix is one of: {", ".join(_TIKTOKEN_MODEL_PREFIXES)}. '
-        "Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken."
+        "Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken. "
+        f"Meantime, the default tokenizer of the {_DEFAULT_TOKENIZER_MODEL!r} model will be used instead: {_DEFAULT_TOKENIZER_ENCODING.name!r}."
     )
 
 
@@ -53,8 +57,9 @@ class BaseTokenizer(ABC, Generic[MessageType]):
         self.model = model
         try:
             self.encoding = encoding_for_model(model)
-        except KeyError as e:
-            raise InternalServerError(_get_tiktoken_error_message(model)) from e
+        except KeyError:
+            logger.warning(_get_tiktoken_warning_message(model))
+            self.encoding = _DEFAULT_TOKENIZER_ENCODING
 
     async def tokenize_text(self, text: str) -> int:
         return await run_in_threadpool(lambda: len(self.encoding.encode(text)))
