@@ -6,6 +6,9 @@ from openai.types.image import Image
 from openai.types.images_response import ImagesResponse
 from pydantic import BaseModel
 
+from aidial_adapter_openai.dial_api.attachment import (
+    upload_message_attachments_to_storage,
+)
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
@@ -45,31 +48,6 @@ def create_assistant_messages(images: List[Image], content_type: str):
             "content": "",
             "custom_content": custom_content,
         }
-
-
-async def upload_attachment_to_storage(
-    file_storage: FileStorage, attachment: dict
-):
-    if (
-        "data" not in attachment
-        or "type" not in attachment
-        or not attachment["type"].startswith("image/")
-    ):
-        return
-
-    file_metadata = await file_storage.upload_file(
-        "images", attachment["data"], attachment["type"]
-    )
-
-    del attachment["data"]
-    attachment["url"] = file_metadata["url"]
-
-
-async def upload_custom_content_to_storage(
-    file_storage: FileStorage, custom_content: dict
-):
-    for attachment in custom_content["attachments"]:
-        await upload_attachment_to_storage(file_storage, attachment)
 
 
 _Config = TypeVar("_Config", bound=BaseModel)
@@ -123,11 +101,8 @@ async def chat_completion(
     image_content_type = model.get_image_content_type(config)
     messages = list(create_assistant_messages(images, image_content_type))
 
-    if file_storage is not None:
-        for message in messages:
-            await upload_custom_content_to_storage(
-                file_storage, message["custom_content"]
-            )
+    for message in messages:
+        await upload_message_attachments_to_storage(file_storage, message)
 
     id = generate_id()
     created = model_response.created
