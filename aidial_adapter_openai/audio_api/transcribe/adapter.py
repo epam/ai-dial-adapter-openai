@@ -1,10 +1,7 @@
-import base64
 import logging
-import mimetypes
-from typing import Any, AsyncIterator, Tuple, assert_never
+from typing import Any, AsyncIterator, assert_never
 
 import openai
-from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.audio import (
     Transcription,
@@ -13,56 +10,14 @@ from openai.types.audio import (
     TranscriptionVerbose,
 )
 
-from aidial_adapter_openai.dial_api.request import collect_message_text_content
-from aidial_adapter_openai.dial_api.storage import FileStorage, download_file
+from aidial_adapter_openai.audio_api.transcribe.prompt import TranscribePrompt
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.resource.base import Resource
 from aidial_adapter_openai.utils.streaming import (
     build_chunk,
     generate_created,
     generate_id,
 )
-
-
-def collect_system_messages(messages: list[dict]) -> str | None:
-    ret = ""
-    for message in messages:
-        if message.get("role") in ("system", "developer"):
-            ret += collect_message_text_content(message)
-    return ret.strip() or None
-
-
-async def download_audio_file(
-    file_storage: FileStorage | None, message: dict
-) -> Tuple[Resource, str]:
-
-    async def _download_file(attachment: dict) -> bytes | None:
-        if data_base64 := attachment.get("data"):
-            return base64.b64decode(data_base64)
-        elif url := attachment.get("url"):
-            if file_storage is not None:
-                return await file_storage.download_file(url)
-            else:
-                return await download_file(url)
-        else:
-            return None
-
-    if cc := message.get("custom_content"):
-        if attachments := cc.get("attachments"):
-            for attachment in attachments:
-                type = attachment.get("type") or ""
-                if not type.startswith("audio/"):
-                    continue
-
-                if (data := await _download_file(attachment)) is None:
-                    continue
-
-                ext = mimetypes.guess_extension(type) or ".mp3"
-                return Resource(type=type, data=data), f"file{ext}"
-
-    raise RequestValidationError(
-        "No audio attachment found in the last message"
-    )
 
 
 def _create_usage(
@@ -116,27 +71,18 @@ async def chat_completion(
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
 ):
-    if (n := request.get("n")) not in [None, 1]:
-        raise RequestValidationError(
-            f"The deployment doesn't support request.n parameter other than 1, but got {n}."
-        )
-
-    messages = request.pop("messages")
-    if not messages:
-        raise RequestValidationError("The request doesn't contain any messages")
-
     is_stream = bool(request.get("stream"))
     model_name = request["model"]
 
     is_whisper_deployment = "whisper" in model_name
     response_format = "verbose_json" if is_whisper_deployment else "json"
 
-    system_message = collect_system_messages(messages)
-    resource, filename = await download_audio_file(file_storage, messages[-1])
+    prompt = await TranscribePrompt.from_request(request, file_storage)
+    file = (prompt.audio_filename, prompt.audio_data, prompt.audio_type)
 
     response = await client.audio.transcriptions.create(
-        file=(filename, resource.data, resource.type),
-        prompt=system_message or openai.NOT_GIVEN,
+        file=file,
+        prompt=prompt.system_message or openai.NOT_GIVEN,
         model=model_name,
         stream=is_stream,
         response_format=response_format,

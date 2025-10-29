@@ -4,16 +4,23 @@ from unittest.mock import patch
 
 import openai
 import pytest
+from openai.types.chat import ChatCompletionMessageParam
 
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
+from aidial_adapter_openai.utils.resource.base import Resource
 from tests.integration_tests.base import DeploymentConfig
 from tests.integration_tests.constants import (
     AUDIO_RESOURCE,
     TEST_DEPLOYMENTS_CONFIG,
 )
-from tests.utils.openai import chat_completion, user, user_with_attachment_data
+from tests.utils.openai import (
+    chat_completion,
+    user,
+    user_with_attachment_data,
+    user_with_attachment_url,
+)
 from tests.utils.storage import MockFileStorage
 from tests.utils.string import is_close_enough
 
@@ -79,6 +86,14 @@ def stream(request) -> bool:
     return request.param
 
 
+@pytest.fixture(
+    params=[user_with_attachment_url, user_with_attachment_data],
+    ids=["attachment-data-url", "attachment-data"],
+)
+def message_with_attachment(request):
+    return request.param
+
+
 @pytest.fixture()
 def text_query() -> str:
     return "Call me Ishmael. Some years ago, never mind how long precisely, having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world."
@@ -121,12 +136,15 @@ async def test_speech_to_text(
     stt_deployment: DeploymentConfig,
     text_query: str,
     stream: bool,
+    message_with_attachment: Callable[
+        [str, Resource], ChatCompletionMessageParam
+    ],
 ):
     response = await chat_completion(
         create_openai_client(stt_deployment),
         stream=stream,
         deployment_id=stt_deployment.model_name,
-        messages=[user_with_attachment_data(" ", AUDIO_RESOURCE)],
+        messages=[message_with_attachment(" ", AUDIO_RESOURCE)],
     )
 
     assert is_close_enough(text_query, response.content)
