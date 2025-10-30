@@ -362,12 +362,8 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 > `n_variants>1` results in multiple video attachments to a **single chat completion choice**.
 
 > [!IMPORTANT]
-<<<<<<< HEAD
-> `response.usage.completion_tokens` takes value of the **total number of generated videos**. Meaning that the videos of different length and resolution will be reported to use the same number of tokens (one).
-=======
 > Prompt tokens in the usage are set to zero.
 > Completion tokens are set to the overall number of seconds in the generated video(s).
->>>>>>> development
 
 #### OpenAI Completions API
 
