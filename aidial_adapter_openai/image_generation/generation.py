@@ -102,7 +102,9 @@ async def chat_completion(
     messages = list(create_assistant_messages(images, image_content_type))
 
     for message in messages:
-        await upload_message_attachments_to_storage(file_storage, message)
+        await upload_message_attachments_to_storage(
+            file_storage, "images", message
+        )
 
     id = generate_id()
     created = model_response.created
