@@ -1105,7 +1105,7 @@ async def test_missing_tiktoken_model(
 
     if no_usage_returned or with_max_prompt_tokens:
         # The adapter-side tokenization is only needed when either
-        # * the usage isn't provided by the upstread, or
+        # * the usage isn't provided by the upstream, or
         # * "max_prompt_tokens" parameter was in the request.
         tiktoken_warning = """
     Could not find tokenizer for the model 'my-favorite-model' in the tiktoken package. Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING variable in the adapter OpenAI environment: TIKTOKEN_MODEL_MAPPING='{"my-favorite-model": $prefix}', where $prefix is one of: "o1-", "o3-", "o4-mini-", "gpt-5-", "gpt-4.5-", "gpt-4.1-", "chatgpt-4o-", "gpt-4o-", "gpt-4-", "gpt-3.5-turbo-", "gpt-35-turbo-", "gpt-oss-". Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken. Meantime, the default tokenizer of the 'gpt-4o' model will be used instead: 'o200k_base'.
