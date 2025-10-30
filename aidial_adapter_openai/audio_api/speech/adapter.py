@@ -89,7 +89,7 @@ async def chat_completion(
     audio_format = response.response.headers.get("content-type") or "audio/mpeg"
 
     message = create_assistant_message(audio_data, audio_format)
-    await upload_message_attachments_to_storage(file_storage, message)
+    await upload_message_attachments_to_storage(file_storage, "audio", message)
 
     chunk = build_chunk(
         id=generate_id(),
