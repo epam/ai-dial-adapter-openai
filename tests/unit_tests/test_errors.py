@@ -1045,26 +1045,76 @@ async def test_error_from_gpt_multi_modal(stream: bool):
         assert response.content == b"Something went wrong"
 
 
-async def test_missing_tiktoken_model(test_app: httpx.AsyncClient):
+@respx.mock
+@pytest.mark.parametrize(
+    "no_usage_returned", [True, False], ids=["no-usage", "with-usage"]
+)
+@pytest.mark.parametrize(
+    "with_max_prompt_tokens",
+    [True, False],
+    ids=["with-truncate-prompt", "no-truncate-prompt"],
+)
+async def test_missing_tiktoken_model(
+    test_app: httpx.AsyncClient,
+    no_usage_returned: bool,
+    with_max_prompt_tokens: bool,
+    caplog,
+):
+    usage_from_upstream = (
+        None
+        if no_usage_returned
+        else {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
+    )
+
+    mock_stream = OpenAIStream(
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "5"},
+            finish_reason="stop",
+            usage=usage_from_upstream,
+        ),
+    )
+
+    respx.post(
+        "http://test-upstream/openai/deployments/upstream-deployment/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
     response = await test_app.post(
         "/openai/deployments/my-favorite-model/chat/completions?api-version=2023-03-15-preview",
-        json={"whatever": "whatever"},
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": True,
+            **({"max_prompt_tokens": 100} if with_max_prompt_tokens else {}),
+        },
         headers={
             "X-UPSTREAM-KEY": "dummy-upstream-api-key",
             "X-UPSTREAM-ENDPOINT": "http://test-upstream/openai/deployments/upstream-deployment/chat/completions",
         },
     )
 
-    assert response.status_code == 500
-    assert response.json() == {
-        "error": {
-            "code": "500",
-            "message": """
-Could not find tokenizer for the model 'my-favorite-model' in the tiktoken package. Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING variable in the adapter OpenAI environment: TIKTOKEN_MODEL_MAPPING='{"my-favorite-model": $prefix}', where $prefix is one of: "o1-", "o3-", "o4-mini-", "gpt-5-", "gpt-4.5-", "gpt-4.1-", "chatgpt-4o-", "gpt-4o-", "gpt-4-", "gpt-3.5-turbo-", "gpt-35-turbo-", "gpt-oss-". Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken.
-""".strip(),
-            "type": "internal_server_error",
-        }
-    }
+    assert response.status_code == 200
+
+    warnings = [
+        record.message
+        for record in caplog.records
+        if record.levelname == "WARNING"
+    ]
+
+    if no_usage_returned or with_max_prompt_tokens:
+        # The adapter-side tokenization is only needed when either
+        # * the usage isn't provided by the upstread, or
+        # * "max_prompt_tokens" parameter was in the request.
+        tiktoken_warning = """
+    Could not find tokenizer for the model 'my-favorite-model' in the tiktoken package. Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING variable in the adapter OpenAI environment: TIKTOKEN_MODEL_MAPPING='{"my-favorite-model": $prefix}', where $prefix is one of: "o1-", "o3-", "o4-mini-", "gpt-5-", "gpt-4.5-", "gpt-4.1-", "chatgpt-4o-", "gpt-4o-", "gpt-4-", "gpt-3.5-turbo-", "gpt-35-turbo-", "gpt-oss-". Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken. Meantime, the default tokenizer of the 'gpt-4o' model will be used instead: 'o200k_base'.
+    """.strip()
+
+        assert len(warnings) == 1
+        assert tiktoken_warning == warnings[0]
+    else:
+        assert warnings == []
 
 
 @pytest.mark.parametrize("stream", [False, True])
