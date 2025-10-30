@@ -4,6 +4,7 @@ Implemented based on the official recipe: https://cookbook.openai.com/examples/h
 
 import json
 from abc import ABC, abstractmethod
+from functools import cached_property
 from typing import Any, Callable, Coroutine, Generic, List, Set, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
@@ -50,16 +51,18 @@ class BaseTokenizer(ABC, Generic[MessageType]):
     """
 
     model: str
-    encoding: Encoding
     TOKENS_PER_REQUEST = 3
 
     def __init__(self, model: str) -> None:
         self.model = model
+
+    @cached_property
+    def encoding(self) -> Encoding:
         try:
-            self.encoding = encoding_for_model(model)
+            return encoding_for_model(self.model)
         except KeyError:
-            logger.warning(_get_tiktoken_warning_message(model))
-            self.encoding = _DEFAULT_TOKENIZER_ENCODING
+            logger.warning(_get_tiktoken_warning_message(self.model))
+            return _DEFAULT_TOKENIZER_ENCODING
 
     async def tokenize_text(self, text: str) -> int:
         return await run_in_threadpool(lambda: len(self.encoding.encode(text)))
