@@ -12,6 +12,7 @@ from tests.integration_tests.base import DeploymentConfig
 from tests.integration_tests.constants import (
     IMAGE_RESOURCE,
     TEST_DEPLOYMENTS_CONFIG,
+    VIDEO_RESOURCE,
 )
 from tests.utils.openai import chat_completion, user, user_with_attachment_url
 from tests.utils.storage import MockFileStorage
@@ -120,6 +121,35 @@ async def test_image_to_video(
         deployment_id=videogen_deployment.model_name,
         messages=[
             user_with_attachment_url("animate the dog", IMAGE_RESOURCE),
+        ],
+        extra_body={"custom_fields": {"configuration": config}},
+    )
+
+    assert response.usage is not None
+    assert response.usage.prompt_tokens == 0
+    assert response.usage.completion_tokens == 1
+
+    video_attachments = [
+        a for a in response.attachments if "video" in a.get("type", "")
+    ]
+    assert len(video_attachments) == 1
+
+
+async def test_video_to_video(
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    videogen_deployment: D,
+    stream: bool,
+) -> None:
+    config = {"n_seconds": 1}
+
+    response = await chat_completion(
+        create_openai_client(videogen_deployment),
+        stream=stream,
+        deployment_id=videogen_deployment.model_name,
+        messages=[
+            user_with_attachment_url(
+                "replace the cat with a dog", VIDEO_RESOURCE
+            ),
         ],
         extra_body={"custom_fields": {"configuration": config}},
     )

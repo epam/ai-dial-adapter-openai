@@ -15,6 +15,11 @@ IMAGE_RESOURCE = Resource(
     data=(CURRENT_DIR / "assets" / "image.png").read_bytes(),
 )
 
+VIDEO_RESOURCE = Resource(
+    type="video/mp4",
+    data=(CURRENT_DIR / "assets" / "video.mp4").read_bytes(),
+)
+
 PDF_DOCUMENT_RESOURCE = Resource(
     type="application/pdf",
     data=(CURRENT_DIR / "assets" / "doc.pdf").read_bytes(),
