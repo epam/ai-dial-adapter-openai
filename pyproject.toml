@@ -26,7 +26,7 @@ clean = "scripts.clean:main"
 package-mode = false
 
 [tool.poetry.dependencies]
-fastapi = "0.116.1"
+fastapi = "0.120.2"
 openai = "1.90.0"
 tiktoken = "0.12.0"
 uvicorn = "0.23.0"
