@@ -26,6 +26,7 @@ from aidial_adapter_openai.utils.parsers import (
     no_endpoint_parser,
     responses_parser,
     speech_parser,
+    transcriptions_parser,
 )
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
@@ -120,6 +121,12 @@ class ApplicationConfig(ExtraForbidModel):
                 endpoint=endpoint,
             )
 
+        if endpoint := transcriptions_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.AUDIO_TRANSCRIPTIONS_API,
+                endpoint=endpoint,
+            )
+
         return DeploymentAPIType(
             deployment_type=D.GPT_GENERIC,
             endpoint=chat_completions_parser.parse(upstream_endpoint),
@@ -147,6 +154,7 @@ class ApplicationConfig(ExtraForbidModel):
                 | D.COMPLETIONS_API
                 | D.AZURE_VIDEO_API
                 | D.AUDIO_SPEECH_API
+                | D.AUDIO_TRANSCRIPTIONS_API
             ):
                 pass
             case _:

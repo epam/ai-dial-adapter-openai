@@ -15,6 +15,11 @@ IMAGE_RESOURCE = Resource(
     data=(CURRENT_DIR / "assets" / "image.png").read_bytes(),
 )
 
+AUDIO_RESOURCE = Resource(
+    type="audio/mpeg",
+    data=(CURRENT_DIR / "assets" / "audio.mp3").read_bytes(),
+)
+
 PDF_DOCUMENT_RESOURCE = Resource(
     type="application/pdf",
     data=(CURRENT_DIR / "assets" / "doc.pdf").read_bytes(),

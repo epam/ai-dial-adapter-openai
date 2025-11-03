@@ -294,6 +294,16 @@
                 "toolsSupported": false
             }
         },
+        "grok-3": {
+            "overrideName": "grok-3",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-ai-foundry-service-name.services.ai.azure.com/models",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
         "gpt-oss-120b": {
             "type": "chat",
             "upstreams": [
@@ -335,11 +345,57 @@
             }
         },
         "sora": {
-            "overrideName": "sora-2025-05-02",
+            "overrideName": "sora",
             "type": "chat",
             "upstreams": [
                 {
                     "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/video/generations",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
+        "sora-2": {
+            "overrideName": "sora-2",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/video/generations",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
+        "tts": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/deployments/tts/audio/speech",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
+        "gpt-4o-mini-tts": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/deployments/gpt-4o-mini-tts/audio/speech",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
+        "whisper": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/deployments/whisper/audio/transcriptions",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
+        "gpt-4o-transcribe": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/deployments/gpt-4o-transcribe/audio/transcriptions",
                     "key": "optional-api-key"
                 }
             ]
