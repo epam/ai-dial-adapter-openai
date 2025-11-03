@@ -172,6 +172,16 @@ class DeploymentConfig(BaseModel, Generic[_T]):
         return False
 
     @property
+    def supports_tts(self):
+        return self.type_ == ChatCompletionDeploymentType.AUDIO_SPEECH_API
+
+    @property
+    def supports_stt(self):
+        return (
+            self.type_ == ChatCompletionDeploymentType.AUDIO_TRANSCRIPTIONS_API
+        )
+
+    @property
     def supports_reasoning(self):
         return self.model_features.reasoningSupported
 

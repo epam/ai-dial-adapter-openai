@@ -472,6 +472,42 @@ The usage is computed in the following way:
 1. `gpt-4o-mini-tts` - prompt tokens are computed using `gpt-4o` tiktoken algorithm. Completion tokens are set to zero.
 2. `tts` and `tts-hd` - there is no official documentation on the pricing for these models. Tokenizer for `gpt-4o` model will be used as a default for prompt tokens calculation. Completion tokens are set to zero.
 
+##### Speech-to-text models (STT)
+
+Set `AZURE_DEPLOYMENT_ID` variable to one of the [speech-to-text models](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#speech-to-text-models) supported by Azure Audio API:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AUDIO_API_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_SERVICE_NAME}.(openai|cognitiveservices).azure.com/openai/deployments/${AZURE_DEPLOYMENT_ID/audio/transcriptions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+At the moment of writing, these are: `whisper`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, and `gpt-4o-transcribe-diarize`.
+
+The adapter takes an audio attachment from the last user message and pass it to the transcription model. The transcription is return as a text in the chat completion response.
+
+System instructions are used to set the [prompt](https://platform.openai.com/docs/api-reference/audio/createTranscription#audio-createtranscription-prompt) parameter in the Transcription API request.
+
+The usage is computed in the following way:
+
+1. `gpt-4o-*` models return audio tokens in the `usage.prompt_tokens` field and text tokens - in `usage.completion_tokens`.
+2. `whisper` models return duration of the given audio file in seconds in `usage.prompt_tokens` and zero in `usage.completion_tokens`.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
