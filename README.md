@@ -1,8 +1,73 @@
-# OpenAI Adapter
+<h1 align="center">
+         DIAL OpenAI Adapter
+    </h1>
+    <p align="center">
+        <p align="center">
+        <a href="https://dialx.ai/">
+          <img src="https://dialx.ai/dialx_logo.svg" alt="About DIALX">
+        </a>
+    </p>
+<h4 align="center">
+    <a href="https://discord.gg/TMMwWkEYzS">
+        <img src="https://img.shields.io/static/v1?label=AI%20DIALX%20Community%20in&message=Discord&color=blue&logo=Discord&style=flat-square" alt="Discord">
+    </a>
+</h4>
+
+- [Overview](#overview)
+- [Developer environment](#developer-environment)
+  - [IDE configuration](#ide-configuration)
+- [Run](#run)
+    - [Make on Windows](#make-on-windows)
+- [Chat completions deployments](#chat-completions-deployments)
+    - [Supported upstream chat APIs](#supported-upstream-chat-apis)
+        - [Azure OpenAI Chat Completions API (Last generation API)](#Azure-OpenAI-Chat-Completions-API-Last-generation-API)
+        - [Azure OpenAI Chat Completions API (Next generation API)](#Azure-OpenAI-Chat-Completions-API-Next-generation-API)
+        - [Azure OpenAI Responses API (Next generation API)](#Azure-OpenAI-Responses-API-Next-generation-API)
+        - [Azure AI Foundry Chat Completions API](#Azure-AI-Foundry-Chat-Completions-API)
+        - [Azure OpenAI Images API](#Azure-OpenAI-Images-API)
+        - [Azure OpenAI Video API](#Azure-OpenAI-Video-API)
+        - [Azure Audio API](#Azure-Audio-API)
+        - [OpenAI Platform (Chat Completions API)](#OpenAI-Platform-Chat-Completions-API)
+        - [Legacy OpenAI Completions API](#Legacy-OpenAI-Completions-API)
+        - [Mistral Chat Completion API](#Mistral-Chat-Completion-API)
+    - [Tokenization of chat completion requests/responses](#Tokenization-of-chat-completion-requestsresponses)
+        - [How to minimize adapter-side tokenization](#How-to-minimize-adapter-side-tokenization)
+            - [How to minimize adapter-side tokenization](#How-to-minimize-adapter-side-tokenization)
+            - [Tokenization algorithm](#Tokenization-algorithm)
+                - [Text tokenization](#Text-tokenization)
+                - [Image tokenization](#Image-tokenization)
+- [Embedding deployments](#Embedding-deployments)
+    - [Supported upstream embedding APIs](#Supported-upstream-embedding-APIs)
+        - [Azure OpenAI Embeddings API (Last generation API)](#Azure-OpenAI-Embeddings-API-Last-generation-API)
+        - [Azure OpenAI Embeddings API (Last generation API)](#Azure-OpenAI-Embeddings-API-Next-generation-API)
+        - [Azure multimodal embeddings](#Azure-multimodal-embeddings)
+        - [OpenAI Platform Embeddings API](#OpenAI-Platform-Embeddings-API)
+- [Environment Variables](#Environment-Variables)
+    - [Categories of deployments](#Categories-of-deployments)
+    - [Other variables](#Other-variables)
+- [Configurable models](#Configurable-models)
+    - [DALL-E and GPT Image 1](#DALL-E-and-GPT-Image-1)
+    - [Models based on Responses API](#Models-based-on-Responses-API)
+        - [Reasoning configuration](#Reasoning-configuration)
+- [Load balancing](#Load-balancing)
+- [Prompt caching](#Prompt-caching)
+- [API versioning](#API-versioning)
+- [Server performance configuration](#Server-performance-configuration)
+- [Lint](#Lint)
+- [Test](#Test)
+- [Clean](#Clean)
+
+---
 
 ## Overview
 
+LLM Adapters unify the APIs of respective LLMs to align with the Unified Protocol of DIAL Core. Each Adapter operates within a dedicated container. Multi-modality allows supporting non-textual communications such as image-to-text, text-to-image, file transfers and more.
+
 The project implements [AI DIAL API](https://dialx.ai/dial_api) for language models from [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models).
+
+![ai-dial-core](adapters-flow.svg)
+
+---
 
 ## Developer environment
 
@@ -20,15 +85,19 @@ This will install all requirements for running the package, linting, formatting 
 
 ### IDE configuration
 
-The recommended IDE is [VS Code](https://code.visualstudio.com/).
-Open the project in VS Code and install the recommended extensions.
+> [!TIP]
+> The recommended IDE is [VS Code](https://code.visualstudio.com/).
+> Open the project in VS Code and install the recommended extensions.
+>
+> VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
 
-VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
+> [!TIP]
+>Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
+> 
+> Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
+> install PyCharm>=2023.2 with [built-in Black support](https://blog.jetbrains.com/pycharm/2023/07/2023-2/#black).
 
-Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
-
-Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
-install PyCharm>=2023.2 with [built-in Black support](https://blog.jetbrains.com/pycharm/2023/07/2023-2/#black).
+---
 
 ## Run
 
@@ -56,9 +125,12 @@ winget install GnuWin32.Make
 For convenience, the tool folder can be added to the PATH environment variable as `C:\Program Files (x86)\GnuWin32\bin`.
 The command definitions inside Makefile should be cross-platform to keep the development environment setup simple.
 
+---
+
 ## Chat completions deployments
 
-The adapter is able to convert certain upstream APIs to the [DIAL Chat Completions API](https://dialx.ai/dial_api#operation/sendChatCompletionRequest) *(which is an extension of Azure [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat))*.
+> [!NOTE]
+> The adapter is able to convert certain upstream APIs to the [DIAL Chat Completions API](https://dialx.ai/dial_api#operation/sendChatCompletionRequest) *(which is an extension of Azure [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat))*.
 
 Chat Completions deployments are exposed via the endpoint:
 
@@ -67,6 +139,17 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completi
 ```
 
 ### Supported upstream chat APIs
+
+- [Azure OpenAI Chat Completions API (Last generation API)](#Azure-OpenAI-Chat-Completions-API-Last-generation-API)
+- [Azure OpenAI Chat Completions API (Next generation API)](#Azure-OpenAI-Chat-Completions-API-Next-generation-API)
+- [Azure OpenAI Responses API (Next generation API)](#Azure-OpenAI-Responses-API-Next-generation-API)
+- [Azure AI Foundry Chat Completions API](#Azure-AI-Foundry-Chat-Completions-API)
+- [Azure OpenAI Images API](#Azure-OpenAI-Images-API)
+- [Azure OpenAI Video API](#Azure-OpenAI-Video-API)
+- [Azure Audio API](#Azure-Audio-API)
+- [OpenAI Platform (Chat Completions API)](#OpenAI-Platform-Chat-Completions-API)
+- [Legacy OpenAI Completions API](#Legacy-OpenAI-Completions-API)
+- [Mistral Chat Completion API](#Mistral-Chat-Completion-API)
 
 #### Azure OpenAI Chat Completions API (Last generation API)
 
@@ -164,35 +247,6 @@ The DIAL configuration changes accordingly:
 
 Because the deployment ID is not included in the upstream URL, specify it in the `overrideName` field. If this field is missing, the model name takes the value of the `model` field from the original chat completion request (if present), otherwise `${ADAPTER_DEPLOYMENT_ID}`.
 
-#### OpenAI Platform [Chat Completions API](https://platform.openai.com/docs/api-reference/chat/create)
-
-<details><summary>DIAL Core Config</summary>
-
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "chat",
-      "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
-      "upstreams": [
-        {
-          "endpoint": "https://api.openai.com/v1/chat/completions",
-          "key": "${API_KEY}"
-        }
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-Note the difference from the Azure OpenAI configuration:
-
-* The API key is required.
-* Added `overrideName` to specify the upstream OpenAI model name. The upstream URL does not include the model name *(unlike Azure)*, so we pass it via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
-
 #### Azure OpenAI Responses API (Next generation API)
 
 Certain advanced features of OpenAI models, such as [reasoning summary](https://platform.openai.com/docs/guides/reasoning#reasoning-summaries), are only accessible via Responses API and not accessible via Chat Completions API.
@@ -278,7 +332,9 @@ Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deplo
 
 </details>
 
-#### Azure [OpenAI Images API](https://platform.openai.com/docs/api-reference/images/create)
+#### Azure OpenAI Images API
+
+[OpenAI Images API](https://platform.openai.com/docs/api-reference/images/create)
 
 <details><summary>DIAL Core Config</summary>
 
@@ -306,7 +362,8 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
 > [!IMPORTANT]
 > The DALL·E 3 adapter deployment must be declared in `DALLE3_DEPLOYMENTS` env variable, and GPT-Image 1 deployment - in `GPT_IMAGE_1_DEPLOYMENTS`.
 
-#### [Azure OpenAI Video API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/video-generation-quickstart)
+#### Azure OpenAI Video API
+[Azure OpenAI Video API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/video-generation-quickstart)
 
 <details><summary>DIAL Core Config</summary>
 
@@ -364,68 +421,6 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 > [!IMPORTANT]
 > Prompt tokens in the usage are set to zero.
 > Completion tokens are set to the overall number of seconds in the generated video(s).
-
-#### OpenAI Completions API
-
-The adapter also supports **legacy** [Completions API](https://platform.openai.com/docs/api-reference/completions/create) both for Azure-style upstream endpoints and OpenAI Platform-style endpoints:
-
-<details><summary>DIAL Core Config</summary>
-
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "chat",
-      "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
-      "upstreams": [
-        {
-          "endpoint": "https://api.openai.com/v1/completions",
-          "key": "${API_KEY}"
-        }
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-#### Mistral Chat Completion API
-
-The Mistral Platform provides [Chat Completions API](https://docs.mistral.ai/api/#tag/chat), therefore, it could be connected to via the adapter:
-
-<details><summary>DIAL Core Config</summary>
-
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "chat",
-      "overrideName": "${MISTRAL_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${MISTRAL_MODEL_NAME}/chat/completions",
-      "upstreams": [
-        {
-          "endpoint": "https://api.mistral.ai/v1/chat/completions",
-          "key": "${MISTRAL_API_KEY}"
-        }
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-Where `MISTRAL_MODEL_NAME` is one of the available [models](https://docs.mistral.ai/getting-started/models/models_overview/) on the Platform.
-
-You also need to set the default tokenizer via the adapter env variable:
-
-```ini
-TIKTOKEN_MODEL_MAPPING={"${MISTRAL_MODEL_NAME}":"gpt-4o"}
-```
-
-The tokenizer will be used as a proxy tokenizer when tokenization on the adapter side is required *(that is when only when the request includes `max_prompt_tokens` parameter)*.
 
 #### Azure Audio API
 
@@ -516,6 +511,100 @@ The usage is computed in the following way:
 1. `gpt-4o-*` models return audio tokens in the `usage.prompt_tokens` field and text tokens - in `usage.completion_tokens`.
 2. `whisper` models return duration of the given audio file in seconds in `usage.prompt_tokens` and zero in `usage.completion_tokens`.
 
+#### OpenAI Platform (Chat Completions API)
+
+[OpenAI Platform Chat Completions API](https://platform.openai.com/docs/api-reference/chat/create)
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${OPENAI_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://api.openai.com/v1/chat/completions",
+          "key": "${API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!IMPORTANT]
+> Note the difference from the Azure OpenAI configuration:
+>
+> * The API key is **required**.
+> * Added `overrideName` to specify the upstream OpenAI model name. The upstream URL does not include the model name *(unlike Azure)*, so we pass it via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
+
+#### Legacy OpenAI Completions API
+
+The adapter also supports **legacy** [Completions API](https://platform.openai.com/docs/api-reference/completions/create) both for Azure-style upstream endpoints and OpenAI Platform-style endpoints:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${OPENAI_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://api.openai.com/v1/completions",
+          "key": "${API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+#### Mistral Chat Completion API
+
+The Mistral Platform provides [Chat Completions API](https://docs.mistral.ai/api/#tag/chat), therefore, it could be connected to via the adapter:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${MISTRAL_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${MISTRAL_MODEL_NAME}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://api.mistral.ai/v1/chat/completions",
+          "key": "${MISTRAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Where `MISTRAL_MODEL_NAME` is one of the available [models](https://docs.mistral.ai/getting-started/models/models_overview/) on the Platform.
+
+You also need to set the default tokenizer via the adapter env variable:
+
+```ini
+TIKTOKEN_MODEL_MAPPING={"${MISTRAL_MODEL_NAME}":"gpt-4o"}
+```
+
+The tokenizer will be used as a proxy tokenizer when tokenization on the adapter side is required *(that is when only when the request includes `max_prompt_tokens` parameter)*.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
@@ -578,6 +667,8 @@ If a deployment is registered in `GPT4O_DEPLOYMENTS` or `GPT4O_MINI_DEPLOYMENTS`
 
 Otherwise, images aren’t tokenized — the image tokens are assumed to be 0.
 
+---
+
 ## Embedding deployments
 
 The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API](https://dialx.ai/dial_api#operation/sendEmbeddingsRequest) *(which is an extension of Azure [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create))*.
@@ -589,6 +680,11 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
 ```
 
 ### Supported upstream embedding APIs
+
+- [Azure OpenAI Embeddings API (Last generation API)](#Azure-OpenAI-Embeddings-API-Last-generation-API)
+- [Azure OpenAI Embeddings API (Last generation API)](#Azure-OpenAI-Embeddings-API-Next-generation-API)
+- [Azure multimodal embeddings](#Azure-multimodal-embeddings)
+- [OpenAI Platform Embeddings API](#OpenAI-Platform-Embeddings-API)
 
 #### Azure OpenAI Embeddings API (Last generation API)
 
@@ -628,30 +724,6 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/embeddings",
           "key": "${OPTIONAL_API_KEY}"
-        }
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-#### OpenAI Platform [Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create)
-
-<details><summary>DIAL Core Config</summary>
-
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "embedding",
-      "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
-      "upstreams": [
-        {
-          "endpoint": "https://api.openai.com/v1/embeddings",
-          "key": "${API_KEY}"
         }
       ]
     }
@@ -702,6 +774,34 @@ curl -X POST "${DIAL_CORE_ORIGIN}/deployments/${DIAL_DEPLOYMENT_ID}/embeddings" 
 
 The response will contain three embedding vectors, each corresponding to one of the inputs in the original request.
 
+#### OpenAI Platform Embeddings API
+
+[Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create)
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "overrideName": "${OPENAI_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "upstreams": [
+        {
+          "endpoint": "https://api.openai.com/v1/embeddings",
+          "key": "${API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+---
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` and customize it for your environment.
@@ -710,36 +810,38 @@ Copy `.env.example` to `.env` and customize it for your environment.
 
 The following variables cluster all deployments into the groups of deployments which share the same API and the same tokenization algorithm.
 
-|Variable|Default|Description|
-|---|---|---|
-|DALLE3_DEPLOYMENTS|``|Comma-separated list of deployments that support DALL-E 3 API. Example: `dall-e-3,dalle3,dall-e`|
-|DALLE3_AZURE_API_VERSION|2024-02-01|The API version for requests to the Azure DALL·E 3 API|
-|GPT_IMAGE_1_DEPLOYMENTS|``|Comma-separated list of deployments that support GPT-Image 1 API. Example: `gpt-image-1`|
-|GPT_IMAGE_1_AZURE_API_VERSION|2024-02-01|The API version for requests to the Azure GPT-Image 1 API|
-|MISTRAL_DEPLOYMENTS|``|Comma-separated list of deployments that support Mistral Large Azure API. Example: `mistral-large-azure,mistral-large`|
-|DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
-|GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
-|GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
-|AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
-|AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
+| Variable                      | Default            | Description                                                                                                                                                                                    |
+|-------------------------------|--------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| DALLE3_DEPLOYMENTS            | ``                 | Comma-separated list of deployments that support DALL-E 3 API. Example: `dall-e-3,dalle3,dall-e`                                                                                               |
+| DALLE3_AZURE_API_VERSION      | 2024-02-01         | The API version for requests to the Azure DALL·E 3 API                                                                                                                                         |
+| GPT_IMAGE_1_DEPLOYMENTS       | ``                 | Comma-separated list of deployments that support GPT-Image 1 API. Example: `gpt-image-1`                                                                                                       |
+| GPT_IMAGE_1_AZURE_API_VERSION | 2024-02-01         | The API version for requests to the Azure GPT-Image 1 API                                                                                                                                      |
+| MISTRAL_DEPLOYMENTS           | ``                 | Comma-separated list of deployments that support Mistral Large Azure API. Example: `mistral-large-azure,mistral-large`                                                                         |
+| DATABRICKS_DEPLOYMENTS        | ``                 | Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`                               |
+| GPT4O_DEPLOYMENTS             | ``                 | Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`                                                                                                       |
+| GPT4O_MINI_DEPLOYMENTS        | ``                 | Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`                                                                                             |
+| AZURE_AI_VISION_DEPLOYMENTS   | ``                 | Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/` |
+| AUDIO_AZURE_API_VERSION       | 2025-03-01-preview | The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.                                                                                                             |
 
 Deployments that do not fall into any of the categories are considered to support text-to-text chat completion OpenAI API or text embeddings OpenAI API.
 
 ### Other variables
 
-|Variable|Default|Description|
-|---|---|---|
-|LOG_LEVEL|INFO|Log level. Use DEBUG for dev purposes and INFO in prod|
-|TIKTOKEN_MODEL_MAPPING|`{}`|Mapping from the request deployment id to a [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). Required when the upstream model does not return usage. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. You don’t need a mapping if the deployment name already matches a `tiktoken` model (check with `python -c "from tiktoken.model import encoding_name_for_model as e; print(e('my-deployment-name'))"`). All chat-completion models require [tokenization](#tokenization-of-chat-completion-requestsresponses) via tiktoken except those declared in `DATABRICKS_DEPLOYMENTS`, `MISTRAL_DEPLOYMENTS`, `GPT_IMAGE_1_DEPLOYMENTS`, and `DALLE3_DEPLOYMENTS`.|
-|DIAL_USE_FILE_STORAGE|False|Save image model artifacts to DIAL File storage (DALL-E images are uploaded to the DIAL file storage and its base64 encodings are replaced with links to the storage)|
-|DIAL_URL||URL of the core DIAL server (required when `DIAL_USE_FILE_STORAGE=True`)|
-|NON_STREAMING_DEPLOYMENTS|``|Comma-separated list of deployments that do not support streaming. The adapter will emulate streaming by calling the model and converting its response into a single-chunk stream. Example: `"o1-mini,o1-preview"`|
-|ACCESS_TOKEN_EXPIRATION_WINDOW|10|The Azure access token is renewed this many seconds before its actual expiration time. The buffer ensures that the token does not expire in the middle of an operation due to processing time and potential network delays.|
-|AZURE_OPEN_AI_SCOPE||Provided scope of access token to Azure OpenAI services. Default: `https://cognitiveservices.azure.com/.default`|
-|API_VERSIONS_MAPPING|`{}`|Mapping of API versions for requests to the Azure OpenAI Chat Completions API. Example: `{"2023-03-15-preview": "2023-05-15", "": "2024-02-15-preview"}`. An empty key sets the default API version when the user does not pass one in the request. Find the details in the section about [API versioning](#api-versioning).|
-|ELIMINATE_EMPTY_CHOICES|False|When enabled, the response stream is guaranteed to exclude chunks with an empty list of choices. This is useful when a DIAL client doesn't support such chunks. An empty list of choices can be generated by Azure OpenAI in at least two cases: (1) when the **Content filter** is not disabled, Azure includes [prompt filter results](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter?tabs=warning%2Cuser-prompt%2Cpython-new#prompt-annotation-message) in the first chunk with an empty list of choices; (2) when `stream_options.include_usage` is enabled, the last chunk contains usage data and an empty list of choices.|
-|WEB_CONCURRENCY|1|Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).|
-|THREAD_POOL_SIZE||The size of a thread pool for CPU-heavy tasks such as tokenization and image analysis. The [default](https://github.com/python/cpython/blob/3.11/Lib/concurrent/futures/thread.py#L142) is `min(32, #logicalCPUs + 4)`. Find the details in the section about [performance](#server-performance-configuration).|
+| Variable                       | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| LOG_LEVEL                      | INFO    | Log level. Use DEBUG for dev purposes and INFO in prod                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| TIKTOKEN_MODEL_MAPPING         | `{}`    | Mapping from the request deployment id to a [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). Required when the upstream model does not return usage. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. You don’t need a mapping if the deployment name already matches a `tiktoken` model (check with `python -c "from tiktoken.model import encoding_name_for_model as e; print(e('my-deployment-name'))"`). All chat-completion models require [tokenization](#tokenization-of-chat-completion-requestsresponses) via tiktoken except those declared in `DATABRICKS_DEPLOYMENTS`, `MISTRAL_DEPLOYMENTS`, `GPT_IMAGE_1_DEPLOYMENTS`, and `DALLE3_DEPLOYMENTS`. |
+| DIAL_USE_FILE_STORAGE          | False   | Save image model artifacts to DIAL File storage (DALL-E images are uploaded to the DIAL file storage and its base64 encodings are replaced with links to the storage)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| DIAL_URL                       |         | URL of the core DIAL server (required when `DIAL_USE_FILE_STORAGE=True`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| NON_STREAMING_DEPLOYMENTS      | ``      | Comma-separated list of deployments that do not support streaming. The adapter will emulate streaming by calling the model and converting its response into a single-chunk stream. Example: `"o1-mini,o1-preview"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ACCESS_TOKEN_EXPIRATION_WINDOW | 10      | The Azure access token is renewed this many seconds before its actual expiration time. The buffer ensures that the token does not expire in the middle of an operation due to processing time and potential network delays.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| AZURE_OPEN_AI_SCOPE            |         | Provided scope of access token to Azure OpenAI services. Default: `https://cognitiveservices.azure.com/.default`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| API_VERSIONS_MAPPING           | `{}`    | Mapping of API versions for requests to the Azure OpenAI Chat Completions API. Example: `{"2023-03-15-preview": "2023-05-15", "": "2024-02-15-preview"}`. An empty key sets the default API version when the user does not pass one in the request. Find the details in the section about [API versioning](#api-versioning).                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ELIMINATE_EMPTY_CHOICES        | False   | When enabled, the response stream is guaranteed to exclude chunks with an empty list of choices. This is useful when a DIAL client doesn't support such chunks. An empty list of choices can be generated by Azure OpenAI in at least two cases: (1) when the **Content filter** is not disabled, Azure includes [prompt filter results](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter?tabs=warning%2Cuser-prompt%2Cpython-new#prompt-annotation-message) in the first chunk with an empty list of choices; (2) when `stream_options.include_usage` is enabled, the last chunk contains usage data and an empty list of choices.                                                             |
+| WEB_CONCURRENCY                | 1       | Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| THREAD_POOL_SIZE               |         | The size of a thread pool for CPU-heavy tasks such as tokenization and image analysis. The [default](https://github.com/python/cpython/blob/3.11/Lib/concurrent/futures/thread.py#L142) is `min(32, #logicalCPUs + 4)`. Find the details in the section about [performance](#server-performance-configuration).                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+---
 
 ## Configurable models
 
@@ -781,7 +883,7 @@ This is convenient when major model features can be enabled via configuration *(
 
 DIAL Core will enrich requests with the configuration specified in `defaults`, so the client doesn’t need to provide it with each chat completion request.
 
-### DALL-E / GPT Image 1
+### DALL-E and GPT Image 1
 
 OpenAI image generation models accept configurations with parameters specific for image generation such as image size, style, and quality.
 
@@ -910,6 +1012,8 @@ Here `custom_fields.configuration.reasoning` is an object which is being passed 
 > [!IMPORTANT]
 > Not all models support reasoning. Consult with the [documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reasoning?tabs=gpt-5%2Cpython-secure%2Cpy) before enabling reasoning.
 
+---
+
 ## Load balancing
 
 The adapter supports multiple upstream definitions in the DIAL Core config:
@@ -936,6 +1040,8 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
   }
 }
 ```
+
+---
 
 ## Prompt caching
 
@@ -969,6 +1075,8 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
 
 > [!IMPORTANT]
 > Verify that the deployment actually supports [prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching#supported-models) before enabling it.
+
+---
 
 ## API versioning
 
@@ -1026,6 +1134,8 @@ There are two environment variables that control server performance:
 
 2. `THREAD_POOL_SIZE` *(default = logical CPUs + 4)* — the size of the thread pool used for CPU-heavy tasks (currently, only request/response [tokenization](#tokenization-of-chat-completion-requestsresponses)). This effectively caps how many CPU-bound tasks can run simultaneously: no more than `THREAD_POOL_SIZE` at a time. Note that this does not block requests without CPU-heavy work (e.g., health checks or embeddings requests).
 
+---
+
 ## Lint
 
 Run the linting before committing:
@@ -1040,6 +1150,8 @@ To auto-fix formatting issues run:
 make format
 ```
 
+---
+
 ## Test
 
 Run unit tests locally:
@@ -1047,6 +1159,8 @@ Run unit tests locally:
 ```sh
 make test
 ```
+
+---
 
 ## Clean
 
