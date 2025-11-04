@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from typing import Dict, List, assert_never
 
+from aidial_sdk.exceptions import InvalidRequestError
+
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
@@ -19,11 +21,14 @@ from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
     OpenAIEndpoint,
+    azure_video_api_parser,
     chat_completions_parser,
     completions_parser,
     image_gen_parser,
     no_endpoint_parser,
     responses_parser,
+    speech_parser,
+    transcriptions_parser,
 )
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
@@ -53,6 +58,8 @@ class ApplicationConfig(ExtraForbidModel):
     NON_STREAMING_DEPLOYMENTS: List[str] = []
     ELIMINATE_EMPTY_CHOICES: bool = False
 
+    AUDIO_AZURE_API_VERSION: str = "2025-03-01-preview"
+
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
     ) -> DeploymentAPIType:
@@ -68,17 +75,40 @@ class ApplicationConfig(ExtraForbidModel):
                 endpoint=endpoint,
             )
 
-        if deployment_id in self.GPT_IMAGE_1_DEPLOYMENTS:
+        if endpoint := azure_video_api_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
-                deployment_type=D.GPT_IMAGE_1,
-                endpoint=image_gen_parser.parse(upstream_endpoint),
+                deployment_type=D.AZURE_VIDEO_API,
+                endpoint=endpoint,
             )
 
-        if deployment_id in self.DALLE3_DEPLOYMENTS:
+        if endpoint := speech_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
-                deployment_type=D.DALLE3,
-                endpoint=image_gen_parser.parse(upstream_endpoint),
+                deployment_type=D.AUDIO_SPEECH_API,
+                endpoint=endpoint,
             )
+
+        if endpoint := transcriptions_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.AUDIO_TRANSCRIPTIONS_API,
+                endpoint=endpoint,
+            )
+
+        if endpoint := image_gen_parser.try_parse(upstream_endpoint):
+            if deployment_id in self.GPT_IMAGE_1_DEPLOYMENTS:
+                return DeploymentAPIType(
+                    deployment_type=D.GPT_IMAGE_1,
+                    endpoint=endpoint,
+                )
+            elif deployment_id in self.DALLE3_DEPLOYMENTS:
+                return DeploymentAPIType(
+                    deployment_type=D.DALLE3,
+                    endpoint=endpoint,
+                )
+            else:
+                raise InvalidRequestError(
+                    f"The image generation deployment id {deployment_id!r} must be "
+                    "declared either in GPT_IMAGE_1_DEPLOYMENTS or DALLE3_DEPLOYMENTS env variable."
+                )
 
         if deployment_id in self.MISTRAL_DEPLOYMENTS:
             return DeploymentAPIType(
@@ -105,7 +135,7 @@ class ApplicationConfig(ExtraForbidModel):
             )
 
         return DeploymentAPIType(
-            deployment_type=D.GPT_TEXT_ONLY,
+            deployment_type=D.GPT_GENERIC,
             endpoint=chat_completions_parser.parse(upstream_endpoint),
         )
 
@@ -125,7 +155,14 @@ class ApplicationConfig(ExtraForbidModel):
                 self.GPT4O_DEPLOYMENTS.append(deployment_id)
             case D.GPT4O_MINI:
                 self.GPT4O_MINI_DEPLOYMENTS.append(deployment_id)
-            case D.GPT_TEXT_ONLY | D.RESPONSES_API | D.COMPLETIONS_API:
+            case (
+                D.GPT_GENERIC
+                | D.RESPONSES_API
+                | D.COMPLETIONS_API
+                | D.AZURE_VIDEO_API
+                | D.AUDIO_SPEECH_API
+                | D.AUDIO_TRANSCRIPTIONS_API
+            ):
                 pass
             case _:
                 assert_never(deployment_type)
@@ -173,6 +210,9 @@ class ApplicationConfig(ExtraForbidModel):
                     ),
                     "GPT_IMAGE_1_AZURE_API_VERSION": get_env_var(
                         os.getenv, "GPT_IMAGE_1_AZURE_API_VERSION"
+                    ),
+                    "AUDIO_AZURE_API_VERSION": get_env_var(
+                        os.getenv, "AUDIO_AZURE_API_VERSION"
                     ),
                     "ELIMINATE_EMPTY_CHOICES": get_env_var(
                         get_env_bool,

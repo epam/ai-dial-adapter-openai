@@ -8,6 +8,9 @@ import pytest
 from tests.integration_tests.chat_completion.file_input import (
     build_file_input_common,
 )
+from tests.integration_tests.chat_completion.response_format import (
+    build_response_format,
+)
 from tests.integration_tests.chat_completion.test_case import (
     TestCase,
     TestSuite,
@@ -35,10 +38,14 @@ def create_test_cases(
 ) -> Generator[TestCase, None, None]:
     for streaming in (False, True):
         for deployment in TEST_DEPLOYMENTS_CONFIG.chat_deployments:
-            suite = TestSuite(deployment, streaming)
-            for builder in builders:
-                builder(suite)
-            yield from suite
+            if (
+                not deployment.model_features.imageGenerationSupported
+                and not deployment.supports_video_generation
+            ):
+                suite = TestSuite(deployment, streaming)
+                for builder in builders:
+                    builder(suite)
+                yield from suite
 
 
 @pytest.mark.parametrize(
@@ -51,6 +58,7 @@ def create_test_cases(
             build_tools_common,
             build_vision_common,
             build_file_input_common,
+            build_response_format,
         ]
     ),
     ids=lambda tc: tc.get_id() if isinstance(tc, TestCase) else "na",
@@ -63,9 +71,9 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
     async def run_chat_completion() -> ChatCompletionResult:
         return await chat_completion(
             client,
-            test_case.deployment_config.model_name,
-            test_case.messages,
-            test_case.streaming,
+            deployment_id=test_case.deployment_config.model_name,
+            messages=test_case.messages,
+            stream=test_case.streaming,
             stop=test_case.stop,
             max_tokens=test_case.max_tokens,
             max_completion_tokens=test_case.max_completion_tokens,
@@ -74,6 +82,7 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
             tools=test_case.tools,
             temperature=test_case.temperature,
             reasoning_effort=test_case.reasoning_effort,
+            response_format=test_case.response_format,
             extra_body=test_case.extra_body,
         )
 

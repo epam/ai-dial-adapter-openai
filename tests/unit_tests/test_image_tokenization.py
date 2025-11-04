@@ -2,8 +2,8 @@ from typing import List, Tuple
 
 import pytest
 
-from aidial_adapter_openai.utils.image import ImageDetail
 from aidial_adapter_openai.utils.image_tokenizer import GPT4O_IMAGE_TOKENIZER
+from aidial_adapter_openai.utils.resource.image import ImageDetail
 
 test_cases: List[Tuple[int, int, ImageDetail, int]] = [
     (1, 1, "auto", 85),

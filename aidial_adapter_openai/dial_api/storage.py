@@ -4,9 +4,8 @@ import mimetypes
 from typing import Mapping, Optional, TypedDict
 from urllib.parse import unquote, urljoin
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
-from aidial_adapter_openai.utils.auth import Auth
 from aidial_adapter_openai.utils.env import get_env, get_env_bool
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
@@ -26,22 +25,26 @@ class Bucket(TypedDict):
 
 class FileStorage(BaseModel):
     dial_url: str
-    upload_dir: str
-    auth: Auth
+    api_key: SecretStr
 
     bucket: Optional[Bucket] = None
 
-    async def _get_bucket(self) -> Bucket:
-        if self.bucket is None:
-            response = await get_http_client().get(
-                f"{self.dial_url}/v1/bucket",
-                headers=self.auth.headers,
-            )
-            response.raise_for_status()
-            self.bucket = response.json()
-            log.debug(f"bucket: {self.bucket}")
+    @property
+    def headers(self) -> Mapping[str, str]:
+        return {"api-key": self.api_key.get_secret_value()}
 
-        return self.bucket
+    async def _get_bucket(self) -> Bucket:
+        if self.bucket is not None:
+            return self.bucket
+
+        response = await get_http_client().get(
+            f"{self.dial_url}/v1/bucket",
+            headers=self.headers,
+        )
+        response.raise_for_status()
+        bucket = self.bucket = response.json()
+        log.debug(f"bucket: {bucket}")
+        return bucket
 
     async def _get_user_bucket(self) -> str:
         bucket = await self._get_bucket()
@@ -53,30 +56,33 @@ class FileStorage(BaseModel):
         return appdata.split("/", 1)[0]
 
     async def upload(
-        self, filename: str, content_type: str, content: bytes
+        self, upload_dir: str, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
         bucket = await self._get_bucket()
 
         appdata = bucket["appdata"]
         ext = mimetypes.guess_extension(content_type) or ""
-        url = f"{self.dial_url}/v1/files/{appdata}/{self.upload_dir}/{filename}{ext}"
+        url = f"{self.dial_url}/v1/files/{appdata}/{upload_dir}/{filename}{ext}"
 
         response = await get_http_client().put(
             url=url,
             files={"file": (filename, content, content_type)},
-            headers=self.auth.headers,
+            headers=self.headers,
         )
         response.raise_for_status()
         meta = response.json()
         log.debug(f"Uploaded file: url={url}, metadata={meta}")
         return meta
 
-    async def upload_file_as_base64(
-        self, data: str, content_type: str
+    async def upload_file(
+        self, upload_dir: str, data: str | bytes, content_type: str
     ) -> FileMetadata:
         filename = _compute_hash_digest(data)
-        content: bytes = base64.b64decode(data)
-        return await self.upload(filename, content_type, content)
+        if isinstance(data, str):
+            content: bytes = base64.b64decode(data)
+        else:
+            content = data
+        return await self.upload(upload_dir, filename, content_type, content)
 
     def attachment_link_to_url(self, link: str) -> str:
         base_url = f"{self.dial_url}/v1/"
@@ -89,7 +95,7 @@ class FileStorage(BaseModel):
         url = self.attachment_link_to_url(link)
         headers: Mapping[str, str] = {}
         if url.lower().startswith(self.dial_url.lower()):
-            headers = self.auth.headers
+            headers = self.headers
         return await download_file(url, headers)
 
     async def get_human_readable_name(self, link: str) -> str:
@@ -114,8 +120,10 @@ async def download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
     return response.read()
 
 
-def _compute_hash_digest(file_content: str) -> str:
-    return hashlib.sha256(file_content.encode()).hexdigest()
+def _compute_hash_digest(file_content: str | bytes) -> str:
+    if isinstance(file_content, str):
+        file_content = file_content.encode()
+    return hashlib.sha256(file_content).hexdigest()
 
 
 DIAL_USE_FILE_STORAGE = get_env_bool("DIAL_USE_FILE_STORAGE", False)
@@ -127,18 +135,15 @@ if DIAL_USE_FILE_STORAGE:
     )
 
 
-def create_file_storage(
-    base_dir: str, headers: Mapping[str, str]
-) -> Optional[FileStorage]:
+def create_file_storage(headers: Mapping[str, str]) -> Optional[FileStorage]:
     if not DIAL_USE_FILE_STORAGE or DIAL_URL is None:
         return None
 
-    auth = Auth.from_headers("api-key", headers)
-    if auth is None:
+    if (api_key := headers.get("api-key")) is None:
         log.debug(
             "The request doesn't have required headers to use the DIAL file storage. "
             "Fallback to base64 encoding of images."
         )
         return None
 
-    return FileStorage(dial_url=DIAL_URL, upload_dir=base_dir, auth=auth)
+    return FileStorage(dial_url=DIAL_URL, api_key=SecretStr(api_key))

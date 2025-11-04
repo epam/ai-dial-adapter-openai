@@ -9,7 +9,7 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
 )
-from openai.types.chat.completion_create_params import Function
+from openai.types.chat.completion_create_params import Function, ResponseFormat
 
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
@@ -42,6 +42,7 @@ class TestCase:
     temperature: float | NotGiven
 
     reasoning_effort: ReasoningEffort | NotGiven
+    response_format: ResponseFormat | NotGiven
 
     extra_body: dict | None
 
@@ -71,8 +72,18 @@ class TestSuite:
 
     def test_case(
         self,
+        *,
         name: str,
         messages: List[ChatCompletionMessageParam],
+        max_tokens: int | NotGiven = NOT_GIVEN,
+        max_completion_tokens: int | NotGiven = NOT_GIVEN,
+        stop: List[str] | NotGiven = NOT_GIVEN,
+        n: int | NotGiven = NOT_GIVEN,
+        functions: List[Function] | NotGiven = NOT_GIVEN,
+        tools: List[ChatCompletionToolParam] | NotGiven = NOT_GIVEN,
+        temperature: float | NotGiven = NOT_GIVEN,
+        reasoning_effort: ReasoningEffort | NotGiven = NOT_GIVEN,
+        response_format: ResponseFormat | NotGiven = NOT_GIVEN,
         expected: (
             Callable[[ChatCompletionResult], bool] | ExpectedException
         ) = lambda *args, **kwargs: True,
@@ -85,16 +96,15 @@ class TestSuite:
                 streaming=self.streaming,
                 messages=messages,
                 expected=expected,
-                max_tokens=kwargs.pop("max_tokens", None) or NOT_GIVEN,
-                max_completion_tokens=kwargs.pop("max_completion_tokens", None)
-                or NOT_GIVEN,
-                stop=kwargs.pop("stop", None) or NOT_GIVEN,
-                n=kwargs.pop("n", None) or NOT_GIVEN,
-                functions=kwargs.pop("functions", None) or NOT_GIVEN,
-                tools=kwargs.pop("tools", None) or NOT_GIVEN,
-                temperature=kwargs.pop("temperature", None) or NOT_GIVEN,
-                reasoning_effort=kwargs.pop("reasoning_effort", None)
-                or NOT_GIVEN,
+                max_tokens=max_tokens,
+                max_completion_tokens=max_completion_tokens,
+                stop=stop,
+                n=n,
+                functions=functions,
+                tools=tools,
+                temperature=temperature,
+                reasoning_effort=reasoning_effort,
+                response_format=response_format,
                 extra_body=kwargs,
             )
         )
@@ -127,10 +137,15 @@ class TestSuite:
 
     @property
     def supports_vision(self):
-        types = self.deployment_config.model_attachments or []
-        return any(
-            ty.startswith("image/") or ty.startswith("*/") for ty in types
-        )
+        return self.deployment_config.supports_vision
+
+    @property
+    def supports_image_generation(self):
+        return self.deployment_config.model_features.imageGenerationSupported
+
+    @property
+    def supports_image_editing(self):
+        return self.deployment_config.model_features.imageEditingSupported
 
     @property
     def supports_reasoning(self):
@@ -155,3 +170,15 @@ class TestSuite:
     @property
     def supports_temperature(self):
         return self.deployment_config.model_features.temperatureSupported
+
+    @property
+    def supports_response_format_json_object(self):
+        return (
+            self.deployment_config.model_features.responseFormatJsonObjectSupported
+        )
+
+    @property
+    def supports_response_format_json_schema(self):
+        return (
+            self.deployment_config.model_features.responseFormatJsonSchemaSupported
+        )

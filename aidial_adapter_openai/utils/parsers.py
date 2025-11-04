@@ -26,7 +26,6 @@ class AzureOpenAIEndpoint(ExtraForbidModel):
     azure_base_url: str | None = None
     azure_endpoint: str | None = None
     azure_deployment: str | None = None
-    next_gen_api: bool = False
 
     def get_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
         return AsyncAzureOpenAI(
@@ -35,9 +34,7 @@ class AzureOpenAIEndpoint(ExtraForbidModel):
             azure_deployment=self.azure_deployment,
             api_key=params.get("api_key"),
             azure_ad_token=params.get("azure_ad_token"),
-            api_version=(
-                "preview" if self.next_gen_api else params.get("api_version")
-            ),
+            api_version=params.get("api_version"),
             timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
@@ -68,17 +65,19 @@ def _parse_endpoint(
             return None
         endpoint = endpoint.removesuffix(suffix)
 
+    # Last generation API
     if match := re.fullmatch("(.+?)/openai/deployments/(.+)", endpoint):
         return AzureOpenAIEndpoint(
             azure_endpoint=match[1], azure_deployment=match[2]
         )
 
+    # Solely for Response API (last generation)
+    # https://github.com/MicrosoftDocs/azure-ai-docs/commit/a8f37469a3ce23fcee32512d37068a9627b470d3#diff-a379a6b7b341ba9e352ab413b170b27e33790719a8631fff5d3eeac4d0a33b26R147-R153
     if match := re.fullmatch("(.+?)/openai", endpoint):
         return AzureOpenAIEndpoint(azure_endpoint=match[1])
 
-    if match := re.fullmatch("(.+?)/openai/v1", endpoint):
-        return AzureOpenAIEndpoint(azure_base_url=endpoint, next_gen_api=True)
-
+    # Falling back to the Next generation API (aka v1 API):
+    # https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle?tabs=key#v1-api-support
     return OpenAIEndpoint(base_url=endpoint)
 
 
@@ -108,10 +107,13 @@ class CompletionsParser(ExtraForbidModel):
 
 chat_completions_parser = EndpointParser(name="chat/completions")
 image_gen_parser = EndpointParser(name="images/generations")
+speech_parser = EndpointParser(name="audio/speech")
+transcriptions_parser = EndpointParser(name="audio/transcriptions")
 embeddings_parser = EndpointParser(name="embeddings")
 responses_parser = EndpointParser(name="responses")
 no_endpoint_parser = EndpointParser(name=None)
 completions_parser = CompletionsParser()
+azure_video_api_parser = EndpointParser(name="video/generations")
 
 
 async def parse_body(request: Request) -> Dict[str, Any]:

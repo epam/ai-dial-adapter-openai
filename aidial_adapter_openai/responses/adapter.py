@@ -4,15 +4,22 @@ from typing import Any, AsyncIterator, Dict, List
 
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi.responses import Response as FastAPIResponse
-from openai import NOT_GIVEN, AsyncStream, BaseModel
+from openai import (
+    NOT_GIVEN,
+    AsyncAzureOpenAI,
+    AsyncOpenAI,
+    AsyncStream,
+    BaseModel,
+)
+from openai.types.responses import ResponseTextConfigParam
 from openai.types.shared_params import Reasoning
 from pydantic import Field
 
-from aidial_adapter_openai.dial_api.request import parse_configuration
-from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.dial_api.request import parse_configuration
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
     _DEPRECATED_FUNCTION_API,
     convert_messages,
@@ -21,12 +28,8 @@ from aidial_adapter_openai.responses.converter import (
     convert_tools,
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
-from aidial_adapter_openai.utils.auth import OpenAICreds
+from aidial_adapter_openai.responses.request import convert_response_format
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    OpenAIEndpoint,
-)
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from aidial_adapter_openai.utils.streaming import (
     map_stream,
@@ -45,7 +48,6 @@ def _validate_request(request: Dict[str, Any]) -> None:
     unsupported_params: List[str] = []
     for param in [
         "stop",
-        "response_format",
         "seed",
         "top_logprobs",
         "logprobs",
@@ -102,21 +104,20 @@ def _get_configuration(request: Dict[str, Any]) -> ResponsesConfig:
 
 
 async def chat_completion(
+    *,
     request: Dict[str, Any],
-    endpoint: OpenAIEndpoint | AzureOpenAIEndpoint,
-    creds: OpenAICreds,
-    is_stream: bool,
+    client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
-    api_version: str,
-    model_name: str,
 ) -> AsyncIterator[dict] | dict | FastAPIResponse:
     _validate_request(request)
 
-    client = endpoint.get_client({**creds, "api_version": api_version})
+    is_stream = bool(request.get("stream"))
+    model_name = request["model"]
+    messages = request["messages"]
 
     transformed_messages = await ResourceProcessor(
-        file_storage=file_storage
-    ).transform_messages(request["messages"])
+        file_storage=file_storage,
+    ).transform_messages(messages)
 
     input_messages = convert_messages(
         [m.raw_message for m in transformed_messages]  # type: ignore
@@ -138,6 +139,12 @@ async def chat_completion(
 
     configuration = _get_configuration(request)
 
+    text = NOT_GIVEN
+    if response_format := request.get("response_format"):
+        text = ResponseTextConfigParam(
+            format=convert_response_format(response_format)
+        )
+
     response = await client.responses.create(
         model=model_name,
         stream=is_stream,
@@ -148,6 +155,7 @@ async def chat_completion(
         temperature=request.get("temperature") or NOT_GIVEN,
         max_output_tokens=max_output_tokens,
         parallel_tool_calls=request.get("parallel_tool_calls") or NOT_GIVEN,
+        text=text,
         **configuration.dict(),
     )
 

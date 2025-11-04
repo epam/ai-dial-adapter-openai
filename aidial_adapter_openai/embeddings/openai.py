@@ -6,14 +6,15 @@ from aidial_adapter_openai.utils.reflection import call_with_extra_body
 
 
 async def embeddings(
+    *,
+    request: dict,
     creds: OpenAICreds,
-    upstream_endpoint: str,
+    endpoint: str,
     api_version: str,
-    data: dict,
 ) -> CreateEmbeddingResponse:
 
-    client = embeddings_parser.parse(upstream_endpoint).get_client(
+    client = embeddings_parser.parse(endpoint).get_client(
         {**creds, "api_version": api_version}
     )
 
-    return await call_with_extra_body(client.embeddings.create, data)
+    return await call_with_extra_body(client.embeddings.create, request)

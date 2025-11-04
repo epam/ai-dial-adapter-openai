@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 from tests.integration_tests.base import TestDeployments
 
 _log = logging.getLogger(__name__)
@@ -13,6 +13,11 @@ CURRENT_DIR = Path(__file__).parent
 IMAGE_RESOURCE = Resource(
     type="image/png",
     data=(CURRENT_DIR / "assets" / "image.png").read_bytes(),
+)
+
+AUDIO_RESOURCE = Resource(
+    type="audio/mpeg",
+    data=(CURRENT_DIR / "assets" / "audio.mp3").read_bytes(),
 )
 
 PDF_DOCUMENT_RESOURCE = Resource(

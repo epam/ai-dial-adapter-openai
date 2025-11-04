@@ -16,12 +16,12 @@ license_choices:
       choice: FTL
 resolutions:
   rule_violations:
-    - message: ".*PyPI::numpy:1\\.26\\.0.*"
+    - message: ".*PyPI::numpy:2\\.3\\.3.*"
       reason: "CANT_FIX_EXCEPTION"
-      comment: "BSD 3-Clause license: https://github.com/numpy/numpy/blob/v1.26.0/LICENSES_bundled.txt"
-    - message: ".*PyPI::tiktoken:0\\.11\\.0.*"
+      comment: "BSD 3-Clause license: https://github.com/numpy/numpy/blob/v2.3.3/LICENSES_bundled.txt"
+    - message: ".*PyPI::tiktoken:0\\.12\\.0.*"
       reason: "CANT_FIX_EXCEPTION"
-      comment: "MIT License: https://github.com/openai/tiktoken/blob/0.11.0/LICENSE"
+      comment: "MIT License: https://github.com/openai/tiktoken/blob/0.12.0/LICENSE"
     - message: ".*PyPI::httpcore:1\\.0\\.9.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "BSD 3-Clause New or Revised License: https://github.com/encode/httpcore/blob/1.0.9/LICENSE.md"
@@ -34,3 +34,9 @@ resolutions:
     - message: ".*PyPI::typing-extensions:4\\.14\\.0.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "Same as CPython: https://github.com/python/typing_extensions/blob/4.14.0/LICENSE"
+    - message: ".*PyPI::fastapi:0\\.120\\.2.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "MIT License: https://github.com/fastapi/fastapi/blob/0.120.2/LICENSE"
+    - message: ".*PyPI::starlette:0\\.49\\.1.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "BSD 3-Clause New or Revised License: https://github.com/Kludex/starlette/blob/0.49.1/LICENSE.md"

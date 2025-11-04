@@ -1,15 +1,15 @@
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
+from aidial_adapter_openai.chat_completions.transformation import (
     Error,
     ResourceProcessor,
 )
-from aidial_adapter_openai.utils.image import ImageResource
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.resource.image import ImageResource
 from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
-from tests.utils.storage import MockFileStorage
+from tests.utils.storage import DummyFileStorage
 
 TOKENS_FOR_TEXT = 10
 TOKENS_FOR_IMAGE = 20
@@ -36,7 +36,7 @@ def text(text: str) -> dict:
 
 @pytest.fixture
 def mock_resource_processor():
-    return ResourceProcessor(file_storage=MockFileStorage())
+    return ResourceProcessor(file_storage=DummyFileStorage())
 
 
 @pytest.mark.parametrize(
@@ -89,7 +89,7 @@ def mock_resource_processor():
     ],
 )
 async def test_transform_message(
-    mock_resource_processor,
+    mock_resource_processor: ResourceProcessor,
     message,
     expected_tokens,
     expected_content,
@@ -101,7 +101,9 @@ async def test_transform_message(
     assert result.raw_message["content"] == expected_content
 
 
-async def test_transform_messages_with_error(mock_resource_processor):
+async def test_transform_messages_with_error(
+    mock_resource_processor: ResourceProcessor,
+):
     messages = [
         {
             "role": "user",
@@ -128,7 +130,9 @@ The following files failed to process:
     )
 
 
-async def test_transform_message_with_error(mock_resource_processor):
+async def test_transform_message_with_error(
+    mock_resource_processor: ResourceProcessor,
+):
     message = {
         "role": "user",
         "content": "",
@@ -150,7 +154,6 @@ async def test_transform_message_with_error(mock_resource_processor):
             [{"role": "user", "content": "Hello"}],
             [
                 MultiModalMessage(
-                    images=[],
                     raw_message={"role": "user", "content": "Hello"},
                 )
             ],
@@ -166,7 +169,6 @@ async def test_transform_message_with_error(mock_resource_processor):
             ],
             [
                 MultiModalMessage(
-                    images=[],
                     raw_message={"role": "system", "content": "Hello"},
                 ),
                 MultiModalMessage(
@@ -195,11 +197,9 @@ async def test_transform_message_with_error(mock_resource_processor):
             ],
             [
                 MultiModalMessage(
-                    images=[],
                     raw_message={"role": "system", "content": "Hello"},
                 ),
                 MultiModalMessage(
-                    images=[],
                     raw_message={
                         "role": "user",
                         "content": [
@@ -276,7 +276,7 @@ async def test_transform_message_with_error(mock_resource_processor):
     ],
 )
 async def test_transform_messages(
-    mock_resource_processor,
+    mock_resource_processor: ResourceProcessor,
     messages,
     expected_transformations,
 ):

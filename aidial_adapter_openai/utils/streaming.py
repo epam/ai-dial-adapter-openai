@@ -1,9 +1,9 @@
 import logging
 from time import time
 from typing import (
-    Any,
     AsyncIterator,
     Callable,
+    Coroutine,
     Generator,
     Generic,
     List,
@@ -25,6 +25,7 @@ from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
     ChatCompletionStreamingChunk,
 )
+from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
 
@@ -38,9 +39,11 @@ def generate_created() -> int:
 
 
 def build_chunk(
+    *,
     id: str,
+    model: str,
     finish_reason: Optional[str],
-    message: Any,
+    message: dict | List[dict],
     created: int,
     is_stream: bool,
     **extra,
@@ -48,18 +51,20 @@ def build_chunk(
     message_key = "delta" if is_stream else "message"
     object_name = "chat.completion.chunk" if is_stream else "chat.completion"
 
+    messages = [message] if isinstance(message, dict) else message
+
+    choices = [
+        {"index": index, message_key: msg, "finish_reason": finish_reason}
+        for (index, msg) in enumerate(messages)
+    ]
+
     return {
         "id": id,
+        "model": model,
         "object": object_name,
         "created": created,
-        "choices": [
-            {
-                "index": 0,
-                message_key: message,
-                "finish_reason": finish_reason,
-            }
-        ],
-        **extra,
+        "choices": choices,
+        **remove_nones(extra),
     }
 
 
@@ -67,9 +72,11 @@ async def generate_stream(
     *,
     n: int,
     stream: AsyncIterator[dict],
-    get_prompt_tokens: Callable[[], int],
-    tokenize_response: Callable[[ChatCompletionResponse], int],
-    deployment: str,
+    get_prompt_tokens: Callable[[], Coroutine[None, None, int]],
+    tokenize_response: Callable[
+        [ChatCompletionResponse], Coroutine[None, None, int]
+    ],
+    model: str,
     discarded_messages: Optional[list[int]],
     eliminate_empty_choices: bool,
 ) -> AsyncIterator[dict]:
@@ -77,19 +84,21 @@ async def generate_stream(
     empty_chunk = build_chunk(
         id=generate_id(),
         created=generate_created(),
-        model=deployment,
+        model=model,
         is_stream=True,
         message={},
         finish_reason=None,
     )
 
-    def set_usage(chunk: dict | None, resp: ChatCompletionResponse) -> dict:
+    async def set_usage(
+        chunk: dict | None, resp: ChatCompletionResponse
+    ) -> dict:
         chunk = chunk or empty_chunk
 
         # Do not fail the whole response if tokenization has failed
         try:
-            completion_tokens = tokenize_response(resp)
-            prompt_tokens = get_prompt_tokens()
+            completion_tokens = await tokenize_response(resp)
+            prompt_tokens = await get_prompt_tokens()
         except Exception as e:
             logger.exception(
                 f"caught exception while tokenization: {type(e).__module__}.{type(e).__name__}. "
@@ -175,7 +184,7 @@ async def generate_stream(
     if response_snapshot.usage is None and (
         not error or response_snapshot.has_messages
     ):
-        last_chunk = set_usage(last_chunk, response_snapshot)
+        last_chunk = await set_usage(last_chunk, response_snapshot)
 
     if not error:
         missing_finish_reasons = response_snapshot.get_missing_finish_reasons(n)
