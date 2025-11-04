@@ -85,13 +85,11 @@ This will install all requirements for running the package, linting, formatting 
 
 ### IDE configuration
 
-> [!TIP]
 > The recommended IDE is [VS Code](https://code.visualstudio.com/).
 > Open the project in VS Code and install the recommended extensions.
 >
 > VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
 
-> [!TIP]
 >Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
 > 
 > Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
