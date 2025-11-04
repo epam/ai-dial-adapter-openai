@@ -41,6 +41,8 @@ def create_test_cases(
             if (
                 not deployment.model_features.imageGenerationSupported
                 and not deployment.supports_video_generation
+                and not deployment.supports_tts
+                and not deployment.supports_stt
             ):
                 suite = TestSuite(deployment, streaming)
                 for builder in builders:
