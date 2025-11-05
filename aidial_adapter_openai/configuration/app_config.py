@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Dict, List, assert_never
 
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import InternalServerError
 
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
@@ -105,10 +105,19 @@ class ApplicationConfig(ExtraForbidModel):
                     endpoint=endpoint,
                 )
             else:
-                raise InvalidRequestError(
+                raise InternalServerError(
                     f"The image generation deployment id {deployment_id!r} must be "
                     "declared either in GPT_IMAGE_1_DEPLOYMENTS or DALLE3_DEPLOYMENTS env variable."
                 )
+        elif (
+            deployment_id in self.GPT_IMAGE_1_DEPLOYMENTS
+            or deployment_id in self.DALLE3_DEPLOYMENTS
+        ):
+            raise InternalServerError(
+                f"Image generation deployment id ({deployment_id!r}) declared "
+                "in GPT_IMAGE_1_DEPLOYMENTS or DALLE3_DEPLOYMENTS "
+                "env variable must use images/generations upstream endpoint."
+            )
 
         if deployment_id in self.MISTRAL_DEPLOYMENTS:
             return DeploymentAPIType(
