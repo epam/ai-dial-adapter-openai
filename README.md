@@ -1,60 +1,56 @@
 # OpenAI Adapter
 
+- [OpenAI Adapter](#openai-adapter)
+  - [Overview](#overview)
+  - [Chat completions deployments](#chat-completions-deployments)
+    - [Supported upstream chat APIs](#supported-upstream-chat-apis)
+      - [Azure OpenAI Chat Completions API (Last generation API)](#azure-openai-chat-completions-api-last-generation-api)
+      - [Azure OpenAI Chat Completions API (Next generation API)](#azure-openai-chat-completions-api-next-generation-api)
+      - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
+      - [Azure OpenAI Responses API (Next generation API)](#azure-openai-responses-api-next-generation-api)
+      - [Azure AI Foundry Chat Completions API](#azure-ai-foundry-chat-completions-api)
+      - [Azure OpenAI Images API](#azure-openai-images-api)
+      - [Azure OpenAI Video API](#azure-openai-video-api)
+      - [OpenAI Completions API](#openai-completions-api)
+      - [Mistral Chat Completion API](#mistral-chat-completion-api)
+      - [Azure Audio API](#azure-audio-api)
+        - [Text-to-speech models (TTS)](#text-to-speech-models-tts)
+        - [Speech-to-text models (STT)](#speech-to-text-models-stt)
+    - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
+      - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
+      - [Tokenization algorithm](#tokenization-algorithm)
+        - [Text tokenization](#text-tokenization)
+        - [Image tokenization](#image-tokenization)
+  - [Embedding deployments](#embedding-deployments)
+    - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
+      - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
+      - [Azure OpenAI Embeddings API (Next generation API)](#azure-openai-embeddings-api-next-generation-api)
+      - [OpenAI Platform Embeddings API](#openai-platform-embeddings-api)
+      - [Azure multimodal embeddings](#azure-multimodal-embeddings)
+  - [Environment Variables](#environment-variables)
+    - [Categories of deployments](#categories-of-deployments)
+    - [Other variables](#other-variables)
+  - [Configurable models](#configurable-models)
+    - [DALL-E / GPT Image 1](#dall-e--gpt-image-1)
+      - [Forward compatibility](#forward-compatibility)
+    - [Models based on Responses API](#models-based-on-responses-api)
+      - [Reasoning configuration](#reasoning-configuration)
+  - [Load balancing](#load-balancing)
+  - [Prompt caching](#prompt-caching)
+  - [API versioning](#api-versioning)
+  - [Server performance configuration](#server-performance-configuration)
+  - [Development](#development)
+    - [Development environment](#development-environment)
+    - [IDE configuration](#ide-configuration)
+    - [Make on Windows](#make-on-windows)
+    - [Run](#run)
+    - [Lint](#lint)
+    - [Test](#test)
+    - [Clean](#clean)
+
 ## Overview
 
 The project implements [AI DIAL API](https://dialx.ai/dial_api) for language models from [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models).
-
-## Developer environment
-
-This project uses [Python>=3.11](https://www.python.org/downloads/) and [Poetry>=2.1.1](https://python-poetry.org/) as a dependency manager.
-
-Check out Poetry's [documentation on how to install it](https://python-poetry.org/docs/#installation) on your system before proceeding.
-
-To install requirements:
-
-```sh
-poetry install
-```
-
-This will install all requirements for running the package, linting, formatting and tests.
-
-### IDE configuration
-
-The recommended IDE is [VS Code](https://code.visualstudio.com/).
-Open the project in VS Code and install the recommended extensions.
-
-VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
-
-Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
-
-Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
-install PyCharm>=2023.2 with [built-in Black support](https://blog.jetbrains.com/pycharm/2023/07/2023-2/#black).
-
-## Run
-
-Run the development server locally:
-
-```sh
-make serve
-```
-
-Run the server from a Docker container:
-
-```sh
-make docker_serve
-```
-
-### Make on Windows
-
-As of now, Windows distributions do not include the make tool. To run make commands, the tool can be installed using
-the following command (since [Windows 10](https://learn.microsoft.com/en-us/windows/package-manager/winget/)):
-
-```sh
-winget install GnuWin32.Make
-```
-
-For convenience, the tool folder can be added to the PATH environment variable as `C:\Program Files (x86)\GnuWin32\bin`.
-The command definitions inside Makefile should be cross-platform to keep the development environment setup simple.
 
 ## Chat completions deployments
 
@@ -419,14 +415,6 @@ The Mistral Platform provides [Chat Completions API](https://docs.mistral.ai/api
 
 Where `MISTRAL_MODEL_NAME` is one of the available [models](https://docs.mistral.ai/getting-started/models/models_overview/) on the Platform.
 
-You also need to set the default tokenizer via the adapter env variable:
-
-```ini
-TIKTOKEN_MODEL_MAPPING={"${MISTRAL_MODEL_NAME}":"gpt-4o"}
-```
-
-The tokenizer will be used as a proxy tokenizer when tokenization on the adapter side is required *(that is when only when the request includes `max_prompt_tokens` parameter)*.
-
 #### Azure Audio API
 
 The adapter supports models connected via [Azure Audio API](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure#audio-api).
@@ -478,7 +466,7 @@ Find the configuration details in the [Azure specification](https://github.com/A
 The usage is computed in the following way:
 
 1. `gpt-4o-mini-tts` - prompt tokens are computed using `gpt-4o` tiktoken algorithm. Completion tokens are set to zero.
-2. `tts` and `tts-hd` - there is no official documentation on the pricing for these models. You need to manually configure the tokenizer via the `TIKTOKEN_MODEL_MAPPING` env variable to enable token usage reporting for these models: `TIKTOKEN_MODEL_MAPPING='{"tts":"gpt-4o","tts-hd":"gpt-4o"}'`. The input will be tokenized and the number of tokens will be reported in the response `usage.prompt_tokens`. Output tokens are set to zero.
+2. `tts` and `tts-hd` - there is no official documentation on the pricing for these models. Tokenizer for `gpt-4o` model will be used as a default for prompt tokens calculation. Completion tokens are set to zero.
 
 ##### Speech-to-text models (STT)
 
@@ -570,7 +558,9 @@ The adapter is using the [tiktoken](https://github.com/openai/tiktoken) library 
 
 `TIKTOKEN_MODEL_MAPPING` env variable defines a mapping from adapter deployment ids to the model identifies which are know to [tiktoken](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py).
 
-If the adapter deployment id could not be resolved by `tiktoken`, then the adapter throws an internal server error explaining the issue.
+If deployment id is missing from `TIKTOKEN_MODEL_MAPPING`, then the deployment id itself will be used to find a tokenizer in `tiktoken`. You can check if the deployment id is compatible with `tiktoken` by running the command `python -c "from tiktoken.model import encoding_name_for_model as e; print(e('my-deployment-name'))"`.
+
+Finally, if the deployment id is neither declared in `TIKTOKEN_MODEL_MAPPING`, nor is it compatible with `tiktoken`, then the tokenizer for `gpt-4o` model will be used as a default. It's a reasonable default since the corresponding `o200k_base` tokenizer is used for the [majority](https://github.com/openai/tiktoken/blob/0.12.0/tiktoken/model.py#L8-L16) of the latest OpenAI models.
 
 ##### Image tokenization
 
@@ -730,7 +720,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 |Variable|Default|Description|
 |---|---|---|
 |LOG_LEVEL|INFO|Log level. Use DEBUG for dev purposes and INFO in prod|
-|TIKTOKEN_MODEL_MAPPING|`{}`|Mapping from the request deployment id to a [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). Required when the upstream model does not return usage. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. You don’t need a mapping if the deployment name already matches a `tiktoken` model (check with `python -c "from tiktoken.model import encoding_name_for_model as e; print(e('my-deployment-name'))"`). All chat-completion models require [tokenization](#tokenization-of-chat-completion-requestsresponses) via tiktoken except those declared in `DATABRICKS_DEPLOYMENTS`, `MISTRAL_DEPLOYMENTS`, `GPT_IMAGE_1_DEPLOYMENTS`, and `DALLE3_DEPLOYMENTS`.|
+|TIKTOKEN_MODEL_MAPPING|`{}`|A JSON dictionary from the request deployment id to a [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). It's used for [tokenization](#tokenization-of-chat-completion-requestsresponses) of chat completion requests on the adapter side. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. The tokenizer for `gpt-4o` is used as a default.|
 |DIAL_USE_FILE_STORAGE|False|Save image model artifacts to DIAL File storage (DALL-E images are uploaded to the DIAL file storage and its base64 encodings are replaced with links to the storage)|
 |DIAL_URL||URL of the core DIAL server (required when `DIAL_USE_FILE_STORAGE=True`)|
 |NON_STREAMING_DEPLOYMENTS|``|Comma-separated list of deployments that do not support streaming. The adapter will emulate streaming by calling the model and converting its response into a single-chunk stream. Example: `"o1-mini,o1-preview"`|
@@ -1026,7 +1016,61 @@ There are two environment variables that control server performance:
 
 2. `THREAD_POOL_SIZE` *(default = logical CPUs + 4)* — the size of the thread pool used for CPU-heavy tasks (currently, only request/response [tokenization](#tokenization-of-chat-completion-requestsresponses)). This effectively caps how many CPU-bound tasks can run simultaneously: no more than `THREAD_POOL_SIZE` at a time. Note that this does not block requests without CPU-heavy work (e.g., health checks or embeddings requests).
 
-## Lint
+## Development
+
+### Development environment
+
+This project uses [Python>=3.11](https://www.python.org/downloads/) and [Poetry>=2.1.1](https://python-poetry.org/) as a dependency manager.
+
+Check out Poetry's [documentation on how to install it](https://python-poetry.org/docs/#installation) on your system before proceeding.
+
+To install requirements:
+
+```sh
+poetry install
+```
+
+This will install all requirements for running the package, linting, formatting and tests.
+
+### IDE configuration
+
+The recommended IDE is [VS Code](https://code.visualstudio.com/).
+Open the project in VS Code and install the recommended extensions.
+
+VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
+
+Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
+
+Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
+install PyCharm>=2023.2 with [built-in Black support](https://blog.jetbrains.com/pycharm/2023/07/2023-2/#black).
+
+### Make on Windows
+
+As of now, Windows distributions do not include the make tool. To run make commands, the tool can be installed using
+the following command (since [Windows 10](https://learn.microsoft.com/en-us/windows/package-manager/winget/)):
+
+```sh
+winget install GnuWin32.Make
+```
+
+For convenience, the tool folder can be added to the PATH environment variable as `C:\Program Files (x86)\GnuWin32\bin`.
+The command definitions inside Makefile should be cross-platform to keep the development environment setup simple.
+
+### Run
+
+Run the development server locally:
+
+```sh
+make serve
+```
+
+Run the server from a Docker container:
+
+```sh
+make docker_serve
+```
+
+### Lint
 
 Run the linting before committing:
 
@@ -1040,7 +1084,7 @@ To auto-fix formatting issues run:
 make format
 ```
 
-## Test
+### Test
 
 Run unit tests locally:
 
@@ -1048,7 +1092,7 @@ Run unit tests locally:
 make test
 ```
 
-## Clean
+### Clean
 
 To remove the virtual environment and build artifacts:
 
