@@ -69,7 +69,7 @@ LLM Adapters unify the APIs of respective LLMs to align with the Unified Protoco
 
 The project implements [AI DIAL API](https://dialx.ai/dial_api) for language models from [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models).
 
-![ai-dial-core](adapters-flow.svg)
+![ai-dial-core](https://docs.dialx.ai/assets/images/adapters-62587fb74cfb1c4225c20c08273ec5bc.svg)
 
 ---
 
