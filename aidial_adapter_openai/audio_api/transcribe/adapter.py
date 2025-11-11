@@ -119,6 +119,23 @@ async def chat_completion(
         async def _gen() -> AsyncIterator[dict]:
             yield create_chunk(role="assistant")
 
+            if "application/json" in response.response.headers["content-type"]:
+                # Special handling of the Whisper model.
+                # It ignores stream=true parameter and returns block response.
+                response_bytes = await response.response.aread()
+
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"raw response: {response_bytes!r}")
+
+                resp = TranscriptionVerbose.parse_raw(response_bytes)
+
+                yield create_chunk(
+                    content=resp.text,
+                    usage=_get_usage(resp),
+                    finish_reason="stop",
+                )
+                return
+
             async for chunk in response:
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug(f"response chunk: {chunk.json()}")
