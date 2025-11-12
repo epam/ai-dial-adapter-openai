@@ -22,7 +22,7 @@ async def embedding(deployment_id: str, request: Request):
     # See note for /chat/completions endpoint
     request_body["model"] = request_body.get("model") or deployment_id
 
-    creds = await get_credentials(request)
+    creds = await get_credentials(request.headers)
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
