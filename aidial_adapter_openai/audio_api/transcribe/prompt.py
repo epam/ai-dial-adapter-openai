@@ -58,9 +58,12 @@ class TranscribePrompt(BaseModel):
                     audios.append(file)
 
         if not audios:
-            raise RequestValidationError(
-                "No audio attachment found in the last message"
-            )
+            msg = "No audio attachment found in the last message"
+            raise RequestValidationError(message=msg, display_message=msg)
+
+        if len(audios) > 1:
+            msg = "No more than one audio attachment is expected in the last message"
+            raise RequestValidationError(message=msg, display_message=msg)
 
         audio = audios[0]
         audio_data, audio_type = (audio.resource.data, audio.resource.type)
