@@ -1,7 +1,7 @@
 from typing import Any, Type, TypeVar
 
 from aidial_sdk.exceptions import RequestValidationError
-from aidial_sdk.pydantic_v1 import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError
 
 _T = TypeVar("_T", bound=BaseModel)
 
