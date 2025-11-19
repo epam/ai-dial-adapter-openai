@@ -1,7 +1,7 @@
 from typing import Literal
 
-from aidial_sdk.pydantic_v1 import Field
-from aidial_sdk.pydantic_v1 import StrictStr as Str
+from pydantic import Field
+from pydantic import StrictStr as Str
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel

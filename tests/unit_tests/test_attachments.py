@@ -149,7 +149,7 @@ async def test_download_image_url(url: str, expected_result: Resource | Error):
     [
         ({"url": data_url(pic_1_1)}, Resource.from_data_url(data_url(pic_1_1))),
         (
-            {"title": "attachment title"},
+            {"title": "attachment title", "data": "whatever"},
             Error(
                 name="attachment title",
                 message="Can't derive content type of the image",
