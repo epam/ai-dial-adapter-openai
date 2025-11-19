@@ -1,9 +1,9 @@
 from typing import Literal
 
-from aidial_sdk.pydantic_v1 import Field
-from aidial_sdk.pydantic_v1 import StrictInt as Int
-from aidial_sdk.pydantic_v1 import StrictStr as Str
 from openai import NOT_GIVEN, NotGiven
+from pydantic import Field
+from pydantic import StrictInt as Int
+from pydantic import StrictStr as Str
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
