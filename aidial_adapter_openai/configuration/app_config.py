@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from typing import Dict, List, assert_never
 
+from aidial_sdk.exceptions import InternalServerError
+
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
@@ -61,42 +63,6 @@ class ApplicationConfig(ExtraForbidModel):
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
     ) -> DeploymentAPIType:
-        if deployment_id in self.GPT_IMAGE_1_DEPLOYMENTS:
-            return DeploymentAPIType(
-                deployment_type=D.GPT_IMAGE_1,
-                endpoint=image_gen_parser.parse(upstream_endpoint),
-            )
-
-        if deployment_id in self.DALLE3_DEPLOYMENTS:
-            return DeploymentAPIType(
-                deployment_type=D.DALLE3,
-                endpoint=image_gen_parser.parse(upstream_endpoint),
-            )
-
-        if deployment_id in self.MISTRAL_DEPLOYMENTS:
-            return DeploymentAPIType(
-                deployment_type=D.MISTRAL,
-                endpoint=no_endpoint_parser.parse(upstream_endpoint),
-            )
-
-        if deployment_id in self.DATABRICKS_DEPLOYMENTS:
-            return DeploymentAPIType(
-                deployment_type=D.DATABRICKS,
-                endpoint=chat_completions_parser.parse(upstream_endpoint),
-            )
-
-        if deployment_id in self.GPT4O_DEPLOYMENTS:
-            return DeploymentAPIType(
-                deployment_type=D.GPT4O,
-                endpoint=chat_completions_parser.parse(upstream_endpoint),
-            )
-
-        if deployment_id in self.GPT4O_MINI_DEPLOYMENTS:
-            return DeploymentAPIType(
-                deployment_type=D.GPT4O_MINI,
-                endpoint=chat_completions_parser.parse(upstream_endpoint),
-            )
-
         if endpoint := completions_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
                 deployment_type=D.COMPLETIONS_API,
@@ -125,6 +91,56 @@ class ApplicationConfig(ExtraForbidModel):
             return DeploymentAPIType(
                 deployment_type=D.AUDIO_TRANSCRIPTIONS_API,
                 endpoint=endpoint,
+            )
+
+        if endpoint := image_gen_parser.try_parse(upstream_endpoint):
+            if deployment_id in self.GPT_IMAGE_1_DEPLOYMENTS:
+                return DeploymentAPIType(
+                    deployment_type=D.GPT_IMAGE_1,
+                    endpoint=endpoint,
+                )
+            elif deployment_id in self.DALLE3_DEPLOYMENTS:
+                return DeploymentAPIType(
+                    deployment_type=D.DALLE3,
+                    endpoint=endpoint,
+                )
+            else:
+                raise InternalServerError(
+                    f"The image generation deployment id {deployment_id!r} must be "
+                    "declared either in GPT_IMAGE_1_DEPLOYMENTS or DALLE3_DEPLOYMENTS env variable."
+                )
+        elif (
+            deployment_id in self.GPT_IMAGE_1_DEPLOYMENTS
+            or deployment_id in self.DALLE3_DEPLOYMENTS
+        ):
+            raise InternalServerError(
+                f"Image generation deployment id ({deployment_id!r}) declared "
+                "in GPT_IMAGE_1_DEPLOYMENTS or DALLE3_DEPLOYMENTS "
+                "env variable must use images/generations upstream endpoint."
+            )
+
+        if deployment_id in self.MISTRAL_DEPLOYMENTS:
+            return DeploymentAPIType(
+                deployment_type=D.MISTRAL,
+                endpoint=no_endpoint_parser.parse(upstream_endpoint),
+            )
+
+        if deployment_id in self.DATABRICKS_DEPLOYMENTS:
+            return DeploymentAPIType(
+                deployment_type=D.DATABRICKS,
+                endpoint=chat_completions_parser.parse(upstream_endpoint),
+            )
+
+        if deployment_id in self.GPT4O_DEPLOYMENTS:
+            return DeploymentAPIType(
+                deployment_type=D.GPT4O,
+                endpoint=chat_completions_parser.parse(upstream_endpoint),
+            )
+
+        if deployment_id in self.GPT4O_MINI_DEPLOYMENTS:
+            return DeploymentAPIType(
+                deployment_type=D.GPT4O_MINI,
+                endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
         return DeploymentAPIType(

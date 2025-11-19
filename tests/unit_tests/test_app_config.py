@@ -114,14 +114,12 @@ def test_app_config_chat_completions_azure_next_gen(
 
 
 def test_app_config_chat_invalid(origin: str, deployment: str):
-    """Responses deployment misconfigured as GPT-4o"""
-
     with pytest.raises(InvalidRequestError) as exc_info:
         (
             ApplicationConfig()
             .add_deployment(deployment, D.GPT4O)
             .get_chat_completion_deployment_type(
-                deployment, f"{origin}/whatever1/whatever2/responses"
+                deployment, f"{origin}/whatever1/whatever2/whatever3"
             )
         )
 
