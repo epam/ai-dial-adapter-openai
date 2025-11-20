@@ -127,8 +127,10 @@ async def call_chat_completion(
                 client = client.with_options(api_version=api_version)
 
             return await image_generation(
+                request=request,
+                request_body=request_body,
                 model=model,
-                request=request_body,
+                deployment_id=deployment_id,
                 client=client,
                 file_storage=file_storage,
             )

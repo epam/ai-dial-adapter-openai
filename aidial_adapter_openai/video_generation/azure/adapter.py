@@ -8,13 +8,11 @@ from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.chat_completion import Stage
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
-from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
-from fastapi.responses import JSONResponse, StreamingResponse
 from httpx._types import RequestFiles
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
-from aidial_adapter_openai.dial_api.storage import DIAL_URL, FileStorage
-from aidial_adapter_openai.exception_handlers import dial_exception_decorator
+from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.video_generation.azure.client import (
@@ -185,17 +183,8 @@ async def chat_completion(
     prompt = await VideoGenPrompt.from_request(request_body, file_storage)
     inpaint_items, files = prompt.get_files()
 
-    dial_request = await DIALRequest.from_request(
-        request=request,
-        deployment_id=deployment_id,
-        base_url=DIAL_URL,
-    )
-
-    response = DIALResponse(request=dial_request)
-
     client = AzureVideoAPIClient(creds=creds, base_url=upstream_endpoint)
 
-    @dial_exception_decorator
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
         response.set_model(model_name)
 
@@ -231,13 +220,8 @@ async def chat_completion(
                     video_generations=video_generations,
                 )
 
-    stream = response._generate_stream(_handler)
-
-    if dial_request.stream:
-        return StreamingResponse(
-            await to_streaming_response(stream),
-            media_type="text/event-stream",
-        )
-    else:
-        content = await to_block_response(stream)
-        return JSONResponse(content=content)
+    return await sdk_adapter(
+        request=request,
+        deployment_id=deployment_id,
+        chat_completion=_handler,
+    )
