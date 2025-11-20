@@ -33,7 +33,7 @@ def supports_parallel_tool_calls(deployment_type: ChatCompletionDeploymentType):
     return deployment_type not in [
         ChatCompletionDeploymentType.MISTRAL,
         ChatCompletionDeploymentType.DATABRICKS,
-        ChatCompletionDeploymentType.GPT_TEXT_ONLY,
+        ChatCompletionDeploymentType.GPT_GENERIC,
     ]
 
 

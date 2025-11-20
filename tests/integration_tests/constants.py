@@ -3,16 +3,36 @@ import os
 from pathlib import Path
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 from tests.integration_tests.base import TestDeployments
 
 _log = logging.getLogger(__name__)
 
 CURRENT_DIR = Path(__file__).parent
-SAMPLE_DOG_IMAGE_PATH = CURRENT_DIR / "images" / "dog-sample-image.png"
-SAMPLE_DOG_RESOURCE = Resource(
+
+IMAGE_RESOURCE = Resource(
     type="image/png",
-    data=SAMPLE_DOG_IMAGE_PATH.read_bytes(),
+    data=(CURRENT_DIR / "assets" / "image.png").read_bytes(),
+)
+
+AUDIO_RESOURCE = Resource(
+    type="audio/mpeg",
+    data=(CURRENT_DIR / "assets" / "audio.mp3").read_bytes(),
+)
+
+PDF_DOCUMENT_RESOURCE = Resource(
+    type="application/pdf",
+    data=(CURRENT_DIR / "assets" / "doc.pdf").read_bytes(),
+)
+
+UNSUPPORTED_IMAGE_RESOURCE = Resource(
+    type="image/bmp",
+    data=(CURRENT_DIR / "assets" / "image.bmp").read_bytes(),
+)
+
+UNSUPPORTED_DOCUMENT_RESOURCE = Resource(
+    type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    data=(CURRENT_DIR / "assets" / "table.xlsx").read_bytes(),
 )
 
 TEST_DEPLOYMENTS_CONFIG_PATH = os.getenv(

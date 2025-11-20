@@ -4,14 +4,17 @@ Tokenization of images as specified at
 """
 
 import math
-from typing import Literal, assert_never
+from typing import assert_never
 
 from pydantic import BaseModel
 
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
-from aidial_adapter_openai.utils.image import ImageDetail, resolve_detail_level
+from aidial_adapter_openai.utils.resource.image import (
+    ImageDetail,
+    resolve_detail_level,
+)
 
 
 class ImageTokenizer(BaseModel):
@@ -56,22 +59,19 @@ GPT4O_MINI_IMAGE_TOKENIZER = ImageTokenizer(
     low_detail_tokens=2833, tokens_per_tile=5667
 )
 
-MultiModalDeployments = Literal[
-    ChatCompletionDeploymentType.GPT4O,
-    ChatCompletionDeploymentType.GPT4O_MINI,
-]
+IMAGE_SUPPORTING_DEPLOYMENTS = ["GPT4O_DEPLOYMENTS", "GPT4O_MINI_DEPLOYMENTS"]
 
 
 def get_image_tokenizer(
-    deployment_type: MultiModalDeployments,
-) -> ImageTokenizer:
+    deployment_type: ChatCompletionDeploymentType,
+) -> ImageTokenizer | None:
     match deployment_type:
         case ChatCompletionDeploymentType.GPT4O:
             return GPT4O_IMAGE_TOKENIZER
         case ChatCompletionDeploymentType.GPT4O_MINI:
             return GPT4O_MINI_IMAGE_TOKENIZER
         case _:
-            assert_never(deployment_type)
+            return None
 
 
 def _fit_longest(width: int, height: int, size: int) -> tuple[int, int]:

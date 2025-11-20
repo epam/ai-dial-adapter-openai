@@ -1,10 +1,12 @@
 from io import BytesIO
 from typing import Literal, Optional, assert_never
 
+from openai.types.chat import ChatCompletionContentPartImageParam
 from PIL import Image
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.concurrency import run_in_threadpool
+from aidial_adapter_openai.utils.resource.base import Resource
 
 DetailLevel = Literal["low", "high"]
 ImageDetail = DetailLevel | Literal["auto"]
@@ -25,7 +27,7 @@ def resolve_detail_level(
             assert_never(detail)
 
 
-class ImageMetadata(BaseModel):
+class ImageResource(BaseModel):
     """
     Image metadata extracted from the image data URL.
     """
@@ -36,9 +38,9 @@ class ImageMetadata(BaseModel):
     detail: DetailLevel
 
     @classmethod
-    def from_resource(
+    def _from_resource(
         cls, image: Resource, detail: Optional[ImageDetail]
-    ) -> "ImageMetadata":
+    ) -> "ImageResource":
         with Image.open(BytesIO(image.data)) as img:
             width, height = img.size
 
@@ -48,3 +50,20 @@ class ImageMetadata(BaseModel):
             height=height,
             detail=resolve_detail_level(width, height, detail or "auto"),
         )
+
+    @classmethod
+    async def from_resource(
+        cls, image: Resource, detail: Optional[ImageDetail]
+    ) -> "ImageResource":
+        return await run_in_threadpool(
+            lambda: cls._from_resource(image, detail)
+        )
+
+    def to_content_part(self) -> ChatCompletionContentPartImageParam:
+        return {
+            "type": "image_url",
+            "image_url": {
+                "url": self.image.to_data_url(),
+                "detail": self.detail,
+            },
+        }

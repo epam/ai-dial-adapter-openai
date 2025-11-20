@@ -1,17 +1,17 @@
 import pytest
 
+from aidial_adapter_openai.chat_completions.transformation import (
+    Error,
+    ResourceProcessor,
+)
 from aidial_adapter_openai.dial_api.resource import (
     AttachmentResource,
     URLResource,
     parse_attachment,
 )
-from aidial_adapter_openai.gpt4_multi_modal.transformation import (
-    ResourceProcessor,
-    TransformationError,
-)
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 from tests.utils.images import data_url, pic_1_1
-from tests.utils.storage import MockFileStorage
+from tests.utils.storage import DummyFileStorage
 
 
 @pytest.mark.parametrize(
@@ -93,7 +93,7 @@ async def test_guess_attachment_type(attachment, expected_type):
 async def test_get_attachment_name(attachment, expected_name):
     assert (
         await AttachmentResource(attachment=attachment).get_resource_name(
-            MockFileStorage()
+            DummyFileStorage()
         )
         == expected_name
     )
@@ -105,7 +105,7 @@ async def test_get_attachment_name(attachment, expected_name):
         (data_url(pic_1_1), Resource.from_data_url(data_url(pic_1_1))),
         (
             "data:image/png;base65," + 1000 * "0",
-            TransformationError(
+            Error(
                 name="data:image/png;base65,0000000000000000000000000000...",
                 message="Not a valid URL",
             ),
@@ -116,28 +116,32 @@ async def test_get_attachment_name(attachment, expected_name):
         ),
         (
             "http://example.com/doc.pdf",
-            TransformationError(
+            Error(
                 name="http://example.com/doc.pdf",
                 message="The image is not one of the supported types",
             ),
         ),
         (
             "http://example.com/file.exotic_ext",
-            TransformationError(
+            Error(
                 name="http://example.com/file.exotic_ext",
                 message="Can't derive content type of the image",
             ),
         ),
     ],
 )
-async def test_download_image_url(url, expected_result):
+async def test_download_image_url(url: str, expected_result: Resource | Error):
     resource = URLResource(
         url=url,
         entity_name="image",
         supported_types=["image/png"],
     )
-    processor = ResourceProcessor(file_storage=MockFileStorage())
-    assert await processor.try_download_resource(resource) == expected_result
+    processor = ResourceProcessor(file_storage=DummyFileStorage())
+    result = await processor.try_download_resource(resource)
+    if isinstance(expected_result, Resource):
+        assert result == expected_result
+    else:
+        assert processor.errors == {expected_result}
 
 
 @pytest.mark.parametrize(
@@ -145,15 +149,15 @@ async def test_download_image_url(url, expected_result):
     [
         ({"url": data_url(pic_1_1)}, Resource.from_data_url(data_url(pic_1_1))),
         (
-            {"title": "attachment title"},
-            TransformationError(
+            {"title": "attachment title", "data": "whatever"},
+            Error(
                 name="attachment title",
                 message="Can't derive content type of the image",
             ),
         ),
         (
             {"type": "image/bmp", "url": data_url(pic_1_1)},
-            TransformationError(
+            Error(
                 name="data URL (image/bmp)",
                 message="The image is not one of the supported types",
             ),
@@ -164,14 +168,14 @@ async def test_download_image_url(url, expected_result):
         ),
         (
             {"type": "image/bmp", "data": pic_1_1.data_base64},
-            TransformationError(
+            Error(
                 name="data image",
                 message="The image is not one of the supported types",
             ),
         ),
         (
             {"url": "data:image/png;base65,abcd"},
-            TransformationError(
+            Error(
                 name="data:image/png;base65,abcd",
                 message="Not a valid URL",
             ),
@@ -182,32 +186,38 @@ async def test_download_image_url(url, expected_result):
         ),
         (
             {"url": "http://example.com/doc.pdf"},
-            TransformationError(
+            Error(
                 name="http://example.com/doc.pdf",
                 message="The image is not one of the supported types",
             ),
         ),
         (
             {"title": "PDF Document", "url": "http://example.com/doc.pdf"},
-            TransformationError(
+            Error(
                 name="PDF Document",
                 message="The image is not one of the supported types",
             ),
         ),
         (
             {"url": "http://example.com/file.exotic_ext"},
-            TransformationError(
+            Error(
                 name="http://example.com/file.exotic_ext",
                 message="Can't derive content type of the image",
             ),
         ),
     ],
 )
-async def test_download_attachment_image(attachment: dict, expected_result):
+async def test_download_attachment_image(
+    attachment: dict, expected_result: Resource | Error
+):
     resource = AttachmentResource(
         attachment=parse_attachment(attachment),
         entity_name="image",
         supported_types=["image/png"],
     )
-    processor = ResourceProcessor(file_storage=MockFileStorage())
-    assert await processor.try_download_resource(resource) == expected_result
+    processor = ResourceProcessor(file_storage=DummyFileStorage())
+    result = await processor.try_download_resource(resource)
+    if isinstance(expected_result, Resource):
+        assert result == expected_result
+    else:
+        assert processor.errors == {expected_result}

@@ -1,6 +1,12 @@
+import re
+from functools import wraps
+
+import fastapi
+import httpx
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InternalServerError
 from fastapi.requests import Request as FastAPIRequest
+from fastapi.responses import JSONResponse
 from fastapi.responses import Response as FastAPIResponse
 from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError
 
@@ -13,9 +19,22 @@ from aidial_adapter_openai.utils.log_config import logger
 
 
 def to_adapter_exception(exc: Exception) -> AdapterException:
+    return _expose_error_message_to_user(_convert_to_adapter_exception(exc))
+
+
+def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
 
     if isinstance(exc, (DialException, ResponseWrapper)):
         return exc
+
+    if isinstance(exc, httpx.HTTPStatusError):
+        r = exc.response
+        if ret := parse_adapter_exception(
+            status_code=r.status_code,
+            headers={},
+            content=r.text,
+        ):
+            return ret
 
     if isinstance(exc, APIStatusError):
         # Non-streaming errors are reported by `openai` library via this exception
@@ -71,6 +90,49 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
     return InternalServerError(str(exc))
 
 
+def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
+    if isinstance(exc, DialException) and exc.status_code == 400:
+        message = exc.message
+        if "this model does not support file content types" in message.lower():
+            exc.display_message = (
+                exc.display_message
+                or "The provided file attachments aren't supported."
+            )
+
+        match = re.search(
+            r"unsupported MIME type\s+(['\"])([^'\"]+)\1", message
+        )
+        if match:
+            mime_type = match[2]
+            exc.display_message = (
+                exc.display_message
+                or f"The file attachments of the MIME type {mime_type!r} aren't supported."
+            )
+
+        if (
+            "invalid image data" in message.lower()
+            or "the image data you provided does not represent a valid image"
+            in message.lower()
+        ):
+            exc.display_message = (
+                exc.display_message
+                or "The provided image attachment is either corrupt or of unsupported MIME type."
+            )
+
+    return exc
+
+
+def fastapi_exception_handler(
+    request: FastAPIRequest, exc: Exception
+) -> FastAPIResponse:
+    assert isinstance(exc, fastapi.HTTPException)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.detail,
+        headers=exc.headers,
+    )
+
+
 def adapter_exception_handler(
     request: FastAPIRequest, e: Exception
 ) -> FastAPIResponse:
@@ -78,6 +140,31 @@ def adapter_exception_handler(
 
     logger.error(
         f"Caught exception: {type(e).__module__}.{type(e).__name__}. "
-        f"Converted to the adapter exception: {adapter_exception!r}"
+        f"Converted to the adapter exception: {adapter_exception!r}",
+        exc_info=e,
     )
     return adapter_exception.to_fastapi_response()
+
+
+def _to_dial_exception(exc: Exception) -> DialException:
+    exc = to_adapter_exception(exc)
+    if isinstance(exc, ResponseWrapper):
+        return exc.to_dial_exception()
+    else:
+        return exc
+
+
+def dial_exception_decorator(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            dial_exception = _to_dial_exception(e)
+            logger.exception(
+                f"Caught exception: {type(e).__module__}.{type(e).__name__}. "
+                f"The exception converted to the dial exception: {dial_exception!r}."
+            )
+            raise dial_exception from e
+
+    return wrapper

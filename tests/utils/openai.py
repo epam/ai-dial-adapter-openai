@@ -30,11 +30,11 @@ from openai.types.chat.chat_completion_message import (
 from openai.types.chat.chat_completion_message_tool_call_param import (
     Function as ToolFunction,
 )
-from openai.types.chat.completion_create_params import Function
+from openai.types.chat.completion_create_params import Function, ResponseFormat
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import BaseModel
 
-from aidial_adapter_openai.utils.resource import Resource
+from aidial_adapter_openai.utils.resource.base import Resource
 from tests.utils.json import match_objects
 
 
@@ -60,8 +60,9 @@ def ai_tools(
 
 def user(
     content: str | List[ChatCompletionContentPartParam],
+    **kwargs,
 ) -> ChatCompletionUserMessageParam:
-    return {"role": "user", "content": content}
+    return {"role": "user", "content": content, **kwargs}  # type: ignore
 
 
 def user_with_attachment_data(
@@ -78,14 +79,20 @@ def user_with_attachment_data(
     }
 
 
-def user_with_image_content_part(
-    content: str, resource: Resource
+def user_with_file_content_part(
+    content: str, name: str, resource: Resource
 ) -> ChatCompletionUserMessageParam:
     return {
         "role": "user",
         "content": [
             {"type": "text", "text": content},
-            {"type": "image_url", "image_url": {"url": resource.to_data_url()}},
+            {
+                "type": "file",
+                "file": {
+                    "filename": name,
+                    "file_data": resource.to_data_url(),
+                },
+            },
         ],
     }
 
@@ -107,8 +114,8 @@ def user_with_attachment_url(
     }
 
 
-def user_with_image_url(
-    content: str, image: Resource
+def user_with_image_content_part(
+    content: str, resource: Resource
 ) -> ChatCompletionUserMessageParam:
     return {
         "role": "user",
@@ -116,7 +123,7 @@ def user_with_image_url(
             {"type": "text", "text": content},
             {
                 "type": "image_url",
-                "image_url": {"url": image.to_data_url()},
+                "image_url": {"url": resource.to_data_url()},
             },
         ],
     }
@@ -164,6 +171,17 @@ class ChatCompletionResult(BaseModel):
         ]
 
     @property
+    def all_attachments(self) -> list[list[dict]]:
+        return [
+            choice.message.dict()["custom_content"]["attachments"]
+            for choice in self.response.choices
+        ]
+
+    @property
+    def attachments(self) -> list[dict]:
+        return self.all_attachments[0]
+
+    @property
     def content(self) -> str:
         return self.message.content or ""
 
@@ -193,10 +211,10 @@ class ChatCompletionResult(BaseModel):
 
 async def chat_completion(
     client: AsyncAzureOpenAI,
+    *,
     deployment_id: str,
     messages: List[ChatCompletionMessageParam],
     stream: bool,
-    *,
     stop: List[str] | NotGiven = NOT_GIVEN,
     max_completion_tokens: int | NotGiven = NOT_GIVEN,
     max_tokens: int | NotGiven = NOT_GIVEN,
@@ -205,6 +223,7 @@ async def chat_completion(
     tools: List[ChatCompletionToolParam] | NotGiven = NOT_GIVEN,
     temperature: float | NotGiven = NOT_GIVEN,
     reasoning_effort: ReasoningEffort | NotGiven = NOT_GIVEN,
+    response_format: ResponseFormat | NotGiven = NOT_GIVEN,
     extra_body: dict | None = None,
 ) -> ChatCompletionResult:
     async def get_response() -> ChatCompletion:
@@ -222,6 +241,7 @@ async def chat_completion(
             tool_choice="auto" if tools is not NOT_GIVEN else NOT_GIVEN,
             tools=tools or NOT_GIVEN,
             reasoning_effort=reasoning_effort,
+            response_format=response_format,
             extra_body=extra_body,
         )
 
@@ -303,4 +323,5 @@ def is_valid_tool_call(
 class ExpectedException(BaseModel):
     type: type[APIError]
     message: str | None = None
+    display_message: str | None = None
     status_code: int | None = None

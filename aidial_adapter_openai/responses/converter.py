@@ -1,4 +1,4 @@
-from typing import Any, Generator, List, assert_never
+from typing import Generator, List, assert_never
 
 from aidial_sdk.chat_completion.request import CustomContent, Stage, Status
 from aidial_sdk.exceptions import RequestValidationError
@@ -33,6 +33,7 @@ from openai.types.responses import (
     ResponseFunctionToolCallParam,
     ResponseFunctionWebSearch,
     ResponseInputContentParam,
+    ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputParam,
     ResponseInputTextParam,
@@ -157,8 +158,10 @@ def _convert_input_content_part(
     match part["type"]:
         case "refusal":
             raise RequestValidationError(_NO_REFUSAL)
+
         case "text":
             return ResponseInputTextParam(type="input_text", text=part["text"])
+
         case "image_url":
             image_url = part["image_url"]
             return ResponseInputImageParam(
@@ -166,10 +169,27 @@ def _convert_input_content_part(
                 image_url=image_url["url"],
                 detail=image_url.get("detail", "auto"),
             )
+
         case "file":
-            raise RequestValidationError("File references aren't supported")
+            file = part["file"]
+            if (file_data := file.get("file_data")) is None:
+                raise RequestValidationError(
+                    "Base64-encoded file content must be provided."
+                )
+
+            if (filename := file.get("filename")) is None:
+                raise RequestValidationError("Filename must be provided.")
+
+            return ResponseInputFileParam(
+                type="input_file",
+                file_data=file_data,
+                file_id=file.get("file_id"),
+                filename=filename,
+            )
+
         case "input_audio":
             raise RequestValidationError("Audio messages aren't supported")
+
         case _:
             assert_never(part["type"])
 
@@ -188,7 +208,7 @@ def _convert_tool_call(
 
 def _convert_message(
     message: ChatCompletionMessageParam,
-) -> Generator[ResponseInputItemParam, Any, Any]:
+) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
         case "user" | "assistant" | "system" | "developer":
 

@@ -12,7 +12,15 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
 from tests.conftest import create_test_client
+from tests.integration_tests.constants import (
+    IMAGE_RESOURCE,
+    PDF_DOCUMENT_RESOURCE,
+)
 from tests.utils.dictionary import exclude_keys
+from tests.utils.openai import (
+    user_with_file_content_part,
+    user_with_image_content_part,
+)
 from tests.utils.stream import (
     OpenAIStream,
     create_choice,
@@ -215,6 +223,7 @@ async def test_error_during_streaming_stopped(test_app: httpx.AsyncClient):
                 "message": "Error test",
                 "type": "runtime_error",
                 "code": "500",
+                "extra_error_field": "extra_error_value",
             }
         },
     )
@@ -262,6 +271,7 @@ async def test_error_during_streaming_unfinished(test_app: httpx.AsyncClient):
                 "message": "Error test",
                 "type": "runtime_error",
                 "code": "500",
+                "extra_error_field": "extra_error_value",
             }
         },
     )
@@ -689,7 +699,7 @@ async def test_adapter_internal_error(
         raise ValueError("failed generating the stream")
 
     with patch(
-        "aidial_adapter_openai.gpt.generate_stream",
+        "aidial_adapter_openai.chat_completions.gpt.generate_stream",
         side_effect=mock_generate_stream,
     ):
 
@@ -771,7 +781,7 @@ async def test_invalid_chunk_stream_from_upstream(
 
 @respx.mock
 async def test_unexpected_multi_modal_input_streaming(
-    test_app: httpx.AsyncClient,
+    test_app: httpx.AsyncClient, caplog
 ):
     mock_stream = OpenAIStream(
         single_choice_chunk(delta={"role": "assistant"}),
@@ -792,13 +802,84 @@ async def test_unexpected_multi_modal_input_streaming(
         json={
             "stream": True,
             "messages": [
+                user_with_image_content_part("image1", IMAGE_RESOURCE),
+                user_with_image_content_part("image2", IMAGE_RESOURCE),
+                user_with_file_content_part(
+                    "file1", "file1", PDF_DOCUMENT_RESOURCE
+                ),
+            ],
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    file_not_supported = (
+        "Content part type 'file' is not supported by the tokenizer. "
+        "Tokens for this content part will be ignored."
+    )
+
+    image_not_supported = (
+        "Image content detected, however, the image tokenization algorithm is not known for this deployment. "
+        "Tokens for the image will be ignored. "
+        "Declare the deployment in either GPT4O_DEPLOYMENTS or GPT4O_MINI_DEPLOYMENTS "
+        "to specify the image tokenization algorithm."
+    )
+
+    log_messages = [record.message for record in caplog.records]
+    assert file_not_supported in log_messages
+    assert image_not_supported in log_messages
+
+    assert response.status_code == 200
+    mock_stream.assert_response_content(
+        response,
+        assert_equal_no_dynamic_fields,
+        usages={
+            2: {
+                "prompt_tokens": 21,
+                "completion_tokens": 2,
+                "total_tokens": 23,
+            }
+        },
+    )
+
+
+@respx.mock
+async def test_invalid_image_url_streaming_catch_all(
+    test_app: httpx.AsyncClient,
+):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(delta={"role": "assistant"}),
+        single_choice_chunk(delta={"content": "Test response"}),
+        single_choice_chunk(delta={}, finish_reason="stop"),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content=mock_stream.to_content(),
+        content_type="text/event-stream",
+    )
+
+    image_url = "http://xyz.com/image.png"
+
+    respx.get(image_url).respond(status_code=404, content="Not Found")
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "stream": True,
+            "messages": [
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": "http://example.com/image.png"
+                                "url": image_url,
+                                "detail": "auto",
                             },
                         }
                     ],
@@ -811,11 +892,99 @@ async def test_unexpected_multi_modal_input_streaming(
         },
     )
 
-    assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
+    error_message = f"The following files failed to process:\n1. {image_url}: failed to download the image content part"
+
+    response_stream = OpenAIStream(
+        {
+            "error": {
+                "code": "400",
+                "type": "invalid_request_error",
+                "message": error_message,
+                "display_message": error_message,
+            }
+        },
+    )
+
+    assert response.status_code == 400
+    response_stream.assert_response_content(
+        response, assert_equal_no_dynamic_fields
+    )
 
 
-async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
+@respx.mock
+async def test_invalid_image_url_streaming_gpt4o():
+    app_config = (
+        ApplicationConfig()
+        .add_deployment("app", ChatCompletionDeploymentType.GPT4O)
+        .map_to_tiktoken_model("app", "gpt-4")
+    )
+
+    async with create_test_client(app_config) as test_app:
+        mock_stream = OpenAIStream(
+            single_choice_chunk(delta={"role": "assistant"}),
+            single_choice_chunk(delta={"content": "Test response"}),
+            single_choice_chunk(delta={}, finish_reason="stop"),
+        )
+
+        respx.post(
+            "http://localhost:5001/openai/deployments/upstream-model/chat/completions?api-version=2023-03-15-preview"
+        ).respond(
+            status_code=200,
+            content=mock_stream.to_content(),
+            content_type="text/event-stream",
+        )
+
+        image_url = "http://xyz.com/image.png"
+
+        respx.get(image_url).respond(status_code=404, content="Not Found")
+
+        response = await test_app.post(
+            "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
+            json={
+                "stream": True,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": image_url,
+                                    "detail": "auto",
+                                },
+                            }
+                        ],
+                    }
+                ],
+            },
+            headers={
+                "X-UPSTREAM-KEY": "TEST_API_KEY",
+                "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/upstream-model/chat/completions",
+            },
+        )
+
+        error_message = f"The following files failed to process:\n1. {image_url}: failed to download the image content part"
+
+        response_stream = OpenAIStream(
+            {
+                "error": {
+                    "code": "400",
+                    "type": "invalid_request_error",
+                    "message": error_message,
+                    "display_message": error_message,
+                }
+            },
+        )
+
+        assert response.status_code == 400
+        response_stream.assert_response_content(
+            response, assert_equal_no_dynamic_fields
+        )
+
+
+async def test_incorrect_max_prompt_tokens_streaming_request(
+    test_app: httpx.AsyncClient,
+):
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
         json={
@@ -832,8 +1001,9 @@ async def test_incorrect_streaming_request(test_app: httpx.AsyncClient):
     expected_response = {
         "error": {
             "code": "400",
-            "message": "'0' is less than the minimum of 1 - 'max_prompt_tokens'",
+            "message": "'0' is less than the minimum of 1",
             "type": "invalid_request_error",
+            "param": "max_prompt_tokens",
         }
     }
 
@@ -875,23 +1045,114 @@ async def test_error_from_gpt_multi_modal(stream: bool):
         assert response.content == b"Something went wrong"
 
 
-async def test_missing_tiktoken_model(test_app: httpx.AsyncClient):
+@respx.mock
+@pytest.mark.parametrize(
+    "no_usage_returned", [True, False], ids=["no-usage", "with-usage"]
+)
+@pytest.mark.parametrize(
+    "with_max_prompt_tokens",
+    [True, False],
+    ids=["with-truncate-prompt", "no-truncate-prompt"],
+)
+async def test_missing_tiktoken_model(
+    test_app: httpx.AsyncClient,
+    no_usage_returned: bool,
+    with_max_prompt_tokens: bool,
+    caplog,
+):
+    usage_from_upstream = (
+        None
+        if no_usage_returned
+        else {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
+    )
+
+    mock_stream = OpenAIStream(
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "5"},
+            finish_reason="stop",
+            usage=usage_from_upstream,
+        ),
+    )
+
+    respx.post(
+        "http://test-upstream/openai/deployments/upstream-deployment/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
     response = await test_app.post(
         "/openai/deployments/my-favorite-model/chat/completions?api-version=2023-03-15-preview",
-        json={"whatever": "whatever"},
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": True,
+            **({"max_prompt_tokens": 100} if with_max_prompt_tokens else {}),
+        },
         headers={
             "X-UPSTREAM-KEY": "dummy-upstream-api-key",
             "X-UPSTREAM-ENDPOINT": "http://test-upstream/openai/deployments/upstream-deployment/chat/completions",
         },
     )
 
-    assert response.status_code == 500
-    assert response.json() == {
-        "error": {
-            "code": "500",
-            "message": """
-Could not find tokenizer for the model 'my-favorite-model' in the tiktoken package. Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING variable in the adapter OpenAI environment: TIKTOKEN_MODEL_MAPPING='{"my-favorite-model": $prefix}', where $prefix is one of: "o1-", "o3-", "o4-mini-", "gpt-5-", "gpt-4.5-", "gpt-4.1-", "chatgpt-4o-", "gpt-4o-", "gpt-4-", "gpt-3.5-turbo-", "gpt-35-turbo-", "gpt-oss-". Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken.
-""".strip(),
-            "type": "internal_server_error",
+    assert response.status_code == 200
+
+    warnings = [
+        record.message
+        for record in caplog.records
+        if record.levelname == "WARNING"
+    ]
+
+    if no_usage_returned or with_max_prompt_tokens:
+        # The adapter-side tokenization is only needed when either
+        # * the usage isn't provided by the upstream, or
+        # * "max_prompt_tokens" parameter was in the request.
+        tiktoken_warning = """
+    Could not find tokenizer for the model 'my-favorite-model' in the tiktoken package. Consider mapping the model to an existing tokenizer via TIKTOKEN_MODEL_MAPPING variable in the adapter OpenAI environment: TIKTOKEN_MODEL_MAPPING='{"my-favorite-model": $prefix}', where $prefix is one of: "o1-", "o3-", "o4-mini-", "gpt-5-", "gpt-4.5-", "gpt-4.1-", "chatgpt-4o-", "gpt-4o-", "gpt-4-", "gpt-3.5-turbo-", "gpt-35-turbo-", "gpt-oss-". Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken. Meantime, the default tokenizer of the 'gpt-4o' model will be used instead: 'o200k_base'.
+    """.strip()
+
+        assert len(warnings) == 1
+        assert tiktoken_warning == warnings[0]
+    else:
+        assert warnings == []
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_error_invalid_image_url(stream: bool):
+    app_config = (
+        ApplicationConfig()
+        .add_deployment("app", ChatCompletionDeploymentType.GPT4O)
+        .map_to_tiktoken_model("app", "gpt-4")
+    )
+
+    upstream_url = "http://test-upstream/openai/deployments/upstream-deployment/chat/completions"
+
+    async with create_test_client(app_config=app_config) as http_client:
+        response = await http_client.post(
+            "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
+            json={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "test"},
+                            {"type": "image_url", "image_url": "whatever"},
+                        ],
+                    }
+                ],
+                "stream": stream,
+            },
+            headers={
+                "X-UPSTREAM-KEY": "dummy-upstream-api-key",
+                "X-UPSTREAM-ENDPOINT": upstream_url,
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {
+            "error": {
+                "message": "'image_url' expected to be dict, but got str",
+                "type": "invalid_request_error",
+                "code": "400",
+            }
         }
-    }
