@@ -4,6 +4,7 @@ import fastapi
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.exceptions import InternalServerError
+from fastapi.responses import StreamingResponse
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.images_response import ImagesResponse
 from pydantic import BaseModel
@@ -27,7 +28,7 @@ async def chat_completion(
     request_body: Any,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
-):
+) -> StreamingResponse | dict:
     prompt = await ImageGenPrompt.from_request(request_body, file_storage)
 
     n = int(request_body.get("n", 1))

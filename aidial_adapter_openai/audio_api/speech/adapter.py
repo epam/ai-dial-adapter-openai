@@ -5,6 +5,7 @@ import fastapi
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.exceptions import RequestValidationError
+from fastapi.responses import StreamingResponse
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from aidial_adapter_openai.audio_api.speech.configuration import Configuration
@@ -48,7 +49,7 @@ async def chat_completion(
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
     tokenizer: Tokenizer,
-):
+) -> StreamingResponse | dict:
     if (n := request_body.get("n")) not in [None, 1]:
         raise RequestValidationError(
             f"The deployment doesn't support request.n parameter other than 1, but got {n}."

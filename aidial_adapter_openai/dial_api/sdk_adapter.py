@@ -4,7 +4,7 @@ import fastapi
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from aidial_adapter_openai.dial_api.storage import DIAL_URL
 from aidial_adapter_openai.exception_handlers import dial_exception_decorator
@@ -17,7 +17,7 @@ async def sdk_adapter(
     chat_completion: Callable[
         [DIALRequest, DIALResponse], Coroutine[None, None, None]
     ],
-) -> fastapi.Response:
+) -> StreamingResponse | dict:
     dial_request = await DIALRequest.from_request(
         request=request,
         deployment_id=deployment_id,
@@ -38,5 +38,4 @@ async def sdk_adapter(
             media_type="text/event-stream",
         )
     else:
-        content = await to_block_response(stream)
-        return JSONResponse(content=content)
+        return await to_block_response(stream)

@@ -7,6 +7,7 @@ from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.chat_completion import Stage
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
+from fastapi.responses import StreamingResponse
 from httpx._types import RequestFiles
 
 from aidial_adapter_openai.dial_api.attachment import create_dial_attachment
@@ -170,7 +171,7 @@ async def chat_completion(
     deployment_id: str,
     upstream_endpoint: str,
     file_storage: FileStorage | None,
-) -> fastapi.Response:
+) -> StreamingResponse | dict:
     _validate_request(request_body)
 
     model_name = request_body["model"]

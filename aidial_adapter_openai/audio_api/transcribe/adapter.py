@@ -5,6 +5,7 @@ import fastapi
 import openai
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
+from fastapi.responses import StreamingResponse
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.audio import (
     TranscriptionTextDeltaEvent,
@@ -96,7 +97,7 @@ async def chat_completion(
     deployment_id: str,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
-):
+) -> StreamingResponse | dict:
     is_stream = bool(request_body.get("stream"))
     model_name = request_body["model"]
 

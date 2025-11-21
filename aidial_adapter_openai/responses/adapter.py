@@ -3,7 +3,6 @@ import logging
 from typing import Any, AsyncIterator, Dict, List
 
 from aidial_sdk.exceptions import RequestValidationError
-from fastapi.responses import Response as FastAPIResponse
 from openai import (
     NOT_GIVEN,
     AsyncAzureOpenAI,
@@ -108,7 +107,7 @@ async def chat_completion(
     request: Dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
-) -> AsyncIterator[dict] | dict | FastAPIResponse:
+) -> AsyncIterator[dict] | dict:
     _validate_request(request)
 
     is_stream = bool(request.get("stream"))

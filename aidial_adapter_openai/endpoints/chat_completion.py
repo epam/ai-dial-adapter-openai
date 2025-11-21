@@ -38,7 +38,10 @@ from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
 )
-from aidial_adapter_openai.utils.streaming import create_server_response
+from aidial_adapter_openai.utils.streaming import (
+    ChatResponse,
+    create_server_response,
+)
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
@@ -62,7 +65,7 @@ async def call_chat_completion(
     request_body: dict,
     request_headers: Mapping[str, str],
     api_version: str,
-):
+) -> ChatResponse:
     # Azure OpenAI deployments ignore "model" request field,
     # since the deployment id is already encoded in the endpoint path.
     # This is not the case for non-Azure OpenAI deployments, so

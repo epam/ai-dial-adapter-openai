@@ -10,6 +10,7 @@ from typing import (
     Optional,
     Set,
     TypeVar,
+    assert_never,
 )
 from uuid import uuid4
 
@@ -236,12 +237,16 @@ class ResponseWithHeaders(Generic[_Body], BaseModel):
     body: _Body
 
 
-_BaseResponse = AsyncIterator[dict] | dict | BaseModel
-AppResponse = ResponseWithHeaders[_BaseResponse] | _BaseResponse | Response
+ChatResponse = (
+    StreamingResponse
+    | ResponseWithHeaders[AsyncIterator[dict] | dict]
+    | AsyncIterator[dict]
+    | dict
+)
 
 
 def create_server_response(
-    emulate_streaming: bool, response: AppResponse
+    emulate_streaming: bool, response: ChatResponse
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
         body = response.body
@@ -271,14 +276,12 @@ def create_server_response(
 
     if isinstance(body, AsyncIterator):
         return stream_to_response(body)
-
-    if isinstance(body, dict):
+    elif isinstance(body, dict):
         return block_to_response(body)
-
-    if isinstance(body, BaseModel):
-        return block_to_response(body.dict())
-
-    return body
+    elif isinstance(body, StreamingResponse):
+        return body
+    else:
+        assert_never(body)
 
 
 T = TypeVar("T")
