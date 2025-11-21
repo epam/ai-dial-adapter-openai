@@ -149,7 +149,7 @@ async def call_chat_completion(
             if deployment_type == D.AUDIO_SPEECH_API:
                 return await audio_speech_gen(
                     request=request,
-                    request_data=request_body,
+                    request_body=request_body,
                     deployment_id=deployment_id,
                     client=client,
                     file_storage=file_storage,
@@ -157,7 +157,9 @@ async def call_chat_completion(
                 )
             elif deployment_type == D.AUDIO_TRANSCRIPTIONS_API:
                 return await audio_transcriptions_gen(
-                    request=request_body,
+                    request=request,
+                    request_body=request_body,
+                    deployment_id=deployment_id,
                     client=client,
                     file_storage=file_storage,
                 )

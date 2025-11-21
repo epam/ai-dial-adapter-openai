@@ -43,27 +43,27 @@ def collect_system_messages(messages: list[dict]) -> str | None:
 async def chat_completion(
     *,
     request: fastapi.Request,
-    request_data: Any,
+    request_body: Any,
     deployment_id: str,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
     tokenizer: Tokenizer,
 ):
-    if (n := request_data.get("n")) not in [None, 1]:
+    if (n := request_body.get("n")) not in [None, 1]:
         raise RequestValidationError(
             f"The deployment doesn't support request.n parameter other than 1, but got {n}."
         )
 
-    messages = request_data.pop("messages")
+    messages = request_body.pop("messages")
     if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
     prompt = collect_message_text_content(messages[-1]).strip()
     prompt_tokens = await tokenizer.tokenize_text(prompt)
 
-    model_name = request_data["model"]
+    model_name = request_body["model"]
 
-    config = parse_configuration(Configuration, request_data) or Configuration()
+    config = parse_configuration(Configuration, request_body) or Configuration()
 
     if system_message := collect_system_messages(messages):
         config.instructions = (
