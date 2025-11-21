@@ -1,5 +1,4 @@
 import asyncio
-import base64
 from typing import Any, Dict, List, assert_never
 
 import fastapi
@@ -10,6 +9,7 @@ from aidial_sdk.chat_completion import Stage
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from httpx._types import RequestFiles
 
+from aidial_adapter_openai.dial_api.attachment import create_dial_attachment
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
@@ -149,21 +149,16 @@ async def _download_videos(
     for idx, video_generation in enumerate(video_generations, start=1):
         video_bytes = await client.get_video_content(video_generation.id)
         content_type = "video/mp4"
-
-        if storage:
-            metadata = await storage.upload_file(
-                "videos", video_bytes, content_type
-            )
-            url = metadata["url"]
-            data = None
-        else:
-            url = None
-            data = base64.b64encode(video_bytes).decode("utf-8")
-
         title = "video" if n == 1 else f"video #{idx}"
 
         choice.add_attachment(
-            title=title, type=content_type, url=url, data=data
+            await create_dial_attachment(
+                title=title,
+                content_type=content_type,
+                data=video_bytes,
+                file_storage=storage,
+                upload_dir="videos",
+            )
         )
 
 

@@ -8,6 +8,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.images_response import ImagesResponse
 from pydantic import BaseModel
 
+from aidial_adapter_openai.dial_api.attachment import create_dial_attachment
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
@@ -82,18 +83,14 @@ async def chat_completion(
                         "The model didn't return the base64 encoding of an image"
                     )
 
-                if file_storage:
-                    metadata = await file_storage.upload_file(
-                        "images", data_b64, image_content_type
-                    )
-                    url = metadata["url"]
-                    data = None
-                else:
-                    url = None
-                    data = data_b64
-
                 choice.add_attachment(
-                    title="Image", type=image_content_type, url=url, data=data
+                    await create_dial_attachment(
+                        title="Image",
+                        content_type=image_content_type,
+                        data=data_b64,
+                        file_storage=file_storage,
+                        upload_dir="images",
+                    )
                 )
 
         response.set_usage(prompt_tokens=0, completion_tokens=n)

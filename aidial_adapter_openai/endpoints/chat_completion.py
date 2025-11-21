@@ -25,7 +25,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.dial_api.storage import create_file_storage
-from aidial_adapter_openai.image_generation.generation import (
+from aidial_adapter_openai.image_generation.adapter import (
     chat_completion as image_generation,
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
@@ -148,7 +148,9 @@ async def call_chat_completion(
 
             if deployment_type == D.AUDIO_SPEECH_API:
                 return await audio_speech_gen(
-                    request=request_body,
+                    request=request,
+                    request_data=request_body,
+                    deployment_id=deployment_id,
                     client=client,
                     file_storage=file_storage,
                     tokenizer=_get_tokenizer(),
