@@ -1,69 +1,68 @@
 <h1 align="center">
-         DIAL OpenAI Adapter
-    </h1>
-    <p align="center">
-        <p align="center">
-        <a href="https://dialx.ai/">
-          <img src="https://dialx.ai/dialx_logo.svg" alt="About DIALX">
-        </a>
-    </p>
+  DIAL OpenAI Adapter
+</h1>
+<p align="center">
+  <p align="center">
+  <a href="https://dialx.ai/">
+    <img src="https://dialx.ai/dialx_logo.svg" alt="About DIALX">
+  </a>
+</p>
 <h4 align="center">
-    <a href="https://discord.gg/ukzj9U9tEe">
-        <img src="https://img.shields.io/static/v1?label=DIALX%20Community%20on&message=Discord&color=blue&logo=Discord&style=flat-square" alt="Discord">
-    </a>
+  <a href="https://discord.gg/ukzj9U9tEe">
+    <img src="https://img.shields.io/static/v1?label=DIALX%20Community%20on&message=Discord&color=blue&logo=Discord&style=flat-square" alt="Discord">
+  </a>
 </h4>
 
 - [Overview](#overview)
 - [Chat completions deployments](#chat-completions-deployments)
-    - [Supported upstream chat APIs](#supported-upstream-chat-apis)
-        - [Azure OpenAI Chat Completions API (Last generation API)](#azure-openai-chat-completions-api-last-generation-api)
-        - [Azure OpenAI Chat Completions API (Next generation API)](#azure-openai-chat-completions-api-next-generation-api)
-        - [Azure OpenAI Responses API (Next generation API)](#azure-openai-responses-api-next-generation-api)
-        - [Azure AI Foundry Chat Completions API](#azure-ai-foundry-chat-completions-api)
-        - [Azure OpenAI Images API](#azure-openai-images-api)
-        - [Azure OpenAI Video API](#azure-openai-video-api)
-        - [Azure Audio API](#azure-audio-api)
-            - [Text-to-speech models (TTS)](#text-to-speech-models-tts)
-            - [Speech-to-text models (STT)](#speech-to-text-models-stt)
-        - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
-        - [OpenAI Completions API](#openai-completions-api)
-        - [Mistral Chat Completion API](#mistral-chat-completion-api)
-    - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
-        - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
-        - [Tokenization algorithm](#tokenization-algorithm)
-            - [Text tokenization](#text-tokenization)
-            - [Image tokenization](#image-tokenization)
+  - [Supported upstream chat APIs](#supported-upstream-chat-apis)
+    - [Azure OpenAI Chat Completions API (Last generation API)](#azure-openai-chat-completions-api-last-generation-api)
+    - [Azure OpenAI Chat Completions API (Next generation API)](#azure-openai-chat-completions-api-next-generation-api)
+    - [Azure OpenAI Responses API (Next generation API)](#azure-openai-responses-api-next-generation-api)
+    - [Azure AI Foundry Chat Completions API](#azure-ai-foundry-chat-completions-api)
+    - [Azure OpenAI Images API](#azure-openai-images-api)
+    - [Azure OpenAI Video API](#azure-openai-video-api)
+    - [Azure Audio API](#azure-audio-api)
+      - [Text-to-speech models (TTS)](#text-to-speech-models-tts)
+      - [Speech-to-text models (STT)](#speech-to-text-models-stt)
+    - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
+    - [OpenAI Completions API](#openai-completions-api)
+    - [Mistral Chat Completion API](#mistral-chat-completion-api)
+  - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
+    - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
+    - [Tokenization algorithm](#tokenization-algorithm)
+      - [Text tokenization](#text-tokenization)
+      - [Image tokenization](#image-tokenization)
 - [Embedding deployments](#embedding-deployments)
-    - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
-        - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
-        - [Azure OpenAI Embeddings API (Next generation API)](#azure-openai-embeddings-api-next-generation-api)
-        - [Azure multimodal embeddings](#azure-multimodal-embeddings)
-        - [OpenAI Platform Embeddings API](#openai-platform-embeddings-api)
+  - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
+    - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
+    - [Azure OpenAI Embeddings API (Next generation API)](#azure-openai-embeddings-api-next-generation-api)
+    - [Azure multimodal embeddings](#azure-multimodal-embeddings)
+    - [OpenAI Platform Embeddings API](#openai-platform-embeddings-api)
 - [Environment Variables](#environment-variables)
-    - [Categories of deployments](#categories-of-deployments)
-    - [Other variables](#other-variables)
+  - [Categories of deployments](#categories-of-deployments)
+  - [Other variables](#other-variables)
 - [Configurable models](#configurable-models)
-    - [DALL-E / GPT Image 1](#dall-e--gpt-image-1)
-        - [Forward compatibility](#forward-compatibility)
-    - [Models based on Responses API](#models-based-on-responses-api)
-        - [Reasoning configuration](#reasoning-configuration)
+  - [DALL-E / GPT Image 1](#dall-e--gpt-image-1)
+    - [Forward compatibility](#forward-compatibility)
+  - [Models based on Responses API](#models-based-on-responses-api)
+    - [Reasoning configuration](#reasoning-configuration)
 - [Load balancing](#load-balancing)
 - [Prompt caching](#prompt-caching)
 - [API versioning](#api-versioning)
 - [Server performance configuration](#server-performance-configuration)
 - [Development](#development)
-    - [Development environment](#development-environment)
-    - [IDE configuration](#ide-configuration)
-    - [Make on Windows](#make-on-windows)
-    - [Run](#run)
-    - [Lint](#lint)
-    - [Test](#test)
-    - [Clean](#clean)
+  - [Development environment](#development-environment)
+  - [IDE configuration](#ide-configuration)
+  - [Make on Windows](#make-on-windows)
+  - [Run](#run)
+  - [Lint](#lint)
+  - [Test](#test)
+  - [Clean](#clean)
 
 ---
 
 ## Overview
-
 
 LLM Adapters unify the APIs of respective LLMs to align with the Unified Protocol of DIAL Core. Each Adapter operates within a dedicated container. Multi-modality allows supporting non-textual communications such as image-to-text, text-to-image, file transfers and more.
 
@@ -152,8 +151,8 @@ The [DefaultAzureCredential](https://learn.microsoft.com/en-us/python/api/azure-
 
 The Next generation API (aka [v1 API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle?tabs=key#next-generation-api)) doesn't include the deployment id in the URL:
 
-* Last generation API: `POST https://SERVICE_NAME.openai.azure.com/openai/deployments/gpt-4o/chat/completions`
-* Next generation API: `POST https://SERVICE_NAME.openai.azure.com/openai/v1/chat/completions`
+- Last generation API: `POST https://SERVICE_NAME.openai.azure.com/openai/deployments/gpt-4o/chat/completions`
+- Next generation API: `POST https://SERVICE_NAME.openai.azure.com/openai/v1/chat/completions`
 
 The DIAL configuration changes accordingly:
 
@@ -219,8 +218,8 @@ The last generation API is also supported via an URLs in the following format:
 
 Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deployed to an Azure AI Foundry service. They are accessible via:
 
-* Azure AI model inference endpoint or
-* Azure OpenAI endpoint
+- Azure AI model inference endpoint or
+- Azure OpenAI endpoint
 
 <details><summary>DIAL Core Config (Azure AI model inference endpoint)</summary>
 
@@ -468,8 +467,8 @@ The usage is computed in the following way:
 
 Note the difference from the Azure OpenAI configuration:
 
-* The API key is required.
-* Added `overrideName` to specify the upstream OpenAI model name. The upstream URL does not include the model name *(unlike Azure)*, so we pass it via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
+- The API key is required.
+- Added `overrideName` to specify the upstream OpenAI model name. The upstream URL does not include the model name *(unlike Azure)*, so we pass it via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
 
 #### OpenAI Completions API
 
@@ -1073,11 +1072,9 @@ This will install all requirements for running the package, linting, formatting 
 
 The recommended IDE is [VS Code](https://code.visualstudio.com/).
 Open the project in VS Code and install the recommended extensions.
-
 VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
 
 Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
-
 Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
 install PyCharm>=2023.2 with [built-in Black support](https://blog.jetbrains.com/pycharm/2023/07/2023-2/#black).
 
