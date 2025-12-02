@@ -90,6 +90,14 @@ def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
     return InternalServerError(str(exc))
 
 
+def _truncate_long_string(s: str, *, limit: int) -> str:
+    if (excess := len(s) - limit) > 0:
+        ln = limit // 2
+        rn = limit - ln
+        return s[:ln] + f"<truncated {excess} characters>" + s[-rn:]
+    return s
+
+
 def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
     if isinstance(exc, DialException) and exc.status_code == 400:
         message = exc.message
@@ -118,6 +126,22 @@ def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
                 exc.display_message
                 or "The provided image attachment is either corrupt or of unsupported MIME type."
             )
+
+        # Special handling of GPT Image 1 exception when the prompt is too long
+        if "Invalid 'prompt': string too long" in message:
+            exc.display_message = (
+                exc.display_message or "The prompt is too long."
+            )
+
+        # Special handling of DALL·E 3 exception when the prompt is too long
+        if "is too long - 'prompt'" in message:
+            # DALL·E 3 is notorious for including the whole prompt in the error message,
+            # therefore, we override it with a short one.
+            exc.message = "The prompt is too long."
+            exc.display_message = exc.display_message or exc.message
+
+        # Just in case any other sensitive information leaked to the error message, we truncate it
+        exc.message = _truncate_long_string(exc.message, limit=1024)
 
     return exc
 
