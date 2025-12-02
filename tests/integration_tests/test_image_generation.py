@@ -160,3 +160,48 @@ async def test_image_to_image(
     )
 
     assert "space" in evaluation.content.lower()
+
+
+async def test_imagen_prompt_is_too_long(
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    imagen_deployment: D,
+    stream: bool,
+):
+    long_prompt = "cat on a sofa" * 100_000
+
+    with pytest.raises(openai.BadRequestError) as exc_info:
+        await chat_completion(
+            create_openai_client(imagen_deployment),
+            stream=stream,
+            deployment_id=imagen_deployment.model_name,
+            messages=[user(long_prompt)],
+        )
+
+    exc = exc_info.value
+    assert exc.status_code == 400
+
+    error_message = exc.message
+    assert len(error_message) <= 512, (
+        f"The error message is too long: {len(error_message)}. "
+        "Most likely the whole prompt leaked to the error message."
+    )
+
+    error_body = exc.body or {}
+
+    if imagen_deployment.type_ == ChatCompletionDeploymentType.DALLE3:
+        assert error_body == {
+            "type": "invalid_request_error",
+            "code": "invalidPayload",
+            "message": "The prompt is too long.",
+            "display_message": "The prompt is too long.",
+        }
+    elif imagen_deployment.type_ == ChatCompletionDeploymentType.GPT_IMAGE_1:
+        assert error_body == {
+            "type": "invalid_request_error",
+            "param": "prompt",
+            "code": "string_above_max_length",
+            "message": "Invalid 'prompt': string too long. Expected a string with maximum length 32000, but got a string with length 1300000 instead.",
+            "display_message": "The prompt is too long.",
+        }
+    else:
+        assert False, f"Unexpected deployment type: {imagen_deployment.type_}"
