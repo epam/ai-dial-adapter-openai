@@ -116,6 +116,26 @@
                 "image/*"
             ]
         },
+        "gpt-5.2-2025-12-11": {
+            "overrideName": "gpt-5.2",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/responses",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "parallelToolCallsSupported": false,
+                "maxTokensSupported": false,
+                "reasoningSupported": true,
+                "stopSupported": false,
+                "temperatureSupported": false
+            },
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
+        },
         "gpt-4-turbo-2024-04-09": {
             "type": "chat",
             "upstreams": [
@@ -346,16 +366,6 @@
         },
         "sora": {
             "overrideName": "sora",
-            "type": "chat",
-            "upstreams": [
-                {
-                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/video/generations",
-                    "key": "optional-api-key"
-                }
-            ]
-        },
-        "sora-2": {
-            "overrideName": "sora-2",
             "type": "chat",
             "upstreams": [
                 {

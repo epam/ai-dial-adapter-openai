@@ -101,7 +101,10 @@ def _truncate_long_string(s: str, *, limit: int) -> str:
 def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
     if isinstance(exc, DialException) and exc.status_code == 400:
         message = exc.message
-        if "this model does not support file content types" in message.lower():
+        if (
+            "this model does not support file content types" in message.lower()
+            or "the file type you uploaded is not supported" in message.lower()
+        ):
             exc.display_message = (
                 exc.display_message
                 or "The provided file attachments aren't supported."
