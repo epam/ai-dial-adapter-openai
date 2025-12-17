@@ -144,8 +144,8 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
         },
     )
 
-    assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
+    assert response.status_code == 500
+    assert response.json() == {"error": {"message": "whatever", "code": "500"}}
 
 
 @respx.mock
@@ -185,8 +185,8 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
         },
     )
 
-    assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
+    assert response.status_code == 500
+    assert response.json() == {"error": {"message": "whatever", "code": "500"}}
 
 
 @respx.mock
@@ -768,15 +768,14 @@ async def test_invalid_chunk_stream_from_upstream(
         },
     )
 
-    assert response.status_code == 200
-    assert response.text == "\n\n".join(
-        [
-            # OpenAI is unable to parse SSE entry with invalid JSON and fails with the following error:
-            'data: {"error":{"message":"Expecting value: line 1 column 1 (char 0)","type":"internal_server_error","code":"500"}}',
-            "data: [DONE]",
-            "",
-        ]
-    )
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": {
+            "message": "Expecting value: line 1 column 1 (char 0)",
+            "type": "internal_server_error",
+            "code": "500",
+        }
+    }
 
 
 @respx.mock
