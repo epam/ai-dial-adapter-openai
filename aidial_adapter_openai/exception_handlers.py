@@ -80,6 +80,8 @@ def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
                 status_code = int(exc.code)
             except Exception:
                 pass
+            if exc.code == "rate_limit_exceeded":
+                status_code = 429
 
         return parse_adapter_exception(
             status_code=status_code,
@@ -101,7 +103,10 @@ def _truncate_long_string(s: str, *, limit: int) -> str:
 def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
     if isinstance(exc, DialException) and exc.status_code == 400:
         message = exc.message
-        if "this model does not support file content types" in message.lower():
+        if (
+            "this model does not support file content types" in message.lower()
+            or "the file type you uploaded is not supported" in message.lower()
+        ):
             exc.display_message = (
                 exc.display_message
                 or "The provided file attachments aren't supported."

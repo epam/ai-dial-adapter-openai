@@ -5,6 +5,10 @@ from unittest.mock import patch
 import httpx
 import pytest
 import respx
+from openai.types.responses.response import Response
+from openai.types.responses.response_in_progress_event import (
+    ResponseInProgressEvent,
+)
 from respx.types import SideEffectTypes
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
@@ -144,8 +148,8 @@ async def test_top_level_extra_field(test_app: httpx.AsyncClient):
         },
     )
 
-    assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
+    assert response.status_code == 500
+    assert response.json() == {"error": {"message": "whatever", "code": "500"}}
 
 
 @respx.mock
@@ -185,8 +189,8 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
         },
     )
 
-    assert response.status_code == 200
-    mock_stream.assert_response_content(response, assert_equal)
+    assert response.status_code == 500
+    assert response.json() == {"error": {"message": "whatever", "code": "500"}}
 
 
 @respx.mock
@@ -768,15 +772,14 @@ async def test_invalid_chunk_stream_from_upstream(
         },
     )
 
-    assert response.status_code == 200
-    assert response.text == "\n\n".join(
-        [
-            # OpenAI is unable to parse SSE entry with invalid JSON and fails with the following error:
-            'data: {"error":{"message":"Expecting value: line 1 column 1 (char 0)","type":"internal_server_error","code":"500"}}',
-            "data: [DONE]",
-            "",
-        ]
-    )
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": {
+            "message": "Expecting value: line 1 column 1 (char 0)",
+            "type": "internal_server_error",
+            "code": "500",
+        }
+    }
 
 
 @respx.mock
@@ -1154,5 +1157,73 @@ async def test_error_invalid_image_url(stream: bool):
                 "message": "'image_url' expected to be dict, but got str",
                 "type": "invalid_request_error",
                 "code": "400",
+            }
+        }
+
+
+@respx.mock
+async def test_rate_limit_exceeded_during_streaming():
+    app_config = (
+        ApplicationConfig()
+        .add_deployment("app", ChatCompletionDeploymentType.RESPONSES_API)
+        .map_to_tiktoken_model("app", "gpt-4")
+    )
+
+    upstream_url = "http://test-upstream.com/openai/v1/responses"
+
+    mock_event = ResponseInProgressEvent(
+        sequence_number=1,
+        type="response.in_progress",
+        response=Response(
+            id="resp_id",
+            object="response",
+            created_at=1765907024.0,
+            model="upstream-model-id",
+            output=[],
+            parallel_tool_calls=True,
+            tool_choice="auto",
+            tools=[],
+        ),
+    )
+
+    mock_stream = OpenAIStream(
+        mock_event.dict(),
+        {
+            "error": {
+                "message": "no_kv_space",
+                "type": "server_error",
+                "code": "rate_limit_exceeded",
+            }
+        },
+    )
+
+    respx.post("http://test-upstream.com/openai/v1/responses").mock(
+        side_effect=mock_response(
+            status_code=200,
+            content_type="text/event-stream",
+            content=mock_stream.to_content(),
+        )
+    )
+
+    async with create_test_client(app_config=app_config) as http_client:
+        response = await http_client.post(
+            "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
+            json={
+                "model": "upstream-model-id",
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+            headers={
+                "X-UPSTREAM-KEY": "dummy-upstream-api-key",
+                "X-UPSTREAM-ENDPOINT": upstream_url,
+            },
+        )
+
+        assert response.status_code == 429
+        assert response.json() == {
+            "error": {
+                "code": "rate_limit_exceeded",
+                "message": "no_kv_space",
+                "type": "server_error",
             }
         }

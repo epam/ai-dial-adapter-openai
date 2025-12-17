@@ -59,6 +59,6 @@ def build_file_input_common(s: TestSuite) -> None:
         ],
         expected=ExpectedException(
             type=openai.BadRequestError,
-            display_message=f"The file attachments of the MIME type '{UNSUPPORTED_DOCUMENT_RESOURCE.type}' aren't supported.",
+            display_message=r"The file attachments of the MIME type '.*' aren't supported|The provided file attachments aren't supported",
         ),
     )

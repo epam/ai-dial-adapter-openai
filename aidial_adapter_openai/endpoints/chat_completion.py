@@ -193,7 +193,7 @@ async def chat_completion(deployment_id: str, request: Request):
 
     api_version = get_api_version(request)
 
-    return create_server_response(
+    return await create_server_response(
         emulate_streaming,
         await call_chat_completion(
             deployment_id=deployment_id,
