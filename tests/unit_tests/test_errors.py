@@ -5,6 +5,10 @@ from unittest.mock import patch
 import httpx
 import pytest
 import respx
+from openai.types.responses.response import Response
+from openai.types.responses.response_in_progress_event import (
+    ResponseInProgressEvent,
+)
 from respx.types import SideEffectTypes
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
@@ -1167,36 +1171,23 @@ async def test_rate_limit_exceeded_during_streaming():
 
     upstream_url = "http://test-upstream.com/openai/v1/responses"
 
-    mock_event = {
-        "type": "response.in_progress",
-        "sequence_number": 1,
-        "response": {
-            "id": "resp_01f342feea0be5f60069419a50a74c81908afe72661bbd3112",
-            "created_at": 1765907024.0,
-            "metadata": {},
-            "model": "gpt-5.2-2025-12-11",
-            "object": "response",
-            "output": [],
-            "parallel_tool_calls": True,
-            "temperature": 1.0,
-            "tool_choice": "auto",
-            "tools": [],
-            "top_p": 0.98,
-            "background": False,
-            "reasoning": {
-                "effort": "none",
-            },
-            "service_tier": "auto",
-            "status": "in_progress",
-            "text": {"format": {"type": "text"}, "verbosity": "medium"},
-            "truncation": "disabled",
-            "store": True,
-            "top_logprobs": 0,
-        },
-    }
+    mock_event = ResponseInProgressEvent(
+        sequence_number=1,
+        type="response.in_progress",
+        response=Response(
+            id="resp_id",
+            object="response",
+            created_at=1765907024.0,
+            model="upstream-model-id",
+            output=[],
+            parallel_tool_calls=True,
+            tool_choice="auto",
+            tools=[],
+        ),
+    )
 
     mock_stream = OpenAIStream(
-        mock_event,
+        mock_event.dict(),
         {
             "error": {
                 "message": "no_kv_space",
@@ -1220,7 +1211,7 @@ async def test_rate_limit_exceeded_during_streaming():
             json={
                 "model": "upstream-model-id",
                 "messages": [{"role": "user", "content": "test"}],
-                "stream": "True",
+                "stream": True,
             },
             headers={
                 "X-UPSTREAM-KEY": "dummy-upstream-api-key",
