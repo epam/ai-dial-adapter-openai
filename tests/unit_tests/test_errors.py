@@ -1228,7 +1228,7 @@ async def test_rate_limit_exceeded_during_streaming():
             },
         )
 
-        assert response.status_code == 500
+        assert response.status_code == 429
         assert response.json() == {
             "error": {
                 "code": "rate_limit_exceeded",

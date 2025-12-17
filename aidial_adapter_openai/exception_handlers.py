@@ -80,6 +80,8 @@ def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
                 status_code = int(exc.code)
             except Exception:
                 pass
+            if exc.code == "rate_limit_exceeded":
+                status_code = 429
 
         return parse_adapter_exception(
             status_code=status_code,
