@@ -1,8 +1,7 @@
 import json
 from typing import Any, AsyncIterator, Mapping
 
-from aidial_adapter_openai.exception_handlers import to_adapter_exception
-from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.adapter_exception import AdapterException
 
 _DATA_PREFIX = "data: "
 _OPENAI_END_MARKER = "[DONE]"
@@ -19,19 +18,11 @@ _END_CHUNK = _format_chunk(_OPENAI_END_MARKER)
 
 
 async def to_openai_sse_stream(
-    stream: AsyncIterator[dict],
+    stream: AsyncIterator[dict | AdapterException],
 ) -> AsyncIterator[str]:
-    try:
-        async for chunk in stream:
+    async for chunk in stream:
+        if isinstance(chunk, Exception):
+            yield _format_chunk(chunk.json_error())
+        else:
             yield _format_chunk(chunk)
-    except Exception as e:
-        adapter_exception = to_adapter_exception(e)
-
-        logger.exception(
-            f"Caught exception while streaming: {type(e).__module__}.{type(e).__name__}. "
-            f"Converted to the adapter exception: {adapter_exception!r}"
-        )
-
-        yield _format_chunk(adapter_exception.json_error())
-
     yield _END_CHUNK

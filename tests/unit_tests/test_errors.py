@@ -1156,3 +1156,84 @@ async def test_error_invalid_image_url(stream: bool):
                 "code": "400",
             }
         }
+
+
+@respx.mock
+async def test_rate_limit_exceeded_during_streaming():
+    app_config = (
+        ApplicationConfig()
+        .add_deployment("app", ChatCompletionDeploymentType.RESPONSES_API)
+        .map_to_tiktoken_model("app", "gpt-4")
+    )
+
+    upstream_url = "http://test-upstream.com/openai/v1/responses"
+
+    mock_event = {
+        "type": "response.in_progress",
+        "sequence_number": 1,
+        "response": {
+            "id": "resp_01f342feea0be5f60069419a50a74c81908afe72661bbd3112",
+            "created_at": 1765907024.0,
+            "metadata": {},
+            "model": "gpt-5.2-2025-12-11",
+            "object": "response",
+            "output": [],
+            "parallel_tool_calls": True,
+            "temperature": 1.0,
+            "tool_choice": "auto",
+            "tools": [],
+            "top_p": 0.98,
+            "background": False,
+            "reasoning": {
+                "effort": "none",
+            },
+            "service_tier": "auto",
+            "status": "in_progress",
+            "text": {"format": {"type": "text"}, "verbosity": "medium"},
+            "truncation": "disabled",
+            "store": True,
+            "top_logprobs": 0,
+        },
+    }
+
+    mock_stream = OpenAIStream(
+        mock_event,
+        {
+            "error": {
+                "message": "no_kv_space",
+                "type": "server_error",
+                "code": "rate_limit_exceeded",
+            }
+        },
+    )
+
+    respx.post("http://test-upstream.com/openai/v1/responses").mock(
+        side_effect=mock_response(
+            status_code=200,
+            content_type="text/event-stream",
+            content=mock_stream.to_content(),
+        )
+    )
+
+    async with create_test_client(app_config=app_config) as http_client:
+        response = await http_client.post(
+            "/openai/deployments/app/chat/completions?api-version=2023-03-15-preview",
+            json={
+                "model": "upstream-model-id",
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": "True",
+            },
+            headers={
+                "X-UPSTREAM-KEY": "dummy-upstream-api-key",
+                "X-UPSTREAM-ENDPOINT": upstream_url,
+            },
+        )
+
+        assert response.status_code == 500
+        assert response.json() == {
+            "error": {
+                "code": "rate_limit_exceeded",
+                "message": "no_kv_space",
+                "type": "server_error",
+            }
+        }
