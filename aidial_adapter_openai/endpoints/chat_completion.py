@@ -25,7 +25,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.dial_api.storage import create_file_storage
-from aidial_adapter_openai.image_generation.generation import (
+from aidial_adapter_openai.image_generation.adapter import (
     chat_completion as image_generation,
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
@@ -38,7 +38,10 @@ from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
 )
-from aidial_adapter_openai.utils.streaming import create_server_response
+from aidial_adapter_openai.utils.streaming import (
+    ChatResponse,
+    create_server_response,
+)
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
@@ -62,7 +65,7 @@ async def call_chat_completion(
     request_body: dict,
     request_headers: Mapping[str, str],
     api_version: str,
-):
+) -> ChatResponse:
     # Azure OpenAI deployments ignore "model" request field,
     # since the deployment id is already encoded in the endpoint path.
     # This is not the case for non-Azure OpenAI deployments, so
@@ -127,8 +130,10 @@ async def call_chat_completion(
                 client = client.with_options(api_version=api_version)
 
             return await image_generation(
+                request=request,
+                request_body=request_body,
                 model=model,
-                request=request_body,
+                deployment_id=deployment_id,
                 client=client,
                 file_storage=file_storage,
             )
@@ -146,14 +151,18 @@ async def call_chat_completion(
 
             if deployment_type == D.AUDIO_SPEECH_API:
                 return await audio_speech_gen(
-                    request=request_body,
+                    request=request,
+                    request_body=request_body,
+                    deployment_id=deployment_id,
                     client=client,
                     file_storage=file_storage,
                     tokenizer=_get_tokenizer(),
                 )
             elif deployment_type == D.AUDIO_TRANSCRIPTIONS_API:
                 return await audio_transcriptions_gen(
-                    request=request_body,
+                    request=request,
+                    request_body=request_body,
+                    deployment_id=deployment_id,
                     client=client,
                     file_storage=file_storage,
                 )

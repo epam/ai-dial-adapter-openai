@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, AsyncIterator, Dict
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
@@ -40,7 +40,7 @@ async def chat_completion(
     request: Dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     prompt_template: str | None,
-):
+) -> AsyncIterator[dict] | dict:
     if (request.get("n") or 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 

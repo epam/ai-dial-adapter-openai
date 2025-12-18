@@ -1,46 +1,50 @@
 import logging
-from typing import Any, AsyncIterator, assert_never
+from typing import Any, assert_never
 
+import fastapi
 import openai
+from aidial_sdk.chat_completion import Request as DIALRequest
+from aidial_sdk.chat_completion import Response as DIALResponse
+from fastapi.responses import StreamingResponse
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.audio import (
-    Transcription,
     TranscriptionTextDeltaEvent,
     TranscriptionTextDoneEvent,
     TranscriptionVerbose,
 )
+from openai.types.audio.transcription_create_response import (
+    TranscriptionCreateResponse,
+)
+from openai.types.audio.transcription_stream_event import (
+    TranscriptionStreamEvent,
+)
+from pydantic import BaseModel
 
 from aidial_adapter_openai.audio_api.transcribe.prompt import TranscribePrompt
+from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.streaming import (
-    build_chunk,
-    generate_created,
-    generate_id,
-)
+from aidial_adapter_openai.utils.streaming import generate_created, generate_id
 
 
-def _create_usage(
-    *,
-    prompt_tokens: int | None = None,
-    completion_tokens: int | None = None,
-) -> dict:
-    prompt = prompt_tokens or 0
-    completion = completion_tokens or 0
-    return {
-        "prompt_tokens": prompt,
-        "completion_tokens": completion,
-        "total_tokens": prompt + completion,
-    }
+class TokenUsage(BaseModel):
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+
+    def set_usage(self, response: DIALResponse):
+        response.set_usage(
+            prompt_tokens=self.prompt_tokens or 0,
+            completion_tokens=self.completion_tokens or 0,
+        )
 
 
 def _get_usage(
-    chunk: TranscriptionTextDoneEvent | Transcription | TranscriptionVerbose,
-) -> dict | None:
+    chunk: TranscriptionCreateResponse | TranscriptionTextDoneEvent,
+) -> TokenUsage | None:
     # NOTE: whisper has completely different API for its responses
     duration: Any | None = getattr(chunk, "duration", None)
     if duration is not None and isinstance(duration, (float, int)):
-        return _create_usage(prompt_tokens=int(duration))
+        return TokenUsage(prompt_tokens=int(duration))
 
     usage_dict: dict | None = getattr(chunk, "usage", None)  # type: ignore
     if usage_dict is None:
@@ -51,117 +55,98 @@ def _get_usage(
 
     # NOTE: gpt-4o supposed to return usage in tokens, whisper - in seconds,
     # however whisper doesn't return usage field at all.
-    if type == "tokens":
-        return _create_usage(
-            prompt_tokens=usage_dict.get("input_tokens"),
-            completion_tokens=usage_dict.get("output_tokens"),
-        )
+    match type:
+        case "tokens":
+            return TokenUsage(
+                prompt_tokens=usage_dict.get("input_tokens"),
+                completion_tokens=usage_dict.get("output_tokens"),
+            )
+        case "duration":
+            return TokenUsage(prompt_tokens=int(usage_dict.get("seconds") or 0))
+        case _:
+            logger.error(f"Unknown type of usage: {type!r}.")
+            return None
 
-    elif type == "duration":
-        return _create_usage(prompt_tokens=int(usage_dict.get("seconds") or 0))
 
-    else:
-        logger.error(f"Unknown type of usage: {type!r}.")
-        return None
+AudioResponse = (
+    TranscriptionCreateResponse | openai.AsyncStream[TranscriptionStreamEvent]
+)
+
+
+async def normalize_audio_response(response: AudioResponse) -> AudioResponse:
+    """
+    Special handling for responses from the Whisper model.
+    It ignores stream=true parameter and returns a block JSON response
+    which is wrapped by the openai library into AsyncStream.
+    """
+    if isinstance(response, openai.AsyncStream):
+        if "application/json" in response.response.headers["content-type"]:
+            response_bytes = await response.response.aread()
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"raw response: {response_bytes!r}")
+
+            return TranscriptionVerbose.parse_raw(response_bytes)
+
+    return response
 
 
 async def chat_completion(
     *,
-    request: Any,
+    request: fastapi.Request,
+    request_body: Any,
+    deployment_id: str,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
-):
-    is_stream = bool(request.get("stream"))
-    model_name = request["model"]
+) -> StreamingResponse | dict:
+    is_stream = bool(request_body.get("stream"))
+    model_name = request_body["model"]
 
     is_whisper_deployment = "whisper" in model_name
     response_format = "verbose_json" if is_whisper_deployment else "json"
 
-    prompt = await TranscribePrompt.from_request(request, file_storage)
+    prompt = await TranscribePrompt.from_request(request_body, file_storage)
     file = (prompt.audio_filename, prompt.audio_data, prompt.audio_type)
 
-    response = await client.audio.transcriptions.create(
+    audio_response = await client.audio.transcriptions.create(
         file=file,
         prompt=prompt.system_message or openai.NOT_GIVEN,
         model=model_name,
         stream=is_stream,
         response_format=response_format,
-        temperature=request.get("temperature") or openai.NOT_GIVEN,
+        temperature=request_body.get("temperature") or openai.NOT_GIVEN,
     )
 
-    id, created = generate_id(), generate_created()
+    audio_response = await normalize_audio_response(audio_response)
 
-    def create_chunk(
-        *,
-        finish_reason: str | None = None,
-        role: str | None = None,
-        content: str | None = None,
-        usage: dict | None = None,
-    ) -> dict:
-        message = {}
-        if role is not None:
-            message["role"] = role
-        if content is not None:
-            message["content"] = content
+    async def _handler(request: DIALRequest, response: DIALResponse) -> None:
+        response.set_model(model_name)
+        response.set_response_id(generate_id())
+        response.set_created(generate_created())
 
-        return build_chunk(
-            id=id,
-            created=created,
-            model=model_name,
-            finish_reason=finish_reason,
-            message=message,
-            is_stream=is_stream,
-            usage=usage,
-        )
+        with response.create_single_choice() as choice:
+            if isinstance(audio_response, openai.AsyncStream):
+                async for chunk in audio_response:
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"response chunk: {chunk.json()}")
 
-    if isinstance(response, openai.AsyncStream):
-
-        async def _gen() -> AsyncIterator[dict]:
-            yield create_chunk(role="assistant")
-
-            if "application/json" in response.response.headers["content-type"]:
-                # Special handling of the Whisper model.
-                # It ignores stream=true parameter and returns block response.
-                response_bytes = await response.response.aread()
-
+                    match chunk:
+                        case TranscriptionTextDeltaEvent(delta=delta):
+                            choice.append_content(delta)
+                        case TranscriptionTextDoneEvent():
+                            if usage := _get_usage(chunk):
+                                usage.set_usage(response)
+                        case _:
+                            assert_never(chunk)
+            else:
                 if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"raw response: {response_bytes!r}")
+                    logger.debug(f"response: {audio_response.json()}")
 
-                resp = TranscriptionVerbose.parse_raw(response_bytes)
+                choice.append_content(audio_response.text)
+                if usage := _get_usage(audio_response):
+                    usage.set_usage(response)
 
-                yield create_chunk(
-                    content=resp.text,
-                    usage=_get_usage(resp),
-                    finish_reason="stop",
-                )
-                return
-
-            async for chunk in response:
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"response chunk: {chunk.json()}")
-
-                match chunk:
-                    case TranscriptionTextDeltaEvent(delta=delta):
-                        yield create_chunk(content=delta)
-
-                    case TranscriptionTextDoneEvent():
-                        yield create_chunk(
-                            content="",
-                            usage=_get_usage(chunk),
-                            finish_reason="stop",
-                        )
-
-                    case _:
-                        assert_never(chunk)
-
-        return _gen()
-    else:
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"response: {response.json()}")
-
-        return create_chunk(
-            role="assistant",
-            content=response.text,
-            usage=_get_usage(response),
-            finish_reason="stop",
-        )
+    return await sdk_adapter(
+        request=request,
+        deployment_id=deployment_id,
+        chat_completion=_handler,
+    )

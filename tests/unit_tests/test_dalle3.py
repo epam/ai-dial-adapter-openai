@@ -97,6 +97,7 @@ async def test_dalle3_configuration_success(
         headers={
             "X-UPSTREAM-KEY": "dummy-upstream-api-key",
             "X-UPSTREAM-ENDPOINT": upstream_endpoint,
+            "api-key": "dummy-api-key",
         },
     )
 
