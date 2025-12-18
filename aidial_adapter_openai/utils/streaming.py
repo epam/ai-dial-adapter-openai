@@ -9,6 +9,7 @@ from typing import (
     List,
     Optional,
     Set,
+    Tuple,
     TypeVar,
     assert_never,
 )
@@ -22,6 +23,8 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel
 
+from aidial_adapter_openai.exception_handlers import to_adapter_exception
+from aidial_adapter_openai.utils.adapter_exception import AdapterException
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
     ChatCompletionStreamingChunk,
@@ -245,7 +248,7 @@ ChatResponse = (
 )
 
 
-def create_server_response(
+async def create_server_response(
     emulate_streaming: bool, response: ChatResponse
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
@@ -261,23 +264,29 @@ def create_server_response(
 
         return stream()
 
-    def stream_to_response(stream: AsyncIterator[dict]) -> Response:
-        return StreamingResponse(
-            to_openai_sse_stream(stream),
-            media_type="text/event-stream",
-            headers=headers,
-        )
+    async def stream_to_response(iterator: AsyncIterator[dict]) -> Response:
+        item, stream = await peek_head(reify_exceptions(iterator))
 
-    def block_to_response(block: dict) -> Response:
+        if isinstance(item, Exception):
+            return item.to_fastapi_response()
+        else:
+            content = to_openai_sse_stream(prepend(item, stream))
+            return StreamingResponse(
+                content=content,
+                media_type="text/event-stream",
+                headers=headers,
+            )
+
+    async def block_to_response(block: dict) -> Response:
         if emulate_streaming:
-            return stream_to_response(block_to_stream(block))
+            return await stream_to_response(block_to_stream(block))
         else:
             return JSONResponse(block, headers=headers)
 
     if isinstance(body, AsyncIterator):
-        return stream_to_response(body)
+        return await stream_to_response(body)
     elif isinstance(body, dict):
-        return block_to_response(body)
+        return await block_to_response(body)
     elif isinstance(body, StreamingResponse):
         return body
     else:
@@ -303,6 +312,42 @@ async def map_stream(
         new_item = func(item)
         if new_item is not None:
             yield new_item
+
+
+async def prepend(
+    value: T | None, iterator: AsyncIterator[T]
+) -> AsyncIterator[T]:
+    if value is not None:
+        yield value
+    async for item in iterator:
+        yield item
+
+
+async def peek_head(
+    iterator: AsyncIterator[T],
+) -> Tuple[T | None, AsyncIterator[T]]:
+    try:
+        val = await iterator.__anext__()
+        return val, iterator
+    except StopAsyncIteration:
+        return None, iterator
+
+
+async def reify_exceptions(
+    stream: AsyncIterator[dict],
+) -> AsyncIterator[dict | AdapterException]:
+    try:
+        async for chunk in stream:
+            yield chunk
+    except Exception as e:
+        adapter_exception = to_adapter_exception(e)
+
+        logger.exception(
+            f"Caught exception while streaming: {type(e).__module__}.{type(e).__name__}. "
+            f"Converted to the adapter exception: {adapter_exception!r}"
+        )
+
+        yield adapter_exception
 
 
 def debug_print(title: str, chunk: dict) -> None:
