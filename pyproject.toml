@@ -39,7 +39,7 @@ numpy = "2.3.3"
 pillow = "10.3.0"
 azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
-aiohttp = "3.12.14"
+aiohttp = "3.13.3"
 aidial-sdk = { version = "0.28.0", extras = ["telemetry"] }
 
 [tool.poetry.group.test.dependencies]
