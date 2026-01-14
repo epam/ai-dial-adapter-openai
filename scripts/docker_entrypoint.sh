@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+# Load extra CAs (opt-in via USE_SYSTEM_CA_CERTS)
+# This must be sourced so exports apply to this shell.
+. /__python_cacerts.sh
+
 . ./.venv/bin/activate
 
 # If no args passed to `docker run`,
