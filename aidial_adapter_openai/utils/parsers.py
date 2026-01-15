@@ -46,13 +46,13 @@ class AzureOpenAIEndpoint(ExtraForbidModel):
 
 
 class OpenAIEndpoint(ExtraForbidModel):
-    base_url: str
+    openai_base_url: str
 
     def get_client(self, params: OpenAIParams) -> AsyncOpenAI:
         api_key = params.get("api_key") or params.get("azure_ad_token")
 
         return AsyncOpenAI(
-            base_url=self.base_url,
+            base_url=self.openai_base_url,
             api_key=api_key,
             timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
@@ -61,7 +61,7 @@ class OpenAIEndpoint(ExtraForbidModel):
 
 
 class AnthropicEndpoint(ExtraForbidModel):
-    base_url: str
+    anthropic_base_url: str
 
     def get_client(self, params: OpenAIParams) -> AsyncAnthropicFoundry:
         if (token := params.get("azure_ad_token")) is not None:
@@ -74,7 +74,7 @@ class AnthropicEndpoint(ExtraForbidModel):
             token_provider = None
 
         return AsyncAnthropicFoundry(
-            base_url=self.base_url,
+            base_url=self.anthropic_base_url,
             api_key=params.get("api_key"),
             azure_ad_token_provider=token_provider,
             max_retries=_MAX_RETRIES,
@@ -104,7 +104,7 @@ def _parse_endpoint(
 
     # Falling back to the Next generation API (aka v1 API):
     # https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle?tabs=key#v1-api-support
-    return OpenAIEndpoint(base_url=endpoint)
+    return OpenAIEndpoint(openai_base_url=endpoint)
 
 
 class EndpointParser(ExtraForbidModel):
@@ -135,7 +135,7 @@ class AnthropicMessagesParser:
     def try_parse(self, endpoint: str) -> AnthropicEndpoint | None:
         if match := re.match(r"(.*/anthropic)/v1/messages", endpoint):
             base_url = match.group(1)
-            return AnthropicEndpoint(base_url=base_url)
+            return AnthropicEndpoint(anthropic_base_url=base_url)
         return None
 
 

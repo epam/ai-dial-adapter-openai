@@ -409,6 +409,23 @@
                     "key": "optional-api-key"
                 }
             ]
+        },
+        "claude-sonnet-4-520250929": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.services.ai.azure.com/anthropic/v1/messages",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "responseFormatJsonObjectSupported": false,
+                "responseFormatJsonSchemaSupported": false,
+                "emptyDialogSupported": false
+            },
+            "inputAttachmentTypes": [
+                "image/*"
+            ]
         }
     }
 }

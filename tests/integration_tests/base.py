@@ -47,6 +47,7 @@ class Features(ExtraAllowedModel):
     stopSupported: bool = True
     imageGenerationSupported: bool = False
     imageEditingSupported: bool = False
+    emptyDialogSupported: bool = True
 
     responseFormatJsonObjectSupported: bool = True
     responseFormatJsonSchemaSupported: bool = True
