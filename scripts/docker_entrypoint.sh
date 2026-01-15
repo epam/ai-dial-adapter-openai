@@ -3,7 +3,7 @@ set -e
 
 # Load extra CAs (opt-in via USE_SYSTEM_CA_CERTS)
 # This must be sourced so exports apply to this shell.
-. /__python_cacerts.sh
+. /__cacert_entrypoint.sh
 
 . ./.venv/bin/activate
 
