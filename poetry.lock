@@ -8,7 +8,7 @@ optional = false
 python-versions = ">=3.11,<4.0"
 groups = ["main"]
 files = []
-develop = true
+develop = false
 
 [package.dependencies]
 aidial-sdk = ">=0.28.0,<1"
@@ -3122,4 +3122,4 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "92a5b515b7ee5f9d9f78b7b10365c0d27a98c560cd0bac723dd0d12d3dd3c903"
+content-hash = "d78c6bc8e4a7439e87428c05ff11d1ee38bbc53357786ca7746497f6801b77ed"

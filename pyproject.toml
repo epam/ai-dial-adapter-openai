@@ -41,7 +41,7 @@ azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
 aiohttp = "3.13.3"
 aidial-sdk = { version = "0.28.0", extras = ["telemetry"] }
-aidial-adapter-anthropic = { path = "../ai-dial-adapter-anthropic", develop = true }
+aidial-adapter-anthropic = { path = "/Users/anton_dubovik/Code/GitHub/ai-dial-adapter-anthropic", develop = false }
 anthropic = "0.75.0"
 
 [tool.poetry.group.test.dependencies]

@@ -102,10 +102,8 @@ async def call_chat_completion(
     if isinstance(client, AsyncAnthropicFoundry):
         return await anthropic_chat_completions(
             request=request,
-            request_body=request_body,
-            deployment_id=deployment_id,
             client=client,
-            file_storage=file_storage,
+            deployment_id=deployment_id,
         )
 
     match deployment_type:

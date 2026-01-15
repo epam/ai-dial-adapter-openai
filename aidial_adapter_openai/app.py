@@ -13,11 +13,11 @@ from aidial_adapter_openai.exception_handlers import (
     adapter_exception_handler,
     fastapi_exception_handler,
 )
-from aidial_adapter_openai.utils.anthropic_client import (
-    get_anthropic_httpx_client,
-)
 from aidial_adapter_openai.utils.auth import close_azure_credential
-from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.http_client import (
+    get_anthropic_httpx_client,
+    get_http_client,
+)
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.request import set_app_config
 
