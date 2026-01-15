@@ -4,7 +4,7 @@
 <p align="center">
   <p align="center">
   <a href="https://dialx.ai/">
-    <img src="https://dialx.ai/dialx_logo.svg" alt="About DIALX">
+    <img src="https://dialx.ai/logo/dialx_logo.svg" alt="About DIALX">
   </a>
 </p>
 <h4 align="center">
@@ -744,6 +744,8 @@ Deployments that do not fall into any of the categories are considered to suppor
 
 ### Other variables
 
+|Variable|Default|Description|
+|---|---|---|
 |LOG_LEVEL|INFO|Log level. Use DEBUG for dev purposes and INFO in prod|
 |TIKTOKEN_MODEL_MAPPING|`{}`|A JSON dictionary from the request deployment id to a [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). It's used for [tokenization](#tokenization-of-chat-completion-requestsresponses) of chat completion requests on the adapter side. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. The tokenizer for `gpt-4o` is used as a default.|
 |DIAL_USE_FILE_STORAGE|False|Save image model artifacts to DIAL File storage (DALL-E images are uploaded to the DIAL file storage and its base64 encodings are replaced with links to the storage)|
