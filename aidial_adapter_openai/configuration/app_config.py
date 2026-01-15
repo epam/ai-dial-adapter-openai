@@ -19,8 +19,10 @@ from aidial_adapter_openai.utils.env import (
 )
 from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.parsers import (
+    AnthropicEndpoint,
     AzureOpenAIEndpoint,
     OpenAIEndpoint,
+    anthropic_messages_parser,
     azure_video_api_parser,
     chat_completions_parser,
     completions_parser,
@@ -35,7 +37,7 @@ from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 class DeploymentAPIType(ExtraForbidModel):
     deployment_type: D
-    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint
+    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint | AnthropicEndpoint
 
 
 class ApplicationConfig(ExtraForbidModel):
@@ -63,6 +65,12 @@ class ApplicationConfig(ExtraForbidModel):
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
     ) -> DeploymentAPIType:
+        if endpoint := anthropic_messages_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.ANTHROPIC_MESSAGES_API,
+                endpoint=endpoint,
+            )
+
         if endpoint := completions_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
                 deployment_type=D.COMPLETIONS_API,
@@ -171,6 +179,7 @@ class ApplicationConfig(ExtraForbidModel):
                 | D.AZURE_VIDEO_API
                 | D.AUDIO_SPEECH_API
                 | D.AUDIO_TRANSCRIPTIONS_API
+                | D.ANTHROPIC_MESSAGES_API
             ):
                 pass
             case _:

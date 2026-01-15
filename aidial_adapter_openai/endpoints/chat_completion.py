@@ -1,6 +1,7 @@
 from typing import Mapping, assert_never
 
 import fastapi
+from anthropic import AsyncAnthropicFoundry
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
@@ -9,6 +10,9 @@ from aidial_adapter_openai.audio_api.speech.adapter import (
 )
 from aidial_adapter_openai.audio_api.transcribe.adapter import (
     chat_completion as audio_transcriptions_gen,
+)
+from aidial_adapter_openai.chat_completions.anthropic import (
+    chat_completion as anthropic_chat_completions,
 )
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
@@ -94,6 +98,15 @@ async def call_chat_completion(
         )
         image_tokenizer = get_image_tokenizer(deployment_type)
         return Tokenizer(model=tiktoken_model, image_tokenizer=image_tokenizer)
+
+    if isinstance(client, AsyncAnthropicFoundry):
+        return await anthropic_chat_completions(
+            request=request,
+            request_body=request_body,
+            deployment_id=deployment_id,
+            client=client,
+            file_storage=file_storage,
+        )
 
     match deployment_type:
         case D.COMPLETIONS_API:
@@ -182,6 +195,11 @@ async def call_chat_completion(
 
             response.body = extract_reasoning_tokens(response.body)
             return response
+
+        case D.ANTHROPIC_MESSAGES_API:
+            raise RuntimeError(
+                "Anthropic API endpoint must have resulted in Anthropic client"
+            )
 
         case _:
             assert_never(deployment_type)

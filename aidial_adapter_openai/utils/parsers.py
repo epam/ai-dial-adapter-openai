@@ -3,10 +3,14 @@ from json import JSONDecodeError
 from typing import Any, Dict, TypedDict
 
 from aidial_sdk.exceptions import InvalidRequestError
+from anthropic import AsyncAnthropicFoundry
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 
-from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.http_client import (
+    get_anthropic_httpx_client,
+    get_http_client,
+)
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 
@@ -53,6 +57,28 @@ class OpenAIEndpoint(ExtraForbidModel):
             timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
             http_client=get_http_client(),
+        )
+
+
+class AnthropicEndpoint(ExtraForbidModel):
+    base_url: str
+
+    def get_client(self, params: OpenAIParams) -> AsyncAnthropicFoundry:
+        if (token := params.get("azure_ad_token")) is not None:
+
+            def _provider():
+                return token
+
+            token_provider = _provider
+        else:
+            token_provider = None
+
+        return AsyncAnthropicFoundry(
+            base_url=self.base_url,
+            api_key=params.get("api_key"),
+            azure_ad_token_provider=token_provider,
+            max_retries=_MAX_RETRIES,
+            http_client=get_anthropic_httpx_client(),
         )
 
 
@@ -105,6 +131,14 @@ class CompletionsParser(ExtraForbidModel):
         return _parse_endpoint("completions", endpoint)
 
 
+class AnthropicMessagesParser:
+    def try_parse(self, endpoint: str) -> AnthropicEndpoint | None:
+        if match := re.match(r"(.*/anthropic)/v1/messages", endpoint):
+            base_url = match.group(1)
+            return AnthropicEndpoint(base_url=base_url)
+        return None
+
+
 chat_completions_parser = EndpointParser(name="chat/completions")
 image_gen_parser = EndpointParser(name="images/generations")
 speech_parser = EndpointParser(name="audio/speech")
@@ -114,6 +148,7 @@ responses_parser = EndpointParser(name="responses")
 no_endpoint_parser = EndpointParser(name=None)
 completions_parser = CompletionsParser()
 azure_video_api_parser = EndpointParser(name="video/generations")
+anthropic_messages_parser = AnthropicMessagesParser()
 
 
 async def parse_body(request: Request) -> Dict[str, Any]:
