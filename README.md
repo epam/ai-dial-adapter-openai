@@ -4,7 +4,7 @@
 <p align="center">
   <p align="center">
   <a href="https://dialx.ai/">
-    <img src="https://dialx.ai/dialx_logo.svg" alt="About DIALX">
+    <img src="https://dialx.ai/logo/dialx_logo.svg" alt="About DIALX">
   </a>
 </p>
 <h4 align="center">
@@ -51,6 +51,9 @@
 - [Prompt caching](#prompt-caching)
 - [API versioning](#api-versioning)
 - [Server performance configuration](#server-performance-configuration)
+- [Deployment](#deployment)
+  - [Private CAs and self-signed certificates](#private-cas-and-self-signed-certificates)
+    - [Docker](#docker)
 - [Development](#development)
   - [Development environment](#development-environment)
   - [IDE configuration](#ide-configuration)
@@ -741,6 +744,8 @@ Deployments that do not fall into any of the categories are considered to suppor
 
 ### Other variables
 
+|Variable|Default|Description|
+|---|---|---|
 |LOG_LEVEL|INFO|Log level. Use DEBUG for dev purposes and INFO in prod|
 |TIKTOKEN_MODEL_MAPPING|`{}`|A JSON dictionary from the request deployment id to a [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). It's used for [tokenization](#tokenization-of-chat-completion-requestsresponses) of chat completion requests on the adapter side. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. The tokenizer for `gpt-4o` is used as a default.|
 |DIAL_USE_FILE_STORAGE|False|Save image model artifacts to DIAL File storage (DALL-E images are uploaded to the DIAL file storage and its base64 encodings are replaced with links to the storage)|
@@ -1047,6 +1052,32 @@ There are two environment variables that control server performance:
 1. `WEB_CONCURRENCY` *(default = 1)* — the number of worker processes spawned by [uvicorn](https://www.uvicorn.org/deployment/#running-from-the-command-line). Workers run independently; the parent uvicorn process handles load balancing across them. The OS schedules workers on different CPU cores, enabling true parallelism. This matters when the server performs CPU-intensive work, primarily request/response [tokenization](#tokenization-of-chat-completion-requestsresponses). For full CPU utilization, set this to the number of **logical CPUs**. However, the default of 1 is fine if you don’t expect much CPU load (see [minimizing tokenization](#how-to-minimize-adapter-side-tokenization)).
 
 2. `THREAD_POOL_SIZE` *(default = logical CPUs + 4)* — the size of the thread pool used for CPU-heavy tasks (currently, only request/response [tokenization](#tokenization-of-chat-completion-requestsresponses)). This effectively caps how many CPU-bound tasks can run simultaneously: no more than `THREAD_POOL_SIZE` at a time. Note that this does not block requests without CPU-heavy work (e.g., health checks or embeddings requests).
+
+---
+
+## Deployment
+
+### Private CAs and self-signed certificates
+
+The Docker container supports trusting private Certificate Authorities (CAs) and self-signed certificates for all outbound TLS connections.
+
+To enable this, provide your CA certificates at runtime and opt in via `USE_SYSTEM_CA_CERTS` environment variable.
+
+#### Docker
+
+Run the container with:
+
+1. `USE_SYSTEM_CA_CERTS` set to any non-empty value,
+2. a directory containing one or more `*.crt` files (PEM format) mounted at `/certificates` (read-only is fine)
+
+```sh
+docker run --rm \
+  -e USE_SYSTEM_CA_CERTS=1 \
+  -v "$PWD/certs:/certificates:ro" \
+  epam/ai-dial-adapter-openai:development
+```
+
+When enabled, the container builds a temporary trust store on startup that combines the system CA bundle with all certificates found in `/certificates/*.crt`.
 
 ---
 

@@ -23,6 +23,9 @@ FROM python:3.11-alpine AS server
 
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
 
+# Updating the system CA bundle at /etc/ssl/certs/ca-certificates.crt
+RUN apk add --no-cache ca-certificates && update-ca-certificates
+
 # fix CVE-2023-52425
 RUN apk upgrade --no-cache libexpat
 # fix CVE-2025-47273
@@ -35,6 +38,9 @@ WORKDIR /app
 # Copy the sources and virtual env. No poetry.
 RUN adduser -u 1001 --disabled-password --gecos "" appuser
 COPY --chown=appuser --from=builder /app .
+
+COPY ./scripts/__cacert_entrypoint.sh /__cacert_entrypoint.sh
+RUN chmod +x /__cacert_entrypoint.sh
 
 COPY ./scripts/docker_entrypoint.sh /docker_entrypoint.sh
 RUN chmod +x /docker_entrypoint.sh
