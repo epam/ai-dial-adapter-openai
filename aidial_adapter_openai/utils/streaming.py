@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel
 
-from aidial_adapter_openai.exception_handlers import to_adapter_exception
+from aidial_adapter_openai.exceptions.handlers import to_adapter_exception
 from aidial_adapter_openai.utils.adapter_exception import AdapterException
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,

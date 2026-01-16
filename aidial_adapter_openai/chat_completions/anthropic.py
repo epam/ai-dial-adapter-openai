@@ -51,7 +51,6 @@ async def chat_completion(
     client: AsyncAnthropicFoundry,
 ) -> StreamingResponse | dict:
 
-    # FIXME: handle errors from anthropic!
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
         model = await create_adapter(deployment_id, request.api_key, client)
         response.set_model(deployment_id)

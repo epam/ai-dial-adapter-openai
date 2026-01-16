@@ -7,7 +7,7 @@ from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
 from fastapi.responses import StreamingResponse
 
 from aidial_adapter_openai.dial_api.storage import DIAL_URL
-from aidial_adapter_openai.exception_handlers import dial_exception_decorator
+from aidial_adapter_openai.exceptions.handlers import dial_exception_decorator
 
 
 async def sdk_adapter(

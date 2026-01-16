@@ -45,7 +45,7 @@ def _app_instance():
 @pytest.fixture
 async def test_app(_app_instance):
     async with httpx.AsyncClient(
-        transport=ASGITransport(app=_app_instance),
+        transport=ASGITransport(app=_app_instance, raise_app_exceptions=False),
         base_url="http://test-app.com",
         timeout=_TEST_TIMEOUT,
     ) as client:
@@ -66,7 +66,7 @@ async def create_test_client(
 ):
     app = create_app(init_telemetry=False, app_config=app_config)
     async with httpx.AsyncClient(
-        transport=ASGITransport(app=app, raise_app_exceptions=False),  # type: ignore
+        transport=ASGITransport(app=app),  # type: ignore
         base_url=base_url,
         timeout=_TEST_TIMEOUT,
     ) as client:

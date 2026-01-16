@@ -42,9 +42,11 @@ def build_vision_common(s: TestSuite) -> None:
     )
 
     if s.deployment_type == ChatCompletionDeploymentType.ANTHROPIC_MESSAGES_API:
-        # FIXME: improve error messages
+        # Note: in streaming mode, Anthropic doesn't return error right away,
+        # it reports as one of the chunks, therefore, it's not APIStatusError, but
+        # rather runtime APIError.
         expected_unsupported = ExpectedException(
-            type=openai.InternalServerError,
+            type=openai.APIError,
             message="Unsupported media type: image/bmp",
         )
     else:

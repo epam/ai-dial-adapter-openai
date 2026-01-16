@@ -9,7 +9,7 @@ from openai import OpenAIError
 
 import aidial_adapter_openai.endpoints as endpoints
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.exception_handlers import (
+from aidial_adapter_openai.exceptions.handlers import (
     adapter_exception_handler,
     fastapi_exception_handler,
 )
