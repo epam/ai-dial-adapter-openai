@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   run_tests:
-    uses: epam/ai-dial-ci/.github/workflows/python_docker_pr.yml@3.0.0
+    uses: epam/ai-dial-ci/.github/workflows/python_docker_pr.yml@fix-python-tests
     secrets: inherit
     with:
       platforms: "linux/amd64,linux/arm64"
