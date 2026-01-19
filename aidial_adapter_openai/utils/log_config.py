@@ -24,7 +24,11 @@ def configure_loggers():
     logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
     # Setting up log levels
-    for name in ["aidial_adapter_openai", "uvicorn"]:
+    for name in [
+        "aidial_adapter_openai",
+        "aidial_adapter_anthropic",
+        "uvicorn",
+    ]:
         logging.getLogger(name).setLevel(LOG_LEVEL)
 
     # Configuring the root logger
