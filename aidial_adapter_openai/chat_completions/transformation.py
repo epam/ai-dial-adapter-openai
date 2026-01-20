@@ -160,7 +160,7 @@ class ResourceProcessor(BaseModel):
 
         content = ensure_list_or_str("content", message.get("content") or "")
         custom_content = ensure_dict(
-            "custom_content", message.pop("custom_content", {})
+            "custom_content", message.pop("custom_content", None) or {}
         )
         attachments = ensure_list(
             "attachments", custom_content.get("attachments") or []
