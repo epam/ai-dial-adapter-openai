@@ -115,7 +115,7 @@ async def chat_completion(
     messages = request["messages"]
 
     transformed_messages = await ResourceProcessor(
-        file_storage=file_storage,
+        file_storage=file_storage
     ).transform_messages(messages)
 
     input_messages = convert_messages(

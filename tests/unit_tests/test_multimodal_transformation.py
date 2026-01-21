@@ -3,6 +3,7 @@ from aidial_sdk.exceptions import HTTPException as DialException
 
 from aidial_adapter_openai.chat_completions.transformation import (
     Error,
+    MessageTransformer,
     ResourceProcessor,
 )
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
@@ -36,20 +37,9 @@ def mock_resource_processor():
     return ResourceProcessor(file_storage=DummyFileStorage())
 
 
-# @pytest.fixture
-# def mock_image_tokenizer():
-#     def image_tokenizer(*args):
-#         class _Tokenizer:
-#             def tokenize(self, *args):
-#                 return TOKENS_FOR_IMAGE
-
-#         return _Tokenizer()
-
-#     with patch(
-#         "aidial_adapter_openai.endpoints.chat_completion.get_image_tokenizer",
-#         return_value=image_tokenizer,
-#     ):
-#         yield
+@pytest.fixture
+def mock_message_transformer():
+    return MessageTransformer(file_storage=DummyFileStorage())
 
 
 @pytest.mark.parametrize(
@@ -99,11 +89,11 @@ def mock_resource_processor():
     ],
 )
 async def test_transform_to_content_parts(
-    mock_resource_processor: ResourceProcessor,
+    mock_message_transformer: MessageTransformer,
     message,
     expected_content,
 ):
-    result = await mock_resource_processor.transform_message(message)
+    result = await mock_message_transformer.transform_message(message)
 
     assert isinstance(result, MultiModalMessage)
     assert result.raw_message.get("custom_content") is None
@@ -140,17 +130,17 @@ The following files failed to process:
 
 
 async def test_transform_message_not_found(
-    mock_resource_processor: ResourceProcessor,
+    mock_message_transformer: MessageTransformer,
 ):
     message = {
         "role": "user",
         "content": "",
         "custom_content": {"attachments": [{"url": "not_found.jpg"}]},
     }
-    await mock_resource_processor.transform_message(message)
-    assert mock_resource_processor.errors
-    assert len(mock_resource_processor.errors) == 1
-    image_fail = list(mock_resource_processor.errors)[0]
+    await mock_message_transformer.transform_message(message)
+    assert mock_message_transformer.errors is not None
+    assert len(mock_message_transformer.errors) == 1
+    image_fail = list(mock_message_transformer.errors)[0]
     assert isinstance(image_fail, Error)
     assert image_fail.name == "not_found.jpg"
     assert image_fail.message == "File not found"
