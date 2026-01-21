@@ -21,7 +21,7 @@ def attachment(resource: Resource) -> dict:
     return {"type": resource.type, "data": resource.data_base64}
 
 
-def image_metadata(resource: Resource, w: int, h: int) -> ImageResource:
+def image_resource(resource: Resource, w: int, h: int) -> ImageResource:
     return ImageResource(width=w, height=h, detail="low", image=resource)
 
 
@@ -29,7 +29,7 @@ def file_resource(resource: Resource) -> FileResource:
     return FileResource(name="data attachment", resource=resource)
 
 
-def image_url(resource: Resource) -> dict:
+def image_part(resource: Resource) -> dict:
     return {
         "type": "image_url",
         "image_url": {"url": data_url(resource), "detail": "low"},
@@ -46,7 +46,7 @@ def file_part(resource: Resource) -> dict:
     }
 
 
-def text(text: str) -> dict:
+def text_part(text: str) -> dict:
     return {"type": "text", "text": text}
 
 
@@ -82,8 +82,8 @@ def mock_message_transformer():
                 "custom_content": {"attachments": [attachment(pic_1_1)]},
             },
             [
-                text(""),
-                image_url(pic_1_1),
+                text_part(""),
+                image_part(pic_1_1),
             ],
         ),
         # Message with one file
@@ -93,7 +93,7 @@ def mock_message_transformer():
                 "content": "",
                 "custom_content": {"attachments": [attachment(_file_1)]},
             },
-            [text(""), file_part(_file_1)],
+            [text_part(""), file_part(_file_1)],
         ),
         # Message with multiple images
         (
@@ -108,9 +108,9 @@ def mock_message_transformer():
                 },
             },
             [
-                text("test with multiple images"),
-                image_url(pic_1_1),
-                image_url(pic_2_2),
+                text_part("test with multiple images"),
+                image_part(pic_1_1),
+                image_part(pic_2_2),
             ],
         ),
     ],
@@ -198,10 +198,10 @@ async def test_transform_message_not_found(
                     raw_message={"role": "system", "content": "Hello"},
                 ),
                 MultiModalMessage(
-                    images=[image_metadata(pic_1_1, 1, 1)],
+                    images=[image_resource(pic_1_1, 1, 1)],
                     raw_message={
                         "role": "user",
-                        "content": [text(""), image_url(pic_1_1)],
+                        "content": [text_part(""), image_part(pic_1_1)],
                     },
                 ),
             ],
@@ -245,19 +245,19 @@ async def test_transform_message_not_found(
                 {
                     "role": "user",
                     "content": [
-                        text("User"),
-                        image_url(pic_1_1),
+                        text_part("User"),
+                        image_part(pic_1_1),
                     ],
                 },
             ],
             [
                 MultiModalMessage(
-                    images=[image_metadata(pic_1_1, 1, 1)],
+                    images=[image_resource(pic_1_1, 1, 1)],
                     raw_message={
                         "role": "user",
                         "content": [
-                            text("User"),
-                            image_url(pic_1_1),
+                            text_part("User"),
+                            image_part(pic_1_1),
                         ],
                     },
                 )
@@ -269,8 +269,8 @@ async def test_transform_message_not_found(
                 {
                     "role": "user",
                     "content": [
-                        image_url(pic_1_1),
-                        text("User"),
+                        image_part(pic_1_1),
+                        text_part("User"),
                     ],
                     "custom_content": {
                         "attachments": [
@@ -283,17 +283,17 @@ async def test_transform_message_not_found(
             [
                 MultiModalMessage(
                     images=[
-                        image_metadata(pic_1_1, 1, 1),
-                        image_metadata(pic_2_2, 2, 2),
-                        image_metadata(pic_3_3, 3, 3),
+                        image_resource(pic_1_1, 1, 1),
+                        image_resource(pic_2_2, 2, 2),
+                        image_resource(pic_3_3, 3, 3),
                     ],
                     raw_message={
                         "role": "user",
                         "content": [
-                            image_url(pic_1_1),
-                            text("User"),
-                            image_url(pic_2_2),
-                            image_url(pic_3_3),
+                            image_part(pic_1_1),
+                            text_part("User"),
+                            image_part(pic_2_2),
+                            image_part(pic_3_3),
                         ],
                     },
                 )
@@ -327,31 +327,31 @@ async def test_transform_message_not_found(
             [
                 MultiModalMessage(
                     images=[
-                        image_metadata(pic_1_1, 1, 1),
+                        image_resource(pic_1_1, 1, 1),
                     ],
                     files=[file_resource(_file_1)],
                     raw_message={
                         "role": "user",
                         "content": [
-                            text("hello"),
+                            text_part("hello"),
                             file_part(_file_1),
-                            image_url(pic_1_1),
+                            image_part(pic_1_1),
                         ],
                     },
                 ),
                 MultiModalMessage(
                     images=[
-                        image_metadata(pic_2_2, 2, 2),
-                        image_metadata(pic_3_3, 3, 3),
+                        image_resource(pic_2_2, 2, 2),
+                        image_resource(pic_3_3, 3, 3),
                     ],
                     files=[file_resource(_file_2)],
                     raw_message={
                         "role": "user",
                         "content": [
-                            text("world"),
-                            image_url(pic_2_2),
+                            text_part("world"),
+                            image_part(pic_2_2),
                             file_part(_file_2),
-                            image_url(pic_3_3),
+                            image_part(pic_3_3),
                         ],
                     },
                 ),
