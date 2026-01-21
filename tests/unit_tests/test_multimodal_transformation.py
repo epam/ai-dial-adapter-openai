@@ -11,9 +11,6 @@ from aidial_adapter_openai.utils.resource.image import ImageResource
 from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
 from tests.utils.storage import DummyFileStorage
 
-TOKENS_FOR_TEXT = 10
-TOKENS_FOR_IMAGE = 20
-
 
 def attachment(resource: Resource) -> dict:
     return {"type": resource.type, "data": resource.data_base64}
@@ -39,11 +36,27 @@ def mock_resource_processor():
     return ResourceProcessor(file_storage=DummyFileStorage())
 
 
+# @pytest.fixture
+# def mock_image_tokenizer():
+#     def image_tokenizer(*args):
+#         class _Tokenizer:
+#             def tokenize(self, *args):
+#                 return TOKENS_FOR_IMAGE
+
+#         return _Tokenizer()
+
+#     with patch(
+#         "aidial_adapter_openai.endpoints.chat_completion.get_image_tokenizer",
+#         return_value=image_tokenizer,
+#     ):
+#         yield
+
+
 @pytest.mark.parametrize(
-    "message,expected_tokens,expected_content",
+    "message,expected_content",
     [
         # Message without attachments
-        ({"role": "user", "content": "Hello"}, TOKENS_FOR_TEXT, "Hello"),
+        ({"role": "user", "content": "Hello"}, "Hello"),
         # Message with empty attachments
         (
             {
@@ -51,7 +64,6 @@ def mock_resource_processor():
                 "content": "Hi",
                 "custom_content": {"attachments": []},
             },
-            TOKENS_FOR_TEXT,
             "Hi",
         ),
         # Message with one image
@@ -61,7 +73,6 @@ def mock_resource_processor():
                 "content": "",
                 "custom_content": {"attachments": [attachment(pic_1_1)]},
             },
-            TOKENS_FOR_TEXT + TOKENS_FOR_IMAGE,
             [
                 text(""),
                 image_url(pic_1_1),
@@ -79,7 +90,6 @@ def mock_resource_processor():
                     ]
                 },
             },
-            TOKENS_FOR_TEXT + 2 * TOKENS_FOR_IMAGE,
             [
                 text("test with multiple images"),
                 image_url(pic_1_1),
@@ -88,10 +98,9 @@ def mock_resource_processor():
         ),
     ],
 )
-async def test_transform_message(
+async def test_transform_to_content_parts(
     mock_resource_processor: ResourceProcessor,
     message,
-    expected_tokens,
     expected_content,
 ):
     result = await mock_resource_processor.transform_message(message)
@@ -101,7 +110,7 @@ async def test_transform_message(
     assert result.raw_message["content"] == expected_content
 
 
-async def test_transform_messages_with_error(
+async def test_transform_messages_not_found(
     mock_resource_processor: ResourceProcessor,
 ):
     messages = [
@@ -130,7 +139,7 @@ The following files failed to process:
     )
 
 
-async def test_transform_message_with_error(
+async def test_transform_message_not_found(
     mock_resource_processor: ResourceProcessor,
 ):
     message = {
@@ -273,9 +282,61 @@ async def test_transform_message_with_error(
                 )
             ],
         ),
+        # Image in multiple messages
+        (
+            [
+                {
+                    "role": "user",
+                    "content": "hello",
+                    "custom_content": {
+                        "attachments": [
+                            attachment(pic_1_1),
+                        ]
+                    },
+                },
+                {
+                    "role": "user",
+                    "content": "world",
+                    "custom_content": {
+                        "attachments": [
+                            attachment(pic_2_2),
+                            attachment(pic_3_3),
+                        ]
+                    },
+                },
+            ],
+            [
+                MultiModalMessage(
+                    images=[
+                        image_metadata(pic_1_1, 1, 1),
+                    ],
+                    raw_message={
+                        "role": "user",
+                        "content": [
+                            text("hello"),
+                            image_url(pic_1_1),
+                        ],
+                    },
+                ),
+                MultiModalMessage(
+                    images=[
+                        image_metadata(pic_2_2, 2, 2),
+                        image_metadata(pic_3_3, 3, 3),
+                    ],
+                    raw_message={
+                        "role": "user",
+                        "content": [
+                            text("world"),
+                            image_url(pic_2_2),
+                            image_url(pic_3_3),
+                        ],
+                    },
+                ),
+            ],
+        ),
     ],
 )
-async def test_transform_messages(
+async def test_transform_to_unified_messages(
     mock_resource_processor: ResourceProcessor,
     messages,
     expected_transformations,
