@@ -8,9 +8,13 @@ from aidial_adapter_openai.chat_completions.transformation import (
 )
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.resource.file import FileResource
 from aidial_adapter_openai.utils.resource.image import ImageResource
 from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
 from tests.utils.storage import DummyFileStorage
+
+_file_1 = Resource(type="application/pdf", data=b"document content 1")
+_file_2 = Resource(type="application/pdf", data=b"document content 2")
 
 
 def attachment(resource: Resource) -> dict:
@@ -21,10 +25,24 @@ def image_metadata(resource: Resource, w: int, h: int) -> ImageResource:
     return ImageResource(width=w, height=h, detail="low", image=resource)
 
 
+def file_resource(resource: Resource) -> FileResource:
+    return FileResource(name="data attachment", resource=resource)
+
+
 def image_url(resource: Resource) -> dict:
     return {
         "type": "image_url",
         "image_url": {"url": data_url(resource), "detail": "low"},
+    }
+
+
+def file_part(resource: Resource) -> dict:
+    return {
+        "type": "file",
+        "file": {
+            "filename": "data attachment",
+            "file_data": resource.to_data_url(),
+        },
     }
 
 
@@ -67,6 +85,15 @@ def mock_message_transformer():
                 text(""),
                 image_url(pic_1_1),
             ],
+        ),
+        # Message with one file
+        (
+            {
+                "role": "user",
+                "content": "",
+                "custom_content": {"attachments": [attachment(_file_1)]},
+            },
+            [text(""), file_part(_file_1)],
         ),
         # Message with multiple images
         (
@@ -272,7 +299,7 @@ async def test_transform_message_not_found(
                 )
             ],
         ),
-        # Image in multiple messages
+        # Image and files in multiple messages
         (
             [
                 {
@@ -280,6 +307,7 @@ async def test_transform_message_not_found(
                     "content": "hello",
                     "custom_content": {
                         "attachments": [
+                            attachment(_file_1),
                             attachment(pic_1_1),
                         ]
                     },
@@ -290,6 +318,7 @@ async def test_transform_message_not_found(
                     "custom_content": {
                         "attachments": [
                             attachment(pic_2_2),
+                            attachment(_file_2),
                             attachment(pic_3_3),
                         ]
                     },
@@ -300,10 +329,12 @@ async def test_transform_message_not_found(
                     images=[
                         image_metadata(pic_1_1, 1, 1),
                     ],
+                    files=[file_resource(_file_1)],
                     raw_message={
                         "role": "user",
                         "content": [
                             text("hello"),
+                            file_part(_file_1),
                             image_url(pic_1_1),
                         ],
                     },
@@ -313,11 +344,13 @@ async def test_transform_message_not_found(
                         image_metadata(pic_2_2, 2, 2),
                         image_metadata(pic_3_3, 3, 3),
                     ],
+                    files=[file_resource(_file_2)],
                     raw_message={
                         "role": "user",
                         "content": [
                             text("world"),
                             image_url(pic_2_2),
+                            file_part(_file_2),
                             image_url(pic_3_3),
                         ],
                     },
