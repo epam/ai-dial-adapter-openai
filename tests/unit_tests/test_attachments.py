@@ -2,7 +2,7 @@ import pytest
 
 from aidial_adapter_openai.chat_completions.transformation import (
     Error,
-    ResourceProcessor,
+    MessageTransformer,
 )
 from aidial_adapter_openai.dial_api.resource import (
     AttachmentResource,
@@ -12,6 +12,11 @@ from aidial_adapter_openai.dial_api.resource import (
 from aidial_adapter_openai.utils.resource.base import Resource
 from tests.utils.images import data_url, pic_1_1
 from tests.utils.storage import DummyFileStorage
+
+
+@pytest.fixture
+def mock_message_transformer():
+    return MessageTransformer(file_storage=DummyFileStorage())
 
 
 @pytest.mark.parametrize(
@@ -130,18 +135,21 @@ async def test_get_attachment_name(attachment, expected_name):
         ),
     ],
 )
-async def test_download_image_url(url: str, expected_result: Resource | Error):
+async def test_download_image_url(
+    mock_message_transformer: MessageTransformer,
+    url: str,
+    expected_result: Resource | Error,
+):
     resource = URLResource(
         url=url,
         entity_name="image",
         supported_types=["image/png"],
     )
-    processor = ResourceProcessor(file_storage=DummyFileStorage())
-    result = await processor.try_download_resource(resource)
+    result = await mock_message_transformer.try_download_resource(resource)
     if isinstance(expected_result, Resource):
         assert result == expected_result
     else:
-        assert processor.errors == {expected_result}
+        assert mock_message_transformer.errors == {expected_result}
 
 
 @pytest.mark.parametrize(
@@ -208,16 +216,17 @@ async def test_download_image_url(url: str, expected_result: Resource | Error):
     ],
 )
 async def test_download_attachment_image(
-    attachment: dict, expected_result: Resource | Error
+    mock_message_transformer: MessageTransformer,
+    attachment: dict,
+    expected_result: Resource | Error,
 ):
     resource = AttachmentResource(
         attachment=parse_attachment(attachment),
         entity_name="image",
         supported_types=["image/png"],
     )
-    processor = ResourceProcessor(file_storage=DummyFileStorage())
-    result = await processor.try_download_resource(resource)
+    result = await mock_message_transformer.try_download_resource(resource)
     if isinstance(expected_result, Resource):
         assert result == expected_result
     else:
-        assert processor.errors == {expected_result}
+        assert mock_message_transformer.errors == {expected_result}
