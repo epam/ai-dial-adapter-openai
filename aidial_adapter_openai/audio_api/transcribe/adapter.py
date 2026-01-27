@@ -79,13 +79,15 @@ async def normalize_audio_response(response: AudioResponse) -> AudioResponse:
     It ignores stream=true parameter and returns a block JSON response
     which is wrapped by the openai library into AsyncStream.
     """
-    if isinstance(response, openai.AsyncStream):
-        if "application/json" in response.response.headers["content-type"]:
-            response_bytes = await response.response.aread()
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"raw response: {response_bytes!r}")
+    if (
+        isinstance(response, openai.AsyncStream)
+        and "application/json" in response.response.headers["content-type"]
+    ):
+        response_bytes = await response.response.aread()
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"raw response: {response_bytes!r}")
 
-            return TranscriptionVerbose.parse_raw(response_bytes)
+        return TranscriptionVerbose.parse_raw(response_bytes)
 
     return response
 

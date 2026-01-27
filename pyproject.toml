@@ -83,13 +83,17 @@ line-length = 80
 
 [tool.ruff.lint]
 select = [
-  "B",
-  "B9", # flake8-bugbear
-  "E",
-  "W",  # pycodestyle
-  "F",  # pyflakes
-  "I",  # flake8-isort
-  "S",  # flake8-bandit
+  "ERA",  # flake8-eradicate
+  "B",    # flake8-builtins
+  "C4",   # flake8-comprehensions
+  "SIM",  # flake8-simplify
+  "B9",   # flake8-bugbear
+  "E",    # pycodestyle
+  "W",    # pycodestyle
+  "F",    # pyflakes
+  "I",    # flake8-isort
+  "S",    # flake8-bandit
+  "FURB", # refurb
 ]
 ignore = [
   "E501", # string literal is too long

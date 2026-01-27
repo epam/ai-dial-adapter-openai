@@ -29,12 +29,14 @@ from tests.utils.string import is_close_enough
 def mock_storage(request):
     test_name = request.node.name
     root_dir = Path(__file__).parent / "mock-storage" / test_name
-    with MockFileStorage.create(root_dir) as storage:
-        with patch(
+    with (
+        MockFileStorage.create(root_dir) as storage,
+        patch(
             "aidial_adapter_openai.endpoints.chat_completion.create_file_storage",
             return_value=storage,
-        ):
-            yield storage
+        ),
+    ):
+        yield storage
 
 
 D = DeploymentConfig[ChatCompletionDeploymentType]

@@ -26,7 +26,7 @@ MessageType = TypeVar("MessageType")
 
 
 _TIKTOKEN_MODEL_PREFIXES = [
-    f'"{p}"' for p in MODEL_PREFIX_TO_ENCODING.keys() if not p.startswith("ft:")
+    f'"{p}"' for p in MODEL_PREFIX_TO_ENCODING if not p.startswith("ft:")
 ]
 
 _DEFAULT_TOKENIZER_MODEL = "gpt-4o"

@@ -164,12 +164,10 @@ class DeploymentConfig(BaseModel, Generic[_T]):
 
     @property
     def supports_video_generation(self):
-        if (
+        return bool(
             isinstance(self.type_, ChatCompletionDeploymentType)
             and self.type_ == ChatCompletionDeploymentType.AZURE_VIDEO_API
-        ):
-            return True
-        return False
+        )
 
     @property
     def supports_tts(self):
