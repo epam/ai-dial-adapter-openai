@@ -5,12 +5,4 @@
 # E704 multiple statements on one line (def)
 ignore = E501, W503, E203, E704
 exclude =
-    .git,
-    .tmp,
-    .venv,
-    .venv-poetry,
-    .conda,
-    .nox,
-    .pytest_cache
-    __pycache__,
     __init__.py
