@@ -2,7 +2,7 @@ import os
 
 import fastapi
 from aidial_adapter_anthropic.adapter import ChatCompletionAdapter, UserError
-from aidial_adapter_anthropic.adapter.claude import CrudeClaudeTokenizer
+from aidial_adapter_anthropic.adapter.claude import ApproximateTokenizer
 from aidial_adapter_anthropic.adapter.claude import (
     create_adapter as create_anthropic_adapter,
 )
@@ -37,7 +37,7 @@ async def create_adapter(
         deployment=deployment,
         storage=_create_file_storage(api_key),
         client=client,
-        tokenizer=CrudeClaudeTokenizer(),
+        custom_tokenizer=ApproximateTokenizer(),
         default_max_tokens=CLAUDE_DEFAULT_MAX_TOKENS,
         supports_thinking=True,
         supports_documents=True,
