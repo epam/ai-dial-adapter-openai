@@ -79,7 +79,7 @@ filterwarnings = [
 typeCheckingMode = "basic"
 reportUnusedVariable = "error"
 reportIncompatibleMethodOverride = "error"
-exclude = [".git", ".venv", ".nox", "**/__pycache__"]
+exclude = [".git", ".venv", ".venv-poetry", ".nox", "**/__pycache__"]
 
 [tool.black]
 line-length = 80
@@ -87,6 +87,7 @@ exclude = '''
 /(
     \.git
   | \.venv
+  | \.venv-poetry
   | \.nox
   | \.__pycache__
 )/
@@ -102,4 +103,4 @@ remove_all_unused_imports = true
 in_place = true
 recursive = true
 quiet = true
-exclude = ["\\.venv", "\\.nox"]
+exclude = ["\\.venv", "\\.venv-poetry", "\\.nox"]

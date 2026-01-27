@@ -8,6 +8,7 @@ exclude =
     .git,
     .tmp,
     .venv,
+    .venv-poetry,
     .conda,
     .nox,
     .pytest_cache
