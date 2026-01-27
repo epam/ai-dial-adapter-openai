@@ -2,13 +2,15 @@
 
 [[package]]
 name = "aidial-adapter-anthropic"
-version = "0.1.0"
+version = "0.1.0rc0"
 description = "Package implementing adapter from DIAL Chat Completions API to Anthropic API"
 optional = false
-python-versions = ">=3.11,<4.0"
+python-versions = "<4.0,>=3.11"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "aidial_adapter_anthropic-0.1.0rc0-py3-none-any.whl", hash = "sha256:90775a2f157cbaf29af24ad3927af815573995f02b4d0d5b157d50a7e715d2e9"},
+    {file = "aidial_adapter_anthropic-0.1.0rc0.tar.gz", hash = "sha256:ab9bb055eb8f47a6a8737b443346cc73c0ad1dc6335c2b8d6657bd40552ce240"},
+]
 
 [package.dependencies]
 aidial-sdk = ">=0.28.0,<1"
@@ -16,10 +18,6 @@ aiohttp = ">=3.13.3,<4"
 anthropic = ">=0.75.0,<1"
 pillow = ">=10.4.0,<11"
 pydantic = ">=1.10.17,<3"
-
-[package.source]
-type = "directory"
-url = "../ai-dial-adapter-anthropic"
 
 [[package]]
 name = "aidial-sdk"
@@ -3122,4 +3120,4 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "d78c6bc8e4a7439e87428c05ff11d1ee38bbc53357786ca7746497f6801b77ed"
+content-hash = "496c29517530226fd121610e9b4fd18828aeff31cd98bc9d796ec3ed17152a70"
