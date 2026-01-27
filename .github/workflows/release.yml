@@ -1,6 +1,7 @@
 name: Release Workflow
 
 on:
+  workflow_dispatch:
   push:
     branches: [development, release-*]
 
@@ -10,7 +11,7 @@ concurrency:
 
 jobs:
   release:
-    uses: epam/ai-dial-ci/.github/workflows/python_docker_release.yml@3.0.0
+    uses: epam/ai-dial-ci/.github/workflows/python_docker_release.yml@3.0.2
     secrets: inherit
     with:
       platforms: "linux/amd64,linux/arm64"

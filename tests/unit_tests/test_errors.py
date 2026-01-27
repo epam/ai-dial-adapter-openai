@@ -1162,6 +1162,55 @@ async def test_error_invalid_image_url(stream: bool):
 
 
 @respx.mock
+async def test_allow_custom_content_null(test_app: httpx.AsyncClient):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(
+            delta={"role": "assistant", "content": "5"},
+            finish_reason="stop",
+        ),
+    )
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).respond(
+        status_code=200,
+        content_type="text/event-stream",
+        content=mock_stream.to_content(),
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Test content",
+                    "custom_content": None,
+                }
+            ],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 200
+    mock_stream.assert_response_content(
+        response,
+        assert_equal,
+        usages={
+            0: {
+                "prompt_tokens": 9,
+                "completion_tokens": 1,
+                "total_tokens": 10,
+            }
+        },
+    )
+
+
+@respx.mock
 async def test_rate_limit_exceeded_during_streaming():
     app_config = (
         ApplicationConfig()

@@ -10,7 +10,7 @@ from openai.types.chat.chat_completion_assistant_message_param import (
     ContentArrayOfContentPart,
 )
 from openai.types.chat.chat_completion_content_part_param import File
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from aidial_adapter_openai.dial_api.resource import (
     AttachmentResource,
@@ -44,15 +44,22 @@ class Error:
     message: str
 
 
-class ResourceProcessor(BaseModel):
-    class Config:
-        arbitrary_types_allowed = True  # for errors
-
+class MessageTransformer:
     file_storage: FileStorage | None
+    errors: Set[Error]
+    images: List[ImageResource]
+    files: List[FileResource]
 
-    errors: Set[Error] = Field(default_factory=set)
-    images: List[ImageResource] = []
-    files: List[FileResource] = []
+    def __init__(
+        self,
+        *,
+        file_storage: FileStorage | None,
+        errors: Set[Error] | None = None,
+    ):
+        self.file_storage = file_storage
+        self.errors = set() if errors is None else errors
+        self.images = []
+        self.files = []
 
     async def try_download_resource(
         self, dial_resource: DialResource
@@ -160,7 +167,7 @@ class ResourceProcessor(BaseModel):
 
         content = ensure_list_or_str("content", message.get("content") or "")
         custom_content = ensure_dict(
-            "custom_content", message.pop("custom_content", {})
+            "custom_content", message.pop("custom_content", None) or {}
         )
         attachments = ensure_list(
             "attachments", custom_content.get("attachments") or []
@@ -181,15 +188,23 @@ class ResourceProcessor(BaseModel):
             },
         )
 
+
+class ResourceProcessor(BaseModel):
+    file_storage: FileStorage | None
+
     async def transform_messages(
         self, messages: List[dict]
     ) -> List[MultiModalMessage]:
+        errors: Set[Error] = set()
         transformations = [
-            await self.transform_message(message) for message in messages
+            await MessageTransformer(
+                file_storage=self.file_storage, errors=errors
+            ).transform_message(message)
+            for message in messages
         ]
 
-        if self.errors:
-            fails = sorted(list(self.errors))
+        if errors:
+            fails = sorted(list(errors))
             msg = "The following files failed to process:\n"
             msg += "\n".join(
                 f"{idx}. {error.name}: {decapitalize(error.message)}"
