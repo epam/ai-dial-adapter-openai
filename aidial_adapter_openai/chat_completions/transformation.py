@@ -83,7 +83,6 @@ class MessageTransformer:
     async def download_attachments(
         self, attachments: List[dict]
     ) -> List[ChatCompletionContentPartImageParam | File]:
-
         if attachments:
             logger.debug(f"original attachments: {attachments}")
 

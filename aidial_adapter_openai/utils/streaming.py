@@ -84,7 +84,6 @@ async def generate_stream(
     discarded_messages: Optional[list[int]],
     eliminate_empty_choices: bool,
 ) -> AsyncIterator[dict]:
-
     empty_chunk = build_chunk(
         id=generate_id(),
         created=generate_created(),

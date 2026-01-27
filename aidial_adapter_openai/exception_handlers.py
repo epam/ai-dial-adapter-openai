@@ -23,7 +23,6 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
 
 
 def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
-
     if isinstance(exc, (DialException, ResponseWrapper)):
         return exc
 

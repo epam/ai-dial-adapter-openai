@@ -195,7 +195,6 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
 
 @respx.mock
 async def test_missing_api_version(test_app: httpx.AsyncClient):
-
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions",
         json={

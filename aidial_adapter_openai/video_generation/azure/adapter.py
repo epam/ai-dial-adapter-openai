@@ -2,10 +2,9 @@ import asyncio
 from typing import Any, Dict, List, assert_never
 
 import fastapi
-from aidial_sdk.chat_completion import Choice
+from aidial_sdk.chat_completion import Choice, Stage
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
-from aidial_sdk.chat_completion import Stage
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from fastapi.responses import StreamingResponse
 from httpx._types import RequestFiles

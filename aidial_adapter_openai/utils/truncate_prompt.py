@@ -18,7 +18,6 @@ async def truncate_prompt(
     max_prompt_tokens: int,
     initial_prompt_tokens: int,
 ) -> Tuple[List[_T], DiscardedMessages, TruncatedTokens]:
-
     prompt_tokens = initial_prompt_tokens
 
     system_messages_count = 0

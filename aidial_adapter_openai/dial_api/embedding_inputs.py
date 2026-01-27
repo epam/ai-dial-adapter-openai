@@ -39,7 +39,6 @@ async def collect_embedding_inputs(
     on_tokens: Callable[[_Tokens], _Coro[_T]] = reject_tokens,
     on_mixed: Callable[[List[str | Attachment]], _Coro[_T]] = reject_mixed,
 ) -> AsyncIterator[_T]:
-
     async def _on_str_or_attachment(input: str | Attachment) -> _T:
         if isinstance(input, str):
             return await on_text(input)
@@ -51,7 +50,6 @@ async def collect_embedding_inputs(
     if isinstance(request.input, str):
         yield await on_text(request.input)
     elif isinstance(request.input, list):
-
         is_list_of_tokens = False
         for input in request.input:
             if isinstance(input, str):

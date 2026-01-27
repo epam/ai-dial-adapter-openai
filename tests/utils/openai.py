@@ -246,7 +246,6 @@ async def chat_completion(
         )
 
         if isinstance(response, AsyncStream):
-
             chunks: List[dict] = [
                 {}
             ]  # workaround for https://github.com/epam/ai-dial-sdk/pull/269
