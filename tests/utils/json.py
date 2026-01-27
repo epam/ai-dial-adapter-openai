@@ -3,7 +3,7 @@ from typing import Any
 
 def match_objects(expected: Any, actual: Any) -> bool:
     if isinstance(expected, dict):
-        assert list(sorted(expected.keys())) == list(sorted(actual.keys()))
+        assert sorted(expected.keys()) == sorted(actual.keys())
         for k, v in expected.items():
             match_objects(v, actual[k])
     elif isinstance(expected, tuple):

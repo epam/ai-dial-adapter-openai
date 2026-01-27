@@ -53,10 +53,7 @@ rapidfuzz = "^3.14.1"
 
 [tool.poetry.group.lint.dependencies]
 pyright = "1.1.324"
-black = "24.3.0"
-isort = "5.12.0"
-autoflake = "2.2.0"
-flake8 = "6.0.0"
+ruff = "0.12.11"
 
 [tool.poetry.group.dev.dependencies]
 nox = "^2023.4.22"
@@ -80,16 +77,34 @@ typeCheckingMode = "basic"
 reportUnusedVariable = "error"
 reportIncompatibleMethodOverride = "error"
 
-[tool.black]
+[tool.ruff]
+target-version = "py311"
 line-length = 80
 
-[tool.isort]
-line_length = 80
-profile = "black"
+[tool.ruff.lint]
+select = [
+  "B",
+  "B9", # flake8-bugbear
+  "E",
+  "W",  # pycodestyle
+  "F",  # pyflakes
+  "I",  # flake8-isort
+  "S",  # flake8-bandit
+]
+ignore = [
+  "E501", # string literal is too long
+  "E203", # whitespace before ':' (triggered on list slices like xs[i : i + 5])
+  "S101", # Use of `assert` detected
+  "S110", # `try`-`except`-`pass` detected
+  "B904", # Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None`
+]
 
-[tool.autoflake]
-ignore_init_module_imports = true
-remove_all_unused_imports = true
-in_place = true
-recursive = true
-quiet = true
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "B011", # Do not `assert False`
+  "B006", # Do not use mutable data structures for argument defaults
+  "E731", # Do not assign a `lambda` expression, use a `def`
+]
+"*/__init__.py" = [
+  "F401", # imported but unused
+]

@@ -31,11 +31,11 @@ def mock_storage(request):
 
 D = DeploymentConfig[ChatCompletionDeploymentType]
 
-_deployments: List[D] = list(
+_deployments: List[D] = [
     d
     for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments
     if d.supports_video_generation
-)
+]
 
 if _deployments:
 

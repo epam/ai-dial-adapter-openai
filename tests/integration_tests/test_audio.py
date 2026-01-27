@@ -39,9 +39,9 @@ def mock_storage(request):
 
 D = DeploymentConfig[ChatCompletionDeploymentType]
 
-_tts_deployments: List[D] = list(
+_tts_deployments: List[D] = [
     d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if d.supports_tts
-)
+]
 
 if _tts_deployments:
 
@@ -56,9 +56,9 @@ else:
         pytest.skip("No TTS deployments were found")
 
 
-_stt_deployments: List[D] = list(
+_stt_deployments: List[D] = [
     d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if d.supports_stt
-)
+]
 
 if _stt_deployments:
 
