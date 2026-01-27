@@ -2,7 +2,7 @@ import nox
 
 nox.options.reuse_existing_virtualenvs = True
 
-SRC = "."
+SRC = ["aidial_adapter_openai", "tests", "noxfile.py"]
 
 
 def format_with_args(session: nox.Session, *args):
@@ -17,9 +17,9 @@ def lint(session: nox.Session):
     try:
         session.run("poetry", "install", external=True)
         session.run("poetry", "check", "--lock", "--strict", external=True)
-        session.run("pyright", SRC)
-        session.run("flake8", SRC)
-        format_with_args(session, SRC, "--check")
+        session.run("pyright", *SRC)
+        session.run("flake8", *SRC)
+        format_with_args(session, *SRC, "--check")
     except Exception:
         session.error(
             "linting has failed. Run 'make format' to fix formatting and fix other errors manually"
@@ -30,7 +30,7 @@ def lint(session: nox.Session):
 def format(session: nox.Session):
     """Runs linters and fixers"""
     session.run("poetry", "install", external=True)
-    format_with_args(session, SRC)
+    format_with_args(session, *SRC)
 
 
 @nox.session
