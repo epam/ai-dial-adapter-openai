@@ -2,8 +2,9 @@ PORT ?= 5001
 IMAGE_NAME ?= ai-dial-adapter-openai
 PLATFORM ?= linux/amd64
 VENV_DIR ?= .venv
-POETRY ?= $(VENV_DIR)/bin/poetry
-POETRY_VERSION ?= 2.1.1
+POETRY_VENV_DIR ?= .venv-poetry
+POETRY ?= $(POETRY_VENV_DIR)/bin/poetry
+POETRY_VERSION ?= 2.1.1 # Matching the version installed in Dockerfile
 ARGS ?=
 
 .PHONY: all init_env install build serve clean lint format test integration_tests docker_build docker_run
@@ -11,8 +12,9 @@ ARGS ?=
 all: build
 
 init_env:
+	python -m venv $(POETRY_VENV_DIR)
+	$(POETRY_VENV_DIR)/bin/pip install poetry==$(POETRY_VERSION) --quiet
 	python -m venv $(VENV_DIR)
-	$(VENV_DIR)/bin/pip install poetry==$(POETRY_VERSION) --quiet
 
 install: init_env
 	$(POETRY) install
