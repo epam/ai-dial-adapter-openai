@@ -28,8 +28,10 @@ RUN apk add --no-cache ca-certificates && update-ca-certificates
 
 # fix CVE-2023-52425
 RUN apk upgrade --no-cache libexpat
-# fix CVE-2025-47273
-RUN pip install setuptools==78.1.1
+# fix CVE-2026-23949
+RUN pip install setuptools==80.10.2
+# fix CVE-2026-24049
+RUN pip install wheel==0.46.2
 # fix CVE-2025-6965
 RUN apk upgrade --no-cache sqlite-libs
 
