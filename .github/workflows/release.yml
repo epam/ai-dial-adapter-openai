@@ -14,4 +14,6 @@ jobs:
     uses: epam/ai-dial-ci/.github/workflows/python_docker_release.yml@3.1.1
     secrets: inherit
     with:
+      python-version: "3.11"
+      poetry-version: "2.1.1"
       platforms: "linux/amd64,linux/arm64"
