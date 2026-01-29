@@ -1,5 +1,5 @@
 import pytest
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import InternalServerError
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
@@ -114,7 +114,7 @@ def test_app_config_chat_completions_azure_next_gen(
 
 
 def test_app_config_chat_invalid(origin: str, deployment: str):
-    with pytest.raises(InvalidRequestError) as exc_info:
+    with pytest.raises(InternalServerError) as exc_info:
         (
             ApplicationConfig()
             .add_deployment(deployment, D.GPT4O)

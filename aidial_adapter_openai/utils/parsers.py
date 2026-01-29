@@ -2,7 +2,7 @@ import re
 from json import JSONDecodeError
 from typing import Any, Dict, TypedDict
 
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import InternalServerError, InvalidRequestError
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 
@@ -92,7 +92,7 @@ class EndpointParser(ExtraForbidModel):
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
         if result := self.try_parse(endpoint):
             return result
-        raise InvalidRequestError("Invalid upstream endpoint format")
+        raise InternalServerError("Invalid upstream endpoint format")
 
 
 class CompletionsParser(ExtraForbidModel):
