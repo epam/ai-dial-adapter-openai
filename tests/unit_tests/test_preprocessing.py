@@ -6,6 +6,11 @@ import respx
 
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
+_API_VERSION = "api-version=2023-03-15-preview"
+_UPSTREAM_ENDPOINT = (
+    "http://localhost:5001/openai/deployments/gpt-4/chat/completions"
+)
+
 
 @respx.mock
 @pytest.mark.parametrize("stream", [True, False], ids=["stream", "block"])
@@ -39,12 +44,12 @@ async def test_stream_options(test_app: httpx.AsyncClient, stream: bool):
                 json=chat_completion_response.to_block_response(),
             )
 
-    respx.post(
-        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
-    ).mock(side_effect=chat_completion_handler)
+    respx.post(f"{_UPSTREAM_ENDPOINT}?{_API_VERSION}").mock(
+        side_effect=chat_completion_handler
+    )
 
     response = await test_app.post(
-        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        f"/openai/deployments/gpt-4/chat/completions?{_API_VERSION}",
         json={
             "messages": [{"role": "user", "content": "Test content"}],
             "stream": stream,
@@ -52,7 +57,7 @@ async def test_stream_options(test_app: httpx.AsyncClient, stream: bool):
         },
         headers={
             "X-UPSTREAM-KEY": "TEST_API_KEY",
-            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+            "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
         },
     )
 
