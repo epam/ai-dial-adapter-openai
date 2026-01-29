@@ -465,12 +465,12 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
         },
     )
 
-    assert response.status_code == 500
+    assert response.status_code == 502
     assert response.json() == {
         "error": {
             "message": "Invalid upstream endpoint format",
             "type": "internal_server_error",
-            "code": "500",
+            "code": "502",
         }
     }
 
