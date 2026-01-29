@@ -1,8 +1,9 @@
 import re
+from http import HTTPStatus
 from json import JSONDecodeError
 from typing import Any, Dict, TypedDict
 
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import HTTPException, InvalidRequestError
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
 
@@ -92,7 +93,11 @@ class EndpointParser(ExtraForbidModel):
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
         if result := self.try_parse(endpoint):
             return result
-        raise InvalidRequestError("Invalid upstream endpoint format")
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_GATEWAY,
+            type="internal_server_error",
+            message="Invalid upstream endpoint format",
+        )
 
 
 class CompletionsParser(ExtraForbidModel):
