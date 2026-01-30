@@ -50,8 +50,12 @@ def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
         if "Content-Encoding" in httpx_headers:
             del httpx_headers["Content-Encoding"]
 
+        status_code = r.status_code
+        if status_code in (500, 401, 403):
+            status_code = 502
+
         return parse_adapter_exception(
-            status_code=r.status_code,
+            status_code=status_code,
             headers=httpx_headers,
             content=r.text,
         )
