@@ -38,6 +38,15 @@ _UPSTREAM_ENDPOINT = (
 )
 
 
+@pytest.fixture(autouse=True)
+def mock_azure_ad_token():
+    with patch(
+        "aidial_adapter_openai.utils.auth.get_api_key",
+        return_value="test-azure-ad-token",
+    ):
+        yield
+
+
 def assert_equal(actual: Any, expected: Any):
     assert actual == expected
 
