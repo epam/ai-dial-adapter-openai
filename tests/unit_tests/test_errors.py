@@ -1285,12 +1285,20 @@ async def test_rate_limit_exceeded_during_streaming():
 
 @respx.mock
 @pytest.mark.parametrize("upstream_error_code", [400, 401, 403, 500, 502, 503])
-@pytest.mark.parametrize("error_during_streaming", [True, False])
-@pytest.mark.parametrize("stream", [True, False])
-async def test_upstream_internal_errors_to_502(
+@pytest.mark.parametrize(
+    "error_during_streaming",
+    [True, False],
+    ids=["error-in-stream", "error-before-stream"],
+)
+@pytest.mark.parametrize(
+    "with_api_key", [True, False], ids=["with-key", "no-key"]
+)
+@pytest.mark.parametrize("stream", [True, False], ids=["stream", "block"])
+async def test_upstream_errors_to_adapter_errors(
     test_app: httpx.AsyncClient,
     upstream_error_code: int,
     error_during_streaming: bool,
+    with_api_key: bool,
     stream: bool,
 ):
     mock_stream = OpenAIStream(
@@ -1314,12 +1322,16 @@ async def test_upstream_internal_errors_to_502(
         else:
             return httpx.Response(
                 status_code=upstream_error_code,
-                content=b"Upstream error",
+                content="Upstream error",
             )
 
     respx.post(f"{_UPSTREAM_ENDPOINT}?{_API_VERSION}").mock(
         side_effect=chat_completion_handler
     )
+
+    headers = {"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT}
+    if with_api_key:
+        headers["X-UPSTREAM-KEY"] = "TEST_API_KEY"
 
     response = await test_app.post(
         f"/openai/deployments/gpt-4/chat/completions?{_API_VERSION}",
@@ -1327,17 +1339,16 @@ async def test_upstream_internal_errors_to_502(
             "messages": [{"role": "user", "content": "test"}],
             "stream": stream,
         },
-        headers={
-            "X-UPSTREAM-KEY": "TEST_API_KEY",
-            "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
-        },
+        headers=headers,
     )
 
-    if upstream_error_code in (500, 401, 403) and (
-        not stream or not error_during_streaming
+    if stream and error_during_streaming:
+        assert response.status_code == 200
+        return
+
+    if upstream_error_code == 500 or (
+        upstream_error_code in (401, 403) and with_api_key
     ):
         assert response.status_code == 502
-    elif stream and error_during_streaming:
-        assert response.status_code == 200
     else:
         assert response.status_code == upstream_error_code

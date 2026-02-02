@@ -44,7 +44,7 @@ try:
     TEST_DEPLOYMENTS_CONFIG = TestDeployments.from_config(
         TEST_DEPLOYMENTS_CONFIG_PATH
     )
-except FileNotFoundError:
+except Exception:
     _log.warning(
         f"Cannot find the configuration file: {TEST_DEPLOYMENTS_CONFIG_PATH}. "
         "Using noop configuration."
