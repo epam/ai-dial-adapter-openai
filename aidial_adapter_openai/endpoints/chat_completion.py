@@ -13,6 +13,9 @@ from aidial_adapter_openai.audio_api.transcribe.adapter import (
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
+from aidial_adapter_openai.chat_completions.gpt_audio import (
+    extract_audio_content,
+)
 from aidial_adapter_openai.chat_completions.gpt_oss import (
     extract_reasoning_tokens,
 )
@@ -181,6 +184,8 @@ async def call_chat_completion(
             )
 
             response.body = extract_reasoning_tokens(response.body)
+            response.body = extract_audio_content(response.body, request_body)
+
             return response
 
         case _:
