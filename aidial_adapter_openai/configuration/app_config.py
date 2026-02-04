@@ -26,6 +26,7 @@ from aidial_adapter_openai.utils.parsers import (
     completions_parser,
     image_gen_parser,
     no_endpoint_parser,
+    openai_video_api_parser,
     responses_parser,
     speech_parser,
     transcriptions_parser,
@@ -72,6 +73,12 @@ class ApplicationConfig(ExtraForbidModel):
         if endpoint := responses_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
                 deployment_type=D.RESPONSES_API,
+                endpoint=endpoint,
+            )
+
+        if endpoint := openai_video_api_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.OPENAI_VIDEO_API,
                 endpoint=endpoint,
             )
 

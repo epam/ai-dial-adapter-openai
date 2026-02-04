@@ -120,6 +120,7 @@ responses_parser = EndpointParser(name="responses")
 no_endpoint_parser = EndpointParser(name=None)
 completions_parser = CompletionsParser()
 azure_video_api_parser = EndpointParser(name="video/generations")
+openai_video_api_parser = EndpointParser(name="videos")
 
 
 async def parse_body(request: Request) -> Dict[str, Any]:

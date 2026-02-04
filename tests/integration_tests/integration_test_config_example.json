@@ -318,6 +318,16 @@
                 }
             ]
         },
+        "sora-2": {
+            "overrideName": "sora-2",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/videos",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
         "tts": {
             "type": "chat",
             "upstreams": [
