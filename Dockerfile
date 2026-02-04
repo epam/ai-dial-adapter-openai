@@ -55,5 +55,6 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
 
 ENV TIKTOKEN_CACHE_DIR=/app/tiktoken_cache
+ENV PYDANTIC_V2=1
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
