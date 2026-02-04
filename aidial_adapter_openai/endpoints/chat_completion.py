@@ -82,7 +82,7 @@ async def call_chat_completion(
     deployment = app_config.get_chat_completion_deployment_type(
         deployment_id, upstream_endpoint
     )
-    logger.debug(f"deployment api type: {deployment.json()}")
+    logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
     creds = await get_credentials(request_headers)

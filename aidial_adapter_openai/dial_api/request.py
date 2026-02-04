@@ -14,7 +14,7 @@ def parse_configuration(cls: Type[_T], data: Any) -> _T | None:
         return None
 
     try:
-        return cls.parse_obj(conf)
+        return cls.model_validate(conf)
     except ValidationError as e:
         error = e.errors()[0]
         path = ".".join(map(str, error["loc"]))

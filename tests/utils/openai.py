@@ -166,14 +166,14 @@ class ChatCompletionResult(BaseModel):
 
     @property
     def stages(self) -> list[dict]:
-        return self.response.choices[0].message.dict()["custom_content"][
+        return self.response.choices[0].message.model_dump()["custom_content"][
             "stages"
         ]
 
     @property
     def all_attachments(self) -> list[list[dict]]:
         return [
-            choice.message.dict()["custom_content"]["attachments"]
+            choice.message.model_dump()["custom_content"]["attachments"]
             for choice in self.response.choices
         ]
 
@@ -251,7 +251,7 @@ async def chat_completion(
                 {}
             ]  # workaround for https://github.com/epam/ai-dial-sdk/pull/269
             async for chunk in response:
-                chunks.append(chunk.dict())
+                chunks.append(chunk.model_dump())
 
             response_dict = merge_chat_completion_chunks(*chunks)
 
@@ -261,7 +261,7 @@ async def chat_completion(
 
             response_dict["object"] = "chat.completion"
 
-            return ChatCompletion.parse_obj(response_dict)
+            return ChatCompletion.model_validate(response_dict)
         else:
             return response
 

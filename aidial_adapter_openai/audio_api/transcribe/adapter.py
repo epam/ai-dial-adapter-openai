@@ -85,7 +85,7 @@ async def normalize_audio_response(response: AudioResponse) -> AudioResponse:
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(f"raw response: {response_bytes!r}")
 
-            return TranscriptionVerbose.parse_raw(response_bytes)
+            return TranscriptionVerbose.model_validate_json(response_bytes)
 
     return response
 
@@ -127,7 +127,9 @@ async def chat_completion(
             if isinstance(audio_response, openai.AsyncStream):
                 async for chunk in audio_response:
                     if logger.isEnabledFor(logging.DEBUG):
-                        logger.debug(f"response chunk: {chunk.json()}")
+                        logger.debug(
+                            f"response chunk: {chunk.model_dump_json()}"
+                        )
 
                     match chunk:
                         case TranscriptionTextDeltaEvent(delta=delta):
@@ -139,7 +141,9 @@ async def chat_completion(
                             assert_never(chunk)
             else:
                 if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"response: {audio_response.json()}")
+                    logger.debug(
+                        f"response: {audio_response.model_dump_json()}"
+                    )
 
                 choice.append_content(audio_response.text)
                 if usage := _get_usage(audio_response):

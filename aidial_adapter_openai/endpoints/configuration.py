@@ -20,4 +20,4 @@ async def configuration(deployment_id: str, request: Request):
             "Configuration endpoint isn't implemented for this deployment"
         )
 
-    return model.get_configuration().schema()
+    return model.get_configuration().model_json_schema()
