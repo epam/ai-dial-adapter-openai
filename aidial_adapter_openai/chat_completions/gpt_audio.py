@@ -87,10 +87,12 @@ class _AudioResponseTransformer(BaseModel):
                     }
                 )
 
-            if audio_transcript:
-                choice_index = choice.get("index")
+            choice_index = choice.get("index")
+            has_finish_reason = choice.get("finish_reason") is not None
+            is_stage_opened = choice_index in self.opened_transcript_stages
+
+            if audio_transcript or (has_finish_reason and is_stage_opened):
                 is_opening = choice_index not in self.opened_transcript_stages
-                is_closing = choice.get("finish_reason") is not None
 
                 if is_opening:
                     self.opened_transcript_stages.add(choice_index)
@@ -100,9 +102,13 @@ class _AudioResponseTransformer(BaseModel):
                 opening_fields = (
                     {"name": "Audio transcript"} if is_opening else {}
                 )
-                closing_fields = {"status": "completed"} if is_closing else {}
+                closing_fields = (
+                    {"status": "completed"} if has_finish_reason else {}
+                )
                 streaming_fields = {"index": 0} if self.streaming else {}
-                content_fields = {"content": audio_transcript}
+                content_fields = (
+                    {"content": audio_transcript} if audio_transcript else {}
+                )
 
                 stages.append(
                     {
