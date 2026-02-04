@@ -30,7 +30,12 @@ async def dalle3_client():
 
 
 async def test_dalle3_configuration_endpoint(dalle3_client: httpx.AsyncClient):
-    response = await dalle3_client.get("configuration")
+    response = await dalle3_client.get(
+        "configuration",
+        headers={
+            "X-UPSTREAM-ENDPOINT": "http://test-upstream/openai/deployments/test-dall-e-3/images/generations"
+        },
+    )
 
     assert response.status_code == 200
     assert response.json()["properties"].keys() == {"quality", "size", "style"}
