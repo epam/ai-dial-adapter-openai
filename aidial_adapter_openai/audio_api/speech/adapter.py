@@ -70,7 +70,7 @@ async def chat_completion(
             system_message + "\n" + (config.instructions or "")
         ).strip() or None
 
-    extra_body = config.dict(exclude_none=True)
+    extra_body = config.model_dump(exclude_none=True)
 
     response = await client.audio.speech.create(
         input=prompt, model=model_name, **extra_body

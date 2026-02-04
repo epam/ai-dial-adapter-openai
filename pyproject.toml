@@ -31,7 +31,7 @@ openai = "1.90.0"
 tiktoken = "0.12.0"
 uvicorn = "0.23.0"
 wrapt = "1.15.0"
-pydantic = "1.10.17"
+pydantic = "2.10.4"
 httpx = "0.27.0"
 # required by openai embeddings; avoiding openai[datalib],
 # since it also depends on pandas
@@ -40,15 +40,16 @@ pillow = "10.3.0"
 azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
 aiohttp = "3.13.3"
-aidial-sdk = { version = "0.28.0", extras = ["telemetry"] }
+aidial-sdk = { version = "0.32.0", extras = ["telemetry"] }
 
 [tool.poetry.group.test.dependencies]
-pytest = "7.4.0"
+pytest = "7.4.3"
 pytest-asyncio = "0.21.1"
 pytest-xdist = "^3.5.0"
 respx = "^0.21.1"
 pytest-timeout = "^2.4.0"
 pytest-sugar = "^1.0.0"
+pytest-env = "1.1.1"
 rapidfuzz = "^3.14.1"
 
 [tool.poetry.group.lint.dependencies]
@@ -65,6 +66,7 @@ python-dotenv = "^1.0.1"
 
 [tool.pytest.ini_options]
 addopts = "-n=auto --asyncio-mode=auto --timeout=300"
+env = ["PYDANTIC_V2=1"]
 testpaths = ["tests"]
 filterwarnings = [
   "error",
@@ -73,6 +75,8 @@ filterwarnings = [
   # muting warnings coming from opentelemetry and pkg_resources packages
   "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies",
   "ignore::DeprecationWarning:pkg_resources",
+  # Workaround for this bug: https://github.com/openai/openai-python/issues/1039
+  "ignore:Pydantic serializer warnings:UserWarning:pydantic.*"
 ]
 
 [tool.pyright]

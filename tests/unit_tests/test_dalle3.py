@@ -161,7 +161,7 @@ async def test_dalle3_invalid_configuration(
     assert response.json() == {
         "error": {
             "code": "422",
-            "message": "Invalid request. Path: 'custom_field.configuration.quality', error: unexpected value; permitted: 'standard', 'hd'",
+            "message": "Invalid request. Path: 'custom_field.configuration.quality.literal['standard','hd']', error: Input should be 'standard' or 'hd'",
             "type": "invalid_request_error",
         }
     }

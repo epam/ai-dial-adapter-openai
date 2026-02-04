@@ -37,7 +37,7 @@ async def chat_completion(
     config_cls = model.get_configuration()
     response_format = model.get_response_format()
     config = parse_configuration(config_cls, request_body) or config_cls()
-    extra_body = config.dict(exclude_none=True)
+    extra_body = config.model_dump(exclude_none=True)
 
     images = [
         (f"image_{i}", resource.data, resource.type)

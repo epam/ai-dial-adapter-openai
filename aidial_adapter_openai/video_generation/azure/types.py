@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 
 class JobStatus(str, Enum):
@@ -40,8 +40,8 @@ class InpaintItem(BaseModel):
     file_name: str
 
 
-class InpaintItems(BaseModel):
-    __root__: List[InpaintItem]
+class InpaintItems(RootModel):
+    root: List[InpaintItem]
 
 
 class CreateVideoGenerationRequest(BaseModel):
@@ -71,7 +71,7 @@ class CreateVideoGenerationRequest(BaseModel):
         inpaint_items: List[InpaintItem] | None,
     ) -> "CreateVideoGenerationRequest":
         inpaint_items_str = (
-            InpaintItems(__root__=inpaint_items).json()
+            InpaintItems(inpaint_items).model_dump_json()
             if inpaint_items
             else None
         )

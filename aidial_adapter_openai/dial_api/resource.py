@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from aidial_sdk.chat_completion import Attachment
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, model_validator
 
 from aidial_adapter_openai.dial_api.storage import FileStorage, download_file
 from aidial_adapter_openai.utils.resource.base import Resource
@@ -34,8 +34,8 @@ class UnsupportedContentTypeError(ValidationError):
 
 
 class DialResource(ABC, BaseModel):
-    entity_name: str = Field(default=None)
-    supported_types: List[str] | None = Field(default=None)
+    entity_name: str | None = None
+    supported_types: List[str] | None = None
 
     @abstractmethod
     async def download(self, storage: FileStorage | None) -> Resource: ...
@@ -71,10 +71,10 @@ class URLResource(DialResource):
     url: str
     content_type: str | None = None
 
-    @root_validator
-    def validator(cls, values):
-        values["entity_name"] = values.get("entity_name") or "URL"
-        return values
+    @model_validator(mode="after")
+    def default_entity_name(self):
+        self.entity_name = self.entity_name or "URL"
+        return self
 
     async def download(self, storage: FileStorage | None) -> Resource:
         type = await self.get_content_type()
@@ -111,7 +111,7 @@ def parse_attachment(attachment_dict: dict) -> Attachment:
 
     This helper works around this issue.
     """
-    attachment = Attachment.parse_obj(attachment_dict)
+    attachment = Attachment.model_validate(attachment_dict)
     if "type" not in attachment_dict:
         attachment.type = None
     return attachment
@@ -120,10 +120,10 @@ def parse_attachment(attachment_dict: dict) -> Attachment:
 class AttachmentResource(DialResource):
     attachment: Attachment
 
-    @root_validator(pre=True)
-    def validator(cls, values):
-        values["entity_name"] = values.get("entity_name") or "attachment"
-        return values
+    @model_validator(mode="after")
+    def default_entity_name(self):
+        self.entity_name = self.entity_name or "attachment"
+        return self
 
     async def download(self, storage: FileStorage | None) -> Resource:
         type = await self.get_content_type()

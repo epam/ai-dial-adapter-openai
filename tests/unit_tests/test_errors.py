@@ -1236,7 +1236,7 @@ async def test_rate_limit_exceeded_during_streaming():
     )
 
     mock_stream = OpenAIStream(
-        mock_event.dict(),
+        mock_event.model_dump(),
         {
             "error": {
                 "message": "no_kv_space",

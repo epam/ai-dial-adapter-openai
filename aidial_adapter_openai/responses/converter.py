@@ -339,7 +339,7 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
 
     extra_fields = {}
     if custom_content:
-        extra_fields["custom_content"] = custom_content.dict()
+        extra_fields["custom_content"] = custom_content.model_dump()
 
     return ChatCompletionMessage(
         role="assistant",

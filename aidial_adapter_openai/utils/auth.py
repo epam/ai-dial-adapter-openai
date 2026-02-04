@@ -1,11 +1,12 @@
 import os
 import time
-from typing import Mapping, TypedDict
+from typing import Mapping
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
+from typing_extensions import TypedDict
 
 from aidial_adapter_openai.utils.log_config import logger
 

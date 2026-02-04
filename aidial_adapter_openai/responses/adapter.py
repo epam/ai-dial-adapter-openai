@@ -75,7 +75,7 @@ def _validate_request(request: Dict[str, Any]) -> None:
 
 
 def _to_dict(x: BaseModel) -> dict:
-    ret = x.dict()
+    ret = x.model_dump()
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(f"chat completion API response: {json.dumps(ret)}")
     return ret
@@ -98,7 +98,7 @@ def _get_configuration(request: Dict[str, Any]) -> ResponsesConfig:
     ):
         configuration.reasoning = Reasoning(effort=reasoning_effort)
 
-    logger.debug(f"configuration: {configuration.json()}")
+    logger.debug(f"configuration: {configuration.model_dump_json()}")
     return configuration
 
 
@@ -155,7 +155,7 @@ async def chat_completion(
         max_output_tokens=max_output_tokens,
         parallel_tool_calls=request.get("parallel_tool_calls") or NOT_GIVEN,
         text=text,
-        **configuration.dict(),
+        **configuration.model_dump(),
     )
 
     if isinstance(response, AsyncStream):
@@ -166,6 +166,6 @@ async def chat_completion(
     else:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
-                f"responses API response: {json.dumps(response.dict())}"
+                f"responses API response: {json.dumps(response.model_dump())}"
             )
         return _to_dict(convert_response(response))

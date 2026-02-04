@@ -1,11 +1,12 @@
 import re
 from http import HTTPStatus
 from json import JSONDecodeError
-from typing import Any, Dict, TypedDict
+from typing import Any, Dict
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
+from typing_extensions import TypedDict
 
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel

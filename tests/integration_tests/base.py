@@ -25,7 +25,7 @@ from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 
 class UpstreamConfig(ExtraAllowedModel):
     endpoint: str
-    key: str | None
+    key: str | None = None
 
 
 class Features(ExtraAllowedModel):
