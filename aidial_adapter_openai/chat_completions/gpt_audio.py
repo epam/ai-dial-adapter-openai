@@ -6,13 +6,13 @@ from GPT-4o audio completions API responses, transforming them into
 DIAL-compatible format with attachments and stages.
 """
 
-from typing import AsyncIterator, Set, TypeVar
+from typing import AsyncIterator, TypeVar
 
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.streaming import map_stream
 
-AUDIO_FORMAT_TO_CONTENT_TYPE = {
+_AUDIO_FORMAT_TO_CONTENT_TYPE = {
     "mp3": "audio/mpeg",
     "wav": "audio/wav",
     "flac": "audio/flac",
@@ -22,11 +22,11 @@ AUDIO_FORMAT_TO_CONTENT_TYPE = {
 
 
 class _AudioResponseTransformer(BaseModel):
-    opened_transcript_stages: Set[int] = set()
-    """Indices of choices where an audio transcript stage was opened."""
+    opened_transcript_stages: set[int] = set()
+    opened_transcript_attachments: set[int] = set()
 
     streaming: bool
-    audio_format: str = "mp3"
+    audio_format: str
 
     @property
     def message_key(self) -> str:
@@ -34,7 +34,7 @@ class _AudioResponseTransformer(BaseModel):
 
     @property
     def content_type(self) -> str:
-        return AUDIO_FORMAT_TO_CONTENT_TYPE.get(
+        return _AUDIO_FORMAT_TO_CONTENT_TYPE.get(
             self.audio_format, f"audio/{self.audio_format}"
         )
 
@@ -48,32 +48,45 @@ class _AudioResponseTransformer(BaseModel):
             if not message:
                 continue
 
-            audio_obj = message.pop("audio", None)
+            audio_obj = message.get("audio")
             if not audio_obj:
                 continue
 
-            # Extract audio data and transcript
             audio_data = audio_obj.get("data")
             audio_transcript = audio_obj.get("transcript")
 
-            # Early exit if audio object is empty
             if not audio_data and not audio_transcript:
                 continue
 
             cc = message.setdefault("custom_content", {})
 
-            # Create attachment for audio data
             if audio_data:
+                choice_index = choice.get("index")
+                is_attachment_opening = (
+                    choice_index not in self.opened_transcript_attachments
+                )
+
+                if is_attachment_opening:
+                    self.opened_transcript_attachments.add(choice_index)
+
                 attachments = cc.setdefault("attachments", [])
+
+                opening_fields = (
+                    {"title": "Audio", "type": self.content_type}
+                    if is_attachment_opening
+                    else {}
+                )
+                streaming_fields = {"index": 0} if self.streaming else {}
+                data_fields = {"data": audio_data}
+
                 attachments.append(
                     {
-                        "title": "Audio",
-                        "type": self.content_type,
-                        "data": audio_data,
+                        **data_fields,
+                        **streaming_fields,
+                        **opening_fields,
                     }
                 )
 
-            # Create stage for audio transcript
             if audio_transcript:
                 choice_index = choice.get("index")
                 is_opening = choice_index not in self.opened_transcript_stages
@@ -108,19 +121,10 @@ _T = TypeVar("_T", bound=AsyncIterator[dict] | dict)
 
 def extract_audio_content(response: _T, request_body: dict) -> _T:
     """
-    Extract audio data and transcript from GPT-4o audio response.
-
-    This middleware transforms the OpenAI audio response format into DIAL format by:
+    Transform OpenAI audio response format into DIAL format by:
     - Creating attachments for audio data
     - Placing audio transcripts in a dedicated "Audio transcript" stage
     - Preserving the main response content
-
-    Args:
-        response: Either a dict (non-streaming) or AsyncIterator[dict] (streaming)
-        request_body: The original request body to extract audio format from
-
-    Returns:
-        The transformed response in the same format as input
     """
     audio_format = request_body.get("audio", {}).get("format", "mp3")
 
