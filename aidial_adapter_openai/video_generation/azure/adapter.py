@@ -71,7 +71,9 @@ def _get_configuration(request: dict) -> VideoGenerationConfig:
         or VideoGenerationConfig()
     )
 
-    logger.debug(f"configuration: {configuration.json(exclude_none=True)}")
+    logger.debug(
+        f"configuration: {configuration.model_dump_json(exclude_none=True)}"
+    )
     return configuration
 
 

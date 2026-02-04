@@ -464,12 +464,12 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
         },
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 502
     assert response.json() == {
         "error": {
             "message": "Invalid upstream endpoint format",
-            "type": "invalid_request_error",
-            "code": "400",
+            "type": "internal_server_error",
+            "code": "502",
         }
     }
 
@@ -1235,7 +1235,7 @@ async def test_rate_limit_exceeded_during_streaming():
     )
 
     mock_stream = OpenAIStream(
-        mock_event.dict(),
+        mock_event.model_dump(),
         {
             "error": {
                 "message": "no_kv_space",

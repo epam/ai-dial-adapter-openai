@@ -267,7 +267,9 @@ class EventHandler(pydantic.BaseModel):
         self, event: ResponseStreamEvent
     ) -> Generator[ChatCompletionChunk | ErrorChunk, None, None]:
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"event[{event.type}]: {json.dumps(event.dict())}")
+            logger.debug(
+                f"event[{event.type}]: {json.dumps(event.model_dump())}"
+            )
 
         match event:
             case ResponseCreatedEvent(response=response):

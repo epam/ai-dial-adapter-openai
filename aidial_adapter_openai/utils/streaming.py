@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from time import time
 from typing import (
     AsyncIterator,
@@ -21,7 +22,6 @@ from aidial_sdk.utils.merge_chunks import (
 )
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
-from pydantic import BaseModel
 
 from aidial_adapter_openai.exception_handlers import to_adapter_exception
 from aidial_adapter_openai.utils.adapter_exception import AdapterException
@@ -234,8 +234,9 @@ def streaming_chunks_to_block_response(chunks: List[dict]) -> dict:
 _Body = TypeVar("_Body")
 
 
-class ResponseWithHeaders(Generic[_Body], BaseModel):
-    headers: dict[str, str] | None = None
+@dataclass
+class ResponseWithHeaders(Generic[_Body]):
+    headers: dict[str, str] | None
     body: _Body
 
 

@@ -13,6 +13,9 @@ from aidial_adapter_openai.audio_api.transcribe.adapter import (
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
+from aidial_adapter_openai.chat_completions.gpt_audio import (
+    extract_audio_content,
+)
 from aidial_adapter_openai.chat_completions.gpt_oss import (
     extract_reasoning_tokens,
 )
@@ -82,7 +85,7 @@ async def call_chat_completion(
     deployment = app_config.get_chat_completion_deployment_type(
         deployment_id, upstream_endpoint
     )
-    logger.debug(f"deployment api type: {deployment.json()}")
+    logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
     creds = await get_credentials(request_headers)
@@ -180,6 +183,8 @@ async def call_chat_completion(
             )
 
             response.body = extract_reasoning_tokens(response.body)
+            response.body = extract_audio_content(response.body, request_body)
+
             return response
 
         case _:
@@ -198,6 +203,9 @@ async def chat_completion(deployment_id: str, request: Request):
 
     if emulate_streaming:
         request_body["stream"] = False
+
+    if not is_stream and request_body.get("stream_options") is not None:
+        request_body.pop("stream_options")
 
     api_version = get_api_version(request)
 

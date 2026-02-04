@@ -1,10 +1,11 @@
 import base64
 import hashlib
 import mimetypes
-from typing import Mapping, Optional, TypedDict
+from typing import Mapping, Optional
 from urllib.parse import unquote, urljoin
 
 from pydantic import BaseModel, SecretStr
+from typing_extensions import TypedDict
 
 from aidial_adapter_openai.utils.env import get_env, get_env_bool
 from aidial_adapter_openai.utils.http_client import get_http_client

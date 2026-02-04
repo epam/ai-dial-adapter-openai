@@ -20,7 +20,7 @@ async def test_response_model_name(test_app: httpx.AsyncClient):
             tools=[],
         )
         return httpx.Response(
-            status_code=200, content=json.dumps(dummy_response.dict())
+            status_code=200, content=json.dumps(dummy_response.model_dump())
         )
 
     respx.post("http://localhost:5001/openai/v1/responses").mock(
