@@ -39,10 +39,7 @@ class _AudioResponseTransformer(BaseModel):
         )
 
     def __call__(self, chunk: dict) -> dict:
-        choices = chunk.get("choices")
-        if not choices:
-            return chunk
-
+        choices = chunk.get("choices") or []
         for choice in choices:
             message = choice.get(self.message_key)
             if not message:

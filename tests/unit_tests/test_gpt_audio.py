@@ -55,7 +55,8 @@ class TestNonStreamingAudio:
                 True,
                 None,
                 lambda s: s["content"] == "Just transcript"
-                and s["name"] == "Audio transcript",
+                and s["name"] == "Audio transcript"
+                and s["status"] == "completed",
             ),
             # No audio field
             (None, False, False, None, None),
