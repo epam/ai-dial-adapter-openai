@@ -27,18 +27,18 @@ async def test_stream_options(test_app: httpx.AsyncClient, stream: bool):
         stream_options = "stream_options" in body
 
         if stream:
-            assert (
-                stream_options
-            ), "stream_options should be preserved for streaming requests"
+            assert stream_options, (
+                "stream_options should be preserved for streaming requests"
+            )
             return httpx.Response(
                 status_code=200,
                 headers={"Content-Type": "text/event-stream"},
                 content=chat_completion_response.to_content(),
             )
         else:
-            assert (
-                not stream_options
-            ), "stream_options should be removed for non-streaming requests"
+            assert not stream_options, (
+                "stream_options should be removed for non-streaming requests"
+            )
             return httpx.Response(
                 status_code=200,
                 json=chat_completion_response.to_block_response(),

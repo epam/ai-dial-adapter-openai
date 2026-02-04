@@ -108,6 +108,6 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
             assert re.search(display_message, str(actual_exc))
     else:
         actual_output = await run_chat_completion()
-        assert test_case.expected(
-            actual_output
-        ), f"Failed output test, actual output: {actual_output}"
+        assert test_case.expected(actual_output), (
+            f"Failed output test, actual output: {actual_output}"
+        )

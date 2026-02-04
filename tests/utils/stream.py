@@ -30,8 +30,7 @@ class OpenAIStream:
         assert_equality: Callable[[Any, Any], None],
         usages: dict[int, dict] = {},
     ):
-        line_idx = 0
-        for line in response.iter_lines():
+        for line_idx, line in enumerate(response.iter_lines()):
             chunk_idx = line_idx // 2
 
             if line_idx % 2 == 1:
@@ -48,8 +47,6 @@ class OpenAIStream:
 
             else:
                 assert False
-
-            line_idx += 1
 
 
 def chunk(

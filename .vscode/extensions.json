@@ -1,8 +1,7 @@
 {
     "recommendations": [
         "ms-python.python",
-        "ms-python.black-formatter",
-        "ms-python.isort",
+        "charliermarsh.ruff",
         "tamasfe.even-better-toml",
         "davidanson.vscode-markdownlint",
         "streetsidesoftware.code-spell-checker"

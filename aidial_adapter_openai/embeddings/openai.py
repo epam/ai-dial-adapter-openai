@@ -12,7 +12,6 @@ async def embeddings(
     endpoint: str,
     api_version: str,
 ) -> CreateEmbeddingResponse:
-
     client = embeddings_parser.parse(endpoint).get_client(
         {**creds, "api_version": api_version}
     )

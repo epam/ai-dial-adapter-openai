@@ -164,10 +164,12 @@ async def test_discarded_messages_without_error(
     response: Tuple[List[dict], List[int]],
 ):
     tokenizer = Tokenizer(model="gpt-4")
-    truncated_messages, discarded_messages, _used_tokens = (
-        await plain_text_truncate_prompt(
-            {}, messages, max_prompt_tokens, tokenizer
-        )
+    (
+        truncated_messages,
+        discarded_messages,
+        _used_tokens,
+    ) = await plain_text_truncate_prompt(
+        {}, messages, max_prompt_tokens, tokenizer
     )
     assert (truncated_messages, discarded_messages) == response
 

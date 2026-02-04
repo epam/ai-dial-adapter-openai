@@ -2,10 +2,9 @@ import asyncio
 from typing import Any, Dict, List, assert_never
 
 import fastapi
-from aidial_sdk.chat_completion import Choice
+from aidial_sdk.chat_completion import Choice, Stage
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
-from aidial_sdk.chat_completion import Stage
 from aidial_sdk.exceptions import InternalServerError, RequestValidationError
 from fastapi.responses import StreamingResponse
 from httpx._types import RequestFiles
@@ -186,37 +185,39 @@ async def chat_completion(
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
         response.set_model(model_name)
 
-        with response.create_single_choice() as choice:
-            with choice.create_stage(name="Generation") as stage:
-                job_id = await _create_job(
-                    request=CreateVideoGenerationRequest.create(
-                        model=model_name,
-                        prompt=prompt.prompt,
-                        width=configuration.width,
-                        height=configuration.height,
-                        n_seconds=configuration.n_seconds,
-                        n_variants=configuration.n_variants,
-                        inpaint_items=inpaint_items,
-                    ),
-                    files=files,
-                    stage=stage,
-                    client=client,
-                )
+        with (
+            response.create_single_choice() as choice,
+            choice.create_stage(name="Generation") as stage,
+        ):
+            job_id = await _create_job(
+                request=CreateVideoGenerationRequest.create(
+                    model=model_name,
+                    prompt=prompt.prompt,
+                    width=configuration.width,
+                    height=configuration.height,
+                    n_seconds=configuration.n_seconds,
+                    n_variants=configuration.n_variants,
+                    inpaint_items=inpaint_items,
+                ),
+                files=files,
+                stage=stage,
+                client=client,
+            )
 
-                video_generations = await _poll_job(
-                    stage=stage,
-                    client=client,
-                    job_id=job_id,
-                    polling_interval=3.0,
-                )
+            video_generations = await _poll_job(
+                stage=stage,
+                client=client,
+                job_id=job_id,
+                polling_interval=3.0,
+            )
 
-                await _download_videos(
-                    response=response,
-                    choice=choice,
-                    storage=file_storage,
-                    client=client,
-                    video_generations=video_generations,
-                )
+            await _download_videos(
+                response=response,
+                choice=choice,
+                storage=file_storage,
+                client=client,
+                video_generations=video_generations,
+            )
 
     return await sdk_adapter(
         request=request,

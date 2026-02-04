@@ -173,7 +173,6 @@ async def call_chat_completion(
                 assert_never(deployment_type)
 
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
-
             response = await gpt_chat_completion(
                 request=request_body,
                 request_headers=request_headers,
