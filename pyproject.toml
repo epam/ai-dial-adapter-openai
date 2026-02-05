@@ -27,7 +27,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 fastapi = "0.120.2"
-openai = "1.90.0"
+openai = "2.16.0"
 tiktoken = "0.12.0"
 uvicorn = "0.23.0"
 wrapt = "1.15.0"
@@ -53,7 +53,7 @@ pytest-env = "1.1.1"
 rapidfuzz = "^3.14.1"
 
 [tool.poetry.group.lint.dependencies]
-pyright = "1.1.324"
+pyright = "1.1.408"
 ruff = "0.12.11"
 
 [tool.poetry.group.dev.dependencies]
@@ -73,7 +73,7 @@ filterwarnings = [
   "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies",
   "ignore::DeprecationWarning:pkg_resources",
   # Workaround for this bug: https://github.com/openai/openai-python/issues/1039
-  "ignore:Pydantic serializer warnings:UserWarning:pydantic.*"
+  "ignore:Pydantic serializer warnings:UserWarning:pydantic.*",
 ]
 
 [tool.pyright]
