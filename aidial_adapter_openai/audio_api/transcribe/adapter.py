@@ -47,26 +47,19 @@ def _get_usage(
     if duration is not None and isinstance(duration, (float, int)):
         return TokenUsage(prompt_tokens=int(duration))
 
-    usage_dict: dict | None = getattr(chunk, "usage", None)  # type: ignore
-    if usage_dict is None:
+    if (token_usage := chunk.usage) is None:
         return None
 
-    if (type := usage_dict.get("type")) is None:
-        return None
-
-    # NOTE: gpt-4o supposed to return usage in tokens, whisper - in seconds,
-    # however whisper doesn't return usage field at all.
-    match type:
+    match token_usage.type:
         case "tokens":
             return TokenUsage(
-                prompt_tokens=usage_dict.get("input_tokens"),
-                completion_tokens=usage_dict.get("output_tokens"),
+                prompt_tokens=token_usage.input_tokens,
+                completion_tokens=token_usage.output_tokens,
             )
         case "duration":
-            return TokenUsage(prompt_tokens=int(usage_dict.get("seconds") or 0))
+            return TokenUsage(prompt_tokens=int(token_usage.seconds))
         case _:
-            logger.error(f"Unknown type of usage: {type!r}.")
-            return None
+            assert_never(token_usage.type)
 
 
 AudioResponse = (
