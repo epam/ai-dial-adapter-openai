@@ -66,7 +66,7 @@ def build_tools_common(s: TestSuite) -> None:
             init_messages.insert(0, sys("act as a helpful assistant"))
 
         def create_tool_call_id(idx: int):
-            return f"{fun_name}_{idx+1}"
+            return f"{fun_name}_{idx + 1}"
 
         s.test_case(
             name=f"weather tool {test_name_suffix}",

@@ -29,19 +29,21 @@ from tests.utils.string import is_close_enough
 def mock_storage(request):
     test_name = request.node.name
     root_dir = Path(__file__).parent / "mock-storage" / test_name
-    with MockFileStorage.create(root_dir) as storage:
-        with patch(
+    with (
+        MockFileStorage.create(root_dir) as storage,
+        patch(
             "aidial_adapter_openai.endpoints.chat_completion.create_file_storage",
             return_value=storage,
-        ):
-            yield storage
+        ),
+    ):
+        yield storage
 
 
 D = DeploymentConfig[ChatCompletionDeploymentType]
 
-_tts_deployments: List[D] = list(
+_tts_deployments: List[D] = [
     d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if d.supports_tts
-)
+]
 
 if _tts_deployments:
 
@@ -56,9 +58,9 @@ else:
         pytest.skip("No TTS deployments were found")
 
 
-_stt_deployments: List[D] = list(
+_stt_deployments: List[D] = [
     d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if d.supports_stt
-)
+]
 
 if _stt_deployments:
 

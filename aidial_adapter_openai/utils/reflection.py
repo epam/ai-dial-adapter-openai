@@ -7,7 +7,7 @@ from aidial_sdk.exceptions import InvalidRequestError
 
 @functools.lru_cache(maxsize=64)
 def _inspect_signature(
-    func: Callable[..., Coroutine[Any, Any, Any]]
+    func: Callable[..., Coroutine[Any, Any, Any]],
 ) -> inspect.Signature:
     return inspect.signature(func)
 

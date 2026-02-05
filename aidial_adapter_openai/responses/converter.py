@@ -211,7 +211,6 @@ def _convert_message(
 ) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
         case "user" | "assistant" | "system" | "developer":
-
             if message.get("function_call"):
                 raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
@@ -310,7 +309,7 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                 if summary:
                     stages: List[Stage] = []
                     for index, summary_part in enumerate(summary):
-                        suffix = "" if index == 0 else f" #{index+1}"
+                        suffix = "" if index == 0 else f" #{index + 1}"
                         stages.append(
                             Stage(
                                 name="Reasoning" + suffix,

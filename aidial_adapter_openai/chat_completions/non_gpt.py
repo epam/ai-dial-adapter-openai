@@ -11,9 +11,9 @@ from aidial_adapter_openai.utils.streaming import chunk_to_dict, map_stream
 async def chat_completion(
     *, request: dict, client: AsyncAzureOpenAI | AsyncOpenAI
 ) -> AsyncIterator[dict] | dict:
-    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
-        await call_with_extra_body(client.chat.completions.create, request)
-    )
+    response: (
+        AsyncStream[ChatCompletionChunk] | ChatCompletion
+    ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
         return map_stream(chunk_to_dict, response)

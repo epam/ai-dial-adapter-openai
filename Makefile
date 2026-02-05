@@ -7,7 +7,7 @@ POETRY_VERSION ?= 2.1.1
 PYDANTIC_V2 ?= 1
 ARGS ?=
 
-.PHONY: all init_env install build serve clean lint format test integration_tests docker_build docker_run
+.PHONY: all init_env install build serve lint format test integration_tests docker_build docker_run
 
 all: build
 
@@ -23,10 +23,6 @@ build: install
 
 serve: install
 	$(POETRY) run uvicorn "aidial_adapter_openai.app:app" --reload --host "0.0.0.0" --port $(PORT) --workers=1 --env-file ./.env
-
-clean:
-	$(POETRY) run clean
-	$(POETRY) env remove --all
 
 lint: install
 	$(POETRY) run nox -s lint

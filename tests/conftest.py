@@ -24,7 +24,7 @@ async def disable_caches():
     #
     # Once that loop is closed and a new one is created for the next test,
     # the cached object becomes invalid — leading to the error:
-    # "RuntimeError: Event loop is closed"
+    #   `RuntimeError: Event loop is closed`
     #
     # To avoid this, we clear or disable any caches that may hold event loop-bound state.
 

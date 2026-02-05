@@ -26,7 +26,7 @@ MessageType = TypeVar("MessageType")
 
 
 _TIKTOKEN_MODEL_PREFIXES = [
-    f'"{p}"' for p in MODEL_PREFIX_TO_ENCODING.keys() if not p.startswith("ft:")
+    f'"{p}"' for p in MODEL_PREFIX_TO_ENCODING if not p.startswith("ft:")
 ]
 
 _DEFAULT_TOKENIZER_MODEL = "gpt-4o"
@@ -39,7 +39,7 @@ def _get_tiktoken_warning_message(model: str) -> str:
     return (
         f"Could not find tokenizer for the model {model!r} in the tiktoken package. "
         f"Consider mapping the model to an existing tokenizer via {var_name} variable in the adapter OpenAI environment: "
-        f'{var_name}=\'{{"{model}": $prefix}}\', where $prefix is one of: {", ".join(_TIKTOKEN_MODEL_PREFIXES)}. '
+        f"{var_name}='{{\"{model}\": $prefix}}', where $prefix is one of: {', '.join(_TIKTOKEN_MODEL_PREFIXES)}. "
         "Alternatively, declare the deployment as a model that doesn't require tokenization via tiktoken. "
         f"Meantime, the default tokenizer of the {_DEFAULT_TOKENIZER_MODEL!r} model will be used instead: {_DEFAULT_TOKENIZER_ENCODING.name!r}."
     )

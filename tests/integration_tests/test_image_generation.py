@@ -21,21 +21,23 @@ from tests.utils.storage import MockFileStorage
 def mock_storage(request):
     test_name = request.node.name
     root_dir = Path(__file__).parent / "mock-storage" / test_name
-    with MockFileStorage.create(root_dir) as storage:
-        with patch(
+    with (
+        MockFileStorage.create(root_dir) as storage,
+        patch(
             "aidial_adapter_openai.endpoints.chat_completion.create_file_storage",
             return_value=storage,
-        ):
-            yield storage
+        ),
+    ):
+        yield storage
 
 
 D = DeploymentConfig[ChatCompletionDeploymentType]
 
-_deployments: List[D] = list(
+_deployments: List[D] = [
     d
     for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments
     if d.model_features.imageGenerationSupported
-)
+]
 
 if _deployments:
 

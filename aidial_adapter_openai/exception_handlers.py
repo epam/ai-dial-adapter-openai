@@ -1,3 +1,4 @@
+import contextlib
 import re
 from functools import wraps
 
@@ -23,7 +24,6 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
 
 
 def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
-
     if isinstance(exc, (DialException, ResponseWrapper)):
         return exc
 
@@ -76,10 +76,8 @@ def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
         # Streaming errors are reported by `openai` library via this exception
         status_code: int = 500
         if exc.code:
-            try:
+            with contextlib.suppress(Exception):
                 status_code = int(exc.code)
-            except Exception:
-                pass
             if exc.code == "rate_limit_exceeded":
                 status_code = 429
 

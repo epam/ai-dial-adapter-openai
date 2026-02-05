@@ -83,7 +83,6 @@ class MessageTransformer:
     async def download_attachments(
         self, attachments: List[dict]
     ) -> List[ChatCompletionContentPartImageParam | File]:
-
         if attachments:
             logger.debug(f"original attachments: {attachments}")
 
@@ -204,7 +203,7 @@ class ResourceProcessor(BaseModel):
         ]
 
         if errors:
-            fails = sorted(list(errors))
+            fails = sorted(errors)
             msg = "The following files failed to process:\n"
             msg += "\n".join(
                 f"{idx}. {error.name}: {decapitalize(error.message)}"

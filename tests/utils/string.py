@@ -12,8 +12,8 @@ def is_close_enough(expected: str, actual: str, limit: int = 4) -> bool:
     expected, actual = _sanitize_text(expected), _sanitize_text(actual)
 
     dist = Levenshtein.distance(expected, actual)
-    assert (
-        dist <= limit
-    ), f"Levenshtein distance between {expected!r} and {actual!r} is too big: {dist}, but expected under {limit}"
+    assert dist <= limit, (
+        f"Levenshtein distance between {expected!r} and {actual!r} is too big: {dist}, but expected under {limit}"
+    )
 
     return True

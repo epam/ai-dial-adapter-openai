@@ -69,13 +69,15 @@ async def _truncate_messages(
     Callable[[], Coroutine[None, None, TruncatedTokens]],
 ]:
     if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
-        messages, discarded_indices, prompt_tokens = (
-            await multi_modal_truncate_prompt(
-                request=request,
-                messages=messages,
-                max_prompt_tokens=max_prompt_tokens,
-                tokenizer=tokenizer,
-            )
+        (
+            messages,
+            discarded_indices,
+            prompt_tokens,
+        ) = await multi_modal_truncate_prompt(
+            request=request,
+            messages=messages,
+            max_prompt_tokens=max_prompt_tokens,
+            tokenizer=tokenizer,
         )
 
         logger.debug(
@@ -114,15 +116,17 @@ async def chat_completion(
         file_storage=file_storage
     ).transform_messages(messages)
 
-    multi_modal_messages, discarded_messages, get_prompt_tokens = (
-        await _truncate_messages(request, multi_modal_messages, tokenizer)
-    )
+    (
+        multi_modal_messages,
+        discarded_messages,
+        get_prompt_tokens,
+    ) = await _truncate_messages(request, multi_modal_messages, tokenizer)
 
     request["messages"] = [m.raw_message for m in multi_modal_messages]
 
-    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
-        await call_with_extra_body(client.chat.completions.create, request)
-    )
+    response: (
+        AsyncStream[ChatCompletionChunk] | ChatCompletion
+    ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
         response_headers = await get_response_headers_for_caching(

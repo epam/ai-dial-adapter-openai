@@ -146,7 +146,7 @@ class EventHandler(pydantic.BaseModel):
         self, stage_index: int, content: str
     ) -> Generator[ChatCompletionChunk, None, None]:
         for index in range(self.stages, stage_index + 1):
-            suffix = "" if index == 0 else f" #{index+1}"
+            suffix = "" if index == 0 else f" #{index + 1}"
             yield self._open_stage(index, "Reasoning" + suffix)
 
         self.stages = max(self.stages, stage_index + 1)
@@ -288,9 +288,10 @@ class EventHandler(pydantic.BaseModel):
                     choice=Choice(index=0, delta=ChoiceDelta(content=delta))
                 )
 
-            case ResponseCompletedEvent(
-                response=response
-            ) | ResponseIncompleteEvent(response=response):
+            case (
+                ResponseCompletedEvent(response=response)
+                | ResponseIncompleteEvent(response=response)
+            ):
                 yield self._chunk(
                     choice=Choice(
                         index=0,
