@@ -5,8 +5,8 @@ from aidial_sdk.utils.merge_chunks import (
     cleanup_indices,
     merge_chat_completion_chunks,
 )
-from openai import APIError, AsyncAzureOpenAI, AsyncStream, NotGiven
-from openai._types import NOT_GIVEN
+from openai import APIError, AsyncAzureOpenAI, AsyncStream, Omit
+from openai._types import omit
 from openai.types import CompletionUsage, ReasoningEffort
 from openai.types.chat import (
     ChatCompletion,
@@ -215,15 +215,15 @@ async def chat_completion(
     deployment_id: str,
     messages: List[ChatCompletionMessageParam],
     stream: bool,
-    stop: List[str] | NotGiven = NOT_GIVEN,
-    max_completion_tokens: int | NotGiven = NOT_GIVEN,
-    max_tokens: int | NotGiven = NOT_GIVEN,
-    n: int | NotGiven = NOT_GIVEN,
-    functions: List[Function] | NotGiven = NOT_GIVEN,
-    tools: List[ChatCompletionToolParam] | NotGiven = NOT_GIVEN,
-    temperature: float | NotGiven = NOT_GIVEN,
-    reasoning_effort: ReasoningEffort | NotGiven = NOT_GIVEN,
-    response_format: ResponseFormat | NotGiven = NOT_GIVEN,
+    stop: List[str] | Omit = omit,
+    max_completion_tokens: int | Omit = omit,
+    max_tokens: int | Omit = omit,
+    n: int | Omit = omit,
+    functions: List[Function] | Omit = omit,
+    tools: List[ChatCompletionToolParam] | Omit = omit,
+    temperature: float | Omit = omit,
+    reasoning_effort: ReasoningEffort | Omit = omit,
+    response_format: ResponseFormat | Omit = omit,
     extra_body: dict | None = None,
 ) -> ChatCompletionResult:
     async def get_response() -> ChatCompletion:
@@ -236,10 +236,10 @@ async def chat_completion(
             max_tokens=max_tokens,
             temperature=temperature,
             n=n,
-            function_call="auto" if functions is not NOT_GIVEN else NOT_GIVEN,
+            function_call="auto" if functions is not omit else omit,
             functions=functions,
-            tool_choice="auto" if tools is not NOT_GIVEN else NOT_GIVEN,
-            tools=tools or NOT_GIVEN,
+            tool_choice="auto" if tools is not omit else omit,
+            tools=tools or omit,
             reasoning_effort=reasoning_effort,
             response_format=response_format,
             extra_body=extra_body,

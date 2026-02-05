@@ -6,7 +6,7 @@ import openai
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from fastapi.responses import StreamingResponse
-from openai import AsyncAzureOpenAI, AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI, omit
 from openai.types.audio import (
     TranscriptionTextDeltaEvent,
     TranscriptionTextDoneEvent,
@@ -111,11 +111,11 @@ async def chat_completion(
 
     audio_response = await client.audio.transcriptions.create(
         file=file,
-        prompt=prompt.system_message or openai.NOT_GIVEN,
+        prompt=prompt.system_message or omit,
         model=model_name,
         stream=is_stream,
         response_format=response_format,
-        temperature=request_body.get("temperature") or openai.NOT_GIVEN,
+        temperature=request_body.get("temperature") or omit,
     )
 
     audio_response = await normalize_audio_response(audio_response)
