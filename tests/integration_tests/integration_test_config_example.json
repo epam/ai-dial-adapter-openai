@@ -308,7 +308,7 @@
                 "imageGenerationSupported": true
             }
         },
-        "sora": {
+        "sora-1": {
             "overrideName": "sora",
             "type": "chat",
             "upstreams": [

@@ -5,7 +5,7 @@ import fastapi
 from aidial_sdk.chat_completion import Choice, Stage
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
-from aidial_sdk.exceptions import InternalServerError
+from aidial_sdk.exceptions import InternalServerError, InvalidRequestError
 from fastapi.responses import StreamingResponse
 from openai import AsyncAzureOpenAI, AsyncOpenAI, omit
 from openai.types import Video
@@ -25,7 +25,7 @@ from aidial_adapter_openai.video_generation.openai.prompt import (
 from aidial_adapter_openai.video_generation.request import validate_request
 
 
-def _get_configuration(request: dict) -> VideoGenerationConfig:
+def _parse_configuration(request: dict) -> VideoGenerationConfig:
     configuration = (
         parse_configuration(VideoGenerationConfig, request)
         or VideoGenerationConfig()
@@ -53,18 +53,24 @@ async def _poll_job(
 
             case "failed":
                 stage.append_content("Failed\n\n")
-                message = "Video generation has failed"
+
+                message = "Video generation job failed"
+                code = None
                 if err := video_job.error:
-                    message += f": {err.message} (code={err.code})"
-                raise InternalServerError(
-                    message=message, display_message=message
-                )
+                    message += f": {err.message}"
+                    code = err.code
+
+                if code == "moderation_blocked":
+                    code = "content_filter"
+                    raise InvalidRequestError(message=message, code=code)
+                else:
+                    raise InternalServerError(message=message, code=code)
 
             case "queued":
                 stage.append_content("Queued\n\n")
 
             case "in_progress":
-                stage.append_content(f"In progress: {video_job.progress}%\n\n")
+                stage.append_content("In progress\n\n")
 
             case _:
                 raise InternalServerError(f"Unexpected job status: {status}")
@@ -76,7 +82,6 @@ async def _poll_job(
 
 async def _download_video(
     *,
-    response: DIALResponse,
     choice: Choice,
     client: AsyncOpenAI,
     video_id: str,
@@ -101,8 +106,6 @@ async def _download_video(
         )
     )
 
-    response.set_usage(prompt_tokens=0, completion_tokens=1)
-
 
 async def chat_completion(
     *,
@@ -120,7 +123,7 @@ async def chat_completion(
         )
 
     model_name = request_body["model"]
-    configuration = _get_configuration(request_body)
+    configuration = _parse_configuration(request_body)
     prompt = await VideoGenPrompt.from_request(request_body, file_storage)
 
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
@@ -130,11 +133,16 @@ async def chat_completion(
             response.create_single_choice() as choice,
             choice.create_stage(name="Video generation") as stage,
         ):
+            if (seconds_arg := configuration.seconds) is None:
+                seconds = omit
+            else:
+                seconds = str(seconds_arg)
+
             video_job = await client.videos.create(
                 model=model_name,
                 prompt=prompt.prompt,
                 input_reference=get_last_file(prompt) or omit,
-                seconds=configuration.seconds or omit,  # type: ignore
+                seconds=seconds,  # type: ignore
                 size=configuration.size or omit,  # type: ignore
                 extra_body=configuration.model_extra,
             )
@@ -147,11 +155,14 @@ async def chat_completion(
             )
 
             await _download_video(
-                response=response,
                 choice=choice,
                 storage=file_storage,
                 client=client,
                 video_id=video_id,
+            )
+
+            response.set_usage(
+                prompt_tokens=0, completion_tokens=int(video_job.seconds)
             )
 
     return await sdk_adapter(

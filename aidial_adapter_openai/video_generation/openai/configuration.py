@@ -5,7 +5,7 @@ from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 
 
 class VideoGenerationConfig(ExtraAllowedModel):
-    seconds: VideoSeconds | str | None = Field(
+    seconds: VideoSeconds | int | str | None = Field(
         default=None,
         description="Clip duration in seconds (allowed values: 4, 8, 12). Defaults to 4 seconds.",
     )

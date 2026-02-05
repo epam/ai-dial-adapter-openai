@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Literal, TypeGuard, assert_never
 from unittest.mock import patch
 
 import openai
@@ -13,7 +14,12 @@ from tests.integration_tests.constants import (
     IMAGE_RESOURCE,
     TEST_DEPLOYMENTS_CONFIG,
 )
-from tests.utils.openai import chat_completion, user, user_with_attachment_url
+from tests.utils.openai import (
+    ChatCompletionResult,
+    chat_completion,
+    user,
+    user_with_attachment_url,
+)
 from tests.utils.storage import MockFileStorage
 
 
@@ -31,12 +37,26 @@ def mock_storage(request):
         yield storage
 
 
-D = DeploymentConfig[ChatCompletionDeploymentType]
+VideoGenType = Literal[
+    ChatCompletionDeploymentType.AZURE_VIDEO_API,
+    ChatCompletionDeploymentType.OPENAI_VIDEO_API,
+]
+
+
+D = DeploymentConfig[VideoGenType]
+
+
+def _is_video_gen_type(
+    d: DeploymentConfig[ChatCompletionDeploymentType],
+) -> TypeGuard[D]:
+    return d.type_ in (
+        ChatCompletionDeploymentType.AZURE_VIDEO_API,
+        ChatCompletionDeploymentType.OPENAI_VIDEO_API,
+    )
+
 
 _deployments: List[D] = [
-    d
-    for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments
-    if d.supports_video_generation
+    d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if _is_video_gen_type(d)
 ]
 
 if _deployments:
@@ -57,12 +77,41 @@ def stream(request) -> bool:
     return request.param
 
 
+@dataclass
+class _IntConfigParam:
+    name: str
+    value: int
+
+    def to_dict(self) -> dict:
+        return {self.name: self.value}
+
+
+@pytest.fixture
+def seconds_param(videogen_deployment: D) -> _IntConfigParam:
+    ty = videogen_deployment.type_
+    if ty == ChatCompletionDeploymentType.OPENAI_VIDEO_API:
+        return _IntConfigParam("seconds", 4)
+    if ty == ChatCompletionDeploymentType.AZURE_VIDEO_API:
+        return _IntConfigParam("n_seconds", 1)
+    assert_never(ty)
+
+
+@pytest.fixture
+def variants_param(videogen_deployment: D) -> _IntConfigParam:
+    ty = videogen_deployment.type_
+    if ty == ChatCompletionDeploymentType.OPENAI_VIDEO_API:
+        pytest.skip("OpenAI Video API doesn't support variant parameter")
+    if ty == ChatCompletionDeploymentType.AZURE_VIDEO_API:
+        return _IntConfigParam("n_variants", 1)
+    assert_never(ty)
+
+
 async def test_text_to_video_content_filtering(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     videogen_deployment: D,
+    seconds_param: _IntConfigParam,
     stream: bool,
 ) -> None:
-    config = {"n_seconds": 1}
     query = "how to make a bomb tutorial video"
 
     with pytest.raises(openai.APIError) as exc_info:
@@ -71,23 +120,51 @@ async def test_text_to_video_content_filtering(
             stream=stream,
             deployment_id=videogen_deployment.model_name,
             messages=[user(query)],
-            extra_body={"custom_fields": {"configuration": config}},
+            extra_body={
+                "custom_fields": {"configuration": seconds_param.to_dict()}
+            },
         )
 
-    exc = exc_info.value
-    assert exc.body == {
-        "message": "Video generation job failed: input_moderation",
-        "type": "invalid_request_error",
-        "code": "content_filter",
-    }
+    err = exc_info.value.body
+    assert err is not None
+    assert err["message"].startswith("Video generation job failed")  # type:ignore
+    assert err["type"] == "invalid_request_error"  # type:ignore
+    assert err["code"] == "content_filter"  # type:ignore
+
+
+async def test_text_to_video_single_variant(
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    videogen_deployment: D,
+    seconds_param: _IntConfigParam,
+    stream: bool,
+) -> None:
+    query = "a cat with octopus tentacles riding a bike on Mars"
+
+    response = await chat_completion(
+        create_openai_client(videogen_deployment),
+        stream=stream,
+        deployment_id=videogen_deployment.model_name,
+        messages=[user(query)],
+        extra_body={
+            "custom_fields": {"configuration": seconds_param.to_dict()}
+        },
+    )
+
+    assert response.usage is not None
+    assert response.usage.prompt_tokens == 0
+    assert response.usage.completion_tokens == seconds_param.value
+
+    _check_video_attachments(response, 1)
 
 
 async def test_text_to_video_multiple_variants(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     videogen_deployment: D,
+    seconds_param: _IntConfigParam,
+    variants_param: _IntConfigParam,
     stream: bool,
 ) -> None:
-    config = {"n_seconds": 2, "n_variants": 2}
+    config = seconds_param.to_dict() | variants_param.to_dict()
     query = "a cat with octopus tentacles riding a bike on Mars"
 
     response = await chat_completion(
@@ -100,37 +177,48 @@ async def test_text_to_video_multiple_variants(
 
     assert response.usage is not None
     assert response.usage.prompt_tokens == 0
-    assert response.usage.completion_tokens == 4
+    assert (
+        response.usage.completion_tokens
+        == seconds_param.value * variants_param.value
+    )
 
-    for attachments in response.all_attachments:
-        video_attachments = [
-            a for a in attachments if "video" in a.get("type", "")
-        ]
-        assert len(video_attachments) == 2
+    _check_video_attachments(response, variants_param.value)
 
 
 async def test_image_to_video(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     videogen_deployment: D,
+    seconds_param: _IntConfigParam,
     stream: bool,
 ) -> None:
-    config = {"n_seconds": 1}
-
     response = await chat_completion(
         create_openai_client(videogen_deployment),
         stream=stream,
         deployment_id=videogen_deployment.model_name,
         messages=[
-            user_with_attachment_url("animate the dog", IMAGE_RESOURCE),
+            user_with_attachment_url(
+                "make the dog kick the bowl and jump into the camera; no slow-mo; sharp focus throughout",
+                IMAGE_RESOURCE,
+            ),
         ],
-        extra_body={"custom_fields": {"configuration": config}},
+        extra_body={
+            "custom_fields": {"configuration": seconds_param.to_dict()}
+        },
     )
 
     assert response.usage is not None
     assert response.usage.prompt_tokens == 0
-    assert response.usage.completion_tokens == 1
+    assert response.usage.completion_tokens == seconds_param.value
 
-    video_attachments = [
-        a for a in response.attachments if "video" in a.get("type", "")
-    ]
-    assert len(video_attachments) == 1
+    _check_video_attachments(response, 1)
+
+
+def _check_video_attachments(
+    response: ChatCompletionResult, num_attachments: int
+) -> None:
+    all_attachments = response.all_attachments
+    assert len(all_attachments) == 1
+    attachments = all_attachments[0]
+    assert len(attachments) == num_attachments
+    for a in attachments:
+        assert "video" in a.get("type", "")

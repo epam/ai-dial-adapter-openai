@@ -166,7 +166,11 @@ class DeploymentConfig(BaseModel, Generic[_T]):
     def supports_video_generation(self):
         return bool(
             isinstance(self.type_, ChatCompletionDeploymentType)
-            and self.type_ == ChatCompletionDeploymentType.AZURE_VIDEO_API
+            and self.type_
+            in (
+                ChatCompletionDeploymentType.AZURE_VIDEO_API,
+                ChatCompletionDeploymentType.OPENAI_VIDEO_API,
+            )
         )
 
     @property
