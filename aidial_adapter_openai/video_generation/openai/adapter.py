@@ -7,7 +7,7 @@ from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from aidial_sdk.exceptions import InternalServerError, InvalidRequestError
 from fastapi.responses import StreamingResponse
-from openai import AsyncAzureOpenAI, AsyncOpenAI, omit
+from openai import AsyncOpenAI, omit
 from openai.types import Video
 
 from aidial_adapter_openai.dial_api.attachment import create_dial_attachment
@@ -111,16 +111,11 @@ async def chat_completion(
     *,
     request: fastapi.Request,
     request_body: Dict[str, Any],
-    client: AsyncAzureOpenAI | AsyncOpenAI,
+    client: AsyncOpenAI,
     deployment_id: str,
     file_storage: FileStorage | None,
 ) -> StreamingResponse | dict:
     validate_request(request_body)
-
-    if isinstance(client, AsyncAzureOpenAI):
-        raise ValueError(
-            "Only v1 API upstream endpoints are supported for OpenAI video generation deployments"
-        )
 
     model_name = request_body["model"]
     configuration = _parse_configuration(request_body)
