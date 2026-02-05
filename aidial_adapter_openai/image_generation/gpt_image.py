@@ -1,6 +1,6 @@
 from typing import Literal
 
-from openai import NOT_GIVEN, NotGiven
+from openai import Omit, omit
 from pydantic import Field
 from pydantic import StrictInt as Int
 from pydantic import StrictStr as Str
@@ -70,8 +70,8 @@ class GptImage1Model(ImageGenerationModel[GptImage1Config]):
     def get_configuration(self) -> type[GptImage1Config]:
         return GptImage1Config
 
-    def get_response_format(self) -> NotGiven:
-        return NOT_GIVEN
+    def get_response_format(self) -> Omit:
+        return omit
 
     def get_image_content_type(self, config: GptImage1Config) -> str:
         ty = config.output_format or "png"

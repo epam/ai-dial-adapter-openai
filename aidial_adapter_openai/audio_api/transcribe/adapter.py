@@ -6,10 +6,11 @@ import openai
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from fastapi.responses import StreamingResponse
-from openai import AsyncAzureOpenAI, AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI, omit
 from openai.types.audio import (
     TranscriptionTextDeltaEvent,
     TranscriptionTextDoneEvent,
+    TranscriptionTextSegmentEvent,
     TranscriptionVerbose,
 )
 from openai.types.audio.transcription_create_response import (
@@ -46,26 +47,19 @@ def _get_usage(
     if duration is not None and isinstance(duration, (float, int)):
         return TokenUsage(prompt_tokens=int(duration))
 
-    usage_dict: dict | None = getattr(chunk, "usage", None)  # type: ignore
-    if usage_dict is None:
+    if (token_usage := chunk.usage) is None:
         return None
 
-    if (type := usage_dict.get("type")) is None:
-        return None
-
-    # NOTE: gpt-4o supposed to return usage in tokens, whisper - in seconds,
-    # however whisper doesn't return usage field at all.
-    match type:
+    match token_usage.type:
         case "tokens":
             return TokenUsage(
-                prompt_tokens=usage_dict.get("input_tokens"),
-                completion_tokens=usage_dict.get("output_tokens"),
+                prompt_tokens=token_usage.input_tokens,
+                completion_tokens=token_usage.output_tokens,
             )
         case "duration":
-            return TokenUsage(prompt_tokens=int(usage_dict.get("seconds") or 0))
+            return TokenUsage(prompt_tokens=int(token_usage.seconds))
         case _:
-            logger.error(f"Unknown type of usage: {type!r}.")
-            return None
+            assert_never(token_usage.type)
 
 
 AudioResponse = (
@@ -111,11 +105,11 @@ async def chat_completion(
 
     audio_response = await client.audio.transcriptions.create(
         file=file,
-        prompt=prompt.system_message or openai.NOT_GIVEN,
+        prompt=prompt.system_message or omit,
         model=model_name,
         stream=is_stream,
         response_format=response_format,
-        temperature=request_body.get("temperature") or openai.NOT_GIVEN,
+        temperature=request_body.get("temperature") or omit,
     )
 
     audio_response = await normalize_audio_response(audio_response)
@@ -134,6 +128,8 @@ async def chat_completion(
                         )
 
                     match chunk:
+                        case TranscriptionTextSegmentEvent():
+                            pass
                         case TranscriptionTextDeltaEvent(delta=delta):
                             choice.append_content(delta)
                         case TranscriptionTextDoneEvent():
