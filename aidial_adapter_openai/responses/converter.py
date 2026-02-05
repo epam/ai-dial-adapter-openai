@@ -240,6 +240,8 @@ def _convert_tool_call(
                 name=custom["name"],
                 input=custom["input"],
             )
+        case _:
+            assert_never(tool_call["type"])
 
 
 def _convert_message(
