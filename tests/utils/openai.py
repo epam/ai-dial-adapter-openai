@@ -13,8 +13,8 @@ from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
     ChatCompletionFunctionMessageParam,
     ChatCompletionMessageParam,
-    ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallParam,
+    ChatCompletionMessageToolCallUnion,
     ChatCompletionSystemMessageParam,
     ChatCompletionToolMessageParam,
     ChatCompletionToolParam,
@@ -200,7 +200,7 @@ class ChatCompletionResult(BaseModel):
         return self.message.function_call
 
     @property
-    def tool_calls(self) -> List[ChatCompletionMessageToolCall] | None:
+    def tool_calls(self) -> List[ChatCompletionMessageToolCallUnion] | None:
         return self.message.tool_calls
 
     def content_contains_all(self, matches: List[Any]) -> bool:
@@ -300,7 +300,7 @@ def is_valid_function_call(
 
 
 def is_valid_tool_call(
-    calls: List[ChatCompletionMessageToolCall] | None,
+    calls: List[ChatCompletionMessageToolCallUnion] | None,
     tool_call_idx: int,
     check_tool_id: Callable[[str], bool],
     expected_name: str,
@@ -309,6 +309,7 @@ def is_valid_tool_call(
     assert calls is not None
 
     call = calls[tool_call_idx]
+    assert call.type == "function"
 
     function = call.function
     assert check_tool_id(call.id)

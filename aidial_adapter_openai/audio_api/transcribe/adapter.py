@@ -10,6 +10,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI, omit
 from openai.types.audio import (
     TranscriptionTextDeltaEvent,
     TranscriptionTextDoneEvent,
+    TranscriptionTextSegmentEvent,
     TranscriptionVerbose,
 )
 from openai.types.audio.transcription_create_response import (
@@ -134,6 +135,8 @@ async def chat_completion(
                         )
 
                     match chunk:
+                        case TranscriptionTextSegmentEvent():
+                            pass
                         case TranscriptionTextDeltaEvent(delta=delta):
                             choice.append_content(delta)
                         case TranscriptionTextDoneEvent():
