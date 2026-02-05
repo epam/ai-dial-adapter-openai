@@ -178,6 +178,7 @@ class ApplicationConfig(ExtraForbidModel):
                 | D.AZURE_VIDEO_API
                 | D.AUDIO_SPEECH_API
                 | D.AUDIO_TRANSCRIPTIONS_API
+                | D.OPENAI_VIDEO_API
             ):
                 pass
             case _:

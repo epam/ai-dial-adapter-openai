@@ -5,7 +5,7 @@ import fastapi
 from aidial_sdk.chat_completion import Choice, Stage
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
-from aidial_sdk.exceptions import InternalServerError, RequestValidationError
+from aidial_sdk.exceptions import InternalServerError
 from fastapi.responses import StreamingResponse
 from httpx._types import RequestFiles
 
@@ -21,48 +21,16 @@ from aidial_adapter_openai.video_generation.azure.client import (
 from aidial_adapter_openai.video_generation.azure.configuration import (
     VideoGenerationConfig,
 )
-from aidial_adapter_openai.video_generation.azure.prompt import VideoGenPrompt
+from aidial_adapter_openai.video_generation.azure.prompt import (
+    VideoGenPrompt,
+    get_files,
+)
 from aidial_adapter_openai.video_generation.azure.types import (
     CreateVideoGenerationRequest,
     JobStatus,
     VideoGeneration,
 )
-
-
-def _validate_request(request: Dict[str, Any]) -> None:
-    errors: List[str] = []
-
-    if (n := request.get("n")) not in [None, 1]:
-        errors.append(
-            f"The deployment doesn't support request.n parameter other than 1, but got {n}."
-        )
-
-    unsupported_params: List[str] = []
-    for param in [
-        "stop",
-        "seed",
-        "top_logprobs",
-        "logprobs",
-        "presence_penalty",
-        "function_call",
-        "functions",
-        "tools",
-        "tool_choice",
-    ]:
-        if request.get(param) is not None:
-            unsupported_params.append(param)
-
-    if unsupported_params:
-        suffix = "s" if len(unsupported_params) > 1 else ""
-        errors.append(
-            f"The deployment doesn't support {', '.join(unsupported_params)} request parameter{suffix}."
-        )
-
-    if not request.get("messages"):
-        errors.append("The request doesn't contain any messages.")
-
-    if errors:
-        raise RequestValidationError(" ".join(errors))
+from aidial_adapter_openai.video_generation.request import validate_request
 
 
 def _get_configuration(request: dict) -> VideoGenerationConfig:
@@ -173,12 +141,12 @@ async def chat_completion(
     upstream_endpoint: str,
     file_storage: FileStorage | None,
 ) -> StreamingResponse | dict:
-    _validate_request(request_body)
+    validate_request(request_body)
 
     model_name = request_body["model"]
     configuration = _get_configuration(request_body)
     prompt = await VideoGenPrompt.from_request(request_body, file_storage)
-    inpaint_items, files = prompt.get_files()
+    inpaint_items, files = get_files(prompt)
 
     client = AzureVideoAPIClient(creds=creds, base_url=upstream_endpoint)
 

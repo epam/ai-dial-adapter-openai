@@ -49,6 +49,9 @@ from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
 )
+from aidial_adapter_openai.video_generation.openai.adapter import (
+    chat_completion as openai_video_gen,
+)
 
 
 def _get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:
@@ -122,6 +125,15 @@ async def call_chat_completion(
                 creds=creds,
                 deployment_id=deployment_id,
                 upstream_endpoint=upstream_endpoint,
+                file_storage=file_storage,
+            )
+
+        case D.OPENAI_VIDEO_API:
+            return await openai_video_gen(
+                request=request,
+                request_body=request_body,
+                client=client,
+                deployment_id=deployment_id,
                 file_storage=file_storage,
             )
 
