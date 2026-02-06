@@ -380,8 +380,48 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 
 The Sora 2 deployment works in either of following modes:
 
-1. **[text-to-video](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#videoscreate) generation**: the last user message is used as a text prompt sent to Sora 2,
+1. **[text-to-video](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#videoscreate) generation**: the last user message is used as a text prompt sent to Sora 2
+
+    <details> <summary>Chat completion request</summary>
+
+    ```json
+    {
+      "model": "sora-2",
+      "messages": [
+        {
+          "role": "system",
+          "content": "A system message that will be ignored"
+        },
+        {
+          "role": "user",
+          "content": "A cat playing with a ball of yarn"
+        }
+      ]
+    }
+    ```
+
+    </details>
+
 2. **[image-to-video](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#video-generation-from-reference-source) generation**: if the last user message has an attachment, this attachment is sent to Sora 2 as a reference source along with the last user message as a text prompt.
+
+    <details> <summary>Chat completion request</summary>
+
+    ```json
+    {
+      "model": "sora-2",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {"type": "text", "text": "Animate the image"},
+            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}}
+          ]
+        }
+      ]
+    }
+    ```
+
+    </details>
 
 [Video remixing](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#remix-video) *(video-to-video generation)* isn't supported.
 
@@ -400,7 +440,7 @@ The Sora 2 deployment supports configuration via the `custom_fields.configuratio
     "configuration": {
       "seconds": 4,
       "size": "720x1280",
-      "auto_crop_reference_images": True
+      "auto_crop_reference_images": true
     }
   }
 }
