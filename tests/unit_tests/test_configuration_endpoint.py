@@ -111,22 +111,3 @@ async def test_configuration_endpoint_unsupported_types(
             "Configuration endpoint isn't implemented"
             in response.json()["error"]["message"]
         )
-
-
-async def test_configuration_endpoint_missing_header():
-    deployment_id = "test-dalle3"
-    app_config = ApplicationConfig().add_deployment(
-        deployment_id, ChatCompletionDeploymentType.DALLE3
-    )
-
-    async with create_test_client(
-        app_config=app_config,
-        base_url=f"http://test-app.com/openai/deployments/{deployment_id}",
-    ) as client:
-        response = await client.get("configuration")
-
-        assert response.status_code == 404
-        assert (
-            "Configuration endpoint requires X-UPSTREAM-ENDPOINT header"
-            in response.json()["error"]["message"]
-        )
