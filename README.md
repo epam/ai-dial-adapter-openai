@@ -21,7 +21,8 @@
     - [Azure OpenAI Responses API (Next generation API)](#azure-openai-responses-api-next-generation-api)
     - [Azure AI Foundry Chat Completions API](#azure-ai-foundry-chat-completions-api)
     - [Azure OpenAI Images API](#azure-openai-images-api)
-    - [Azure OpenAI Video API](#azure-openai-video-api)
+    - [Azure OpenAI Video API (Sora 1 API)](#azure-openai-video-api-sora-1-api)
+    - [Azure OpenAI Sora 2 API](#azure-openai-sora-2-api)
     - [Azure Audio API](#azure-audio-api)
       - [Text-to-speech models (TTS)](#text-to-speech-models-tts)
       - [Speech-to-text models (STT)](#speech-to-text-models-stt)
@@ -296,7 +297,7 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
 > [!IMPORTANT]
 > The DALL·E 3 adapter deployment must be declared in `DALLE3_DEPLOYMENTS` env variable, and GPT-Image 1 deployment - in `GPT_IMAGE_1_DEPLOYMENTS`.
 
-#### [Azure OpenAI Video API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/video-generation-quickstart)
+#### [Azure OpenAI Video API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/video-generation-quickstart) (Sora 1 API)
 
 <details><summary>DIAL Core Config</summary>
 
@@ -305,8 +306,8 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "overrideName": "sora",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/sora/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/video/generations",
@@ -319,8 +320,6 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
 ```
 
 </details>
-
-The supported upstream models are `sora`. This is the value that `AZURE_OPENAI_DEPLOYMENT_ID` variable can take.
 
 The video generation models support configuration via the `custom_fields.configuration` field in the chat completion request:
 
@@ -350,6 +349,59 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 
 > [!NOTE]
 > `n_variants>1` results in multiple video attachments to a **single chat completion choice**.
+
+> [!IMPORTANT]
+> Prompt tokens in the usage are set to zero.
+> Completion tokens are set to the overall number of seconds in the generated video(s).
+
+#### Azure OpenAI Sora 2 API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "sora-2",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/sora-2/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/videos",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Adapter for the Sora 2 model supports configuration via the `custom_fields.configuration` field in the chat completion request:
+
+```json
+{
+  "model": "sora-2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "A cat playing with a ball of yarn"
+    }
+  ],
+  "custom_fields": {
+    "configuration": {
+      "seconds": 4,
+      "size": "720x1280"
+    }
+  }
+}
+```
+
+Width and height are defaulted to 720x1280 if not specified.
+The duration is defaulted to 4 seconds if not specified
+
+Find the details in the [Azure Sora 2 API specification](https://github.com/Azure/azure-rest-api-specs/blob/bdd435e2f7a24479ddcc5e37d3e9484742f200a4/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L11612-L11634).
 
 > [!IMPORTANT]
 > Prompt tokens in the usage are set to zero.
