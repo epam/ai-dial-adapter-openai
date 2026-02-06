@@ -378,7 +378,14 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 
 </details>
 
-Adapter for the Sora 2 model supports configuration via the `custom_fields.configuration` field in the chat completion request:
+The Sora 2 deployment works in either of following modes:
+
+1. **[text-to-video](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#videoscreate) generation**: the last user message is used as a text prompt sent to Sora 2,
+2. **[image-to-video](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#video-generation-from-reference-source) generation**: if the last user message has an attachment, this attachment is sent to Sora 2 as a reference source along with the last user message as a text prompt.
+
+[Video remixing](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#remix-video) *(video-to-video generation)* isn't supported.
+
+The Sora 2 deployment supports configuration via the `custom_fields.configuration` field in the chat completion request:
 
 ```json
 {
