@@ -65,34 +65,35 @@ def _get_deployment_configuration_fallback(
         model = ImageGenerationModel.create(D.GPT_IMAGE_1)
     else:
         return None
-    return model.get_configuration().model_json_schema()
+    return model.get_configuration()
 
 
-async def configuration(deployment_id: str, request: Request):
+async def configuration(deployment_id: str, request: Request) -> dict:
     app_config = get_request_app_config(request)
     upstream_endpoint = request.headers.get("X-UPSTREAM-ENDPOINT")
 
     if upstream_endpoint is None:
-        ret = _get_deployment_configuration_fallback(deployment_id, app_config)
+        config_model = _get_deployment_configuration_fallback(
+            deployment_id, app_config
+        )
         msg = (
             "Configuration endpoint requires X-UPSTREAM-ENDPOINT header. "
             "Please upgrade to DIAL Core 0.41.0 or later."
         )
-        if ret is None:
+        if config_model is None:
             raise ResourceNotFoundError(msg)
         else:
             logger.warning(msg)
-            return ret
-
-    deployment = app_config.get_chat_completion_deployment_type(
-        deployment_id, upstream_endpoint
-    )
-    deployment_type = deployment.deployment_type
-
-    config_model = _get_deployment_configuration(deployment_type)
-    if config_model is None:
-        raise ResourceNotFoundError(
-            "Configuration endpoint isn't implemented for this deployment"
+    else:
+        deployment = app_config.get_chat_completion_deployment_type(
+            deployment_id, upstream_endpoint
         )
+        deployment_type = deployment.deployment_type
+
+        config_model = _get_deployment_configuration(deployment_type)
+        if config_model is None:
+            raise ResourceNotFoundError(
+                "Configuration endpoint isn't implemented for this deployment"
+            )
 
     return config_model.model_json_schema()
