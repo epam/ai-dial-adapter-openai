@@ -110,15 +110,17 @@ async def _download_video(
 def _timed_stage(stage: Stage):
     timer = Timer()
 
-    def printer(message: str):
+    def print_time():
         elapsed = timer.get_elapsed_seconds()
-        stage.append_content(f"[{elapsed:5.2f}s] {message}\n\n")
+        return f"{elapsed:4.1f}s"
+
+    def stage_printer(message: str):
+        stage.append_content(f"[{print_time()}] {message}\n\n")
 
     try:
-        yield printer
+        yield stage_printer
     finally:
-        elapsed = timer.get_elapsed_seconds()
-        stage.append_name(f" [{elapsed:5.2f}s]")
+        stage.append_name(f" [{print_time()}]")
 
 
 async def chat_completion(
