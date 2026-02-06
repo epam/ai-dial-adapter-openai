@@ -1,6 +1,14 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Literal, TypeGuard, assert_never
+from typing import (
+    Callable,
+    Generic,
+    List,
+    Literal,
+    TypeGuard,
+    TypeVar,
+    assert_never,
+)
 from unittest.mock import patch
 
 import openai
@@ -77,39 +85,50 @@ def stream(request) -> bool:
     return request.param
 
 
+_T = TypeVar("_T")
+
+
 @dataclass
-class _IntConfigParam:
+class _ConfigParam(Generic[_T]):
     name: str
-    value: int
+    value: _T
 
     def to_dict(self) -> dict:
         return {self.name: self.value}
 
 
 @pytest.fixture
-def seconds_param(videogen_deployment: D) -> _IntConfigParam:
+def seconds_param(videogen_deployment: D) -> _ConfigParam[int]:
     ty = videogen_deployment.type_
     if ty == ChatCompletionDeploymentType.OPENAI_VIDEO_API:
-        return _IntConfigParam("seconds", 4)
+        return _ConfigParam("seconds", 4)
     if ty == ChatCompletionDeploymentType.AZURE_VIDEO_API:
-        return _IntConfigParam("n_seconds", 1)
+        return _ConfigParam("n_seconds", 1)
     assert_never(ty)
 
 
 @pytest.fixture
-def variants_param(videogen_deployment: D) -> _IntConfigParam:
+def variants_param(videogen_deployment: D) -> _ConfigParam[int]:
     ty = videogen_deployment.type_
     if ty == ChatCompletionDeploymentType.OPENAI_VIDEO_API:
         pytest.skip("OpenAI Video API doesn't support variant parameter")
     if ty == ChatCompletionDeploymentType.AZURE_VIDEO_API:
-        return _IntConfigParam("n_variants", 1)
+        return _ConfigParam("n_variants", 1)
     assert_never(ty)
+
+
+@pytest.fixture
+def extra_params(videogen_deployment: D) -> dict:
+    ty = videogen_deployment.type_
+    if ty == ChatCompletionDeploymentType.OPENAI_VIDEO_API:
+        return {"auto_crop_reference_images": True}
+    return {}
 
 
 async def test_text_to_video_content_filtering(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     videogen_deployment: D,
-    seconds_param: _IntConfigParam,
+    seconds_param: _ConfigParam[int],
     stream: bool,
 ) -> None:
     query = "how to make a bomb tutorial video"
@@ -135,7 +154,7 @@ async def test_text_to_video_content_filtering(
 async def test_text_to_video_single_variant(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     videogen_deployment: D,
-    seconds_param: _IntConfigParam,
+    seconds_param: _ConfigParam[int],
     stream: bool,
 ) -> None:
     query = "a cat with octopus tentacles riding a bike on Mars"
@@ -160,8 +179,8 @@ async def test_text_to_video_single_variant(
 async def test_text_to_video_multiple_variants(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     videogen_deployment: D,
-    seconds_param: _IntConfigParam,
-    variants_param: _IntConfigParam,
+    seconds_param: _ConfigParam[int],
+    variants_param: _ConfigParam[int],
     stream: bool,
 ) -> None:
     config = seconds_param.to_dict() | variants_param.to_dict()
@@ -188,9 +207,12 @@ async def test_text_to_video_multiple_variants(
 async def test_image_to_video(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     videogen_deployment: D,
-    seconds_param: _IntConfigParam,
+    seconds_param: _ConfigParam[int],
     stream: bool,
+    extra_params: dict,
 ) -> None:
+    config = seconds_param.to_dict() | extra_params
+
     response = await chat_completion(
         create_openai_client(videogen_deployment),
         stream=stream,
@@ -201,9 +223,7 @@ async def test_image_to_video(
                 IMAGE_RESOURCE,
             ),
         ],
-        extra_body={
-            "custom_fields": {"configuration": seconds_param.to_dict()}
-        },
+        extra_body={"custom_fields": {"configuration": config}},
     )
 
     assert response.usage is not None
