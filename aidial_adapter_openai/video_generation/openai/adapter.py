@@ -1,5 +1,6 @@
 import asyncio
-from typing import Any, Dict, assert_never
+import contextlib
+from typing import Any, Callable, Dict, assert_never
 
 import fastapi
 from aidial_sdk.chat_completion import Choice, Stage
@@ -15,6 +16,7 @@ from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.timer import Timer
 from aidial_adapter_openai.video_generation.openai.configuration import (
     VideoGenerationConfig,
 )
@@ -36,7 +38,7 @@ def _parse_configuration(request: dict) -> VideoGenerationConfig:
 
 async def _poll_job(
     *,
-    stage: Stage,
+    update_progress: Callable[[str], None],
     client: AsyncOpenAI,
     video_job: Video,
     polling_interval: float,
@@ -45,11 +47,11 @@ async def _poll_job(
         status = video_job.status
         match status:
             case "completed":
-                stage.append_content("Completed\n\n")
+                update_progress("Completed")
                 return video_job.id
 
             case "failed":
-                stage.append_content("Failed\n\n")
+                update_progress("Failed")
 
                 message = "Video generation job failed"
                 code = None
@@ -64,10 +66,10 @@ async def _poll_job(
                     raise InternalServerError(message=message, code=code)
 
             case "queued":
-                stage.append_content("Queued\n\n")
+                update_progress("Queued")
 
             case "in_progress":
-                stage.append_content("In progress\n\n")
+                update_progress("In progress")
 
             case _:
                 raise InternalServerError(f"Unexpected job status: {status}")
@@ -102,6 +104,21 @@ async def _download_video(
             upload_dir="videos",
         )
     )
+
+
+@contextlib.contextmanager
+def _timed_stage(stage: Stage):
+    timer = Timer()
+
+    def printer(message: str):
+        elapsed = timer.get_elapsed_seconds()
+        stage.append_content(f"[{elapsed:5.2f}s] {message}\n\n")
+
+    try:
+        yield printer
+    finally:
+        elapsed = timer.get_elapsed_seconds()
+        stage.append_name(f" [{elapsed:5.2f}s]")
 
 
 async def chat_completion(
@@ -139,12 +156,13 @@ async def chat_completion(
                 extra_body=configuration.model_extra,
             )
 
-            video_id = await _poll_job(
-                stage=stage,
-                client=client,
-                video_job=video_job,
-                polling_interval=3.0,
-            )
+            with _timed_stage(stage) as update_progress:
+                video_id = await _poll_job(
+                    update_progress=update_progress,
+                    client=client,
+                    video_job=video_job,
+                    polling_interval=3.0,
+                )
 
             await _download_video(
                 choice=choice,
