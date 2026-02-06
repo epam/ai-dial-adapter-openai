@@ -17,3 +17,10 @@ class VideoGenerationConfig(ExtraAllowedModel):
             "Defaults to 720x1280."
         ),
     )
+    auto_crop_reference_images: bool | None = Field(
+        default=None,
+        description=(
+            "Enable auto-cropping of the input reference images to the size of the output video. "
+            "Defaults to False."
+        ),
+    )

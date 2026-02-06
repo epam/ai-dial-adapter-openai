@@ -399,14 +399,17 @@ The Sora 2 deployment supports configuration via the `custom_fields.configuratio
   "custom_fields": {
     "configuration": {
       "seconds": 4,
-      "size": "720x1280"
+      "size": "720x1280",
+      "auto_crop_reference_images": True
     }
   }
 }
 ```
 
-Width and height are defaulted to 720x1280 if not specified.
-The duration is defaulted to 4 seconds if not specified
+The size is defaulted to 720x1280 if not specified.
+The duration is defaulted to 4 seconds if not specified.
+
+The auto cropping flag enables cropping of the input reference image to the output video size. It can be useful, since Sora 2 rejects any requests where the resolution of the source image and final video do not match. The flag defaults to False.
 
 Find the details in the [Azure Sora 2 API specification](https://github.com/Azure/azure-rest-api-specs/blob/bdd435e2f7a24479ddcc5e37d3e9484742f200a4/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L11612-L11634).
 

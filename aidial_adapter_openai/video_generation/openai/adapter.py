@@ -136,7 +136,7 @@ async def chat_completion(
             video_job = await client.videos.create(
                 model=model_name,
                 prompt=prompt.prompt,
-                input_reference=get_last_file(prompt) or omit,
+                input_reference=get_last_file(prompt, configuration) or omit,
                 seconds=seconds,  # type: ignore
                 size=configuration.size or omit,  # type: ignore
                 extra_body=configuration.model_extra,
