@@ -56,15 +56,15 @@ def _get_deployment_configuration(
             assert_never(deployment_type)
 
 
-def _check_legacy_deployment(
+def _get_deployment_configuration_fallback(
     deployment_id: str, app_config: ApplicationConfig
-) -> dict:
+) -> Type[BaseModel] | None:
     if deployment_id in app_config.DALLE3_DEPLOYMENTS:
         model = ImageGenerationModel.create(D.DALLE3)
     elif deployment_id in app_config.GPT_IMAGE_1_DEPLOYMENTS:
         model = ImageGenerationModel.create(D.GPT_IMAGE_1)
     else:
-        return {}
+        return None
     return model.get_configuration().model_json_schema()
 
 
@@ -73,12 +73,12 @@ async def configuration(deployment_id: str, request: Request):
     upstream_endpoint = request.headers.get("X-UPSTREAM-ENDPOINT")
 
     if upstream_endpoint is None:
-        ret = _check_legacy_deployment(deployment_id, app_config)
+        ret = _get_deployment_configuration_fallback(deployment_id, app_config)
         msg = (
             "Configuration endpoint requires X-UPSTREAM-ENDPOINT header. "
-            "Please upgrade to DIAL Core 0.17.0 or later."
+            "Please upgrade to DIAL Core 0.41.0 or later."
         )
-        if not ret:
+        if ret is None:
             raise ResourceNotFoundError(msg)
         else:
             logger.warning(msg)
