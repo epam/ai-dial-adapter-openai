@@ -29,8 +29,27 @@ async def dalle3_client():
         yield client
 
 
-async def test_dalle3_configuration_endpoint(dalle3_client: httpx.AsyncClient):
-    response = await dalle3_client.get("configuration")
+@pytest.mark.parametrize(
+    "upstream_endpoint",
+    [
+        "https://example.com/openai/deployments/test-dalle/images/generations",
+        "https://example.com/my/path/openai/deployments/test-dalle/images/generations",
+        "https://api.openai.com/v1/images/generations",
+        "http://test-upstream/openai/deployments/test-dall-e-3/images/generations",
+        None,
+    ],
+)
+async def test_dalle3_configuration_endpoint(
+    dalle3_client: httpx.AsyncClient, upstream_endpoint: str | None
+):
+    headers = {}
+    if upstream_endpoint:
+        headers["X-UPSTREAM-ENDPOINT"] = upstream_endpoint
+
+    response = await dalle3_client.get(
+        "configuration",
+        headers=headers,
+    )
 
     assert response.status_code == 200
     assert response.json()["properties"].keys() == {"quality", "size", "style"}
