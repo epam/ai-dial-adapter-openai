@@ -23,7 +23,6 @@ from aidial_adapter_openai.video_generation.azure.configuration import (
 )
 from aidial_adapter_openai.video_generation.azure.prompt import (
     VideoGenPrompt,
-    get_files,
 )
 from aidial_adapter_openai.video_generation.azure.types import (
     CreateVideoGenerationRequest,
@@ -146,7 +145,7 @@ async def chat_completion(
     model_name = request_body["model"]
     configuration = _get_configuration(request_body)
     prompt = await VideoGenPrompt.from_request(request_body, file_storage)
-    inpaint_items, files = get_files(prompt)
+    inpaint_items, files = prompt.get_files()
 
     client = AzureVideoAPIClient(creds=creds, base_url=upstream_endpoint)
 

@@ -18,10 +18,7 @@ from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.video_generation.openai.configuration import (
     VideoGenerationConfig,
 )
-from aidial_adapter_openai.video_generation.openai.prompt import (
-    VideoGenPrompt,
-    get_last_file,
-)
+from aidial_adapter_openai.video_generation.openai.prompt import VideoGenPrompt
 from aidial_adapter_openai.video_generation.request import validate_request
 
 
@@ -136,7 +133,7 @@ async def chat_completion(
             video_job = await client.videos.create(
                 model=model_name,
                 prompt=prompt.prompt,
-                input_reference=get_last_file(prompt, configuration) or omit,
+                input_reference=prompt.get_last_file(configuration) or omit,
                 seconds=seconds,  # type: ignore
                 size=configuration.size or omit,  # type: ignore
                 extra_body=configuration.model_extra,
