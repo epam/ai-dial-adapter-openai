@@ -36,7 +36,10 @@ from aidial_adapter_openai.responses.adapter import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.parsers import parse_body
+from aidial_adapter_openai.utils.parsers import (
+    bad_upstream_endpoint,
+    parse_body,
+)
 from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
@@ -48,6 +51,9 @@ from aidial_adapter_openai.utils.streaming import (
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
+)
+from aidial_adapter_openai.video_generation.openai.adapter import (
+    chat_completion as openai_video_gen,
 )
 
 
@@ -122,6 +128,20 @@ async def call_chat_completion(
                 creds=creds,
                 deployment_id=deployment_id,
                 upstream_endpoint=upstream_endpoint,
+                file_storage=file_storage,
+            )
+
+        case D.OPENAI_VIDEO_API:
+            if isinstance(client, AsyncAzureOpenAI):
+                raise bad_upstream_endpoint(
+                    "Only v1 API upstream endpoints are supported for OpenAI video generation deployments"
+                )
+
+            return await openai_video_gen(
+                request=request,
+                request_body=request_body,
+                client=client,
+                deployment_id=deployment_id,
                 file_storage=file_storage,
             )
 

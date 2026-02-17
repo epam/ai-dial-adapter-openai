@@ -16,7 +16,10 @@ from aidial_adapter_openai.responses.adapter import ResponsesConfig
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.video_generation.azure.configuration import (
-    VideoGenerationConfig,
+    VideoGenerationConfig as AzureVideoGenerationConfig,
+)
+from aidial_adapter_openai.video_generation.openai.configuration import (
+    VideoGenerationConfig as OpenAIVideoGenerationConfig,
 )
 
 
@@ -32,8 +35,11 @@ def _get_deployment_configuration(
             model = ImageGenerationModel.create(D.GPT_IMAGE_1)
             return model.get_configuration()
 
+        case D.OPENAI_VIDEO_API:
+            return OpenAIVideoGenerationConfig
+
         case D.AZURE_VIDEO_API:
-            return VideoGenerationConfig
+            return AzureVideoGenerationConfig
 
         case D.AUDIO_SPEECH_API:
             return SpeechConfiguration
