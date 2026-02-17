@@ -94,11 +94,7 @@ class EndpointParser(ExtraForbidModel):
     def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
         if result := self.try_parse(endpoint):
             return result
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_GATEWAY,
-            type="internal_server_error",
-            message="Invalid upstream endpoint format",
-        )
+        raise bad_upstream_endpoint()
 
 
 class CompletionsParser(ExtraForbidModel):
@@ -120,6 +116,7 @@ responses_parser = EndpointParser(name="responses")
 no_endpoint_parser = EndpointParser(name=None)
 completions_parser = CompletionsParser()
 azure_video_api_parser = EndpointParser(name="video/generations")
+openai_video_api_parser = EndpointParser(name="videos")
 
 
 async def parse_body(request: Request) -> Dict[str, Any]:
@@ -134,3 +131,12 @@ async def parse_body(request: Request) -> Dict[str, Any]:
         raise InvalidRequestError(str(data) + " is not of type 'object'")
 
     return data
+
+
+def bad_upstream_endpoint(message: str = "") -> HTTPException:
+    suffix = f": {message}" if message else ""
+    return HTTPException(
+        status_code=HTTPStatus.BAD_GATEWAY,
+        type="internal_server_error",
+        message=f"Invalid upstream endpoint format{suffix}",
+    )

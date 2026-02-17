@@ -29,6 +29,11 @@ from tests.conftest import create_test_client
         ),
         (
             ChatCompletionDeploymentType.AZURE_VIDEO_API,
+            "videos",
+            {"seconds", "size", "auto_crop_reference_images"},
+        ),
+        (
+            ChatCompletionDeploymentType.AZURE_VIDEO_API,
             "video/generations",
             {"width", "height", "n_seconds", "n_variants"},
         ),
