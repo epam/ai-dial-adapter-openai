@@ -49,3 +49,6 @@ resolutions:
     - message: ".*PyPI::typing-extensions.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "ORT cannot pick up license information"
+    - message: ".*PyPI::pillow.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "ORT cannot pick up license information"
