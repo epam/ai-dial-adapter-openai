@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List, assert_never
+from typing import Dict, List, Mapping, assert_never
 
 from aidial_sdk.exceptions import InternalServerError
 
@@ -60,6 +60,8 @@ class ApplicationConfig(ExtraForbidModel):
     ELIMINATE_EMPTY_CHOICES: bool = False
 
     AUDIO_AZURE_API_VERSION: str = "2025-03-01-preview"
+
+    HEADERS_TO_PROXY: List[str] = []
 
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
@@ -155,6 +157,15 @@ class ApplicationConfig(ExtraForbidModel):
             endpoint=chat_completions_parser.parse(upstream_endpoint),
         )
 
+    def get_headers_to_proxy(
+        self, headers: Mapping[str, str]
+    ) -> dict[str, str]:
+        ret = {}
+        for header in self.HEADERS_TO_PROXY:
+            if (value := headers.get(header)) is not None:
+                ret[header] = value
+        return ret
+
     def add_deployment(
         self, deployment_id: str, deployment_type: D
     ) -> ApplicationConfig:
@@ -206,6 +217,7 @@ class ApplicationConfig(ExtraForbidModel):
                 "GPT4O_MINI_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
+                "HEADERS_TO_PROXY",
             )
         }
 
