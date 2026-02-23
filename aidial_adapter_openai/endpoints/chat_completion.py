@@ -95,7 +95,14 @@ async def call_chat_completion(
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
     creds = await get_credentials(request_headers)
-    client = endpoint.get_client({**creds, "api_version": api_version})
+
+    headers_to_proxy = {}
+    if user_id := request_headers.get("x-user-id"):
+        headers_to_proxy["x-user-id"] = user_id
+
+    client = endpoint.get_client(
+        {**creds, "api_version": api_version, "headers": headers_to_proxy}
+    )
 
     def _get_tokenizer() -> Tokenizer:
         tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
