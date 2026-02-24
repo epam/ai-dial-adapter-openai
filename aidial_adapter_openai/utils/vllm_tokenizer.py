@@ -40,7 +40,7 @@ def derive_tokenize_url(upstream_endpoint: str) -> str:
     """Derive the vLLM ``/tokenize`` URL from the chat completions endpoint.
 
     vLLM exposes ``/tokenize`` at the server root, not under ``/v1/``.
-    Therefore we strip the entire path suffix starting from ``/v1/``
+    Therefore, we strip the entire path suffix starting from ``/v1/``
     (or just ``/chat/completions`` when ``/v1/`` is absent)::
 
         https://host/v1/chat/completions                        -> https://host/tokenize
