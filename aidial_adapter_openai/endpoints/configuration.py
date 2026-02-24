@@ -55,6 +55,7 @@ def _get_deployment_configuration(
             | D.MISTRAL
             | D.DATABRICKS
             | D.GPT_GENERIC
+            | D.VLLM
         ):
             return None
 

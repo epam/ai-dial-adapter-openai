@@ -25,6 +25,7 @@ from aidial_adapter_openai.utils.truncate_prompt import (
     TruncatedTokens,
     truncate_prompt,
 )
+from aidial_adapter_openai.utils.vllm_tokenizer import VllmTokenizer
 
 
 async def multi_modal_truncate_prompt(
@@ -92,9 +93,48 @@ async def _truncate_messages(
     else:
 
         async def get_prompt_tokens() -> int:
-            prompt_tokens = await tokenizer.tokenize_request(request, messages)
-            logger.debug(f"estimated prompt tokens: {prompt_tokens}")
+            estimated = await tokenizer.tokenize_request(request, messages)
+            logger.debug(f"estimated prompt tokens: {estimated}")
+            return estimated
+
+        return (messages, None, get_prompt_tokens)
+
+
+async def _truncate_messages_vllm(
+    request: dict, messages: List[MultiModalMessage], tokenizer: VllmTokenizer
+) -> Tuple[
+    List[MultiModalMessage],
+    DiscardedMessages | None,
+    Callable[[], Coroutine[None, None, TruncatedTokens]],
+]:
+    """vLLM-specific truncation: sends the full message list to the vLLM
+    tokenize endpoint on each iteration instead of counting per-message."""
+    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
+        (
+            messages,
+            discarded_indices,
+            prompt_tokens,
+        ) = await tokenizer.truncate_prompt(
+            original_request=request,
+            messages=messages,
+            max_prompt_tokens=max_prompt_tokens,
+        )
+
+        logger.debug(
+            f"vLLM estimated prompt tokens after truncation: {prompt_tokens}, "
+            f"discarded messages indices: {discarded_indices}"
+        )
+
+        async def get_prompt_tokens() -> int:
             return prompt_tokens
+
+        return messages, discarded_indices, get_prompt_tokens
+    else:
+
+        async def get_prompt_tokens() -> int:
+            estimated = await tokenizer.tokenize_request(request, messages)
+            logger.debug(f"vLLM estimated prompt tokens: {estimated}")
+            return estimated
 
         return (messages, None, get_prompt_tokens)
 
@@ -166,3 +206,110 @@ async def chat_completion(
 
         debug_print("response", body)
         return ResponseWithHeaders(headers=response_headers, body=body)
+
+
+async def vllm_chat_completion(
+    *,
+    request: dict,
+    request_headers: Mapping[str, str],
+    client: AsyncAzureOpenAI | AsyncOpenAI,
+    file_storage: FileStorage | None,
+    tokenizer: VllmTokenizer,
+    eliminate_empty_choices: bool,
+) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
+    """Chat completion flow for vLLM deployments.
+
+    Key differences from the standard GPT flow:
+    - Truncation sends the full message list to the vLLM tokenize endpoint
+      each iteration (no per-message token counting).
+    - Response tokenization is not done by the adapter.  Instead, usage
+      reporting is forced in the upstream request.  If the original client
+      request did not ask for usage, it is stripped from the final response.
+    """
+    n: int = request.get("n") or 1
+    messages: List[dict] = request["messages"]
+    model_name = request["model"]
+
+    multi_modal_messages = await ResourceProcessor(
+        file_storage=file_storage
+    ).transform_messages(messages)
+
+    (
+        multi_modal_messages,
+        discarded_messages,
+        get_prompt_tokens,
+    ) = await _truncate_messages_vllm(request, multi_modal_messages, tokenizer)
+
+    request["messages"] = [m.raw_message for m in multi_modal_messages]
+
+    # ---- Force usage reporting upstream ----
+    is_stream = bool(request.get("stream"))
+    client_requested_usage = False
+    if is_stream:
+        stream_options = request.get("stream_options") or {}
+        client_requested_usage = bool(stream_options.get("include_usage"))
+        if not client_requested_usage:
+            request.setdefault("stream_options", {})["include_usage"] = True
+    # For non-streaming, vLLM returns usage by default.
+
+    response: (
+        AsyncStream[ChatCompletionChunk] | ChatCompletion
+    ) = await call_with_extra_body(client.chat.completions.create, request)
+
+    if isinstance(response, AsyncStream):
+        response_headers = await get_response_headers_for_caching(
+            request_headers=request_headers,
+            request_body=request,
+            get_request_tokens=get_prompt_tokens,
+        )
+
+        async def _noop_tokenize_response(_resp):
+            """No adapter-side response tokenization for vLLM.
+            Usage comes from the upstream response."""
+            return 0
+
+        body = generate_stream(
+            n=n,
+            stream=map_stream(chunk_to_dict, response),
+            get_prompt_tokens=get_prompt_tokens,
+            tokenize_response=_noop_tokenize_response,
+            model=model_name,
+            discarded_messages=discarded_messages,
+            eliminate_empty_choices=eliminate_empty_choices,
+        )
+
+        if not client_requested_usage:
+            body = _strip_usage_from_stream(body)
+
+        return ResponseWithHeaders(headers=response_headers, body=body)
+    else:
+        body = response.to_dict()
+        if discarded_messages is not None:
+            body |= {"statistics": {"discarded_messages": discarded_messages}}
+
+        actual_prompt_tokens: int | None = None
+        if usage := response.usage:
+            actual_prompt_tokens = usage.prompt_tokens
+
+        async def get_request_tokens():
+            return actual_prompt_tokens or await get_prompt_tokens()
+
+        response_headers = await get_response_headers_for_caching(
+            request_headers=request_headers,
+            request_body=request,
+            get_request_tokens=get_request_tokens,
+        )
+
+        debug_print("response", body)
+        return ResponseWithHeaders(headers=response_headers, body=body)
+
+
+async def _strip_usage_from_stream(
+    stream: AsyncIterator[dict],
+) -> AsyncIterator[dict]:
+    """Remove the ``usage`` field from streaming chunks when the client
+    did not request it."""
+    async for chunk in stream:
+        chunk.pop("usage", None)
+        yield chunk
+

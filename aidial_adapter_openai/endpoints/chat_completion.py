@@ -12,6 +12,7 @@ from aidial_adapter_openai.audio_api.transcribe.adapter import (
 )
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
+    vllm_chat_completion,
 )
 from aidial_adapter_openai.chat_completions.gpt_audio import (
     extract_audio_content,
@@ -49,6 +50,7 @@ from aidial_adapter_openai.utils.streaming import (
     create_server_response,
 )
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.vllm_tokenizer import VllmTokenizer
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
 )
@@ -199,6 +201,26 @@ async def call_chat_completion(
                 client=client,
                 file_storage=file_storage,
                 tokenizer=_get_tokenizer(),
+                eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
+            )
+
+            response.body = extract_reasoning_tokens(response.body)
+            response.body = extract_audio_content(response.body, request_body)
+
+            return response
+
+        case D.VLLM:
+            vllm_tokenizer = VllmTokenizer(
+                model=request_body["model"],
+                upstream_endpoint=upstream_endpoint,
+                request_headers=request_headers,
+            )
+            response = await vllm_chat_completion(
+                request=request_body,
+                request_headers=request_headers,
+                client=client,
+                file_storage=file_storage,
+                tokenizer=vllm_tokenizer,
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
             )
 
