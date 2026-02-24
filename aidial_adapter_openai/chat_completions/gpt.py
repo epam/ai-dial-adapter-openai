@@ -312,4 +312,3 @@ async def _strip_usage_from_stream(
     async for chunk in stream:
         chunk.pop("usage", None)
         yield chunk
-

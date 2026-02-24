@@ -92,9 +92,13 @@ class VllmTokenizer:
         self.tokenize_url = derive_tokenize_url(upstream_endpoint)
 
         # Re-use the same API key that was forwarded to the upstream
-        self._api_key = request_headers.get("api-key") or request_headers.get(
-            "authorization", ""
-        ).removeprefix("Bearer ").strip() or None
+        self._api_key = (
+            request_headers.get("api-key")
+            or request_headers.get("authorization", "")
+            .removeprefix("Bearer ")
+            .strip()
+            or None
+        )
 
         self._http_client = get_http_client()
 
@@ -275,4 +279,3 @@ class VllmTokenizer:
 
         logger.debug(f"vLLM tokenize result: {token_count} tokens")
         return token_count
-

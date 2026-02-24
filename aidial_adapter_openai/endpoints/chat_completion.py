@@ -12,6 +12,8 @@ from aidial_adapter_openai.audio_api.transcribe.adapter import (
 )
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
+)
+from aidial_adapter_openai.chat_completions.gpt import (
     vllm_chat_completion,
 )
 from aidial_adapter_openai.chat_completions.gpt_audio import (

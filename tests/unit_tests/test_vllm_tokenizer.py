@@ -18,10 +18,10 @@ from aidial_adapter_openai.utils.vllm_tokenizer import (
     derive_tokenize_url,
 )
 
-
 # ---------------------------------------------------------------
 # derive_tokenize_url
 # ---------------------------------------------------------------
+
 
 class TestDeriveTokenizeUrl:
     def test_v1_chat_completions(self):
@@ -67,7 +67,11 @@ def _make_tokenizer() -> VllmTokenizer:
 def _mock_response(token_count: int) -> httpx.Response:
     return httpx.Response(
         200,
-        json={"count": token_count, "max_model_len": 4096, "tokens": list(range(token_count))},
+        json={
+            "count": token_count,
+            "max_model_len": 4096,
+            "tokens": list(range(token_count)),
+        },
         request=httpx.Request("POST", _UPSTREAM),
     )
 
@@ -75,6 +79,7 @@ def _mock_response(token_count: int) -> httpx.Response:
 # ---------------------------------------------------------------
 # VllmTokenizer._call_tokenize
 # ---------------------------------------------------------------
+
 
 class TestVllmTokenizerCallTokenize:
     @pytest.mark.asyncio
@@ -141,6 +146,7 @@ class TestVllmTokenizerCallTokenize:
 # VllmTokenizer.tokenize_request
 # ---------------------------------------------------------------
 
+
 class TestVllmTokenizerPublicApi:
     @pytest.mark.asyncio
     async def test_tokenize_request_sends_full_message_list_and_tools(self):
@@ -195,12 +201,12 @@ class TestVllmTokenizerPublicApi:
 # VllmTokenizer.truncate_prompt  (full-list tokenization)
 # ---------------------------------------------------------------
 
+
 def _make_mock_tokenizer(responses: list[int]) -> VllmTokenizer:
     """Create a VllmTokenizer where successive tokenize_request calls
     return counts from *responses* in order."""
     tokenizer = _make_tokenizer()
     call_index = {"idx": 0}
-
 
     async def mock_tokenize_request(original_request, messages):
         idx = call_index["idx"]
@@ -246,8 +252,12 @@ class TestVllmTruncatePrompt:
 
         messages = [
             MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "old user"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "new user"}),
+            MultiModalMessage(
+                raw_message={"role": "user", "content": "old user"}
+            ),
+            MultiModalMessage(
+                raw_message={"role": "user", "content": "new user"}
+            ),
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
@@ -293,7 +303,9 @@ class TestVllmTruncatePrompt:
         tokenizer = _make_mock_tokenizer([50])
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "long"}),
+            MultiModalMessage(
+                raw_message={"role": "system", "content": "long"}
+            ),
         ]
 
         with pytest.raises(TruncatePromptSystemError):
@@ -331,7 +343,9 @@ class TestVllmTruncatePrompt:
             MultiModalMessage(
                 images=[
                     ImageResource(
-                        width=100, height=100, detail="low",
+                        width=100,
+                        height=100,
+                        detail="low",
                         image=Resource(type="image/jpeg", data=b"..."),
                     )
                 ],
@@ -339,7 +353,10 @@ class TestVllmTruncatePrompt:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "describe this"},
-                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "data:image/jpeg;base64,..."},
+                        },
                     ],
                 },
             ),
@@ -358,11 +375,15 @@ class TestVllmTruncatePrompt:
 
         messages = [
             MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "old msg"}),
+            MultiModalMessage(
+                raw_message={"role": "user", "content": "old msg"}
+            ),
             MultiModalMessage(
                 images=[
                     ImageResource(
-                        width=100, height=100, detail="low",
+                        width=100,
+                        height=100,
+                        detail="low",
                         image=Resource(type="image/jpeg", data=b"..."),
                     )
                 ],
@@ -370,7 +391,10 @@ class TestVllmTruncatePrompt:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "describe this"},
-                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "data:image/jpeg;base64,..."},
+                        },
                     ],
                 },
             ),
