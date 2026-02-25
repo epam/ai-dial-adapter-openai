@@ -79,6 +79,7 @@ class VllmTokenizer:
     model: str
     tokenize_url: str
     _api_key: str | None
+    _extra_headers: dict[str, str]
     _http_client: httpx.AsyncClient
 
     def __init__(
@@ -87,9 +88,11 @@ class VllmTokenizer:
         model: str,
         upstream_endpoint: str,
         request_headers: Mapping[str, str],
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.model = model
         self.tokenize_url = derive_tokenize_url(upstream_endpoint)
+        self._extra_headers = extra_headers or {}
 
         # Re-use the same API key that was forwarded to the upstream
         self._api_key = (
@@ -233,6 +236,8 @@ class VllmTokenizer:
         headers: Dict[str, str] = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
+        if self._extra_headers:
+            headers.update(self._extra_headers)
 
         logger.debug(
             f"vLLM tokenize request to {self.tokenize_url}, "

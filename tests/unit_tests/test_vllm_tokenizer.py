@@ -448,3 +448,69 @@ class TestVllmTruncatePrompt:
         assert len(call_payloads[2]) == 2
         assert call_payloads[2][0]["content"] == "sys"
         assert call_payloads[2][1]["content"] == "u2"
+
+
+# ---------------------------------------------------------------
+# Extra headers (HEADERS_TO_PROXY support)
+# ---------------------------------------------------------------
+
+
+class TestVllmExtraHeaders:
+    @pytest.mark.asyncio
+    async def test_extra_headers_included_in_tokenize_request(self):
+        """Extra headers (from HEADERS_TO_PROXY) are sent with tokenize calls."""
+        tokenizer = VllmTokenizer(
+            model="my-vllm-model",
+            upstream_endpoint=_UPSTREAM,
+            request_headers=_HEADERS,
+            extra_headers={"x-user-id": "abc123", "x-custom": "value"},
+        )
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = _mock_response(10)
+        tokenizer._http_client = mock_client
+
+        await tokenizer._call_tokenize({"model": "m", "messages": []})
+
+        call_args = mock_client.post.call_args
+        headers = call_args.kwargs.get("headers") or call_args[1].get("headers")
+        assert headers["x-user-id"] == "abc123"
+        assert headers["x-custom"] == "value"
+        assert headers["Content-Type"] == "application/json"
+
+    @pytest.mark.asyncio
+    async def test_no_extra_headers_when_not_configured(self):
+        """Without extra_headers, only standard headers are sent."""
+        tokenizer = _make_tokenizer()
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = _mock_response(10)
+        tokenizer._http_client = mock_client
+
+        await tokenizer._call_tokenize({"model": "m", "messages": []})
+
+        call_args = mock_client.post.call_args
+        headers = call_args.kwargs.get("headers") or call_args[1].get("headers")
+        assert "x-user-id" not in headers
+        assert "Content-Type" in headers
+
+    @pytest.mark.asyncio
+    async def test_extra_headers_empty_dict_is_noop(self):
+        """Passing an empty dict for extra_headers is the same as None."""
+        tokenizer = VllmTokenizer(
+            model="my-vllm-model",
+            upstream_endpoint=_UPSTREAM,
+            request_headers=_HEADERS,
+            extra_headers={},
+        )
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = _mock_response(10)
+        tokenizer._http_client = mock_client
+
+        await tokenizer._call_tokenize({"model": "m", "messages": []})
+
+        call_args = mock_client.post.call_args
+        headers = call_args.kwargs.get("headers") or call_args[1].get("headers")
+        # Only Content-Type and Authorization should be present
+        assert "x-user-id" not in headers
