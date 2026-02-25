@@ -17,7 +17,7 @@ Instead, usage statistics are obtained from the upstream vLLM model
 response (``usage`` block).
 """
 
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, List
 
 import httpx
 from aidial_sdk.exceptions import (
@@ -76,21 +76,16 @@ class VllmTokenizer:
         *,
         model: str,
         upstream_endpoint: str,
-        request_headers: Mapping[str, str],
+        upstream_api_key: str | None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.model = model
         self.tokenize_url = derive_tokenize_url(upstream_endpoint)
         self._extra_headers = extra_headers or {}
 
-        # Re-use the same API key that was forwarded to the upstream
-        self._api_key = (
-            request_headers.get("api-key")
-            or request_headers.get("authorization", "")
-            .removeprefix("Bearer ")
-            .strip()
-            or None
-        )
+        # vLLM uses the upstream key (X-UPSTREAM-KEY) for Authorization.
+        # Do NOT use DIAL 'api-key' or incoming Authorization header.
+        self._api_key = upstream_api_key
 
         self._http_client = get_http_client()
 
