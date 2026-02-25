@@ -25,7 +25,6 @@ from aidial_adapter_openai.utils.parsers import (
     chat_completions_parser,
     completions_parser,
     image_gen_parser,
-    no_endpoint_parser,
     openai_video_api_parser,
     responses_parser,
     speech_parser,
@@ -48,7 +47,7 @@ class ApplicationConfig(ExtraForbidModel):
     GPT_IMAGE_1_DEPLOYMENTS: List[str] = []
     GPT_IMAGE_1_AZURE_API_VERSION: str = "2025-04-01-preview"
 
-    MISTRAL_DEPLOYMENTS: List[str] = []
+    MISTRAL_DEPLOYMENTS: List[str] = ["magistral-medium-latest"]
     DATABRICKS_DEPLOYMENTS: List[str] = []
     GPT4O_DEPLOYMENTS: List[str] = []
     GPT4O_MINI_DEPLOYMENTS: List[str] = []
@@ -129,7 +128,7 @@ class ApplicationConfig(ExtraForbidModel):
         if deployment_id in self.MISTRAL_DEPLOYMENTS:
             return DeploymentAPIType(
                 deployment_type=D.MISTRAL,
-                endpoint=no_endpoint_parser.parse(upstream_endpoint),
+                endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
         if deployment_id in self.DATABRICKS_DEPLOYMENTS:
