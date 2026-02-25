@@ -226,6 +226,16 @@ async def vllm_chat_completion(
 
     request["messages"] = [m.raw_message for m in multi_modal_messages]
 
+    # vLLM: guarantee usage stats in streaming responses.
+    # For streaming calls, vLLM includes usage only if requested via
+    # stream_options.include_usage.
+    if request.get("stream"):
+        stream_options = request.get("stream_options")
+        if not isinstance(stream_options, dict):
+            stream_options = {}
+        stream_options["include_usage"] = True
+        request["stream_options"] = stream_options
+
     response: (
         AsyncStream[ChatCompletionChunk] | ChatCompletion
     ) = await call_with_extra_body(client.chat.completions.create, request)
