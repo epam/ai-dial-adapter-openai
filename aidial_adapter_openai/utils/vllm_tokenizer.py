@@ -17,7 +17,6 @@ Instead, usage statistics are obtained from the upstream vLLM model
 response (``usage`` block).
 """
 
-import re
 from typing import Any, Dict, List, Mapping
 
 import httpx
@@ -39,28 +38,18 @@ from aidial_adapter_openai.utils.truncate_prompt import (
 def derive_tokenize_url(upstream_endpoint: str) -> str:
     """Derive the vLLM ``/tokenize`` URL from the chat completions endpoint.
 
-    vLLM exposes ``/tokenize`` at the server root, not under ``/v1/``.
-    Therefore, we strip the entire path suffix starting from ``/v1/``
-    (or just ``/chat/completions`` when ``/v1/`` is absent)::
+    Only the standard vLLM endpoint shape is supported::
 
-        https://host/v1/chat/completions                        -> https://host/tokenize
-        https://host/chat/completions                           -> https://host/tokenize
-        https://host/openai/deployments/<id>/chat/completions   -> https://host/openai/deployments/<id>/tokenize
+        https://host/v1/chat/completions  ->  https://host/tokenize
     """
 
-    if not upstream_endpoint.endswith("/chat/completions"):
+    if not upstream_endpoint.endswith("/v1/chat/completions"):
         raise InternalServerError(
             f"Cannot derive vLLM tokenize URL from upstream endpoint: {upstream_endpoint!r}. "
-            "Expected the endpoint to end with '/chat/completions'."
+            "Expected the endpoint to end with '/v1/chat/completions'."
         )
 
-    # Strip /v1/chat/completions (preferred) or /chat/completions
-    url = re.sub(r"/v1/chat/completions$", "/tokenize", upstream_endpoint)
-    if url == upstream_endpoint:
-        # No /v1/ prefix — just replace /chat/completions
-        url = re.sub(r"/chat/completions$", "/tokenize", upstream_endpoint)
-
-    return url
+    return upstream_endpoint.removesuffix("/v1/chat/completions") + "/tokenize"
 
 
 class VllmTokenizer:

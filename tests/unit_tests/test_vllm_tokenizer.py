@@ -28,24 +28,23 @@ class TestDeriveTokenizeUrl:
         url = "https://vllm.example.com/v1/chat/completions"
         assert derive_tokenize_url(url) == "https://vllm.example.com/tokenize"
 
-    def test_plain_chat_completions(self):
-        url = "https://vllm.example.com/chat/completions"
-        assert derive_tokenize_url(url) == "https://vllm.example.com/tokenize"
-
-    def test_with_path_prefix(self):
-        url = "https://host.com/openai/deployments/my-model/chat/completions"
-        assert (
-            derive_tokenize_url(url)
-            == "https://host.com/openai/deployments/my-model/tokenize"
-        )
-
     def test_with_port(self):
         url = "http://localhost:17834/v1/chat/completions"
         assert derive_tokenize_url(url) == "http://localhost:17834/tokenize"
 
-    def test_invalid_endpoint_raises(self):
+    def test_plain_chat_completions_raises(self):
+        with pytest.raises(InternalServerError):
+            derive_tokenize_url("https://vllm.example.com/chat/completions")
+
+    def test_non_chat_completions_raises(self):
         with pytest.raises(InternalServerError):
             derive_tokenize_url("https://vllm.example.com/v1/completions")
+
+    def test_arbitrary_path_raises(self):
+        with pytest.raises(InternalServerError):
+            derive_tokenize_url(
+                "https://host.com/openai/deployments/my-model/chat/completions"
+            )
 
 
 # ---------------------------------------------------------------
