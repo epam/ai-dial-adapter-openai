@@ -1,11 +1,18 @@
-from typing import AsyncIterator
+from typing import AsyncIterator, overload
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import map_stream
+
+
+def _to_dial_finish_reason(finish_reason: str | None) -> str | None:
+    if finish_reason in ("model_length", "error"):
+        return "length"
+    return finish_reason
 
 
 class _MistralResponseTransformer:
@@ -36,18 +43,23 @@ class _MistralResponseTransformer:
                         text_parts.append(item.get("text") or "")
                     elif item_type == "thinking":
                         thinking_value = item.get("thinking")
-                        if isinstance(thinking_value, str):
-                            thinking_parts.append(thinking_value)
-                        elif isinstance(thinking_value, list):
-                            for t in thinking_value:
-                                if (
-                                    isinstance(t, dict)
-                                    and t.get("type") == "text"
-                                ):
-                                    thinking_parts.append(t.get("text") or "")
-                message["content"] = (
-                    "".join(text_parts) if text_parts else None
-                )
+                        if not isinstance(thinking_value, dict):
+                            continue
+                        if thinking_value.get("type") != "text":
+                            logger.warning(
+                                f"The response thinking part of type {thinking_value.get('type')!r} isn't supported and will be ignored"
+                            )
+                            continue
+                        thinking_parts.append(thinking_value.get("text") or "")
+                    else:
+                        logger.warning(
+                            f"The response content part of type {item_type!r} isn't supported and will be ignored"
+                        )
+                message["content"] = "".join(text_parts) if text_parts else None
+
+            choice["finish_reason"] = _to_dial_finish_reason(
+                choice.get("finish_reason")
+            )
 
             thinking_text = "".join(thinking_parts)
             is_ongoing = bool(thinking_text)
@@ -84,6 +96,16 @@ class _MistralResponseTransformer:
                 )
 
         return chunk
+
+
+@overload
+def extract_reasoning_content(response_or_stream: dict) -> dict: ...
+
+
+@overload
+def extract_reasoning_content(
+    response_or_stream: AsyncIterator[dict],
+) -> AsyncIterator[dict]: ...
 
 
 def extract_reasoning_content(

@@ -35,7 +35,12 @@ class TestNonStreamingMistralReasoning:
     def test_thinking_only_content(self) -> None:
         result = extract_reasoning_content(
             _make_response(
-                content=[{"type": "thinking", "thinking": "Let me think..."}]
+                content=[
+                    {
+                        "type": "thinking",
+                        "thinking": {"type": "text", "text": "Let me think..."},
+                    }
+                ]
             )
         )
         message = result["choices"][0]["message"]
@@ -49,7 +54,10 @@ class TestNonStreamingMistralReasoning:
         result = extract_reasoning_content(
             _make_response(
                 content=[
-                    {"type": "thinking", "thinking": "Reasoning here"},
+                    {
+                        "type": "thinking",
+                        "thinking": {"type": "text", "text": "Reasoning here"},
+                    },
                     {"type": "text", "text": "Answer here"},
                 ]
             )
@@ -61,16 +69,13 @@ class TestNonStreamingMistralReasoning:
         assert stage["name"] == "Reasoning"
         assert stage["status"] == "completed"
 
-    def test_thinking_as_list_of_text_objects(self) -> None:
+    def test_thinking_as_dict_text_object(self) -> None:
         result = extract_reasoning_content(
             _make_response(
                 content=[
                     {
                         "type": "thinking",
-                        "thinking": [
-                            {"type": "text", "text": "Part A"},
-                            {"type": "text", "text": " Part B"},
-                        ],
+                        "thinking": {"type": "text", "text": "Part A"},
                     },
                     {"type": "text", "text": "Answer"},
                 ]
@@ -79,7 +84,7 @@ class TestNonStreamingMistralReasoning:
         message = result["choices"][0]["message"]
         assert message["content"] == "Answer"
         stage = message["custom_content"]["stages"][0]
-        assert stage["content"] == "Part A Part B"
+        assert stage["content"] == "Part A"
         assert stage["name"] == "Reasoning"
         assert stage["status"] == "completed"
 
@@ -119,11 +124,23 @@ class TestStreamingMistralReasoning:
             yield single_choice_chunk(
                 delta={
                     "role": "assistant",
-                    "content": [{"type": "thinking", "thinking": "Part 1"}],
+                    "content": [
+                        {
+                            "type": "thinking",
+                            "thinking": {"type": "text", "text": "Part 1"},
+                        }
+                    ],
                 }
             )
             yield single_choice_chunk(
-                delta={"content": [{"type": "thinking", "thinking": " Part 2"}]}
+                delta={
+                    "content": [
+                        {
+                            "type": "thinking",
+                            "thinking": {"type": "text", "text": " Part 2"},
+                        }
+                    ]
+                }
             )
             yield single_choice_chunk(
                 delta={"content": [{"type": "text", "text": "Answer"}]}
@@ -170,7 +187,13 @@ class TestStreamingMistralReasoning:
             yield single_choice_chunk(
                 delta={
                     "content": [
-                        {"type": "thinking", "thinking": "Only thought"}
+                        {
+                            "type": "thinking",
+                            "thinking": {
+                                "type": "text",
+                                "text": "Only thought",
+                            },
+                        }
                     ]
                 },
                 finish_reason="stop",
@@ -224,7 +247,13 @@ class TestStreamingMistralReasoning:
                         "index": 0,
                         "delta": {
                             "content": [
-                                {"type": "thinking", "thinking": "C0 thought"}
+                                {
+                                    "type": "thinking",
+                                    "thinking": {
+                                        "type": "text",
+                                        "text": "C0 thought",
+                                    },
+                                }
                             ]
                         },
                         "finish_reason": None,
@@ -242,7 +271,13 @@ class TestStreamingMistralReasoning:
                         "index": 1,
                         "delta": {
                             "content": [
-                                {"type": "thinking", "thinking": "C1 thought"}
+                                {
+                                    "type": "thinking",
+                                    "thinking": {
+                                        "type": "text",
+                                        "text": "C1 thought",
+                                    },
+                                }
                             ]
                         },
                         "finish_reason": None,
@@ -260,7 +295,13 @@ class TestStreamingMistralReasoning:
                         "index": 0,
                         "delta": {
                             "content": [
-                                {"type": "thinking", "thinking": " more"}
+                                {
+                                    "type": "thinking",
+                                    "thinking": {
+                                        "type": "text",
+                                        "text": " more",
+                                    },
+                                }
                             ]
                         },
                         "finish_reason": None,
