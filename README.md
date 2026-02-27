@@ -629,6 +629,8 @@ The Mistral Platform provides [Chat Completions API](https://docs.mistral.ai/api
 
 Where `MISTRAL_MODEL_NAME` is one of the available [models](https://docs.mistral.ai/getting-started/models/models_overview/) on the Platform.
 
+The deployment should be added to the environment variable `MISTRAL_DEPLOYMENTS`.
+
 The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#reasoning-with-chat-completions) for Magistral models. The reasoning tokens are displayed in a dedicated stage titled `Reasoning`.
 
 ### Tokenization of chat completion requests/responses

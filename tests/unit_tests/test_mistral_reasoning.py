@@ -38,7 +38,9 @@ class TestNonStreamingMistralReasoning:
                 content=[
                     {
                         "type": "thinking",
-                        "thinking": {"type": "text", "text": "Let me think..."},
+                        "thinking": [
+                            {"type": "text", "text": "Let me think..."}
+                        ],
                     }
                 ]
             )
@@ -56,7 +58,9 @@ class TestNonStreamingMistralReasoning:
                 content=[
                     {
                         "type": "thinking",
-                        "thinking": {"type": "text", "text": "Reasoning here"},
+                        "thinking": [
+                            {"type": "text", "text": "Reasoning here"}
+                        ],
                     },
                     {"type": "text", "text": "Answer here"},
                 ]
@@ -69,13 +73,16 @@ class TestNonStreamingMistralReasoning:
         assert stage["name"] == "Reasoning"
         assert stage["status"] == "completed"
 
-    def test_thinking_as_dict_text_object(self) -> None:
+    def test_thinking_as_multiple_items_in_list(self) -> None:
         result = extract_reasoning_content(
             _make_response(
                 content=[
                     {
                         "type": "thinking",
-                        "thinking": {"type": "text", "text": "Part A"},
+                        "thinking": [
+                            {"type": "text", "text": "Part A"},
+                            {"type": "text", "text": " Part B"},
+                        ],
                     },
                     {"type": "text", "text": "Answer"},
                 ]
@@ -84,7 +91,7 @@ class TestNonStreamingMistralReasoning:
         message = result["choices"][0]["message"]
         assert message["content"] == "Answer"
         stage = message["custom_content"]["stages"][0]
-        assert stage["content"] == "Part A"
+        assert stage["content"] == "Part A Part B"
         assert stage["name"] == "Reasoning"
         assert stage["status"] == "completed"
 
@@ -127,7 +134,7 @@ class TestStreamingMistralReasoning:
                     "content": [
                         {
                             "type": "thinking",
-                            "thinking": {"type": "text", "text": "Part 1"},
+                            "thinking": [{"type": "text", "text": "Part 1"}],
                         }
                     ],
                 }
@@ -137,7 +144,7 @@ class TestStreamingMistralReasoning:
                     "content": [
                         {
                             "type": "thinking",
-                            "thinking": {"type": "text", "text": " Part 2"},
+                            "thinking": [{"type": "text", "text": " Part 2"}],
                         }
                     ]
                 }
@@ -189,10 +196,9 @@ class TestStreamingMistralReasoning:
                     "content": [
                         {
                             "type": "thinking",
-                            "thinking": {
-                                "type": "text",
-                                "text": "Only thought",
-                            },
+                            "thinking": [
+                                {"type": "text", "text": "Only thought"}
+                            ],
                         }
                     ]
                 },
@@ -249,10 +255,9 @@ class TestStreamingMistralReasoning:
                             "content": [
                                 {
                                     "type": "thinking",
-                                    "thinking": {
-                                        "type": "text",
-                                        "text": "C0 thought",
-                                    },
+                                    "thinking": [
+                                        {"type": "text", "text": "C0 thought"}
+                                    ],
                                 }
                             ]
                         },
@@ -273,10 +278,9 @@ class TestStreamingMistralReasoning:
                             "content": [
                                 {
                                     "type": "thinking",
-                                    "thinking": {
-                                        "type": "text",
-                                        "text": "C1 thought",
-                                    },
+                                    "thinking": [
+                                        {"type": "text", "text": "C1 thought"}
+                                    ],
                                 }
                             ]
                         },
@@ -297,10 +301,9 @@ class TestStreamingMistralReasoning:
                             "content": [
                                 {
                                     "type": "thinking",
-                                    "thinking": {
-                                        "type": "text",
-                                        "text": " more",
-                                    },
+                                    "thinking": [
+                                        {"type": "text", "text": " more"}
+                                    ],
                                 }
                             ]
                         },

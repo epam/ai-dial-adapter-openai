@@ -43,14 +43,20 @@ class _MistralResponseTransformer:
                         text_parts.append(item.get("text") or "")
                     elif item_type == "thinking":
                         thinking_value = item.get("thinking")
-                        if not isinstance(thinking_value, dict):
+                        if not isinstance(thinking_value, list):
                             continue
-                        if thinking_value.get("type") != "text":
-                            logger.warning(
-                                f"The response thinking part of type {thinking_value.get('type')!r} isn't supported and will be ignored"
-                            )
-                            continue
-                        thinking_parts.append(thinking_value.get("text") or "")
+                        for thinking_item in thinking_value:
+                            if not isinstance(thinking_item, dict):
+                                continue
+                            thinking_type = thinking_item.get("type")
+                            if thinking_type == "text":
+                                thinking_parts.append(
+                                    thinking_item.get("text") or ""
+                                )
+                            else:
+                                logger.warning(
+                                    f"The response thinking part of type {thinking_type!r} isn't supported and will be ignored"
+                                )
                     else:
                         logger.warning(
                             f"The response content part of type {item_type!r} isn't supported and will be ignored"
@@ -119,8 +125,11 @@ def extract_reasoning_content(
         )
 
 
-def _chunk_to_dict(chunk: ChatCompletionChunk) -> dict:
-    return chunk.to_dict(warnings=False)
+def _response_to_dict(obj: ChatCompletionChunk | ChatCompletion) -> dict:
+    # Magistral returns an invalid OpenAI response.
+    # Suppressing warnings from pydantic:
+    # > Expected `str` but got `list` with value `[{'type': 'thinking', 'thinking': []}]` - serialized value may not be as expected
+    return obj.to_dict(warnings=False)
 
 
 async def chat_completion(
@@ -131,7 +140,7 @@ async def chat_completion(
     ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
-        raw_stream = map_stream(_chunk_to_dict, response)
+        raw_stream = map_stream(_response_to_dict, response)
         return extract_reasoning_content(raw_stream)
     else:
-        return extract_reasoning_content(response.to_dict(warnings=False))
+        return extract_reasoning_content(_response_to_dict(response))
