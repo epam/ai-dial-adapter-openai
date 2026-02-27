@@ -1,3 +1,4 @@
+import json
 from typing import Generator, List, assert_never
 
 from aidial_sdk.chat_completion.request import CustomContent, Stage, Status
@@ -54,6 +55,8 @@ from openai.types.responses import (
     ToolChoiceCustomParam,
     ToolChoiceFunctionParam,
     ToolParam,
+    WebSearchPreviewToolParam,
+    WebSearchToolParam,
 )
 from openai.types.responses.response_create_params import ToolChoice
 from openai.types.responses.response_input_item_param import (
@@ -144,16 +147,30 @@ def convert_tool_choice(
     assert_never(tool_choice)
 
 
-def convert_tools(tools: List[ChatCompletionToolParam]) -> List[ToolParam]:
-    def _convert_tool(tool: ChatCompletionToolParam) -> ToolParam:
-        function = tool["function"]
-        return FunctionToolParam(
-            type="function",
-            name=function["name"],
-            parameters=function.get("parameters"),
-            strict=function.get("strict"),
-            description=function.get("description"),
-        )
+_InputToolParam = (
+    ChatCompletionToolParam | WebSearchToolParam | WebSearchPreviewToolParam
+)
+
+
+def convert_tools(tools: List[_InputToolParam]) -> List[ToolParam]:
+    def _convert_tool(tool: _InputToolParam) -> ToolParam:
+        match tool["type"]:
+            case (
+                "web_search"
+                | "web_search_2025_08_26"
+                | "web_search_preview"
+                | "web_search_preview_2025_03_11"
+            ):
+                return tool
+            case _:
+                function = tool["function"]
+                return FunctionToolParam(
+                    type="function",
+                    name=function["name"],
+                    parameters=function.get("parameters"),
+                    strict=function.get("strict"),
+                    description=function.get("description"),
+                )
 
     return [_convert_tool(tool) for tool in tools]
 
@@ -357,9 +374,25 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                         )
                     custom_content = CustomContent(stages=stages)
 
+            case ResponseFunctionWebSearch(
+                id=item_id, type=item_type, action=action
+            ):
+                logger.info(
+                    f"[web_search] tool call: id={item_id}, action={action}"
+                )
+                tool_calls.append(
+                    ChatCompletionMessageToolCall(
+                        id=item_id,
+                        type="function",
+                        function=Function(
+                            name=item_type,
+                            arguments=json.dumps(action.model_dump()),
+                        ),
+                    )
+                )
+
             case (
                 ResponseFileSearchToolCall()
-                | ResponseFunctionWebSearch()
                 | ResponseComputerToolCall()
                 | ImageGenerationCall()
                 | ResponseCodeInterpreterToolCall()
