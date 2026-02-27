@@ -19,6 +19,9 @@ from aidial_adapter_openai.chat_completions.gpt_audio import (
 from aidial_adapter_openai.chat_completions.gpt_oss import (
     extract_reasoning_tokens,
 )
+from aidial_adapter_openai.chat_completions.mistral import (
+    chat_completion as mistral_gpt_chat_completion,
+)
 from aidial_adapter_openai.chat_completions.non_gpt import (
     chat_completion as non_gpt_chat_completion,
 )
@@ -161,7 +164,12 @@ async def call_chat_completion(
                 file_storage=file_storage,
             )
 
-        case D.MISTRAL | D.DATABRICKS:
+        case D.MISTRAL:
+            return await mistral_gpt_chat_completion(
+                request=request_body, client=client
+            )
+
+        case D.DATABRICKS:
             return await non_gpt_chat_completion(
                 request=request_body, client=client
             )

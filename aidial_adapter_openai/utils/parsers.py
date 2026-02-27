@@ -97,6 +97,17 @@ class EndpointParser(ExtraForbidModel):
         raise bad_upstream_endpoint()
 
 
+class OptionalEndpointParser(ExtraForbidModel):
+    name: str | None
+
+    def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
+        result = _parse_endpoint(self.name, endpoint)
+        result = result or _parse_endpoint(None, endpoint)
+        if result:
+            return result
+        raise bad_upstream_endpoint()
+
+
 class CompletionsParser(ExtraForbidModel):
     def try_parse(
         self, endpoint: str
@@ -108,12 +119,14 @@ class CompletionsParser(ExtraForbidModel):
 
 
 chat_completions_parser = EndpointParser(name="chat/completions")
+chat_completions_optional_parser = OptionalEndpointParser(
+    name="chat/completions"
+)
 image_gen_parser = EndpointParser(name="images/generations")
 speech_parser = EndpointParser(name="audio/speech")
 transcriptions_parser = EndpointParser(name="audio/transcriptions")
 embeddings_parser = EndpointParser(name="embeddings")
 responses_parser = EndpointParser(name="responses")
-no_endpoint_parser = EndpointParser(name=None)
 completions_parser = CompletionsParser()
 azure_video_api_parser = EndpointParser(name="video/generations")
 openai_video_api_parser = EndpointParser(name="videos")

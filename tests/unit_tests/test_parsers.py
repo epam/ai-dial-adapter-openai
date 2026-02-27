@@ -5,9 +5,9 @@ from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
     OpenAIEndpoint,
+    chat_completions_optional_parser,
     chat_completions_parser,
     completions_parser,
-    no_endpoint_parser,
     openai_video_api_parser,
     responses_parser,
 )
@@ -26,7 +26,7 @@ RESPONSE_CASES = [
     ),
 ]
 
-NO_ENDPOINT_CASES = [
+OPTIONAL_CHAT_ENDPOINT_CASES = [
     (
         "https://test.com/openai/deployments/test-deployment",
         AzureOpenAIEndpoint(
@@ -54,6 +54,35 @@ NO_ENDPOINT_CASES = [
     ),
     (
         "https://test.com/my/endpoint",
+        OpenAIEndpoint(base_url="https://test.com/my/endpoint"),
+    ),
+    (
+        "https://test.com/openai/deployments/test-deployment/chat/completions",
+        AzureOpenAIEndpoint(
+            azure_endpoint="https://test.com",
+            azure_deployment="test-deployment",
+        ),
+    ),
+    (
+        "https://test.com/my/models/openai/deployments/test-deployment/chat/completions",
+        AzureOpenAIEndpoint(
+            azure_endpoint="https://test.com/my/models",
+            azure_deployment="test-deployment",
+        ),
+    ),
+    (
+        "https://test.com/openai/deployments/test-deployment-chat/chat/completions",
+        AzureOpenAIEndpoint(
+            azure_endpoint="https://test.com",
+            azure_deployment="test-deployment-chat",
+        ),
+    ),
+    (
+        "https://test.com/openai/deployments/chat/completions",
+        OpenAIEndpoint(base_url="https://test.com/openai/deployments"),
+    ),
+    (
+        "https://test.com/my/endpoint/chat/completions",
         OpenAIEndpoint(base_url="https://test.com/my/endpoint"),
     ),
 ]
@@ -169,9 +198,9 @@ def test_responses_parser(endpoint, parsed):
     assert result == parsed
 
 
-@pytest.mark.parametrize("endpoint, parsed", NO_ENDPOINT_CASES)
-def test_no_endpoint_parser(endpoint, parsed):
-    result = no_endpoint_parser.try_parse(endpoint)
+@pytest.mark.parametrize("endpoint, parsed", OPTIONAL_CHAT_ENDPOINT_CASES)
+def test_optional_chat_endpoint_parser(endpoint, parsed):
+    result = chat_completions_optional_parser.parse(endpoint)
     assert result == parsed
 
 
