@@ -126,23 +126,23 @@ class VllmTokenizer:
         - Try the full payload first; if it fits, return immediately.
         - Otherwise, remove the oldest non-system message one-by-one.
         - If a removed message is an assistant message with ``tool_calls``,
-          also remove all subsequent ``tool`` messages up to (but not
-          including) the next ``assistant`` message.
+          also remove all subsequent ``tool`` messages and the next
+          ``assistant`` message that follows the tool chain.
         - Never remove the last non-system message; if even
           ``system + last_user`` doesn't fit, raise an error.
         """
 
         all_indices: Set[int] = set(range(len(messages)))
 
-        def _collect(kept: Set[int]) -> List[MultiModalMessage]:
-            return [messages[i] for i in sorted(kept)]
+        def _collect(indices: Set[int]) -> List[MultiModalMessage]:
+            return [messages[i] for i in sorted(indices)]
 
         # Fast path
         prompt_tokens = await self.tokenize_request(
             original_request, _collect(all_indices)
         )
         if prompt_tokens <= max_prompt_tokens:
-            return (_collect(all_indices), [], prompt_tokens)
+            return _collect(all_indices), [], prompt_tokens
 
         system_indices: list[int] = []
         non_system_indices: list[int] = []
@@ -163,8 +163,7 @@ class VllmTokenizer:
         kept: Set[int] = set(all_indices)
 
         def _cascade_remove_tool_replies(start_idx: int) -> None:
-            """Remove consecutive tool replies following *start_idx* until
-            the next assistant message."""
+            """Remove consecutive tool replies following *start_idx* and the next assistant."""
             j = start_idx + 1
             while j < len(messages):
                 if j not in kept:
@@ -176,6 +175,7 @@ class VllmTokenizer:
                     j += 1
                     continue
                 if role == "assistant":
+                    kept.discard(j)
                     break
                 # If it's a user/system/etc. stop cascading.
                 break
@@ -198,7 +198,7 @@ class VllmTokenizer:
             )
             if prompt_tokens <= max_prompt_tokens:
                 discarded = sorted(all_indices - kept)
-                return (_collect(kept), discarded, prompt_tokens)
+                return _collect(kept), discarded, prompt_tokens
 
         # Not enough: check minimal viable prompt = system + last non-system
         last_non_system = non_system_indices[-1]
@@ -209,7 +209,7 @@ class VllmTokenizer:
         )
         if last_tokens <= max_prompt_tokens:
             discarded = sorted(all_indices - last_kept)
-            return (_collect(last_kept), discarded, last_tokens)
+            return _collect(last_kept), discarded, last_tokens
 
         system_tokens = await self.tokenize_request(
             original_request, _collect(system_set)

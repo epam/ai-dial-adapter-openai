@@ -508,7 +508,7 @@ class TestVllmToolCallCascade:
             {}, messages, 20
         )
 
-        assert sorted(discarded) == [1, 2, 3]
+        assert sorted(discarded) == [1, 2, 3, 4]
         assert used == 12
         assert truncated[-1].raw_message["content"] == "follow-up"
 
