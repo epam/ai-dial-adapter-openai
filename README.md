@@ -29,6 +29,7 @@
     - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
+    - [vLLM Chat Completion API](#vllm-chat-completion-api)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
@@ -632,6 +633,48 @@ Where `MISTRAL_MODEL_NAME` is one of the available [models](https://docs.mistral
 The deployment should be added to the environment variable `MISTRAL_DEPLOYMENTS`.
 
 The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#reasoning-with-chat-completions) for Magistral models. The reasoning tokens are displayed in a dedicated stage titled `Reasoning`.
+
+#### vLLM Chat Completion API
+
+vLLM provides an OpenAI-compatible Chat Completions API and can be connected to the adapter.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${VLLM_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "http://<vllm-host>:<port>/v1/chat/completions"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Enable the vLLM-specific flow by adding `${ADAPTER_DEPLOYMENT_ID}` to the environment variable `VLLM_DEPLOYMENTS`.
+
+##### Request routing / caching headers for vLLM
+
+Some vLLM clusters support request routing and/or prompt caching based on a stable marker passed in an HTTP header (for example, conversation id, user session id, etc.).
+
+To support such setups, configure `VLLM_HEADERS_TO_PROXY` with a comma-separated list of incoming HTTP header names that should be forwarded **only for vLLM deployments** (both for chat completions and for vLLM tokenization requests).
+
+Example:
+
+- `VLLM_HEADERS_TO_PROXY=x-conversation-id`
+
+If a DIAL client (or DIAL Core) sends the header `x-conversation-id: <some-stable-id>`, the adapter will forward it upstream to vLLM, increasing the chance that related requests are routed to the same vLLM instance and can benefit from upstream caching.
+
+> [!IMPORTANT]
+> The adapter only proxies headers listed in `VLLM_HEADERS_TO_PROXY` for deployments registered in `VLLM_DEPLOYMENTS`. No additional headers are proxied for other (Azure/OpenAI/etc.) deployments.
 
 ### Tokenization of chat completion requests/responses
 
