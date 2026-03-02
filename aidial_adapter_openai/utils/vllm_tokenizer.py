@@ -8,7 +8,7 @@ already-transformed request payload to that endpoint and trusts the
 returned count — no modality-specific accounting is done on the adapter
 side.
 
-The tokenize URL is derived programmatically from the upstream
+The tokenizing endpoint URL is derived programmatically from the upstream
 chat-completions URL by replacing the ``/chat/completions`` path suffix
 with ``/tokenize``.
 
@@ -126,7 +126,7 @@ class VllmTokenizer:
         - Try the full payload first; if it fits, return immediately.
         - Otherwise, remove the oldest non-system message one-by-one.
         - If a removed message is an assistant message with ``tool_calls``,
-          also remove all subsequent ``tool`` messages and the next
+          also remove all the next ``tool`` messages and the next
           ``assistant`` message that follows the tool chain.
         - Never remove the last non-system message; if even
           ``system + last_user`` doesn't fit, raise an error.
@@ -180,7 +180,7 @@ class VllmTokenizer:
                 # If it's a user/system/etc. stop cascading.
                 break
 
-        # Remove oldest non-system messages, but keep the last non-system.
+        # Remove the oldest non-system messages but keep the last non-system.
         for idx in non_system_indices[:-1]:
             if idx not in kept:
                 continue
@@ -189,7 +189,7 @@ class VllmTokenizer:
             kept.discard(idx)
 
             # If we remove an assistant with tool_calls, also remove tool
-            # replies until next assistant.
+            # replies until the next assistant.
             if raw.get("role") == "assistant" and raw.get("tool_calls"):
                 _cascade_remove_tool_replies(idx)
 
