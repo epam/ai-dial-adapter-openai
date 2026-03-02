@@ -35,6 +35,7 @@
     - [Tokenization algorithm](#tokenization-algorithm)
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
+      - [vLLM tokenization](#vllm-tokenization)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
     - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
@@ -739,6 +740,18 @@ Finally, if the deployment id is neither declared in `TIKTOKEN_MODEL_MAPPING`, n
 If a deployment is registered in `GPT4O_DEPLOYMENTS` or `GPT4O_MINI_DEPLOYMENTS`, the corresponding image-tokenization algorithm described in [the Azure documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/overview#image-input-tokens) is used.
 
 Otherwise, images aren’t tokenized — the image tokens are assumed to be 0.
+
+##### vLLM tokenization
+
+For deployments registered in `VLLM_DEPLOYMENTS`, the adapter relies on the upstream vLLM tokenizer endpoint to count prompt tokens.
+
+The adapter first performs the standard Unified → OpenAI-compatible transformation (including embedding DIAL-private file/image URLs as base64 content). Then it sends the fully constructed request payload to the vLLM endpoint derived from the upstream chat completions URL:
+
+`.../v1/chat/completions` → `.../tokenize`
+
+Token counting is performed by vLLM for the entire request payload as-is (including tools and multimodal message parts). The adapter does not do any modality-specific token counting for vLLM.
+
+When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the vLLM-reported token count fits.
 
 ---
 
