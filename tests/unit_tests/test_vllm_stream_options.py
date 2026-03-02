@@ -39,7 +39,6 @@ async def test_vllm_stream_options_include_usage_injected(monkeypatch):
     tokenizer = VllmTokenizer(
         model="m",
         upstream_endpoint="http://localhost:17834/v1/chat/completions",
-        upstream_api_key="k",
     )
 
     request = {
@@ -94,7 +93,6 @@ async def test_vllm_stream_options_include_usage_merged(monkeypatch):
     tokenizer = VllmTokenizer(
         model="m",
         upstream_endpoint="http://localhost:17834/v1/chat/completions",
-        upstream_api_key="k",
     )
 
     request = {
@@ -151,7 +149,6 @@ async def test_vllm_non_stream_does_not_inject_stream_options(monkeypatch):
     tokenizer = VllmTokenizer(
         model="m",
         upstream_endpoint="http://localhost:17834/v1/chat/completions",
-        upstream_api_key="k",
     )
 
     request = {

@@ -52,14 +52,12 @@ class TestDeriveTokenizeUrl:
 # ---------------------------------------------------------------
 
 _UPSTREAM = "https://vllm.example.com/v1/chat/completions"
-_UPSTREAM_API_KEY = "test-upstream-key"
 
 
 def _make_tokenizer() -> VllmTokenizer:
     return VllmTokenizer(
         model="my-vllm-model",
         upstream_endpoint=_UPSTREAM,
-        upstream_api_key=_UPSTREAM_API_KEY,
     )
 
 
@@ -94,7 +92,7 @@ class TestVllmTokenizerCallTokenize:
 
         call_args = mock_client.post.call_args
         headers = call_args.kwargs.get("headers") or call_args[1].get("headers")
-        assert headers["Authorization"] == f"Bearer {_UPSTREAM_API_KEY}"
+        assert "Authorization" not in headers
 
     @pytest.mark.asyncio
     async def test_falls_back_to_tokens_length(self):
@@ -550,7 +548,6 @@ class TestVllmExtraHeaders:
         tokenizer = VllmTokenizer(
             model="my-vllm-model",
             upstream_endpoint=_UPSTREAM,
-            upstream_api_key=_UPSTREAM_API_KEY,
             extra_headers={"x-user-id": "abc123", "x-custom": "value"},
         )
 
@@ -588,7 +585,6 @@ class TestVllmExtraHeaders:
         tokenizer = VllmTokenizer(
             model="my-vllm-model",
             upstream_endpoint=_UPSTREAM,
-            upstream_api_key=_UPSTREAM_API_KEY,
             extra_headers={},
         )
 
@@ -600,5 +596,6 @@ class TestVllmExtraHeaders:
 
         call_args = mock_client.post.call_args
         headers = call_args.kwargs.get("headers") or call_args[1].get("headers")
-        # Only Content-Type and Authorization should be present
+        # Only Content-Type should be present
         assert "x-user-id" not in headers
+        assert headers["Content-Type"] == "application/json"

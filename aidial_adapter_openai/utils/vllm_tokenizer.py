@@ -71,7 +71,6 @@ class VllmTokenizer:
 
     model: str
     tokenize_url: str
-    _api_key: str | None
     _extra_headers: dict[str, str]
     _http_client: httpx.AsyncClient
 
@@ -80,16 +79,12 @@ class VllmTokenizer:
         *,
         model: str,
         upstream_endpoint: str,
-        upstream_api_key: str | None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.model = model
         self.tokenize_url = derive_tokenize_url(upstream_endpoint)
         self._extra_headers = extra_headers or {}
 
-        # vLLM uses the upstream key (X-UPSTREAM-KEY) for Authorization.
-        # Do NOT use DIAL 'api-key' or incoming Authorization header.
-        self._api_key = upstream_api_key
 
         self._http_client = get_http_client()
 
@@ -247,8 +242,7 @@ class VllmTokenizer:
         """POST *payload* to the vLLM tokenize endpoint and return token count."""
 
         headers: Dict[str, str] = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
+        # vLLM /tokenize does not require authorization.
         if self._extra_headers:
             headers.update(self._extra_headers)
 
