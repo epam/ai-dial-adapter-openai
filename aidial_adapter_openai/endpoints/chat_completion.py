@@ -229,7 +229,6 @@ async def call_chat_completion(
             )
             response = await vllm_chat_completion(
                 request=request_body,
-                request_headers=request_headers,
                 client=client,
                 file_storage=file_storage,
                 tokenizer=vllm_tokenizer,

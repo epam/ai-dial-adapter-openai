@@ -51,7 +51,6 @@ async def test_vllm_stream_options_include_usage_injected(monkeypatch):
 
     await gpt_module.vllm_chat_completion(
         request=request,
-        request_headers={},
         client=client,
         file_storage=None,
         tokenizer=tokenizer,
@@ -106,7 +105,6 @@ async def test_vllm_stream_options_include_usage_merged(monkeypatch):
 
     await gpt_module.vllm_chat_completion(
         request=request,
-        request_headers={},
         client=client,
         file_storage=None,
         tokenizer=tokenizer,
@@ -161,7 +159,6 @@ async def test_vllm_non_stream_does_not_inject_stream_options(monkeypatch):
 
     await gpt_module.vllm_chat_completion(
         request=request,
-        request_headers={},
         client=client,
         file_storage=None,
         tokenizer=tokenizer,

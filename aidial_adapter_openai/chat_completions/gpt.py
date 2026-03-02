@@ -198,7 +198,6 @@ async def chat_completion(
 async def vllm_chat_completion(
     *,
     request: dict,
-    request_headers: Mapping[str, str],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
     tokenizer: VllmTokenizer,
@@ -212,6 +211,10 @@ async def vllm_chat_completion(
     - No adapter-side response tokenization or caching headers.
     - The request is proxied transparently to vLLM — usage handling
       is entirely between the client and the upstream server.
+
+    Notes:
+    - `eliminate_empty_choices` is still applied on the adapter side to keep
+      behavior consistent with the standard GPT streaming implementation.
     """
     messages: List[dict] = request["messages"]
 
@@ -244,10 +247,14 @@ async def vllm_chat_completion(
         body = _vllm_generate_stream(
             stream=map_stream(chunk_to_dict, response),
             discarded_messages=discarded_messages,
+            eliminate_empty_choices=eliminate_empty_choices,
         )
         return ResponseWithHeaders(headers=None, body=body)
     else:
         body = response.to_dict()
+        if eliminate_empty_choices and isinstance(body.get("choices"), list):
+            body["choices"] = [c for c in body["choices"] if c]
+
         if discarded_messages is not None:
             body |= {"statistics": {"discarded_messages": discarded_messages}}
 
@@ -259,12 +266,20 @@ async def _vllm_generate_stream(
     *,
     stream: AsyncIterator[dict],
     discarded_messages: DiscardedMessages | None,
+    eliminate_empty_choices: bool,
 ) -> AsyncIterator[dict]:
     """Pass through streaming chunks from vLLM, injecting
-    ``discarded_messages`` statistics into the last chunk if needed."""
+    ``discarded_messages`` statistics into the last chunk if needed.
+
+    If `eliminate_empty_choices` is True, empty chunk choices are removed
+    (same intent as the standard GPT stream generator).
+    """
     last_chunk = None
 
     async for chunk in stream:
+        if eliminate_empty_choices and isinstance(chunk.get("choices"), list):
+            chunk["choices"] = [c for c in chunk["choices"] if c]
+
         if last_chunk is not None:
             yield last_chunk
         last_chunk = chunk
