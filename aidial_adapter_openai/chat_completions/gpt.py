@@ -251,15 +251,15 @@ async def vllm_chat_completion(
         )
         return ResponseWithHeaders(headers=None, body=body)
     else:
-        body = response.to_dict()
-        if eliminate_empty_choices and isinstance(body.get("choices"), list):
-            body["choices"] = [c for c in body["choices"] if c]
+        if eliminate_empty_choices and response.choices:
+            response.choices = [c for c in response.choices if c]
 
+        data = response.to_dict()
         if discarded_messages is not None:
-            body |= {"statistics": {"discarded_messages": discarded_messages}}
+            data |= {"statistics": {"discarded_messages": discarded_messages}}
 
-        debug_print("response", body)
-        return ResponseWithHeaders(headers=None, body=body)
+        debug_print("response", data)
+        return ResponseWithHeaders(headers=None, body=data)
 
 
 async def _vllm_generate_stream(
