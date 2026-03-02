@@ -62,7 +62,7 @@ class ApplicationConfig(ExtraForbidModel):
 
     AUDIO_AZURE_API_VERSION: str = "2025-03-01-preview"
 
-    HEADERS_TO_PROXY: List[str] = []
+    VLLM_HEADERS_TO_PROXY: List[str] = []
 
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
@@ -164,11 +164,11 @@ class ApplicationConfig(ExtraForbidModel):
             endpoint=chat_completions_parser.parse(upstream_endpoint),
         )
 
-    def get_headers_to_proxy(
+    def get_vllm_headers_to_proxy(
         self, headers: Mapping[str, str]
     ) -> dict[str, str]:
-        ret = {}
-        for header in self.HEADERS_TO_PROXY:
+        ret: dict[str, str] = {}
+        for header in self.VLLM_HEADERS_TO_PROXY:
             if (value := headers.get(header)) is not None:
                 ret[header] = value
         return ret
@@ -227,7 +227,7 @@ class ApplicationConfig(ExtraForbidModel):
                 "VLLM_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
-                "HEADERS_TO_PROXY",
+                "VLLM_HEADERS_TO_PROXY",
             )
         }
 

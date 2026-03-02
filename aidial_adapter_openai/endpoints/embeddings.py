@@ -27,12 +27,13 @@ async def embedding(deployment_id: str, request: Request):
 
     if deployment_id in app_config.VLLM_DEPLOYMENTS:
         creds = get_credentials_vllm(request.headers)
+        headers_to_proxy = app_config.get_vllm_headers_to_proxy(request.headers)
     else:
         creds = await get_credentials_azure(request.headers)
+        headers_to_proxy = {}
 
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
-    headers_to_proxy = app_config.get_headers_to_proxy(request.headers)
 
     if deployment_id in app_config.AZURE_AI_VISION_DEPLOYMENTS:
         file_storage = create_file_storage(request.headers)

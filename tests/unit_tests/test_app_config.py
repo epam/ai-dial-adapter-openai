@@ -150,35 +150,35 @@ def test_app_config_dalle_azure(
 
 
 # ---------------------------------------------------------------
-# HEADERS_TO_PROXY / get_headers_to_proxy
+# VLLM_HEADERS_TO_PROXY / get_vllm_headers_to_proxy
 # ---------------------------------------------------------------
 
 
 class TestHeadersToProxy:
     def test_default_is_empty(self):
         config = ApplicationConfig()
-        assert config.HEADERS_TO_PROXY == []
+        assert config.VLLM_HEADERS_TO_PROXY == []
 
     def test_returns_matching_headers(self):
-        config = ApplicationConfig(HEADERS_TO_PROXY=["x-user-id", "x-custom"])
+        config = ApplicationConfig(VLLM_HEADERS_TO_PROXY=["x-user-id", "x-custom"])
         headers = {"x-user-id": "abc", "x-custom": "val", "other": "ignored"}
-        result = config.get_headers_to_proxy(headers)
+        result = config.get_vllm_headers_to_proxy(headers)
         assert result == {"x-user-id": "abc", "x-custom": "val"}
 
     def test_skips_missing_headers(self):
-        config = ApplicationConfig(HEADERS_TO_PROXY=["x-user-id", "x-missing"])
+        config = ApplicationConfig(VLLM_HEADERS_TO_PROXY=["x-user-id", "x-missing"])
         headers = {"x-user-id": "abc"}
-        result = config.get_headers_to_proxy(headers)
+        result = config.get_vllm_headers_to_proxy(headers)
         assert result == {"x-user-id": "abc"}
 
     def test_returns_empty_when_no_matches(self):
-        config = ApplicationConfig(HEADERS_TO_PROXY=["x-user-id"])
+        config = ApplicationConfig(VLLM_HEADERS_TO_PROXY=["x-user-id"])
         headers = {"other": "value"}
-        result = config.get_headers_to_proxy(headers)
+        result = config.get_vllm_headers_to_proxy(headers)
         assert result == {}
 
     def test_returns_empty_when_no_proxy_configured(self):
         config = ApplicationConfig()
         headers = {"x-user-id": "abc"}
-        result = config.get_headers_to_proxy(headers)
+        result = config.get_vllm_headers_to_proxy(headers)
         assert result == {}

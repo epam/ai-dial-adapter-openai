@@ -537,14 +537,14 @@ class TestVllmToolCallCascade:
 
 
 # ---------------------------------------------------------------
-# Extra headers (HEADERS_TO_PROXY support)
+# Extra headers (VLLM_HEADERS_TO_PROXY support)
 # ---------------------------------------------------------------
 
 
 class TestVllmExtraHeaders:
     @pytest.mark.asyncio
     async def test_extra_headers_included_in_tokenize_request(self):
-        """Extra headers (from HEADERS_TO_PROXY) are sent with tokenize calls."""
+        """Extra headers (from VLLM_HEADERS_TO_PROXY) are sent with tokenize calls."""
         tokenizer = VllmTokenizer(
             model="my-vllm-model",
             upstream_endpoint=_UPSTREAM,
