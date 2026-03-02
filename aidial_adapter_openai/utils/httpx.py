@@ -3,9 +3,9 @@ import logging
 import time
 from typing import Any, Tuple
 
-_httpx = importlib.import_module("httpx")
-
 from aidial_adapter_openai.utils.log_config import logger
+
+_httpx = importlib.import_module("httpx")
 
 # Re-export commonly used httpx types/exceptions so that references like
 # `aidial_adapter_openai.utils.httpx.AsyncClient` work during type checking.

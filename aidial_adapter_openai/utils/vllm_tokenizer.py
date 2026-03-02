@@ -85,7 +85,6 @@ class VllmTokenizer:
         self.tokenize_url = derive_tokenize_url(upstream_endpoint)
         self._extra_headers = extra_headers or {}
 
-
         self._http_client = get_http_client()
 
     # ------------------------------------------------------------------

@@ -160,13 +160,17 @@ class TestHeadersToProxy:
         assert config.VLLM_HEADERS_TO_PROXY == []
 
     def test_returns_matching_headers(self):
-        config = ApplicationConfig(VLLM_HEADERS_TO_PROXY=["x-user-id", "x-custom"])
+        config = ApplicationConfig(
+            VLLM_HEADERS_TO_PROXY=["x-user-id", "x-custom"]
+        )
         headers = {"x-user-id": "abc", "x-custom": "val", "other": "ignored"}
         result = config.get_vllm_headers_to_proxy(headers)
         assert result == {"x-user-id": "abc", "x-custom": "val"}
 
     def test_skips_missing_headers(self):
-        config = ApplicationConfig(VLLM_HEADERS_TO_PROXY=["x-user-id", "x-missing"])
+        config = ApplicationConfig(
+            VLLM_HEADERS_TO_PROXY=["x-user-id", "x-missing"]
+        )
         headers = {"x-user-id": "abc"}
         result = config.get_vllm_headers_to_proxy(headers)
         assert result == {"x-user-id": "abc"}
