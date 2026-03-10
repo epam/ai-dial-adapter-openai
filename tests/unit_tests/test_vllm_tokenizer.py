@@ -40,6 +40,8 @@ class TestDeriveTokenizeUrl:
 
 
 _UPSTREAM = "https://vllm.example.com/v1/chat/completions"
+# Plain repeated chars keep synthetic payload lengths obvious in tests.
+_TEST_IMAGE_URL = "i" * 10
 
 
 def _make_tokenizer() -> VllmTokenizer:
@@ -166,26 +168,21 @@ class TestVllmTokenizerPublicApi:
         mock_client.post.return_value = _mock_response(20)
         tokenizer._http_client = mock_client
 
-        structured_content = [
-            {"type": "text", "text": "describe this"},
-            {
-                "type": "image_url",
-                "image_url": {"url": "data:image/jpeg;base64,..."},
-            },
-        ]
+        structured_message = _mi(text="describe this")
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(
-                raw_message={"role": "user", "content": structured_content}
-            ),
+            _mm("system", "sys"),
+            structured_message,
         ]
 
         await tokenizer.tokenize_request({"model": "my-vllm-model"}, messages)
 
         call_args = mock_client.post.call_args
         payload = call_args.kwargs.get("json") or call_args[1].get("json")
-        assert payload["messages"][1]["content"] == structured_content
+        assert (
+            payload["messages"][1]["content"]
+            == structured_message.raw_message["content"]
+        )
 
     @pytest.mark.asyncio
     async def test_tokenize_request_with_empty_messages(self):
@@ -204,23 +201,120 @@ class TestVllmTokenizerPublicApi:
         assert payload["messages"] == []
 
 
-def _make_mock_tokenizer(responses: list[int]) -> VllmTokenizer:
-    """Create a VllmTokenizer where successive tokenize_request calls
-    return counts from *responses* in order."""
+def _mm(role: str, content, **extra) -> MultiModalMessage:
+    raw_message = {"role": role, "content": content}
+    raw_message.update(extra)
+    return MultiModalMessage(raw_message=raw_message)
+
+
+def _mi(*, role: str = "user", text: str, image_url: str = _TEST_IMAGE_URL):
+    return _mm(
+        role,
+        [
+            {"type": "text", "text": text},
+            {"type": "image_url", "image_url": {"url": image_url}},
+        ],
+    )
+
+
+def _ma(
+    *,
+    content=None,
+    function_name: str = "fn",
+    arguments: str = "{}",
+    call_id: str = "call_1",
+):
+    return _mm(
+        "assistant",
+        content,
+        tool_calls=[
+            {
+                "id": call_id,
+                "type": "function",
+                "function": {"name": function_name, "arguments": arguments},
+            }
+        ],
+    )
+
+
+def _content_len(content) -> int:
+    if content is None:
+        return 0
+    if isinstance(content, str):
+        return len(content)
+    if isinstance(content, list):
+        return sum(_content_len(item) for item in content)
+    if isinstance(content, dict):
+        total = 0
+        text = content.get("text")
+        if isinstance(text, str):
+            total += len(text)
+
+        image_url = content.get("image_url")
+        if isinstance(image_url, str):
+            total += len(image_url)
+        elif isinstance(image_url, dict):
+            url = image_url.get("url")
+            if isinstance(url, str):
+                total += len(url)
+
+        return total
+    return 0
+
+
+def _tool_calls_len(tool_calls) -> int:
+    if not isinstance(tool_calls, list):
+        return 0
+
+    total = 0
+    for call in tool_calls:
+        if not isinstance(call, dict):
+            continue
+        function = call.get("function")
+        if not isinstance(function, dict):
+            continue
+
+        name = function.get("name")
+        if isinstance(name, str):
+            total += len(name)
+
+        arguments = function.get("arguments")
+        if isinstance(arguments, str):
+            total += len(arguments)
+
+    return total
+
+
+def _message_len(message: MultiModalMessage) -> int:
+    raw = message.raw_message
+    total = _content_len(raw.get("content"))
+
+    # Count agentic metadata to emulate non-text overhead in tests.
+    total += _tool_calls_len(raw.get("tool_calls"))
+
+    tool_call_id = raw.get("tool_call_id")
+    if isinstance(tool_call_id, str):
+        total += len(tool_call_id)
+
+    return total
+
+
+def _messages_char_count(messages: list[MultiModalMessage]) -> int:
+    return sum(_message_len(m) for m in messages)
+
+
+def _make_length_based_tokenizer(
+    *, call_payloads: list[list[dict]] | None = None
+) -> VllmTokenizer:
+    """Create a tokenizer mock that deterministically counts message content chars."""
     tokenizer = _make_tokenizer()
-    call_index = {"idx": 0}
-    call_log: list[int] = []  # message counts per call
 
-    async def mock_tokenize_request(original_request, messages):
-        idx = call_index["idx"]
-        call_index["idx"] += 1
-        call_log.append(len(messages))
-        if idx < len(responses):
-            return responses[idx]
-        return responses[-1]
+    def mock_tokenize_request(original_request, messages):
+        if call_payloads is not None:
+            call_payloads.append([m.raw_message for m in messages])
+        return _messages_char_count(messages)
 
-    tokenizer.tokenize_request = mock_tokenize_request  # type: ignore[assignment]
-    tokenizer._mock_call_log = call_log  # type: ignore[attr-defined]
+    tokenizer.tokenize_request = AsyncMock(side_effect=mock_tokenize_request)  # type: ignore[assignment]
     return tokenizer
 
 
@@ -228,120 +322,94 @@ class TestVllmTruncatePrompt:
     @pytest.mark.asyncio
     async def test_fits_without_truncation(self):
         """All messages fit — no truncation needed."""
-        # Call 1: full list → 20
-        tokenizer = _make_mock_tokenizer([20])
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "hi"}),
+            _mm("system", "s" * 5),
+            _mm("user", "u" * 4),
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 30
+            {}, messages, 10
         )
 
         assert discarded == []
-        assert used == 20
+        assert used == _messages_char_count(messages)
         assert len(truncated) == 2
 
     @pytest.mark.asyncio
     async def test_drops_oldest_non_system_message(self):
-        """Three messages: system + 2 user.  Full list is too big, so
-        oldest user message is dropped and the full remaining list is
-        re-tokenized."""
-        # Call 1: full list (3 msgs) → 30 (exceeds 25)
-        # Call 2: after dropping oldest group → 18 (fits)
-        tokenizer = _make_mock_tokenizer([30, 18])
+        """Three messages: system + 2 user. Oldest user is dropped."""
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(
-                raw_message={"role": "user", "content": "old user"}
-            ),
-            MultiModalMessage(
-                raw_message={"role": "user", "content": "new user"}
-            ),
+            _mm("system", "s" * 3),
+            _mm("user", "o" * 10),
+            _mm("user", "n" * 8),
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 25
+            {}, messages, 12
         )
 
         assert discarded == [1]
-        assert used == 18
+        assert used == _messages_char_count(truncated)
         assert len(truncated) == 2
-        assert truncated[0].raw_message["content"] == "sys"
-        assert truncated[1].raw_message["content"] == "new user"
+        assert truncated[0].raw_message["content"] == "s" * 3
+        assert truncated[1].raw_message["content"] == "n" * 8
 
     @pytest.mark.asyncio
     async def test_drops_multiple_messages(self):
-        """Four messages: system + 3 user.  Need to drop 2 oldest."""
-        # Call 1: full list (4 msgs) → 40 (exceeds 15)
-        # Call 2: after dropping group1 → 30 (still exceeds)
-        # Call 3: after dropping group2 → 12 (fits)
-        tokenizer = _make_mock_tokenizer([40, 30, 12])
+        """Four messages: system + 3 user. Need to drop 2 oldest."""
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "u1"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "u2"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "u3"}),
+            _mm("system", "s" * 3),
+            _mm("user", "u" * 9),
+            _mm("user", "v" * 8),
+            _mm("user", "w" * 7),
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 15
+            {}, messages, 10
         )
 
         assert sorted(discarded) == [1, 2]
-        assert used == 12
+        assert used == _messages_char_count(truncated)
         assert len(truncated) == 2
-        assert truncated[0].raw_message["content"] == "sys"
-        assert truncated[1].raw_message["content"] == "u3"
+        assert truncated[0].raw_message["content"] == "s" * 3
+        assert truncated[1].raw_message["content"] == "w" * 7
 
     @pytest.mark.asyncio
     async def test_no_system_message_truncation_succeeds(self):
-        """No system message — just user/assistant turns. Oldest messages
-        are dropped until the remainder fits."""
-        # Call 1: full list (4 msgs) → 40 (exceeds 20)
-        # Call 2: after dropping u1 → 30 (still exceeds)
-        # Call 3: after dropping assistant reply → 15 (fits)
-        tokenizer = _make_mock_tokenizer([40, 30, 15])
+        """No system message — oldest messages are dropped until fit."""
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "user", "content": "u1"}),
-            MultiModalMessage(
-                raw_message={"role": "assistant", "content": "a1"}
-            ),
-            MultiModalMessage(raw_message={"role": "user", "content": "u2"}),
-            MultiModalMessage(
-                raw_message={"role": "assistant", "content": "a2"}
-            ),
+            _mm("user", "u" * 9),
+            _mm("assistant", "a" * 8),
+            _mm("user", "v" * 6),
+            _mm("assistant", "b" * 5),
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 20
+            {}, messages, 11
         )
 
         assert sorted(discarded) == [0, 1]
-        assert used == 15
+        assert used == _messages_char_count(truncated)
         assert len(truncated) == 2
-        assert truncated[0].raw_message["content"] == "u2"
-        assert truncated[1].raw_message["content"] == "a2"
+        assert truncated[0].raw_message["content"] == "v" * 6
+        assert truncated[1].raw_message["content"] == "b" * 5
 
     @pytest.mark.asyncio
     async def test_no_system_message_last_message_too_big(self):
-        """No system message and even the single remaining last message
-        exceeds the budget — raises TruncatePromptSystemAndLastUserError."""
-        # Call 1: full list [u0, u1] → 50 (exceeds 10)
-        # Call 2: loop drops u0, tokenize [u1] → 50 (still exceeds, loop ends)
-        # No system messages → skip system-only check, raise SystemAndLastUser
-        tokenizer = _make_mock_tokenizer([50, 50])
+        """No system message and last remaining message still exceeds budget."""
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "user", "content": "old"}),
-            MultiModalMessage(
-                raw_message={"role": "user", "content": "huge last message"}
-            ),
+            _mm("user", "o" * 3),
+            _mm("user", "h" * 11),
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
@@ -350,16 +418,9 @@ class TestVllmTruncatePrompt:
     @pytest.mark.asyncio
     async def test_raises_system_error(self):
         """System messages alone exceed the budget."""
-        # Call 1: full list (system-only) → 50 (exceeds budget of 10)
-        # No loop iterations (non_system_indices is empty)
-        # Call 2: system-only → 50 => raise TruncatePromptSystemError
-        tokenizer = _make_mock_tokenizer([50, 50])
+        tokenizer = _make_length_based_tokenizer()
 
-        messages = [
-            MultiModalMessage(
-                raw_message={"role": "system", "content": "long"}
-            ),
-        ]
+        messages = [_mm("system", "s" * 11)]
 
         with pytest.raises(TruncatePromptSystemError):
             await tokenizer.truncate_prompt({}, messages, 10)
@@ -367,15 +428,11 @@ class TestVllmTruncatePrompt:
     @pytest.mark.asyncio
     async def test_raises_system_and_last_user_error(self):
         """System + last user message exceeds the budget."""
-        # Call 1: full list [sys, user] → 50 (exceeds 10)
-        # No loop iterations (non_system_indices[:-1] is empty)
-        # last_measured_tokens = 50 (from call 1, already system+last)
-        # Call 2: system-only → 5 (fits) => raise SystemAndLastUser
-        tokenizer = _make_mock_tokenizer([50, 5])
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "huge"}),
+            _mm("system", "s" * 4),
+            _mm("user", "u" * 7),
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
@@ -383,191 +440,111 @@ class TestVllmTruncatePrompt:
 
     @pytest.mark.asyncio
     async def test_structured_user_content_still_raises_last_user_error(self):
-        """truncate_prompt works with message boundaries; structured content
-        does not change SystemAndLastUser behavior."""
-        # Call 1: full list [sys, user] → 200 (exceeds 100)
-        # No loop iterations (non_system_indices[:-1] is empty)
-        # last_measured_tokens = 200 (from call 1, already system+last)
-        # Call 2: system-only → 5 (fits) => raise SystemAndLastUser
-        tokenizer = _make_mock_tokenizer([200, 5])
+        """Structured content does not change SystemAndLastUser behavior."""
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(
-                raw_message={
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "describe this"},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": "data:image/jpeg;base64,..."},
-                        },
-                    ],
-                },
-            ),
+            _mm("system", "s" * 4),
+            _mi(text="describe this"),
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await tokenizer.truncate_prompt({}, messages, 100)
+            await tokenizer.truncate_prompt({}, messages, 20)
 
     @pytest.mark.asyncio
     async def test_structured_user_content_kept_when_fits(self):
         """Structured user content is kept intact when truncation keeps that message."""
-        # Call 1: full list → 80 (exceeds 60)
-        # Call 2: after removing plain (system + structured) → 55 (fits)
-        tokenizer = _make_mock_tokenizer([80, 55])
+        tokenizer = _make_length_based_tokenizer()
 
-        structured_content = [
-            {"type": "text", "text": "describe this"},
-            {
-                "type": "image_url",
-                "image_url": {"url": "data:image/jpeg;base64,..."},
-            },
-        ]
+        structured_message = _mi(text="describe this")
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(
-                raw_message={"role": "user", "content": "old msg"}
-            ),
-            MultiModalMessage(
-                raw_message={"role": "user", "content": structured_content},
-            ),
+            _mm("system", "s" * 3),
+            _mm("user", "o" * 8),
+            structured_message,
         ]
+        max_prompt_tokens = _messages_char_count([messages[0], messages[2]])
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 60
+            {}, messages, max_prompt_tokens
         )
 
         assert discarded == [1]
-        assert used == 55
+        assert used == _messages_char_count(truncated)
         assert len(truncated) == 2
         assert truncated[0].raw_message["role"] == "system"
-        assert truncated[1].raw_message["content"] == structured_content
+        assert (
+            truncated[1].raw_message["content"]
+            == structured_message.raw_message["content"]
+        )
 
     @pytest.mark.asyncio
     async def test_tokenize_called_with_full_list_each_iteration(self):
-        """Verify that each truncation step re-sends the full remaining
-        message list (not individual messages)."""
-        tokenizer = _make_tokenizer()
+        """Each truncation step re-sends the full remaining message list."""
+        call_payloads: list[list[dict]] = []
+        tokenizer = _make_length_based_tokenizer(call_payloads=call_payloads)
 
-        call_payloads = []
-
-        async def capturing_tokenize_request(original_request, messages):
-            raw = [m.raw_message for m in messages]
-            call_payloads.append(raw)
-            # Simulate: full=30, after drop=15
-            counts = [30, 15]
-            idx = len(call_payloads) - 1
-            return counts[idx] if idx < len(counts) else 15
-
-        tokenizer.tokenize_request = capturing_tokenize_request  # type: ignore[assignment]
-
-        structured_content = [
-            {"type": "text", "text": "describe this"},
-            {
-                "type": "image_url",
-                "image_url": {"url": "data:image/jpeg;base64,..."},
-            },
-        ]
+        structured_message = _mi(text="describe this")
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "u1"}),
-            MultiModalMessage(
-                raw_message={"role": "user", "content": structured_content},
-            ),
+            _mm("system", "s" * 3),
+            _mm("user", "u" * 8),
+            structured_message,
         ]
+        max_prompt_tokens = _messages_char_count([messages[0], messages[2]])
 
-        await tokenizer.truncate_prompt({}, messages, 20)
+        await tokenizer.truncate_prompt({}, messages, max_prompt_tokens)
 
-        # Call 1: full list (3 messages)
         assert len(call_payloads[0]) == 3
-
-        # Call 2: after dropping u1 → system + structured user message (2 messages)
         assert len(call_payloads[1]) == 2
-        assert call_payloads[1][0]["content"] == "sys"
-        assert call_payloads[1][1]["content"] == structured_content
+        assert call_payloads[1][0]["content"] == "s" * 3
+        assert (
+            call_payloads[1][1]["content"]
+            == structured_message.raw_message["content"]
+        )
 
 
 class TestVllmToolCallCascade:
     @pytest.mark.asyncio
     async def test_assistant_tool_calls_cascade_removes_tool_messages(self):
-        """When an assistant message with tool_calls is dropped, the adapter
-        must also drop subsequent tool messages until the next assistant."""
-
-        # Call 1: full (6 msgs) → 100 (exceeds)
-        # Call 2: after dropping assistant+tool replies group → 12 (fits)
-        tokenizer = _make_mock_tokenizer([100, 12])
+        """Dropping assistant(tool_calls) also drops following tool chain."""
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(
-                raw_message={
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": "call_1",
-                            "type": "function",
-                            "function": {"name": "f", "arguments": "{}"},
-                        }
-                    ],
-                }
-            ),
-            # tool replies (should be removed with cascade)
-            MultiModalMessage(
-                raw_message={
-                    "role": "tool",
-                    "tool_call_id": "call_1",
-                    "content": "r1",
-                }
-            ),
-            MultiModalMessage(
-                raw_message={
-                    "role": "tool",
-                    "tool_call_id": "call_1",
-                    "content": "r2",
-                }
-            ),
-            # next assistant breaks cascade
-            MultiModalMessage(
-                raw_message={"role": "assistant", "content": "next"}
-            ),
-            MultiModalMessage(
-                raw_message={"role": "user", "content": "follow-up"}
-            ),
+            _mm("system", "s" * 3),
+            _ma(content=None, function_name="f" * 2, arguments="a" * 6),
+            _mm("tool", "r" * 8, tool_call_id="call_1"),
+            _mm("tool", "q" * 8, tool_call_id="call_1"),
+            _mm("assistant", "n" * 7),
+            _mm("user", "f" * 4),
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 20
+            {}, messages, 10
         )
 
         assert sorted(discarded) == [1, 2, 3, 4]
-        assert used == 12
-        assert truncated[-1].raw_message["content"] == "follow-up"
+        assert used == _messages_char_count(truncated)
+        assert truncated[-1].raw_message["content"] == "f" * 4
 
     @pytest.mark.asyncio
     async def test_non_tool_call_assistant_no_cascade(self):
         """A plain assistant message (no tool_calls) does not cascade."""
-        tokenizer = _make_mock_tokenizer([60, 20])
+        tokenizer = _make_length_based_tokenizer()
 
         messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(
-                raw_message={"role": "assistant", "content": "reply"}
-            ),
-            MultiModalMessage(
-                raw_message={"role": "tool", "content": "orphan"}
-            ),
-            MultiModalMessage(raw_message={"role": "user", "content": "new_q"}),
+            _mm("system", "s" * 3),
+            _mm("assistant", "a" * 9),
+            _mm("tool", "t" * 4, tool_call_id="call_1"),
+            _mm("user", "u" * 4),
         ]
 
-        _, discarded, used = await tokenizer.truncate_prompt({}, messages, 25)
+        _, discarded, used = await tokenizer.truncate_prompt({}, messages, 18)
 
-        # Only assistant dropped; tool message stays (no cascade).
         assert sorted(discarded) == [1]
-        assert used == 20
+        assert used == _messages_char_count(
+            [messages[0], messages[2], messages[3]]
+        )
 
 
 class TestVllmExtraHeaders:
