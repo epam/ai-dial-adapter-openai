@@ -300,10 +300,60 @@ class TestVllmTruncatePrompt:
         assert truncated[1].raw_message["content"] == "u3"
 
     @pytest.mark.asyncio
+    async def test_no_system_message_truncation_succeeds(self):
+        """No system message — just user/assistant turns. Oldest messages
+        are dropped until the remainder fits."""
+        # Call 1: full list (4 msgs) → 40 (exceeds 20)
+        # Call 2: after dropping u1 → 30 (still exceeds)
+        # Call 3: after dropping assistant reply → 15 (fits)
+        tokenizer = _make_mock_tokenizer([40, 30, 15])
+
+        messages = [
+            MultiModalMessage(raw_message={"role": "user", "content": "u1"}),
+            MultiModalMessage(
+                raw_message={"role": "assistant", "content": "a1"}
+            ),
+            MultiModalMessage(raw_message={"role": "user", "content": "u2"}),
+            MultiModalMessage(
+                raw_message={"role": "assistant", "content": "a2"}
+            ),
+        ]
+
+        truncated, discarded, used = await tokenizer.truncate_prompt(
+            {}, messages, 20
+        )
+
+        assert sorted(discarded) == [0, 1]
+        assert used == 15
+        assert len(truncated) == 2
+        assert truncated[0].raw_message["content"] == "u2"
+        assert truncated[1].raw_message["content"] == "a2"
+
+    @pytest.mark.asyncio
+    async def test_no_system_message_last_message_too_big(self):
+        """No system message and even the single remaining last message
+        exceeds the budget — raises TruncatePromptSystemAndLastUserError."""
+        # Call 1: full list [u0, u1] → 50 (exceeds 10)
+        # Call 2: loop drops u0, tokenize [u1] → 50 (still exceeds, loop ends)
+        # No system messages → skip system-only check, raise SystemAndLastUser
+        tokenizer = _make_mock_tokenizer([50, 50])
+
+        messages = [
+            MultiModalMessage(raw_message={"role": "user", "content": "old"}),
+            MultiModalMessage(
+                raw_message={"role": "user", "content": "huge last message"}
+            ),
+        ]
+
+        with pytest.raises(TruncatePromptSystemAndLastUserError):
+            await tokenizer.truncate_prompt({}, messages, 10)
+
+    @pytest.mark.asyncio
     async def test_raises_system_error(self):
         """System messages alone exceed the budget."""
         # Call 1: full list (system-only) → 50 (exceeds budget of 10)
-        # Call 2: system-only confirmation → 50
+        # No loop iterations (non_system_indices is empty)
+        # Call 2: system-only → 50 => raise TruncatePromptSystemError
         tokenizer = _make_mock_tokenizer([50, 50])
 
         messages = [
@@ -318,10 +368,11 @@ class TestVllmTruncatePrompt:
     @pytest.mark.asyncio
     async def test_raises_system_and_last_user_error(self):
         """System + last user message exceeds the budget."""
-        # Call 1: full list → 50 (exceeds 10)
-        # Call 2: system + last user → 50 (still exceeds)
-        # Call 3: system-only → 5 (fits) => raise SystemAndLastUser
-        tokenizer = _make_mock_tokenizer([50, 50, 5])
+        # Call 1: full list [sys, user] → 50 (exceeds 10)
+        # No loop iterations (non_system_indices[:-1] is empty)
+        # last_measured_tokens = 50 (from call 1, already system+last)
+        # Call 2: system-only → 5 (fits) => raise SystemAndLastUser
+        tokenizer = _make_mock_tokenizer([50, 5])
 
         messages = [
             MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
@@ -335,10 +386,11 @@ class TestVllmTruncatePrompt:
     async def test_structured_user_content_still_raises_last_user_error(self):
         """truncate_prompt works with message boundaries; structured content
         does not change SystemAndLastUser behavior."""
-        # Call 1: full list → 200 (exceeds 100)
-        # Call 2: system + last user → 200 (still exceeds)
-        # Call 3: system-only → 5 (fits) => raise SystemAndLastUser
-        tokenizer = _make_mock_tokenizer([200, 200, 5])
+        # Call 1: full list [sys, user] → 200 (exceeds 100)
+        # No loop iterations (non_system_indices[:-1] is empty)
+        # last_measured_tokens = 200 (from call 1, already system+last)
+        # Call 2: system-only → 5 (fits) => raise SystemAndLastUser
+        tokenizer = _make_mock_tokenizer([200, 5])
 
         messages = [
             MultiModalMessage(raw_message={"role": "system", "content": "sys"}),

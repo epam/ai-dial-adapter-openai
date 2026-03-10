@@ -106,12 +106,18 @@ class VllmTokenizer:
 
         Behavior:
         - Try the full payload first; if it fits, return immediately.
-        - Otherwise, remove the oldest non-system message one-by-one.
+        - Otherwise, remove the oldest non-system messages one-by-one
+          (the last non-system message is never removed).
         - If a removed message is an assistant message with ``tool_calls``,
-          also remove all the next ``tool`` messages and the next
+          also remove all the following ``tool`` messages and the next
           ``assistant`` message that follows the tool chain.
-        - Never remove the last non-system message; if even
-          ``system + last_user`` doesn't fit, raise an error.
+        - If even ``system + last_non_system`` doesn't fit, raise
+          ``TruncatePromptSystemAndLastUserError`` (or
+          ``TruncatePromptSystemError`` when system tokens alone exceed
+          the limit).
+        - If there are no non-system messages, the prompt consists only of
+          system messages; if they exceed the limit,
+          raise ``TruncatePromptSystemError``.
         """
 
         all_indices: Set[int] = set(range(len(messages)))
@@ -135,13 +141,6 @@ class VllmTokenizer:
                 non_system_indices.append(idx)
 
         system_set: Set[int] = set(system_indices)
-
-        if not non_system_indices:
-            system_tokens = await self.tokenize_request(
-                original_request, _collect(system_set)
-            )
-            raise TruncatePromptSystemError(max_prompt_tokens, system_tokens)
-
         kept: Set[int] = set(all_indices)
 
         def _cascade_remove_tool_replies(start_idx: int) -> None:
@@ -163,6 +162,9 @@ class VllmTokenizer:
                 break
 
         # Remove the oldest non-system messages but keep the last non-system.
+        # Track the token count from the most recent tokenize call so we don't
+        # re-tokenize the same set in the final check below.
+        last_measured_tokens = prompt_tokens
         for idx in non_system_indices[:-1]:
             if idx not in kept:
                 continue
@@ -175,33 +177,38 @@ class VllmTokenizer:
             if raw.get("role") == "assistant" and raw.get("tool_calls"):
                 _cascade_remove_tool_replies(idx)
 
-            prompt_tokens = await self.tokenize_request(
+            last_measured_tokens = await self.tokenize_request(
                 original_request, _collect(kept)
             )
-            if prompt_tokens <= max_prompt_tokens:
+            if last_measured_tokens <= max_prompt_tokens:
                 discarded = sorted(all_indices - kept)
-                return _collect(kept), discarded, prompt_tokens
+                return _collect(kept), discarded, last_measured_tokens
 
-        # Not enough: check minimal viable prompt = system + last non-system
-        last_non_system = non_system_indices[-1]
-        last_kept = set(system_indices) | {last_non_system}
+        # All droppable messages have been removed; `kept` now holds
+        # system messages + last non-system message (or just system messages
+        # if there were no non-system messages). `last_measured_tokens` is
+        # already the token count for the current `kept` set.
+        if non_system_indices:
+            # last_measured_tokens == tokenize(system + last non-system).
+            # Check whether system alone is the bottleneck — only meaningful
+            # when there are system messages to check.
+            if system_set:
+                system_tokens = await self.tokenize_request(
+                    original_request, _collect(system_set)
+                )
+                if system_tokens > max_prompt_tokens:
+                    raise TruncatePromptSystemError(
+                        max_prompt_tokens, system_tokens
+                    )
 
-        last_tokens = await self.tokenize_request(
-            original_request, _collect(last_kept)
-        )
-        if last_tokens <= max_prompt_tokens:
-            discarded = sorted(all_indices - last_kept)
-            return _collect(last_kept), discarded, last_tokens
-
-        system_tokens = await self.tokenize_request(
-            original_request, _collect(system_set)
-        )
-        if system_tokens > max_prompt_tokens:
-            raise TruncatePromptSystemError(max_prompt_tokens, system_tokens)
-
-        raise TruncatePromptSystemAndLastUserError(
-            max_prompt_tokens, last_tokens
-        )
+            raise TruncatePromptSystemAndLastUserError(
+                max_prompt_tokens, last_measured_tokens
+            )
+        else:
+            # No non-system messages — last_measured_tokens == tokenize(system only).
+            raise TruncatePromptSystemError(
+                max_prompt_tokens, last_measured_tokens
+            )
 
     def _build_tokenize_payload(
         self, original_request: dict, messages: List[dict]
