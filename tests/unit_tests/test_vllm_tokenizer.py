@@ -530,9 +530,6 @@ class TestVllmToolCallCascade:
         assert used == 20
 
 
-# Removed: Binary search for long histories and TestVllmBinarySearch (no longer used)
-
-
 # ---------------------------------------------------------------
 # Extra headers (VLLM_HEADERS_TO_PROXY support)
 # ---------------------------------------------------------------
