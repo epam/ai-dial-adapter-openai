@@ -89,10 +89,7 @@ async def _log_timings_hook(response: Response) -> None:
 
     def _log_timing():
         url = str(request.url)
-        msg = (
-            f"Upstream: {url!r}. Status: {response.status_code}. "
-            f"Timing: {_get_tracing_timings(ctx)}."
-        )
+        msg = f"Upstream: {url!r}. Status: {response.status_code}. Timing: {_get_tracing_timings(ctx)}."
         logger.log(logging.INFO, msg)
 
     if response.is_closed:
