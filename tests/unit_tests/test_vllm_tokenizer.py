@@ -330,12 +330,12 @@ class TestVllmTruncatePrompt:
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 10
+            {}, messages, _messages_char_count(messages)
         )
 
         assert discarded == []
         assert used == _messages_char_count(messages)
-        assert len(truncated) == 2
+        assert truncated == messages
 
     @pytest.mark.asyncio
     async def test_drops_oldest_non_system_message(self):
@@ -349,14 +349,12 @@ class TestVllmTruncatePrompt:
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 12
+            {}, messages, _messages_char_count([messages[0], messages[2]])
         )
 
         assert discarded == [1]
         assert used == _messages_char_count(truncated)
-        assert len(truncated) == 2
-        assert truncated[0].raw_message["content"] == "s" * 3
-        assert truncated[1].raw_message["content"] == "n" * 8
+        assert truncated == [messages[0], messages[2]]
 
     @pytest.mark.asyncio
     async def test_drops_multiple_messages(self):
@@ -371,14 +369,12 @@ class TestVllmTruncatePrompt:
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 10
+            {}, messages, _messages_char_count([messages[0], messages[3]])
         )
 
         assert sorted(discarded) == [1, 2]
         assert used == _messages_char_count(truncated)
-        assert len(truncated) == 2
-        assert truncated[0].raw_message["content"] == "s" * 3
-        assert truncated[1].raw_message["content"] == "w" * 7
+        assert truncated == [messages[0], messages[3]]
 
     @pytest.mark.asyncio
     async def test_no_system_message_truncation_succeeds(self):
@@ -393,14 +389,12 @@ class TestVllmTruncatePrompt:
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 11
+            {}, messages, _messages_char_count([messages[2], messages[3]])
         )
 
         assert sorted(discarded) == [0, 1]
         assert used == _messages_char_count(truncated)
-        assert len(truncated) == 2
-        assert truncated[0].raw_message["content"] == "v" * 6
-        assert truncated[1].raw_message["content"] == "b" * 5
+        assert truncated == [messages[2], messages[3]]
 
     @pytest.mark.asyncio
     async def test_no_system_message_last_message_too_big(self):
@@ -413,17 +407,22 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await tokenizer.truncate_prompt({}, messages, 10)
+            await tokenizer.truncate_prompt(
+                {}, messages, _messages_char_count([messages[0]])
+            )
 
     @pytest.mark.asyncio
     async def test_raises_system_error(self):
         """System messages alone exceed the budget."""
         tokenizer = _make_length_based_tokenizer()
 
-        messages = [_mm("system", "s" * 11)]
+        sys_msg = _mm("system", "s" * 11)
+        messages = [sys_msg]
 
         with pytest.raises(TruncatePromptSystemError):
-            await tokenizer.truncate_prompt({}, messages, 10)
+            await tokenizer.truncate_prompt(
+                {}, messages, _message_len(sys_msg) - 1
+            )
 
     @pytest.mark.asyncio
     async def test_raises_system_and_last_user_error(self):
@@ -436,7 +435,9 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await tokenizer.truncate_prompt({}, messages, 10)
+            await tokenizer.truncate_prompt(
+                {}, messages, _message_len(messages[0])
+            )
 
     @pytest.mark.asyncio
     async def test_structured_user_content_still_raises_last_user_error(self):
@@ -449,7 +450,9 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await tokenizer.truncate_prompt({}, messages, 20)
+            await tokenizer.truncate_prompt(
+                {}, messages, _message_len(messages[0])
+            )
 
     @pytest.mark.asyncio
     async def test_structured_user_content_kept_when_fits(self):
@@ -471,12 +474,7 @@ class TestVllmTruncatePrompt:
 
         assert discarded == [1]
         assert used == _messages_char_count(truncated)
-        assert len(truncated) == 2
-        assert truncated[0].raw_message["role"] == "system"
-        assert (
-            truncated[1].raw_message["content"]
-            == structured_message.raw_message["content"]
-        )
+        assert truncated == [messages[0], messages[2]]
 
     @pytest.mark.asyncio
     async def test_tokenize_called_with_full_list_each_iteration(self):
@@ -497,11 +495,8 @@ class TestVllmTruncatePrompt:
 
         assert len(call_payloads[0]) == 3
         assert len(call_payloads[1]) == 2
-        assert call_payloads[1][0]["content"] == "s" * 3
-        assert (
-            call_payloads[1][1]["content"]
-            == structured_message.raw_message["content"]
-        )
+        assert call_payloads[1][0] == messages[0].raw_message
+        assert call_payloads[1][1] == messages[2].raw_message
 
 
 class TestVllmToolCallCascade:
@@ -520,12 +515,12 @@ class TestVllmToolCallCascade:
         ]
 
         truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, 10
+            {}, messages, _messages_char_count([messages[0], messages[5]])
         )
 
         assert sorted(discarded) == [1, 2, 3, 4]
         assert used == _messages_char_count(truncated)
-        assert truncated[-1].raw_message["content"] == "f" * 4
+        assert truncated == [messages[0], messages[5]]
 
     @pytest.mark.asyncio
     async def test_non_tool_call_assistant_no_cascade(self):
@@ -539,7 +534,11 @@ class TestVllmToolCallCascade:
             _mm("user", "u" * 4),
         ]
 
-        _, discarded, used = await tokenizer.truncate_prompt({}, messages, 18)
+        _, discarded, used = await tokenizer.truncate_prompt(
+            {},
+            messages,
+            _messages_char_count([messages[0], messages[2], messages[3]]),
+        )
 
         assert sorted(discarded) == [1]
         assert used == _messages_char_count(
