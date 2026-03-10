@@ -229,7 +229,7 @@ async def vllm_chat_completion(
 
     request["messages"] = [m.raw_message for m in multi_modal_messages]
 
-    # vLLM: guarantee usage stats in streaming responses.
+    # vLLM guarantees to include usage stats in streaming responses.
     # For streaming calls, vLLM includes usage only if requested via
     # stream_options.include_usage.
     if request.get("stream"):
