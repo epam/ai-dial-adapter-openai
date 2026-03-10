@@ -7,17 +7,14 @@ from aidial_sdk.exceptions import (
 
 _T = TypeVar("_T")
 
-DiscardedMessages = List[int]
-TruncatedTokens = int
 
-
-async def truncate_prompt(
+async def truncate_messages(
     messages: List[_T],
     message_tokens: Callable[[_T], Coroutine[None, None, int]],
     is_system_message: Callable[[_T], bool],
     max_prompt_tokens: int,
     initial_prompt_tokens: int,
-) -> Tuple[List[_T], DiscardedMessages, TruncatedTokens]:
+) -> Tuple[List[_T], List[int], int]:
     prompt_tokens = initial_prompt_tokens
 
     system_messages_count = 0

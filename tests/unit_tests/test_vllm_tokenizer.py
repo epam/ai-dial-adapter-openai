@@ -9,6 +9,9 @@ from aidial_sdk.exceptions import (
 )
 
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.truncate_messages_bulky import (
+    truncate_messages_bulky,
+)
 from aidial_adapter_openai.utils.vllm_tokenizer import (
     VllmTokenizer,
     derive_tokenize_url,
@@ -129,8 +132,8 @@ class TestVllmTokenizerCallTokenize:
 
 class TestVllmTokenizerPublicApi:
     @pytest.mark.asyncio
-    async def test_tokenize_request_sends_full_message_list_and_tools(self):
-        """tokenize_request must send ALL messages in a single call,
+    async def test_tokenize_sends_full_message_list_and_tools(self):
+        """tokenize must send ALL messages in a single call,
         along with tools/functions."""
         tokenizer = _make_tokenizer()
 
@@ -138,16 +141,16 @@ class TestVllmTokenizerPublicApi:
         mock_client.post.return_value = _mock_response(50)
         tokenizer._http_client = mock_client
 
-        messages = [
-            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "hi"}),
-        ]
-        original_request = {
+        request = {
             "model": "my-vllm-model",
+            "messages": [
+                {"role": "system", "content": "sys"},
+                {"role": "user", "content": "hi"},
+            ],
             "tools": [{"type": "function", "function": {"name": "f"}}],
         }
 
-        result = await tokenizer.tokenize_request(original_request, messages)
+        result = await tokenizer.tokenize(request)
         assert result == 50
 
         # Verify a single call was made with both messages
@@ -158,10 +161,10 @@ class TestVllmTokenizerPublicApi:
         assert len(payload["messages"]) == 2
         assert payload["messages"][0] == {"role": "system", "content": "sys"}
         assert payload["messages"][1] == {"role": "user", "content": "hi"}
-        assert payload["tools"] == original_request["tools"]
+        assert payload["tools"] == request["tools"]
 
     @pytest.mark.asyncio
-    async def test_tokenize_request_forwards_structured_content_unchanged(self):
+    async def test_tokenize_forwards_structured_content_unchanged(self):
         tokenizer = _make_tokenizer()
 
         mock_client = AsyncMock()
@@ -170,12 +173,15 @@ class TestVllmTokenizerPublicApi:
 
         structured_message = _mi(text="describe this")
 
-        messages = [
-            _mm("system", "sys"),
-            structured_message,
-        ]
+        request = {
+            "model": "my-vllm-model",
+            "messages": [
+                {"role": "system", "content": "sys"},
+                structured_message.raw_message,
+            ],
+        }
 
-        await tokenizer.tokenize_request({"model": "my-vllm-model"}, messages)
+        await tokenizer.tokenize(request)
 
         call_args = mock_client.post.call_args
         payload = call_args.kwargs.get("json") or call_args[1].get("json")
@@ -185,15 +191,15 @@ class TestVllmTokenizerPublicApi:
         )
 
     @pytest.mark.asyncio
-    async def test_tokenize_request_with_empty_messages(self):
-        """tokenize_request([]) sends an empty list — used for overhead."""
+    async def test_tokenize_with_empty_messages(self):
+        """tokenize with empty messages list."""
         tokenizer = _make_tokenizer()
 
         mock_client = AsyncMock()
         mock_client.post.return_value = _mock_response(3)
         tokenizer._http_client = mock_client
 
-        result = await tokenizer.tokenize_request({"model": "m"}, [])
+        result = await tokenizer.tokenize({"model": "m", "messages": []})
         assert result == 3
 
         call_args = mock_client.post.call_args
@@ -306,15 +312,24 @@ def _messages_char_count(messages: list[MultiModalMessage]) -> int:
 def _make_length_based_tokenizer(
     *, call_payloads: list[list[dict]] | None = None
 ) -> VllmTokenizer:
-    """Create a tokenizer mock that deterministically counts message content chars."""
+    """Create a tokenizer mock that deterministically counts message content chars.
+
+    The mock replaces :meth:`VllmTokenizer.tokenize` so that the standalone
+    :func:`truncate_prompt` function can be tested without real HTTP calls.
+    Token count is computed as the total character length of message content
+    in the request's ``messages`` list.
+    """
     tokenizer = _make_tokenizer()
 
-    def mock_tokenize_request(original_request, messages):
+    def _char_count_from_request(request: dict) -> int:
+        raw_messages = request.get("messages", [])
+        # Wrap in MultiModalMessage to reuse the existing _message_len helper.
+        wrapped = [MultiModalMessage(raw_message=m) for m in raw_messages]
         if call_payloads is not None:
-            call_payloads.append([m.raw_message for m in messages])
-        return _messages_char_count(messages)
+            call_payloads.append(raw_messages)
+        return _messages_char_count(wrapped)
 
-    tokenizer.tokenize_request = AsyncMock(side_effect=mock_tokenize_request)  # type: ignore[assignment]
+    tokenizer.tokenize = AsyncMock(side_effect=_char_count_from_request)  # type: ignore[assignment]
     return tokenizer
 
 
@@ -329,8 +344,12 @@ class TestVllmTruncatePrompt:
             _mm("user", "u" * 4),
         ]
 
-        truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, _messages_char_count(messages)
+        truncated, discarded, used = await truncate_messages_bulky(
+            tokenizer,
+            {},
+            messages,
+            lambda m: m.raw_message,
+            _messages_char_count(messages),
         )
 
         assert discarded == []
@@ -348,8 +367,12 @@ class TestVllmTruncatePrompt:
             _mm("user", "n" * 8),
         ]
 
-        truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, _messages_char_count([messages[0], messages[2]])
+        truncated, discarded, used = await truncate_messages_bulky(
+            tokenizer,
+            {},
+            messages,
+            lambda m: m.raw_message,
+            _messages_char_count([messages[0], messages[2]]),
         )
 
         assert discarded == [1]
@@ -368,8 +391,12 @@ class TestVllmTruncatePrompt:
             _mm("user", "w" * 7),
         ]
 
-        truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, _messages_char_count([messages[0], messages[3]])
+        truncated, discarded, used = await truncate_messages_bulky(
+            tokenizer,
+            {},
+            messages,
+            lambda m: m.raw_message,
+            _messages_char_count([messages[0], messages[3]]),
         )
 
         assert sorted(discarded) == [1, 2]
@@ -388,8 +415,12 @@ class TestVllmTruncatePrompt:
             _mm("assistant", "b" * 5),
         ]
 
-        truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, _messages_char_count([messages[2], messages[3]])
+        truncated, discarded, used = await truncate_messages_bulky(
+            tokenizer,
+            {},
+            messages,
+            lambda m: m.raw_message,
+            _messages_char_count([messages[2], messages[3]]),
         )
 
         assert sorted(discarded) == [0, 1]
@@ -407,8 +438,12 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await tokenizer.truncate_prompt(
-                {}, messages, _messages_char_count([messages[0]])
+            await truncate_messages_bulky(
+                tokenizer,
+                {},
+                messages,
+                lambda m: m.raw_message,
+                _messages_char_count([messages[0]]),
             )
 
     @pytest.mark.asyncio
@@ -420,8 +455,12 @@ class TestVllmTruncatePrompt:
         messages = [sys_msg]
 
         with pytest.raises(TruncatePromptSystemError):
-            await tokenizer.truncate_prompt(
-                {}, messages, _message_len(sys_msg) - 1
+            await truncate_messages_bulky(
+                tokenizer,
+                {},
+                messages,
+                lambda m: m.raw_message,
+                _message_len(sys_msg) - 1,
             )
 
     @pytest.mark.asyncio
@@ -435,8 +474,12 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await tokenizer.truncate_prompt(
-                {}, messages, _message_len(messages[0])
+            await truncate_messages_bulky(
+                tokenizer,
+                {},
+                messages,
+                lambda m: m.raw_message,
+                _message_len(messages[0]),
             )
 
     @pytest.mark.asyncio
@@ -450,8 +493,12 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await tokenizer.truncate_prompt(
-                {}, messages, _message_len(messages[0])
+            await truncate_messages_bulky(
+                tokenizer,
+                {},
+                messages,
+                lambda m: m.raw_message,
+                _message_len(messages[0]),
             )
 
     @pytest.mark.asyncio
@@ -468,8 +515,8 @@ class TestVllmTruncatePrompt:
         ]
         max_prompt_tokens = _messages_char_count([messages[0], messages[2]])
 
-        truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, max_prompt_tokens
+        truncated, discarded, used = await truncate_messages_bulky(
+            tokenizer, {}, messages, lambda m: m.raw_message, max_prompt_tokens
         )
 
         assert discarded == [1]
@@ -491,7 +538,9 @@ class TestVllmTruncatePrompt:
         ]
         max_prompt_tokens = _messages_char_count([messages[0], messages[2]])
 
-        await tokenizer.truncate_prompt({}, messages, max_prompt_tokens)
+        await truncate_messages_bulky(
+            tokenizer, {}, messages, lambda m: m.raw_message, max_prompt_tokens
+        )
 
         assert len(call_payloads[0]) == 3
         assert len(call_payloads[1]) == 2
@@ -514,8 +563,12 @@ class TestVllmToolCallCascade:
             _mm("user", "f" * 4),
         ]
 
-        truncated, discarded, used = await tokenizer.truncate_prompt(
-            {}, messages, _messages_char_count([messages[0], messages[5]])
+        truncated, discarded, used = await truncate_messages_bulky(
+            tokenizer,
+            {},
+            messages,
+            lambda m: m.raw_message,
+            _messages_char_count([messages[0], messages[5]]),
         )
 
         assert sorted(discarded) == [1, 2, 3, 4]
@@ -534,9 +587,11 @@ class TestVllmToolCallCascade:
             _mm("user", "u" * 4),
         ]
 
-        _, discarded, used = await tokenizer.truncate_prompt(
+        _, discarded, used = await truncate_messages_bulky(
+            tokenizer,
             {},
             messages,
+            lambda m: m.raw_message,
             _messages_char_count([messages[0], messages[2], messages[3]]),
         )
 

@@ -8,17 +8,13 @@ from aidial_adapter_openai.chat_completions.gpt import (
 )
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
-from aidial_adapter_openai.utils.truncate_prompt import (
-    DiscardedMessages,
-    TruncatedTokens,
-)
 
 PlainTextMessages = List[dict]
 MaxPromptTokens = int
 TestCase = Tuple[
     PlainTextMessages,
     MaxPromptTokens,
-    Tuple[PlainTextMessages, DiscardedMessages],
+    Tuple[PlainTextMessages, List[int]],
 ]
 
 
@@ -27,7 +23,7 @@ async def plain_text_truncate_prompt(
     messages: List[dict],
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
-) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
+) -> Tuple[List[dict], List[int], int]:
     (msgs, disc, tokens) = await multi_modal_truncate_prompt(
         request=request,
         messages=[MultiModalMessage(raw_message=m) for m in messages],
