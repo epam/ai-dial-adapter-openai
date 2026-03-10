@@ -61,8 +61,8 @@ class VllmTokenizer:
     per-attachment token counting is performed on the adapter side.
     """
 
-    model: str
-    tokenize_url: str
+    _model: str
+    _tokenize_url: str
     _extra_headers: dict[str, str]
     _http_client: httpx.AsyncClient
 
@@ -73,8 +73,8 @@ class VllmTokenizer:
         upstream_endpoint: str,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
-        self.model = model
-        self.tokenize_url = derive_tokenize_url(upstream_endpoint)
+        self._model = model
+        self._tokenize_url = derive_tokenize_url(upstream_endpoint)
         self._extra_headers = extra_headers or {}
 
         self._http_client = get_http_client()
@@ -209,7 +209,7 @@ class VllmTokenizer:
         """Build the JSON body sent to the vLLM ``/tokenize`` endpoint."""
 
         payload: Dict[str, Any] = {
-            "model": self.model,
+            "model": self._model,
             "messages": messages,
         }
 
@@ -230,14 +230,14 @@ class VllmTokenizer:
             headers.update(self._extra_headers)
 
         logger.debug(
-            f"vLLM tokenize request to {self.tokenize_url}, "
+            f"vLLM tokenize request to {self._tokenize_url}, "
             f"model={payload.get('model')}, "
             f"messages_count={len(payload.get('messages', []))}"
         )
 
         try:
             response = await self._http_client.post(
-                self.tokenize_url,
+                self._tokenize_url,
                 json=payload,
                 headers=headers,
             )
@@ -254,7 +254,7 @@ class VllmTokenizer:
         except httpx.HTTPError as exc:
             logger.error(f"vLLM tokenize request failed: {exc}")
             raise InternalServerError(
-                f"Failed to reach vLLM tokenize endpoint at {self.tokenize_url}: {exc}"
+                f"Failed to reach vLLM tokenize endpoint at {self._tokenize_url}: {exc}"
             )
 
         data = response.json()
