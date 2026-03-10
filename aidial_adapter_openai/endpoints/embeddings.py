@@ -26,11 +26,7 @@ async def embedding(deployment_id: str, request: Request):
         request.headers,
         azure=deployment_id in app_config.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS,
     )
-    headers_to_proxy = (
-        app_config.get_vllm_headers_to_proxy(request.headers)
-        if deployment_id in app_config.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS
-        else {}
-    )
+    headers_to_proxy = app_config.get_headers_to_proxy(request.headers)
 
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]

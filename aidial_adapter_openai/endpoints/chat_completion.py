@@ -110,11 +110,7 @@ async def call_chat_completion(
         request_headers,
         azure=deployment_type == D.VLLM_CHAT_COMPLETIONS_API,
     )
-    headers_to_proxy = (
-        app_config.get_vllm_headers_to_proxy(request_headers)
-        if deployment_type == D.VLLM_CHAT_COMPLETIONS_API
-        else {}
-    )
+    headers_to_proxy = app_config.get_headers_to_proxy(request_headers)
 
     client = endpoint.get_client(
         {**creds, "api_version": api_version, "headers": headers_to_proxy}
