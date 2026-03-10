@@ -223,9 +223,6 @@ def _make_mock_tokenizer(responses: list[int]) -> VllmTokenizer:
     return tokenizer
 
 
-# Removed: _make_counting_tokenizer (no longer used)
-
-
 class TestVllmTruncatePrompt:
     @pytest.mark.asyncio
     async def test_fits_without_truncation(self):
