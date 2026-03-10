@@ -9,8 +9,6 @@ from aidial_sdk.exceptions import (
 )
 
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.resource.base import Resource
-from aidial_adapter_openai.utils.resource.image import ImageResource
 from aidial_adapter_openai.utils.vllm_tokenizer import (
     VllmTokenizer,
     derive_tokenize_url,
@@ -162,6 +160,35 @@ class TestVllmTokenizerPublicApi:
         assert payload["tools"] == original_request["tools"]
 
     @pytest.mark.asyncio
+    async def test_tokenize_request_forwards_structured_content_unchanged(self):
+        tokenizer = _make_tokenizer()
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = _mock_response(20)
+        tokenizer._http_client = mock_client
+
+        structured_content = [
+            {"type": "text", "text": "describe this"},
+            {
+                "type": "image_url",
+                "image_url": {"url": "data:image/jpeg;base64,..."},
+            },
+        ]
+
+        messages = [
+            MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
+            MultiModalMessage(
+                raw_message={"role": "user", "content": structured_content}
+            ),
+        ]
+
+        await tokenizer.tokenize_request({"model": "my-vllm-model"}, messages)
+
+        call_args = mock_client.post.call_args
+        payload = call_args.kwargs.get("json") or call_args[1].get("json")
+        assert payload["messages"][1]["content"] == structured_content
+
+    @pytest.mark.asyncio
     async def test_tokenize_request_with_empty_messages(self):
         """tokenize_request([]) sends an empty list — used for overhead."""
         tokenizer = _make_tokenizer()
@@ -305,25 +332,17 @@ class TestVllmTruncatePrompt:
             await tokenizer.truncate_prompt({}, messages, 10)
 
     @pytest.mark.asyncio
-    async def test_multimodal_messages_sent_as_whole(self):
-        """Messages with images/files are sent as atomic units.
-        The tokenize endpoint sees the full content (including base64)."""
+    async def test_structured_user_content_still_raises_last_user_error(self):
+        """truncate_prompt works with message boundaries; structured content
+        does not change SystemAndLastUser behavior."""
         # Call 1: full list → 200 (exceeds 100)
-        # Call 2: system + last multimodal → 200 (still exceeds)
+        # Call 2: system + last user → 200 (still exceeds)
         # Call 3: system-only → 5 (fits) => raise SystemAndLastUser
         tokenizer = _make_mock_tokenizer([200, 200, 5])
 
         messages = [
             MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
             MultiModalMessage(
-                images=[
-                    ImageResource(
-                        width=100,
-                        height=100,
-                        detail="low",
-                        image=Resource(type="image/jpeg", data=b"..."),
-                    )
-                ],
                 raw_message={
                     "role": "user",
                     "content": [
@@ -341,11 +360,19 @@ class TestVllmTruncatePrompt:
             await tokenizer.truncate_prompt({}, messages, 100)
 
     @pytest.mark.asyncio
-    async def test_multimodal_message_kept_when_fits(self):
-        """Multimodal message fits after dropping older plain messages."""
+    async def test_structured_user_content_kept_when_fits(self):
+        """Structured user content is kept intact when truncation keeps that message."""
         # Call 1: full list → 80 (exceeds 60)
-        # Call 2: after removing plain (system + multimodal) → 55 (fits)
+        # Call 2: after removing plain (system + structured) → 55 (fits)
         tokenizer = _make_mock_tokenizer([80, 55])
+
+        structured_content = [
+            {"type": "text", "text": "describe this"},
+            {
+                "type": "image_url",
+                "image_url": {"url": "data:image/jpeg;base64,..."},
+            },
+        ]
 
         messages = [
             MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
@@ -353,24 +380,7 @@ class TestVllmTruncatePrompt:
                 raw_message={"role": "user", "content": "old msg"}
             ),
             MultiModalMessage(
-                images=[
-                    ImageResource(
-                        width=100,
-                        height=100,
-                        detail="low",
-                        image=Resource(type="image/jpeg", data=b"..."),
-                    )
-                ],
-                raw_message={
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "describe this"},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": "data:image/jpeg;base64,..."},
-                        },
-                    ],
-                },
+                raw_message={"role": "user", "content": structured_content},
             ),
         ]
 
@@ -382,8 +392,7 @@ class TestVllmTruncatePrompt:
         assert used == 55
         assert len(truncated) == 2
         assert truncated[0].raw_message["role"] == "system"
-        # The multimodal message (with image) is kept as-is
-        assert isinstance(truncated[1].raw_message["content"], list)
+        assert truncated[1].raw_message["content"] == structured_content
 
     @pytest.mark.asyncio
     async def test_tokenize_called_with_full_list_each_iteration(self):
@@ -403,10 +412,20 @@ class TestVllmTruncatePrompt:
 
         tokenizer.tokenize_request = capturing_tokenize_request  # type: ignore[assignment]
 
+        structured_content = [
+            {"type": "text", "text": "describe this"},
+            {
+                "type": "image_url",
+                "image_url": {"url": "data:image/jpeg;base64,..."},
+            },
+        ]
+
         messages = [
             MultiModalMessage(raw_message={"role": "system", "content": "sys"}),
             MultiModalMessage(raw_message={"role": "user", "content": "u1"}),
-            MultiModalMessage(raw_message={"role": "user", "content": "u2"}),
+            MultiModalMessage(
+                raw_message={"role": "user", "content": structured_content},
+            ),
         ]
 
         await tokenizer.truncate_prompt({}, messages, 20)
@@ -414,10 +433,10 @@ class TestVllmTruncatePrompt:
         # Call 1: full list (3 messages)
         assert len(call_payloads[0]) == 3
 
-        # Call 2: after dropping u1 → system + u2 (2 messages)
+        # Call 2: after dropping u1 → system + structured user message (2 messages)
         assert len(call_payloads[1]) == 2
         assert call_payloads[1][0]["content"] == "sys"
-        assert call_payloads[1][1]["content"] == "u2"
+        assert call_payloads[1][1]["content"] == structured_content
 
 
 class TestVllmToolCallCascade:
