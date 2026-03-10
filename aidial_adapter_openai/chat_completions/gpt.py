@@ -93,9 +93,9 @@ async def _truncate_messages(
     else:
 
         async def get_prompt_tokens() -> int:
-            estimated = await tokenizer.tokenize_request(request, messages)
-            logger.debug(f"estimated prompt tokens: {estimated}")
-            return estimated
+            prompt_tokens = await tokenizer.tokenize_request(request, messages)
+            logger.debug(f"estimated prompt tokens: {prompt_tokens}")
+            return prompt_tokens
 
         return (messages, None, get_prompt_tokens)
 
