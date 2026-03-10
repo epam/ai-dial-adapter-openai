@@ -9,12 +9,8 @@ returned count — no modality-specific accounting is done on the adapter
 side.
 
 The tokenizing endpoint URL is derived programmatically from the upstream
-chat-completions URL by replacing the ``/chat/completions`` path suffix
+chat-completions URL by replacing the ``v1/chat/completions`` path suffix
 with ``/tokenize``.
-
-This tokenizer does not do token counting for the *response*.
-Instead, usage statistics are obtained from the upstream vLLM model
-response (``usage`` block).
 """
 
 from typing import Any, Dict, List, Set
