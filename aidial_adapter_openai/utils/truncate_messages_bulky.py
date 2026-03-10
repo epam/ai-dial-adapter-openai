@@ -28,7 +28,7 @@ _T = TypeVar("_T")
 
 @runtime_checkable
 class Tokenizer(Protocol):
-    """Minimal interface required by :func:`truncate_prompt`."""
+    """Minimal interface required by :func:`truncate_messages_bulky`."""
 
     async def tokenize(self, request: dict) -> int:
         """Return the token count for *request* (including its ``messages`` field)."""
