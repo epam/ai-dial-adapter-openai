@@ -44,7 +44,6 @@ _UPSTREAM = "https://vllm.example.com/v1/chat/completions"
 
 def _make_tokenizer() -> VllmTokenizer:
     return VllmTokenizer(
-        model="my-vllm-model",
         upstream_endpoint=_UPSTREAM,
     )
 
@@ -576,7 +575,6 @@ class TestVllmExtraHeaders:
     async def test_extra_headers_included_in_tokenize_request(self):
         """Extra headers (from VLLM_HEADERS_TO_PROXY) are sent with tokenize calls."""
         tokenizer = VllmTokenizer(
-            model="my-vllm-model",
             upstream_endpoint=_UPSTREAM,
             extra_headers={"x-user-id": "abc123", "x-custom": "value"},
         )
@@ -613,7 +611,6 @@ class TestVllmExtraHeaders:
     async def test_extra_headers_empty_dict_is_noop(self):
         """Passing an empty dict for extra_headers is the same as None."""
         tokenizer = VllmTokenizer(
-            model="my-vllm-model",
             upstream_endpoint=_UPSTREAM,
             extra_headers={},
         )

@@ -220,7 +220,6 @@ async def call_chat_completion(
 
         case D.VLLM_CHAT_COMPLETIONS_API:
             vllm_tokenizer = VllmTokenizer(
-                model=request_body["model"],
                 upstream_endpoint=upstream_endpoint,
                 extra_headers=headers_to_proxy,
             )

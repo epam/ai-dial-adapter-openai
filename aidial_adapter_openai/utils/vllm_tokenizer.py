@@ -13,7 +13,7 @@ chat-completions URL by replacing the ``v1/chat/completions`` path suffix
 with ``/tokenize``.
 """
 
-from typing import Any, Dict, List, Set
+from typing import Any, List, Set
 
 import httpx
 from aidial_sdk.exceptions import (
@@ -61,7 +61,6 @@ class VllmTokenizer:
     per-attachment token counting is performed on the adapter side.
     """
 
-    _model: str
     _tokenize_url: str
     _extra_headers: dict[str, str]
     _http_client: httpx.AsyncClient
@@ -69,11 +68,9 @@ class VllmTokenizer:
     def __init__(
         self,
         *,
-        model: str,
         upstream_endpoint: str,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
-        self._model = model
         self._tokenize_url = derive_tokenize_url(upstream_endpoint)
         self._extra_headers = extra_headers or {}
 
@@ -90,7 +87,7 @@ class VllmTokenizer:
         """
 
         raw_messages = [m.raw_message for m in messages]
-        payload = self._build_tokenize_payload(original_request, raw_messages)
+        payload = {**original_request, "messages": raw_messages}
         return await self._call_tokenize(payload)
 
     async def truncate_prompt(
@@ -210,28 +207,10 @@ class VllmTokenizer:
                 max_prompt_tokens, last_measured_tokens
             )
 
-    def _build_tokenize_payload(
-        self, original_request: dict, messages: List[dict]
-    ) -> Dict[str, Any]:
-        """Build the JSON body sent to the vLLM ``/tokenize`` endpoint."""
-
-        payload: Dict[str, Any] = {
-            "model": self._model,
-            "messages": messages,
-        }
-
-        # Forward tools/functions so the server accounts for their tokens
-        if tools := original_request.get("tools"):
-            payload["tools"] = tools
-        if functions := original_request.get("functions"):
-            payload["functions"] = functions
-
-        return payload
-
-    async def _call_tokenize(self, payload: Dict[str, Any]) -> int:
+    async def _call_tokenize(self, payload: dict[str, Any]) -> int:
         """POST *payload* to the vLLM tokenize endpoint and return token count."""
 
-        headers: Dict[str, str] = {"Content-Type": "application/json"}
+        headers: dict[str, str] = {"Content-Type": "application/json"}
         # vLLM /tokenize does not require authorization.
         if self._extra_headers:
             headers.update(self._extra_headers)
