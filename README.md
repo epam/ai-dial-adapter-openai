@@ -650,7 +650,7 @@ vLLM provides an OpenAI-compatible Chat Completions API and can be connected to 
       "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
-          "endpoint": "http://<vllm-host>:<port>/v1/chat/completions"
+          "endpoint": "${VLLM_ORIGIN}/v1/chat/completions"
         }
       ]
     }

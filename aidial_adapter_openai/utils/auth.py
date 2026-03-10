@@ -50,13 +50,6 @@ class OpenAICreds(TypedDict, total=False):
 async def get_credentials(
     request_headers: Mapping[str, str], *, azure: bool
 ) -> OpenAICreds:
-    """Credentials for OpenAI-compatible upstreams.
-
-    If X-UPSTREAM-KEY is present, it is used as api_key.
-    If azure=True and key is missing, fall back to Azure AD token.
-    If azure=False and key is missing, return Unauthorized.
-    """
-
     api_key = request_headers.get("X-UPSTREAM-KEY")
     if api_key is not None:
         return {"api_key": api_key}
