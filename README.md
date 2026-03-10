@@ -672,7 +672,7 @@ Example:
 
 - `VLLM_HEADERS_TO_PROXY=x-conversation-id`
 
-If a DIAL client (or DIAL Core) sends the header `x-conversation-id: <some-stable-id>`, the adapter will forward it upstream to vLLM, increasing the chance that related requests are routed to the same vLLM instance and can benefit from upstream caching.
+This increases the chance that related requests are routed to the same vLLM instance and can benefit from upstream caching.
 
 > [!IMPORTANT]
 > The adapter only proxies headers listed in `VLLM_HEADERS_TO_PROXY` for deployments registered in `VLLM_DEPLOYMENTS`. No additional headers are proxied for other (Azure/OpenAI/etc.) deployments.
