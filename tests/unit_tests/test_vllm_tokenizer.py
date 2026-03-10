@@ -58,7 +58,6 @@ def _mock_response(token_count: int) -> httpx.Response:
         200,
         json={
             "count": token_count,
-            "max_model_len": 4096,
             "tokens": list(range(token_count)),
         },
         request=httpx.Request("POST", _UPSTREAM),

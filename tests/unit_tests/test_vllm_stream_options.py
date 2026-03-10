@@ -56,7 +56,6 @@ async def test_vllm_stream_options_include_usage_injected(
             status_code=200,
             json={
                 "count": 10,
-                "max_model_len": 4096,
                 "tokens": list(range(10)),
             },
         )
@@ -112,7 +111,6 @@ async def test_vllm_stream_options_include_usage_merged(
             status_code=200,
             json={
                 "count": 10,
-                "max_model_len": 4096,
                 "tokens": list(range(10)),
             },
         )
@@ -176,7 +174,6 @@ async def test_vllm_non_stream_does_not_inject_stream_options(
             status_code=200,
             json={
                 "count": 10,
-                "max_model_len": 4096,
                 "tokens": list(range(10)),
             },
         )

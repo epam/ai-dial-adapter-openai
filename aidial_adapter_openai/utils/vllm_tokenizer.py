@@ -97,7 +97,7 @@ class VllmTokenizer:
         data = response.json()
 
         # vLLM /tokenize response schema:
-        #   {"count": <int>, "max_model_len": <int>, "tokens": [...]}
+        #   {"count": <int>, "tokens": [...]}
         # We use "count" when available; otherwise fall back to len(tokens).
         if "count" in data:
             token_count = int(data["count"])
