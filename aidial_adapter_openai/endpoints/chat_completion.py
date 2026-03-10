@@ -215,21 +215,6 @@ async def call_chat_completion(
             else:
                 assert_never(deployment_type)
 
-        case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
-            response = await gpt_chat_completion(
-                request=request_body,
-                request_headers=request_headers,
-                client=client,
-                file_storage=file_storage,
-                tokenizer=_get_tokenizer(),
-                eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
-            )
-
-            response.body = extract_reasoning_tokens(response.body)
-            response.body = extract_audio_content(response.body, request_body)
-
-            return response
-
         case D.VLLM_CHAT_COMPLETIONS_API:
             vllm_tokenizer = VllmTokenizer(
                 model=request_body["model"],
@@ -241,6 +226,21 @@ async def call_chat_completion(
                 client=client,
                 file_storage=file_storage,
                 tokenizer=vllm_tokenizer,
+                eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
+            )
+
+            response.body = extract_reasoning_tokens(response.body)
+            response.body = extract_audio_content(response.body, request_body)
+
+            return response
+
+        case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
+            response = await gpt_chat_completion(
+                request=request_body,
+                request_headers=request_headers,
+                client=client,
+                file_storage=file_storage,
+                tokenizer=_get_tokenizer(),
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
             )
 
