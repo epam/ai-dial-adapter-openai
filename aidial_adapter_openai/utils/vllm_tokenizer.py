@@ -145,18 +145,18 @@ class VllmTokenizer:
 
         def _cascade_remove_tool_replies(start_idx: int) -> None:
             """Remove consecutive tool replies following *start_idx* and the next assistant."""
-            j = start_idx + 1
-            while j < len(messages):
-                if j not in kept:
-                    j += 1
+            i = start_idx + 1
+            while i < len(messages):
+                if i not in kept:
+                    i += 1
                     continue
-                role = messages[j].raw_message.get("role")
+                role = messages[i].raw_message.get("role")
                 if role == "tool":
-                    kept.discard(j)
-                    j += 1
+                    kept.discard(i)
+                    i += 1
                     continue
                 if role == "assistant":
-                    kept.discard(j)
+                    kept.discard(i)
                     break
                 # If it's a user/system/etc. stop cascading.
                 break
