@@ -1,19 +1,10 @@
-import importlib
 import logging
 import time
 from typing import Any, Tuple
 
+import httpx
+
 from aidial_adapter_openai.utils.log_config import logger
-
-_httpx = importlib.import_module("httpx")
-
-# Re-export commonly used httpx types/exceptions so that references like
-# `aidial_adapter_openai.utils.httpx.AsyncClient` work during type checking.
-AsyncClient = _httpx.AsyncClient
-Request = _httpx.Request
-Response = _httpx.Response
-HTTPStatusError = _httpx.HTTPStatusError
-HTTPError = _httpx.HTTPError
 
 
 def _now() -> float:
@@ -77,13 +68,13 @@ def _get_tracing_timings(trace_request_ctx: dict) -> str:
     return f"{total} (dns=na, connect={connect}, header={header}, body={body})"
 
 
-async def _inject_trace_hook(request: Request) -> None:
+async def _inject_trace_hook(request: httpx.Request) -> None:
     ctx, cb = _build_trace()
     request.extensions["trace"] = cb
     request.extensions["trace_ctx"] = ctx
 
 
-async def _log_timings_hook(response: Response) -> None:
+async def _log_timings_hook(response: httpx.Response) -> None:
     request = response.request
     ctx: TraceCtx = request.extensions.get("trace_ctx", {})
 
