@@ -31,8 +31,7 @@ from aidial_adapter_openai.utils.truncate_prompt import (
 )
 
 # NOTE: vLLM truncation uses a simple linear strategy; we intentionally
-# avoid binary search to keep behavior predictable and implementation
-# straightforward.
+# avoid binary search to keep implementation straightforward.
 
 
 def derive_tokenize_url(upstream_endpoint: str) -> str:
