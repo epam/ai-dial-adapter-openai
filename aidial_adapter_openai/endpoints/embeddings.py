@@ -7,10 +7,7 @@ from aidial_adapter_openai.embeddings.azure_ai_vision import (
 from aidial_adapter_openai.embeddings.openai import (
     embeddings as openai_embeddings,
 )
-from aidial_adapter_openai.utils.auth import (
-    get_credentials_azure,
-    get_credentials_vllm,
-)
+from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.parsers import parse_body
 from aidial_adapter_openai.utils.request import (
     get_api_version,
@@ -25,12 +22,14 @@ async def embedding(deployment_id: str, request: Request):
     # See note for /chat/completions endpoint
     request_body["model"] = request_body.get("model") or deployment_id
 
-    if deployment_id in app_config.VLLM_DEPLOYMENTS:
-        creds = get_credentials_vllm(request.headers)
-        headers_to_proxy = app_config.get_vllm_headers_to_proxy(request.headers)
-    else:
-        creds = await get_credentials_azure(request.headers)
-        headers_to_proxy = {}
+    creds = await get_credentials(
+        request.headers, azure=deployment_id in app_config.VLLM_DEPLOYMENTS
+    )
+    headers_to_proxy = (
+        app_config.get_vllm_headers_to_proxy(request.headers)
+        if deployment_id in app_config.VLLM_DEPLOYMENTS
+        else {}
+    )
 
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]

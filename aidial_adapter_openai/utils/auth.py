@@ -47,33 +47,21 @@ class OpenAICreds(TypedDict, total=False):
     azure_ad_token: str
 
 
-async def get_credentials_azure(
-    request_headers: Mapping[str, str],
+async def get_credentials(
+    request_headers: Mapping[str, str], *, azure: bool
 ) -> OpenAICreds:
-    """Credentials for Azure/OpenAI-style deployments.
+    """Credentials for OpenAI-compatible upstreams.
 
     If X-UPSTREAM-KEY is present, it is used as api_key.
-    Otherwise, fall back to DefaultAzureCredential (Azure AD token).
+    If azure=True and key is missing, fall back to Azure AD token.
+    If azure=False and key is missing, return Unauthorized.
     """
 
     api_key = request_headers.get("X-UPSTREAM-KEY")
-    if api_key is None:
+    if api_key is not None:
+        return {"api_key": api_key}
+
+    if azure:
         return {"azure_ad_token": await get_api_key()}
-    return {"api_key": api_key}
 
-
-def get_credentials_vllm(
-    request_headers: Mapping[str, str],
-) -> OpenAICreds:
-    """Credentials for vLLM deployments.
-
-    vLLM must be called with an explicit upstream key, provided via
-    X-UPSTREAM-KEY. Azure AD token fallback is not supported.
-    """
-
-    api_key = request_headers.get("X-UPSTREAM-KEY")
-    if api_key is None:
-        raise DialException(
-            "X-UPSTREAM-KEY header is missing", 401, "Unauthorized"
-        )
-    return {"api_key": api_key}
+    raise DialException("X-UPSTREAM-KEY header is missing", 401, "Unauthorized")

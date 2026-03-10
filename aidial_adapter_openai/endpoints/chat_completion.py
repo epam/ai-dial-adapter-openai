@@ -39,10 +39,7 @@ from aidial_adapter_openai.image_generation.adapter import (
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.responses.adapter import chat_completion as responses
-from aidial_adapter_openai.utils.auth import (
-    get_credentials_azure,
-    get_credentials_vllm,
-)
+from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import (
@@ -104,12 +101,14 @@ async def call_chat_completion(
     logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
-    if deployment_type == D.VLLM:
-        creds = get_credentials_vllm(request_headers)
-        headers_to_proxy = app_config.get_vllm_headers_to_proxy(request_headers)
-    else:
-        creds = await get_credentials_azure(request_headers)
-        headers_to_proxy = {}
+    creds = await get_credentials(
+        request_headers, azure=deployment_type == D.VLLM
+    )
+    headers_to_proxy = (
+        app_config.get_vllm_headers_to_proxy(request_headers)
+        if deployment_type == D.VLLM
+        else {}
+    )
 
     client = endpoint.get_client(
         {**creds, "api_version": api_version, "headers": headers_to_proxy}
