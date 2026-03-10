@@ -28,6 +28,9 @@ from aidial_adapter_openai.chat_completions.non_gpt import (
 from aidial_adapter_openai.chat_completions.vllm import (
     chat_completion as vllm_chat_completion,
 )
+from aidial_adapter_openai.chat_completions.vllm import (
+    extract_reasoning as vllm_extract_reasoning,
+)
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
@@ -229,8 +232,7 @@ async def call_chat_completion(
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
             )
 
-            response.body = extract_reasoning_tokens(response.body)
-            response.body = extract_audio_content(response.body, request_body)
+            response.body = vllm_extract_reasoning(response.body)
 
             return response
 
