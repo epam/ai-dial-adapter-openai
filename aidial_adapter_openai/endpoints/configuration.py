@@ -55,7 +55,7 @@ def _get_deployment_configuration(
             | D.MISTRAL
             | D.DATABRICKS
             | D.GPT_GENERIC
-            | D.VLLM
+            | D.VLLM_CHAT_COMPLETIONS_API
         ):
             return None
 

@@ -23,11 +23,12 @@ async def embedding(deployment_id: str, request: Request):
     request_body["model"] = request_body.get("model") or deployment_id
 
     creds = await get_credentials(
-        request.headers, azure=deployment_id in app_config.VLLM_DEPLOYMENTS
+        request.headers,
+        azure=deployment_id in app_config.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS,
     )
     headers_to_proxy = (
         app_config.get_vllm_headers_to_proxy(request.headers)
-        if deployment_id in app_config.VLLM_DEPLOYMENTS
+        if deployment_id in app_config.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS
         else {}
     )
 

@@ -15,10 +15,12 @@ _API_VERSION = "api-version=2024-12-01-preview"
 def configure_vllm_deployment(_app_instance):
     """Configure vllm-test as a vLLM deployment."""
     app_config = get_app_config(_app_instance)
-    original_deployments = app_config.VLLM_DEPLOYMENTS.copy()
-    app_config.VLLM_DEPLOYMENTS.append("vllm-test")
+    original_deployments = (
+        app_config.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS.copy()
+    )
+    app_config.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS.append("vllm-test")
     yield
-    app_config.VLLM_DEPLOYMENTS = original_deployments
+    app_config.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS = original_deployments
 
 
 @respx.mock

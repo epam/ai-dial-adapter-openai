@@ -52,7 +52,7 @@ class ApplicationConfig(ExtraForbidModel):
     DATABRICKS_DEPLOYMENTS: List[str] = []
     GPT4O_DEPLOYMENTS: List[str] = []
     GPT4O_MINI_DEPLOYMENTS: List[str] = []
-    VLLM_DEPLOYMENTS: List[str] = []
+    VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS: List[str] = []
     AZURE_AI_VISION_DEPLOYMENTS: List[str] = []
 
     API_VERSIONS_MAPPING: Dict[str, str] = {}
@@ -143,9 +143,9 @@ class ApplicationConfig(ExtraForbidModel):
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
-        if deployment_id in self.VLLM_DEPLOYMENTS:
+        if deployment_id in self.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS:
             return DeploymentAPIType(
-                deployment_type=D.VLLM,
+                deployment_type=D.VLLM_CHAT_COMPLETIONS_API,
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
@@ -191,8 +191,8 @@ class ApplicationConfig(ExtraForbidModel):
                 self.GPT4O_DEPLOYMENTS.append(deployment_id)
             case D.GPT4O_MINI:
                 self.GPT4O_MINI_DEPLOYMENTS.append(deployment_id)
-            case D.VLLM:
-                self.VLLM_DEPLOYMENTS.append(deployment_id)
+            case D.VLLM_CHAT_COMPLETIONS_API:
+                self.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS.append(deployment_id)
             case (
                 D.GPT_GENERIC
                 | D.RESPONSES_API
@@ -226,7 +226,7 @@ class ApplicationConfig(ExtraForbidModel):
                 "DATABRICKS_DEPLOYMENTS",
                 "GPT4O_DEPLOYMENTS",
                 "GPT4O_MINI_DEPLOYMENTS",
-                "VLLM_DEPLOYMENTS",
+                "VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
                 "VLLM_HEADERS_TO_PROXY",

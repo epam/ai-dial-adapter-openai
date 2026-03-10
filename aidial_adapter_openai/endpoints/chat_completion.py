@@ -102,11 +102,12 @@ async def call_chat_completion(
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
     creds = await get_credentials(
-        request_headers, azure=deployment_type == D.VLLM
+        request_headers,
+        azure=deployment_type == D.VLLM_CHAT_COMPLETIONS_API,
     )
     headers_to_proxy = (
         app_config.get_vllm_headers_to_proxy(request_headers)
-        if deployment_type == D.VLLM
+        if deployment_type == D.VLLM_CHAT_COMPLETIONS_API
         else {}
     )
 
@@ -229,7 +230,7 @@ async def call_chat_completion(
 
             return response
 
-        case D.VLLM:
+        case D.VLLM_CHAT_COMPLETIONS_API:
             vllm_tokenizer = VllmTokenizer(
                 model=request_body["model"],
                 upstream_endpoint=upstream_endpoint,
