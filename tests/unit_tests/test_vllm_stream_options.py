@@ -1,168 +1,197 @@
-from unittest.mock import AsyncMock
+import json
 
+import httpx
 import pytest
+import respx
 
-import aidial_adapter_openai.chat_completions.gpt as gpt_module
-from aidial_adapter_openai.utils.vllm_tokenizer import VllmTokenizer
+from aidial_adapter_openai.utils.request import get_app_config
+from tests.utils.stream import OpenAIStream, single_choice_chunk
+
+_UPSTREAM_ENDPOINT = "http://localhost:5001/v1/chat/completions"
+_API_VERSION = "api-version=2024-12-01-preview"
 
 
+@pytest.fixture
+def configure_vllm_deployment(_app_instance):
+    """Configure vllm-test as a vLLM deployment."""
+    app_config = get_app_config(_app_instance)
+    original_deployments = app_config.VLLM_DEPLOYMENTS.copy()
+    app_config.VLLM_DEPLOYMENTS.append("vllm-test")
+    yield
+    app_config.VLLM_DEPLOYMENTS = original_deployments
+
+
+@respx.mock
 @pytest.mark.asyncio
-async def test_vllm_stream_options_include_usage_injected(monkeypatch):
+async def test_vllm_stream_options_include_usage_injected(
+    test_app: httpx.AsyncClient, configure_vllm_deployment
+):
     """For vLLM streaming calls, the adapter must force stream_options.include_usage=True."""
 
-    captured: dict = {}
-
-    async def fake_call_with_extra_body(fn, request):
-        captured["request"] = request
-        # Return a non-stream response object to avoid dealing with AsyncStream
-        resp = AsyncMock()
-        resp.to_dict.return_value = {"id": "x"}
-        resp.usage = None
-        return resp
-
-    monkeypatch.setattr(
-        gpt_module, "call_with_extra_body", fake_call_with_extra_body
+    # Mock the upstream chat completion response
+    mock_stream = OpenAIStream(
+        single_choice_chunk(delta={"role": "assistant", "content": "hi"}),
+        single_choice_chunk(delta={}, finish_reason="stop"),
     )
 
-    class _DummyProcessor:
-        def __init__(self, file_storage=None):
-            pass
+    def chat_completion_handler(request: httpx.Request):
+        body = json.loads(request.content)
+        # Verify that stream_options.include_usage was injected
+        assert body.get("stream") is True
+        assert body.get("stream_options", {}).get("include_usage") is True
 
-        async def transform_messages(self, messages):
-            # No transformation in this test
-            return [
-                gpt_module.MultiModalMessage(raw_message=m) for m in messages
-            ]
+        return httpx.Response(
+            status_code=200,
+            headers={"Content-Type": "text/event-stream"},
+            content=mock_stream.to_content(),
+        )
 
-    monkeypatch.setattr(gpt_module, "ResourceProcessor", _DummyProcessor)
+    respx.post(_UPSTREAM_ENDPOINT).mock(side_effect=chat_completion_handler)
 
-    tokenizer = VllmTokenizer(
-        model="m",
-        upstream_endpoint="http://localhost:17834/v1/chat/completions",
+    # Mock the tokenize endpoint (vLLM tokenizer will call it for truncation check)
+    respx.post("http://localhost:5001/tokenize").mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "count": 10,
+                "max_model_len": 4096,
+                "tokens": list(range(10)),
+            },
+        )
     )
 
-    request = {
-        "model": "m",
-        "stream": True,
-        "messages": [{"role": "user", "content": "hi"}],
-    }
-
-    client = AsyncMock()
-
-    await gpt_module.vllm_chat_completion(
-        request=request,
-        client=client,
-        file_storage=None,
-        tokenizer=tokenizer,
-        eliminate_empty_choices=False,
+    response = await test_app.post(
+        f"/openai/deployments/vllm-test/chat/completions?{_API_VERSION}",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
+        },
     )
 
-    assert captured["request"]["stream"] is True
-    assert captured["request"]["stream_options"]["include_usage"] is True
+    assert response.status_code == 200
 
 
+@respx.mock
 @pytest.mark.asyncio
-async def test_vllm_stream_options_include_usage_merged(monkeypatch):
+async def test_vllm_stream_options_include_usage_merged(
+    test_app: httpx.AsyncClient, configure_vllm_deployment
+):
     """If stream_options already exists, include_usage must be set/overridden but other fields kept."""
 
-    captured: dict = {}
-
-    async def fake_call_with_extra_body(fn, request):
-        captured["request"] = request
-        resp = AsyncMock()
-        resp.to_dict.return_value = {"id": "x"}
-        resp.usage = None
-        return resp
-
-    monkeypatch.setattr(
-        gpt_module, "call_with_extra_body", fake_call_with_extra_body
+    mock_stream = OpenAIStream(
+        single_choice_chunk(delta={"role": "assistant", "content": "hi"}),
+        single_choice_chunk(delta={}, finish_reason="stop"),
     )
 
-    class _DummyProcessor:
-        def __init__(self, file_storage=None):
-            pass
+    def chat_completion_handler(request: httpx.Request):
+        body = json.loads(request.content)
+        stream_options = body.get("stream_options", {})
 
-        async def transform_messages(self, messages):
-            return [
-                gpt_module.MultiModalMessage(raw_message=m) for m in messages
-            ]
+        # Verify that include_usage was set to True
+        assert stream_options.get("include_usage") is True
+        # Verify that other fields in stream_options are preserved
+        assert stream_options.get("foo") == "bar"
 
-    monkeypatch.setattr(gpt_module, "ResourceProcessor", _DummyProcessor)
+        return httpx.Response(
+            status_code=200,
+            headers={"Content-Type": "text/event-stream"},
+            content=mock_stream.to_content(),
+        )
 
-    tokenizer = VllmTokenizer(
-        model="m",
-        upstream_endpoint="http://localhost:17834/v1/chat/completions",
+    respx.post(_UPSTREAM_ENDPOINT).mock(side_effect=chat_completion_handler)
+
+    # Mock the tokenize endpoint
+    respx.post("http://localhost:5001/tokenize").mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "count": 10,
+                "max_model_len": 4096,
+                "tokens": list(range(10)),
+            },
+        )
     )
 
-    request = {
-        "model": "m",
-        "stream": True,
-        "stream_options": {"foo": "bar", "include_usage": False},
-        "messages": [{"role": "user", "content": "hi"}],
-    }
-
-    client = AsyncMock()
-
-    await gpt_module.vllm_chat_completion(
-        request=request,
-        client=client,
-        file_storage=None,
-        tokenizer=tokenizer,
-        eliminate_empty_choices=False,
+    response = await test_app.post(
+        f"/openai/deployments/vllm-test/chat/completions?{_API_VERSION}",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+            "stream_options": {"foo": "bar", "include_usage": False},
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
+        },
     )
 
-    so = captured["request"]["stream_options"]
-    assert so["foo"] == "bar"
-    assert so["include_usage"] is True
+    assert response.status_code == 200
 
 
+@respx.mock
 @pytest.mark.asyncio
-async def test_vllm_non_stream_does_not_inject_stream_options(monkeypatch):
+async def test_vllm_non_stream_does_not_inject_stream_options(
+    test_app: httpx.AsyncClient, configure_vllm_deployment
+):
     """For non-stream calls, adapter shouldn't force stream_options."""
 
-    captured: dict = {}
+    def chat_completion_handler(request: httpx.Request):
+        body = json.loads(request.content)
 
-    async def fake_call_with_extra_body(fn, request):
-        captured["request"] = request
-        resp = AsyncMock()
-        resp.to_dict.return_value = {"id": "x"}
-        resp.usage = None
-        return resp
+        # Verify that stream_options is not injected for non-streaming requests
+        assert "stream_options" not in body
 
-    monkeypatch.setattr(
-        gpt_module, "call_with_extra_body", fake_call_with_extra_body
+        return httpx.Response(
+            status_code=200,
+            json={
+                "id": "chat-123",
+                "object": "chat.completion",
+                "model": "vllm-test",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "hi"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            },
+        )
+
+    respx.post(_UPSTREAM_ENDPOINT).mock(side_effect=chat_completion_handler)
+
+    # Mock the tokenize endpoint
+    respx.post("http://localhost:5001/tokenize").mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "count": 10,
+                "max_model_len": 4096,
+                "tokens": list(range(10)),
+            },
+        )
     )
 
-    class _DummyProcessor:
-        def __init__(self, file_storage=None):
-            pass
-
-        async def transform_messages(self, messages):
-            return [
-                gpt_module.MultiModalMessage(raw_message=m) for m in messages
-            ]
-
-    monkeypatch.setattr(gpt_module, "ResourceProcessor", _DummyProcessor)
-
-    tokenizer = VllmTokenizer(
-        model="m",
-        upstream_endpoint="http://localhost:17834/v1/chat/completions",
+    response = await test_app.post(
+        f"/openai/deployments/vllm-test/chat/completions?{_API_VERSION}",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": False,
+        },
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
+        },
     )
 
-    request = {
-        "model": "m",
-        "stream": False,
-        "messages": [{"role": "user", "content": "hi"}],
-    }
-
-    client = AsyncMock()
-
-    await gpt_module.vllm_chat_completion(
-        request=request,
-        client=client,
-        file_storage=None,
-        tokenizer=tokenizer,
-        eliminate_empty_choices=False,
-    )
-
-    assert "stream_options" not in captured["request"]
+    assert response.status_code == 200
+    data = response.json()
+    assert data["choices"][0]["message"]["content"] == "hi"
