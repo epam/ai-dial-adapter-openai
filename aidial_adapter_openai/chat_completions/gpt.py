@@ -25,7 +25,6 @@ from aidial_adapter_openai.utils.truncate_prompt import (
     TruncatedTokens,
     truncate_prompt,
 )
-from aidial_adapter_openai.utils.vllm_tokenizer import VllmTokenizer
 
 
 async def multi_modal_truncate_prompt(
@@ -100,32 +99,6 @@ async def _truncate_messages(
         return (messages, None, get_prompt_tokens)
 
 
-async def _truncate_messages_vllm(
-    request: dict, messages: List[MultiModalMessage], tokenizer: VllmTokenizer
-) -> Tuple[List[MultiModalMessage], DiscardedMessages | None]:
-    """vLLM-specific truncation: sends the full message list to the vLLM
-    tokenize endpoint on each iteration instead of counting per-message."""
-    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is None:
-        return messages, None
-
-    (
-        messages,
-        discarded_indices,
-        prompt_tokens,
-    ) = await tokenizer.truncate_prompt(
-        original_request=request,
-        messages=messages,
-        max_prompt_tokens=max_prompt_tokens,
-    )
-
-    logger.debug(
-        f"vLLM estimated prompt tokens after truncation: {prompt_tokens}, "
-        f"discarded messages indices: {discarded_indices}"
-    )
-
-    return messages, discarded_indices
-
-
 async def chat_completion(
     *,
     request: dict,
@@ -193,100 +166,3 @@ async def chat_completion(
 
         debug_print("response", body)
         return ResponseWithHeaders(headers=response_headers, body=body)
-
-
-async def vllm_chat_completion(
-    *,
-    request: dict,
-    client: AsyncAzureOpenAI | AsyncOpenAI,
-    file_storage: FileStorage | None,
-    tokenizer: VllmTokenizer,
-    eliminate_empty_choices: bool,
-) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
-    """Chat completion flow for vLLM deployments.
-
-    Key differences from the standard GPT flow:
-    - Truncation sends the full message list to the vLLM tokenize endpoint
-      each iteration (no per-message token counting).
-    - No adapter-side response tokenization or caching headers.
-    - The request is proxied transparently to vLLM — usage handling
-      is entirely between the client and the upstream server.
-
-    Notes:
-    - `eliminate_empty_choices` is still applied on the adapter side to keep
-      behavior consistent with the standard GPT streaming implementation.
-    """
-    messages: List[dict] = request["messages"]
-
-    multi_modal_messages = await ResourceProcessor(
-        file_storage=file_storage
-    ).transform_messages(messages)
-
-    (
-        multi_modal_messages,
-        discarded_messages,
-    ) = await _truncate_messages_vllm(request, multi_modal_messages, tokenizer)
-
-    request["messages"] = [m.raw_message for m in multi_modal_messages]
-
-    # vLLM guarantees to include usage stats in streaming responses.
-    # For streaming calls, vLLM includes usage only if requested via
-    # stream_options.include_usage.
-    if request.get("stream"):
-        stream_options = request.get("stream_options")
-        if not isinstance(stream_options, dict):
-            stream_options = {}
-        stream_options["include_usage"] = True
-        request["stream_options"] = stream_options
-
-    response: (
-        AsyncStream[ChatCompletionChunk] | ChatCompletion
-    ) = await call_with_extra_body(client.chat.completions.create, request)
-
-    if isinstance(response, AsyncStream):
-        body = _vllm_generate_stream(
-            stream=map_stream(chunk_to_dict, response),
-            discarded_messages=discarded_messages,
-            eliminate_empty_choices=eliminate_empty_choices,
-        )
-        return ResponseWithHeaders(headers=None, body=body)
-    else:
-        if eliminate_empty_choices and response.choices:
-            response.choices = [c for c in response.choices if c]
-
-        data = response.to_dict()
-        if discarded_messages is not None:
-            data |= {"statistics": {"discarded_messages": discarded_messages}}
-
-        debug_print("response", data)
-        return ResponseWithHeaders(headers=None, body=data)
-
-
-async def _vllm_generate_stream(
-    *,
-    stream: AsyncIterator[dict],
-    discarded_messages: DiscardedMessages | None,
-    eliminate_empty_choices: bool,
-) -> AsyncIterator[dict]:
-    """Pass through streaming chunks from vLLM, injecting
-    ``discarded_messages`` statistics into the last chunk if needed.
-
-    If `eliminate_empty_choices` is True, empty chunk choices are removed
-    (same intent as the standard GPT stream generator).
-    """
-    last_chunk = None
-
-    async for chunk in stream:
-        if eliminate_empty_choices and isinstance(chunk.get("choices"), list):
-            chunk["choices"] = [c for c in chunk["choices"] if c]
-
-        if last_chunk is not None:
-            yield last_chunk
-        last_chunk = chunk
-
-    if last_chunk is not None:
-        if discarded_messages is not None:
-            last_chunk["statistics"] = {
-                "discarded_messages": discarded_messages
-            }
-        yield last_chunk

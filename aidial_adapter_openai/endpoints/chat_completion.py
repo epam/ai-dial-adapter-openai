@@ -13,9 +13,6 @@ from aidial_adapter_openai.audio_api.transcribe.adapter import (
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
-from aidial_adapter_openai.chat_completions.gpt import (
-    vllm_chat_completion,
-)
 from aidial_adapter_openai.chat_completions.gpt_audio import (
     extract_audio_content,
 )
@@ -27,6 +24,9 @@ from aidial_adapter_openai.chat_completions.mistral import (
 )
 from aidial_adapter_openai.chat_completions.non_gpt import (
     chat_completion as non_gpt_chat_completion,
+)
+from aidial_adapter_openai.chat_completions.vllm import (
+    chat_completion as vllm_chat_completion,
 )
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
