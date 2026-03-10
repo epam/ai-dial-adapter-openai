@@ -53,9 +53,9 @@ async def truncate_prompt(
     - If a removed message is an ``assistant`` message with ``tool_calls``,
       the following ``tool`` messages and the next ``assistant`` message are
       also removed (cascade).
-    - Raises :exc:`~aidial_sdk.exceptions.TruncatePromptSystemError` when
+    - Raises :`TruncatePromptSystemError` when
       system messages alone exceed the budget.
-    - Raises :exc:`~aidial_sdk.exceptions.TruncatePromptSystemAndLastUserError`
+    - Raises :`TruncatePromptSystemAndLastUserError`
       when system messages + the last non-system message exceed the budget.
 
     Parameters
