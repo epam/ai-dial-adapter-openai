@@ -79,10 +79,6 @@ class VllmTokenizer:
 
         self._http_client = get_http_client()
 
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
-
     async def tokenize_request(
         self, original_request: dict, messages: List[MultiModalMessage]
     ) -> int:
@@ -206,10 +202,6 @@ class VllmTokenizer:
         raise TruncatePromptSystemAndLastUserError(
             max_prompt_tokens, last_tokens
         )
-
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
 
     def _build_tokenize_payload(
         self, original_request: dict, messages: List[dict]
