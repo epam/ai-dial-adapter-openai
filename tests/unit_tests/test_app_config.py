@@ -149,11 +149,6 @@ def test_app_config_dalle_azure(
     )
 
 
-# ---------------------------------------------------------------
-# VLLM_HEADERS_TO_PROXY / get_vllm_headers_to_proxy
-# ---------------------------------------------------------------
-
-
 class TestHeadersToProxy:
     def test_default_is_empty(self):
         config = ApplicationConfig()
