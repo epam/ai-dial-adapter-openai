@@ -1,5 +1,3 @@
-"""Unit tests for VllmTokenizer and vLLM-based prompt truncation."""
-
 from unittest.mock import AsyncMock
 
 import httpx
@@ -17,10 +15,6 @@ from aidial_adapter_openai.utils.vllm_tokenizer import (
     VllmTokenizer,
     derive_tokenize_url,
 )
-
-# ---------------------------------------------------------------
-# derive_tokenize_url
-# ---------------------------------------------------------------
 
 
 class TestDeriveTokenizeUrl:
@@ -47,10 +41,6 @@ class TestDeriveTokenizeUrl:
             )
 
 
-# ---------------------------------------------------------------
-# VllmTokenizer helpers
-# ---------------------------------------------------------------
-
 _UPSTREAM = "https://vllm.example.com/v1/chat/completions"
 
 
@@ -71,11 +61,6 @@ def _mock_response(token_count: int) -> httpx.Response:
         },
         request=httpx.Request("POST", _UPSTREAM),
     )
-
-
-# ---------------------------------------------------------------
-# VllmTokenizer._call_tokenize
-# ---------------------------------------------------------------
 
 
 class TestVllmTokenizerCallTokenize:
@@ -143,11 +128,6 @@ class TestVllmTokenizerCallTokenize:
             await tokenizer._call_tokenize({"model": "m", "messages": []})
 
 
-# ---------------------------------------------------------------
-# VllmTokenizer.tokenize_request
-# ---------------------------------------------------------------
-
-
 class TestVllmTokenizerPublicApi:
     @pytest.mark.asyncio
     async def test_tokenize_request_sends_full_message_list_and_tools(self):
@@ -196,11 +176,6 @@ class TestVllmTokenizerPublicApi:
         call_args = mock_client.post.call_args
         payload = call_args.kwargs.get("json") or call_args[1].get("json")
         assert payload["messages"] == []
-
-
-# ---------------------------------------------------------------
-# VllmTokenizer.truncate_prompt  (full-list tokenization)
-# ---------------------------------------------------------------
 
 
 def _make_mock_tokenizer(responses: list[int]) -> VllmTokenizer:
@@ -445,11 +420,6 @@ class TestVllmTruncatePrompt:
         assert call_payloads[1][1]["content"] == "u2"
 
 
-# ---------------------------------------------------------------
-# Tool-call cascade removal
-# ---------------------------------------------------------------
-
-
 class TestVllmToolCallCascade:
     @pytest.mark.asyncio
     async def test_assistant_tool_calls_cascade_removes_tool_messages(self):
@@ -528,11 +498,6 @@ class TestVllmToolCallCascade:
         # Only assistant dropped; tool message stays (no cascade).
         assert sorted(discarded) == [1]
         assert used == 20
-
-
-# ---------------------------------------------------------------
-# Extra headers (VLLM_HEADERS_TO_PROXY support)
-# ---------------------------------------------------------------
 
 
 class TestVllmExtraHeaders:
