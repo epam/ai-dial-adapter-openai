@@ -31,6 +31,9 @@ from aidial_adapter_openai.chat_completions.vllm import (
 from aidial_adapter_openai.chat_completions.vllm import (
     extract_reasoning as vllm_extract_reasoning,
 )
+from aidial_adapter_openai.chat_completions.vllm.vllm_tokenizer import (
+    VllmTokenizer,
+)
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
@@ -58,7 +61,6 @@ from aidial_adapter_openai.utils.streaming import (
     create_server_response,
 )
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
-from aidial_adapter_openai.utils.vllm_tokenizer import VllmTokenizer
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
 )

@@ -8,6 +8,9 @@ from pydantic import BaseModel
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.chat_completions.vllm.vllm_tokenizer import (
+    VllmTokenizer,
+)
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
@@ -21,7 +24,6 @@ from aidial_adapter_openai.utils.streaming import (
 from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt,
 )
-from aidial_adapter_openai.utils.vllm_tokenizer import VllmTokenizer
 
 
 def _extract_max_prompt_tokens(request: dict) -> int | None:
