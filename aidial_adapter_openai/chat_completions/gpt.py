@@ -105,25 +105,25 @@ async def _truncate_messages_vllm(
 ) -> Tuple[List[MultiModalMessage], DiscardedMessages | None]:
     """vLLM-specific truncation: sends the full message list to the vLLM
     tokenize endpoint on each iteration instead of counting per-message."""
-    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
-        (
-            messages,
-            discarded_indices,
-            prompt_tokens,
-        ) = await tokenizer.truncate_prompt(
-            original_request=request,
-            messages=messages,
-            max_prompt_tokens=max_prompt_tokens,
-        )
+    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is None:
+        return messages, None
 
-        logger.debug(
-            f"vLLM estimated prompt tokens after truncation: {prompt_tokens}, "
-            f"discarded messages indices: {discarded_indices}"
-        )
+    (
+        messages,
+        discarded_indices,
+        prompt_tokens,
+    ) = await tokenizer.truncate_prompt(
+        original_request=request,
+        messages=messages,
+        max_prompt_tokens=max_prompt_tokens,
+    )
 
-        return messages, discarded_indices
+    logger.debug(
+        f"vLLM estimated prompt tokens after truncation: {prompt_tokens}, "
+        f"discarded messages indices: {discarded_indices}"
+    )
 
-    return messages, None
+    return messages, discarded_indices
 
 
 async def chat_completion(
