@@ -63,10 +63,6 @@ class VllmTokenizer:
     etc.) to the vLLM server in a single call and returns the total token
     count reported by the server.  No per-message, per-modality, or
     per-attachment token counting is performed on the adapter side.
-
-    This tokenizer **not** performs response token counting.
-    The adapter forces usage reporting in upstream requests and extracts
-    token counts from the model response.
     """
 
     model: str
