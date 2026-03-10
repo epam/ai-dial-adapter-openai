@@ -28,14 +28,14 @@ _T = TypeVar("_T")
 
 @runtime_checkable
 class Tokenizer(Protocol):
-    """Minimal interface required by :func:`truncate_messages_bulky`."""
+    """Minimal interface required by :func:`truncate_prompt`."""
 
     async def tokenize(self, request: dict) -> int:
         """Return the token count for *request* (including its ``messages`` field)."""
         ...
 
 
-async def truncate_messages_bulky(
+async def truncate_prompt(
     tokenizer: Tokenizer,
     original_request: dict,
     messages: List[_T],

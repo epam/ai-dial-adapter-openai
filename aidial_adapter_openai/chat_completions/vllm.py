@@ -18,8 +18,8 @@ from aidial_adapter_openai.utils.streaming import (
     debug_print,
     map_stream,
 )
-from aidial_adapter_openai.utils.truncate_messages_bulky import (
-    truncate_messages_bulky,
+from aidial_adapter_openai.utils.truncate_prompt import (
+    truncate_prompt,
 )
 from aidial_adapter_openai.utils.vllm_tokenizer import VllmTokenizer
 
@@ -54,7 +54,7 @@ async def _truncate_messages(
         messages,
         discarded_indices,
         prompt_tokens,
-    ) = await truncate_messages_bulky(
+    ) = await truncate_prompt(
         tokenizer=tokenizer,
         original_request=request,
         messages=messages,

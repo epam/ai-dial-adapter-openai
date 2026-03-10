@@ -9,8 +9,8 @@ from aidial_sdk.exceptions import (
 )
 
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.truncate_messages_bulky import (
-    truncate_messages_bulky,
+from aidial_adapter_openai.utils.truncate_prompt import (
+    truncate_prompt,
 )
 from aidial_adapter_openai.utils.vllm_tokenizer import (
     VllmTokenizer,
@@ -344,7 +344,7 @@ class TestVllmTruncatePrompt:
             _mm("user", "u" * 4),
         ]
 
-        truncated, discarded, used = await truncate_messages_bulky(
+        truncated, discarded, used = await truncate_prompt(
             tokenizer,
             {},
             messages,
@@ -367,7 +367,7 @@ class TestVllmTruncatePrompt:
             _mm("user", "n" * 8),
         ]
 
-        truncated, discarded, used = await truncate_messages_bulky(
+        truncated, discarded, used = await truncate_prompt(
             tokenizer,
             {},
             messages,
@@ -391,7 +391,7 @@ class TestVllmTruncatePrompt:
             _mm("user", "w" * 7),
         ]
 
-        truncated, discarded, used = await truncate_messages_bulky(
+        truncated, discarded, used = await truncate_prompt(
             tokenizer,
             {},
             messages,
@@ -415,7 +415,7 @@ class TestVllmTruncatePrompt:
             _mm("assistant", "b" * 5),
         ]
 
-        truncated, discarded, used = await truncate_messages_bulky(
+        truncated, discarded, used = await truncate_prompt(
             tokenizer,
             {},
             messages,
@@ -438,7 +438,7 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await truncate_messages_bulky(
+            await truncate_prompt(
                 tokenizer,
                 {},
                 messages,
@@ -455,7 +455,7 @@ class TestVllmTruncatePrompt:
         messages = [sys_msg]
 
         with pytest.raises(TruncatePromptSystemError):
-            await truncate_messages_bulky(
+            await truncate_prompt(
                 tokenizer,
                 {},
                 messages,
@@ -474,7 +474,7 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await truncate_messages_bulky(
+            await truncate_prompt(
                 tokenizer,
                 {},
                 messages,
@@ -493,7 +493,7 @@ class TestVllmTruncatePrompt:
         ]
 
         with pytest.raises(TruncatePromptSystemAndLastUserError):
-            await truncate_messages_bulky(
+            await truncate_prompt(
                 tokenizer,
                 {},
                 messages,
@@ -515,7 +515,7 @@ class TestVllmTruncatePrompt:
         ]
         max_prompt_tokens = _messages_char_count([messages[0], messages[2]])
 
-        truncated, discarded, used = await truncate_messages_bulky(
+        truncated, discarded, used = await truncate_prompt(
             tokenizer, {}, messages, lambda m: m.raw_message, max_prompt_tokens
         )
 
@@ -538,7 +538,7 @@ class TestVllmTruncatePrompt:
         ]
         max_prompt_tokens = _messages_char_count([messages[0], messages[2]])
 
-        await truncate_messages_bulky(
+        await truncate_prompt(
             tokenizer, {}, messages, lambda m: m.raw_message, max_prompt_tokens
         )
 
@@ -563,7 +563,7 @@ class TestVllmToolCallCascade:
             _mm("user", "f" * 4),
         ]
 
-        truncated, discarded, used = await truncate_messages_bulky(
+        truncated, discarded, used = await truncate_prompt(
             tokenizer,
             {},
             messages,
@@ -587,7 +587,7 @@ class TestVllmToolCallCascade:
             _mm("user", "u" * 4),
         ]
 
-        _, discarded, used = await truncate_messages_bulky(
+        _, discarded, used = await truncate_prompt(
             tokenizer,
             {},
             messages,
