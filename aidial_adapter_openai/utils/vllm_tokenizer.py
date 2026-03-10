@@ -40,18 +40,7 @@ def derive_tokenize_url(upstream_endpoint: str) -> str:
 
 
 class VllmTokenizer:
-    """Tokenizer backed by a remote vLLM ``/tokenize`` endpoint.
-
-    Implements the :class:`~aidial_adapter_openai.utils.truncate_prompt.Tokenizer`
-    protocol: a single :meth:`tokenize` method that accepts the full chat
-    completion request dict (messages, tools, etc.) and returns the total
-    token count reported by the vLLM server.
-
-    Prompt truncation is handled by the generic
-    :func:`~aidial_adapter_openai.utils.truncate_prompt.truncate_prompt`
-    function which calls :meth:`tokenize` on each iteration — no vLLM-specific
-    truncation logic lives here.
-    """
+    """Tokenizer backed by a remote vLLM ``/tokenize`` endpoint."""
 
     _tokenize_url: str
     _extra_headers: dict[str, str]
@@ -69,20 +58,9 @@ class VllmTokenizer:
         self._http_client = get_http_client()
 
     async def tokenize(self, request: dict) -> int:
-        """Count tokens for the full request (messages + tools/functions)
-        via a single call to the vLLM tokenize endpoint.
-
-        Each message is treated as an atomic unit; text, images, and files
-        are sent together — no separate tokenization per modality.
-
-        Satisfies the :class:`~aidial_adapter_openai.utils.truncate_prompt.Tokenizer`
-        protocol.
-        """
         return await self._call_tokenize(request)
 
     async def _call_tokenize(self, payload: dict[str, Any]) -> int:
-        """POST *payload* to the vLLM tokenize endpoint and return token count."""
-
         headers: dict[str, str] = {"Content-Type": "application/json"}
         # vLLM /tokenize does not require authorization.
         if self._extra_headers:
