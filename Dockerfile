@@ -32,8 +32,8 @@ RUN apk upgrade --no-cache libexpat
 RUN pip install setuptools==80.10.2
 # fix CVE-2026-24049
 RUN pip install wheel==0.46.2
-# fix CVE-2025-6965
-RUN apk upgrade --no-cache sqlite-libs
+# fix CVE-2025-6965 and CVE-2026-22184
+RUN apk upgrade --no-cache sqlite-libs zlib
 
 WORKDIR /app
 
