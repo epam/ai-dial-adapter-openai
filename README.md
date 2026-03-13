@@ -56,7 +56,8 @@
   - [Private CAs and self-signed certificates](#private-cas-and-self-signed-certificates)
     - [Docker](#docker)
 - [Development](#development)
-  - [Development environment](#development-environment)
+  - [Development Environment](#development-environment)
+  - [Setup](#setup)
   - [IDE configuration](#ide-configuration)
   - [Make on Windows](#make-on-windows)
   - [Run](#run)
@@ -1189,29 +1190,41 @@ When enabled, the container builds a temporary trust store on startup that combi
 
 ## Development
 
-### Development environment
+### Development Environment
 
-This project uses [Python>=3.11](https://www.python.org/downloads/) and [Poetry>=2.1.1](https://python-poetry.org/) as a dependency manager.
+This project requires [Python ≥3.11](https://www.python.org/downloads/) and [Poetry ≥2.1.1](https://python-poetry.org/) for dependency management.
 
-Check out Poetry's [documentation on how to install it](https://python-poetry.org/docs/#installation) on your system before proceeding.
+### Setup
 
-To install requirements:
+1. Install Poetry. See the official [installation guide](https://python-poetry.org/docs/#installation).
 
-```sh
-poetry install
-```
+2. *(Optional)* Specify custom Python or Poetry executables in `.env.dev`. This is useful if multiple versions are installed. By default, `python` and `poetry` are used.
 
-This will install all requirements for running the package, linting, formatting and tests.
+   ```sh
+   POETRY_PYTHON=path-to-python-exe
+   POETRY=path-to-poetry-exe
+   ```
+
+3. Create and activate the virtual environment:
+
+   ```sh
+   make init_env
+   source .venv/bin/activate
+   ```
+
+4. Install project dependencies (including linting, formatting, and test tools):
+
+   ```sh
+   make install
+   ```
 
 ### IDE configuration
 
 The recommended IDE is [VS Code](https://code.visualstudio.com/).
 Open the project in VS Code and install the recommended extensions.
-VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
+VS Code is configured to use the [Ruff formatter](https://docs.astral.sh/ruff/formatter/).
 
-Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
-Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
-install PyCharm>=2023.2 with [built-in Black support](https://blog.jetbrains.com/pycharm/2023/07/2023-2/#black).
+Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/) that has built-in [Ruff support](https://www.jetbrains.com/help/pycharm/lsp-tools.html#ruff).
 
 ### Make on Windows
 
