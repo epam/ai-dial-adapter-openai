@@ -1215,7 +1215,7 @@ This project requires [Python ≥3.11](https://www.python.org/downloads/) and [P
 4. Install project dependencies (including linting, formatting, and test tools):
 
    ```sh
-   poetry install
+   make install
    ```
 
 ### IDE configuration
