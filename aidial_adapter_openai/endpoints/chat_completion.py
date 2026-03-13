@@ -30,6 +30,7 @@ from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
+from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.image_generation.adapter import (
     chat_completion as image_generation,
@@ -60,15 +61,6 @@ from aidial_adapter_openai.video_generation.openai.adapter import (
 )
 
 
-def _get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:
-    name = "X-UPSTREAM-ENDPOINT"
-    if (endpoint := request_headers.get(name)) is None:
-        raise ValueError(f"{name} header is missing in the request.")
-
-    logger.debug(f"upstream endpoint: {endpoint}")
-    return endpoint
-
-
 async def call_chat_completion(
     *,
     app_config: ApplicationConfig,
@@ -88,7 +80,7 @@ async def call_chat_completion(
     # The same goes for /embeddings endpoint.
     request_body["model"] = request_body.get("model") or deployment_id
 
-    upstream_endpoint = _get_upstream_endpoint(request_headers)
+    upstream_endpoint = get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
 
     deployment = app_config.get_chat_completion_deployment_type(
