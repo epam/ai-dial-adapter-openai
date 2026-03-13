@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 from fastapi import Request
 from fastapi.responses import Response as FastAPIResponse
 from openai import AsyncStream
+from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
 from openai.types.responses.response_stream_event import ResponseStreamEvent
 
@@ -27,7 +28,9 @@ async def responses(request: Request) -> FastAPIResponse:
     )
 
 
-async def _responses(request: Request) -> dict | AsyncIterator[dict]:
+async def _responses(
+    request: Request,
+) -> dict | AsyncIterator[dict]:
     request_body = await parse_body(request)
 
     upstream_endpoint = get_upstream_endpoint(request.headers)
@@ -37,16 +40,26 @@ async def _responses(request: Request) -> dict | AsyncIterator[dict]:
     endpoint = responses_parser.parse(upstream_endpoint)
     client = endpoint.get_client({**creds, "api_version": api_version})
 
-    # TODO: capture response headers (remove "content-length" & "content-encoding")
-    # TODO: capture HTTP exceptions
-    response: (
+    response: LegacyAPIResponse[
         Response | AsyncStream[ResponseStreamEvent]
-    ) = await call_with_extra_body(client.responses.create, request_body)
+    ] = await call_with_extra_body(
+        client.responses.with_raw_response.create, request_body
+    )
 
-    if isinstance(response, AsyncStream):
-        return map_stream(_to_dict, response)
+    response_headers = response.http_response.headers
+
+    # Reformatting of the chunk may invalidate content length.
+    # We don't recompress the response, therefore content encoding invalidates too.
+    for header in ["Content-Length", "Content-Encoding"]:
+        if header in response_headers:
+            del response_headers[header]
+
+    parsed_response = response.parse()
+
+    if isinstance(parsed_response, AsyncStream):
+        return map_stream(_to_dict, parsed_response)
     else:
-        return _to_dict(response)
+        return _to_dict(parsed_response)
 
 
 def _to_dict(obj: ResponseStreamEvent | Response) -> dict:
