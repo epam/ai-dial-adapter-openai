@@ -4,6 +4,7 @@ from typing import Any, Tuple
 
 import httpx
 
+from aidial_adapter_openai.utils.decorators import once
 from aidial_adapter_openai.utils.log_config import logger
 
 
@@ -78,6 +79,7 @@ async def _log_timings_hook(response: httpx.Response) -> None:
     request = response.request
     ctx: TraceCtx = request.extensions.get("trace_ctx", {})
 
+    @once
     def _log_timing():
         url = str(request.url)
         msg = f"Upstream: {url!r}. Status: {response.status_code}. Timing: {_get_tracing_timings(ctx)}."
@@ -88,6 +90,7 @@ async def _log_timings_hook(response: httpx.Response) -> None:
         _log_timing()
     else:
         # Otherwise delay logging until caller closes/finishes the stream.
+        # Keep in mind that `aclose` may be called multiple times on the same response.
         orig_aclose = response.aclose
 
         async def _aclose_and_log():
