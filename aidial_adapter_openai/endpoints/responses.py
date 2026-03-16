@@ -49,7 +49,7 @@ async def _responses(
 
     response_headers = response.http_response.headers
 
-    # Reformatting of the chunk may invalidate content length.
+    # Reformatting of the chunks may invalidate content length.
     # We don't recompress the response, therefore,
     # the content encoding may invalidate too.
     for header in ["Content-Length", "Content-Encoding"]:
