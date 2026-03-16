@@ -1,4 +1,3 @@
-import json
 from typing import Callable
 
 import httpx
@@ -14,12 +13,10 @@ class MockServer:
             def _handler(request: httpx.Request) -> httpx.Response:
                 resp = handler(request)
                 if isinstance(resp, dict):
-                    return httpx.Response(
-                        status_code=200, content=json.dumps(resp)
-                    )
+                    return httpx.Response(status_code=200, json=resp)
                 if isinstance(resp, BaseModel):
                     return httpx.Response(
-                        status_code=200, content=resp.model_dump_json()
+                        status_code=200, json=resp.model_dump()
                     )
                 return resp
 

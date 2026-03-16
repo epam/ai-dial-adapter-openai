@@ -15,6 +15,7 @@ from aidial_adapter_openai.utils.parsers import (
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
+    ResponseWithHeaders,
     create_server_response,
     debug_print,
     map_stream,
@@ -30,7 +31,7 @@ async def responses(request: Request) -> FastAPIResponse:
 
 async def _responses(
     request: Request,
-) -> dict | AsyncIterator[dict]:
+) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
     request_body = await parse_body(request)
 
     upstream_endpoint = get_upstream_endpoint(request.headers)
@@ -58,9 +59,11 @@ async def _responses(
     parsed_response = response.parse()
 
     if isinstance(parsed_response, AsyncStream):
-        return map_stream(_to_dict, parsed_response)
+        body = map_stream(_to_dict, parsed_response)
     else:
-        return _to_dict(parsed_response)
+        body = _to_dict(parsed_response)
+
+    return ResponseWithHeaders(headers=dict(response_headers), body=body)
 
 
 def _to_dict(obj: ResponseStreamEvent | Response) -> dict:
