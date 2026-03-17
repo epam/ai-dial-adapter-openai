@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import dataclass
 from time import time
@@ -352,7 +353,7 @@ async def reify_exceptions(
 
 def debug_print(title: str, chunk: dict) -> None:
     if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(f"{title}: {chunk}")
+        logger.debug(f"{title}: {json.dumps(chunk)}")
 
 
 def chunk_to_dict(chunk: ChatCompletionChunk) -> dict:

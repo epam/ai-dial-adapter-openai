@@ -14,7 +14,7 @@
 </h4>
 
 - [Overview](#overview)
-- [Chat completions deployments](#chat-completions-deployments)
+- [Chat Completions API deployments](#chat-completions-api-deployments)
   - [Supported upstream chat APIs](#supported-upstream-chat-apis)
     - [Azure OpenAI Chat Completions API (Last generation API)](#azure-openai-chat-completions-api-last-generation-api)
     - [Azure OpenAI Chat Completions API (Next generation API)](#azure-openai-chat-completions-api-next-generation-api)
@@ -34,6 +34,10 @@
     - [Tokenization algorithm](#tokenization-algorithm)
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
+- [Responses API deployments](#responses-api-deployments)
+  - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
+    - [Azure OpenAI Responses API](#azure-openai-responses-api)
+    - [OpenAI Platform Responses API](#openai-platform-responses-api)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
     - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
@@ -73,11 +77,9 @@ LLM Adapters unify the APIs of respective LLMs to align with the Unified Protoco
 
 The project implements [AI DIAL API](https://dialx.ai/dial_api) for language models from [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models).
 
-![ai-dial-core](https://docs.dialx.ai/assets/images/adapters-62587fb74cfb1c4225c20c08273ec5bc.svg)
-
 ---
 
-## Chat completions deployments
+## Chat Completions API deployments
 
 The adapter is able to convert certain upstream APIs to the [DIAL Chat Completions API](https://dialx.ai/dial_api#operation/sendChatCompletionRequest) *(which is an extension of Azure [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat))*.
 
@@ -697,6 +699,83 @@ Finally, if the deployment id is neither declared in `TIKTOKEN_MODEL_MAPPING`, n
 If a deployment is registered in `GPT4O_DEPLOYMENTS` or `GPT4O_MINI_DEPLOYMENTS`, the corresponding image-tokenization algorithm described in [the Azure documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/overview#image-input-tokens) is used.
 
 Otherwise, images aren’t tokenized — the image tokens are assumed to be 0.
+
+---
+
+## Responses API deployments
+
+The adapter is able to proxy requests to models supporting [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
+
+The following Responses API endpoints are exposed by the adapter:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/v1/responses
+```
+
+Current limitations:
+
+1. [Background mode](https://developers.openai.com/api/docs/guides/background/) isn't supported since it makes use of the `GET /responses/{response_id}` [endpoint](https://developers.openai.com/api/reference/resources/responses/methods/retrieve) which isn't supported yet.
+2. [WebSocket mode](https://developers.openai.com/api/docs/guides/websocket-mode/) isn't supported.
+3. [Passing context from the previous response](https://developers.openai.com/api/docs/guides/conversation-state#passing-context-from-the-previous-response) is limited to DIAL deployments with number of upstreams equal **one**.
+4. References to DIAL files aren't supported.
+
+### Supported upstream Responses APIs
+
+#### Azure OpenAI Responses API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME1}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY1}"
+        },
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME2}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY2}"
+        },
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME3}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY3}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+#### OpenAI Platform Responses API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "upstreams": [
+        {
+          "endpoint": "https://api.openai.com/v1/responses",
+          "key": "${API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
 
 ---
 
