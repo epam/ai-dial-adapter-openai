@@ -714,7 +714,7 @@ POST ${ADAPTER_ORIGIN}/openai/v1/responses
 
 Current limitations:
 
-1. [Background mode](https://developers.openai.com/api/docs/guides/background/) isn't supported since it requires `GET /responses/{response_id}` that isn't supported yet.
+1. [Background mode](https://developers.openai.com/api/docs/guides/background/) isn't supported since it makes use of the `GET /responses/{response_id}` [endpoint](https://developers.openai.com/api/reference/resources/responses/methods/retrieve) which isn't supported yet.
 2. [WebSocket mode](https://developers.openai.com/api/docs/guides/websocket-mode/) isn't supported.
 3. [Passing context from the previous response](https://developers.openai.com/api/docs/guides/conversation-state#passing-context-from-the-previous-response) is limited to DIAL deployments with number of upstreams equal **one**.
 4. References to DIAL files aren't supported.
