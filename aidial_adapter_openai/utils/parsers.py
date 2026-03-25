@@ -16,7 +16,7 @@ class OpenAIParams(TypedDict, total=False):
     base_url: str
     api_key: str
     azure_ad_token: str
-    api_version: str
+    api_version: str | None
     headers: dict[str, str]
 
 

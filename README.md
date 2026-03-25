@@ -14,7 +14,7 @@
 </h4>
 
 - [Overview](#overview)
-- [Chat completions deployments](#chat-completions-deployments)
+- [Chat Completions API deployments](#chat-completions-api-deployments)
   - [Supported upstream chat APIs](#supported-upstream-chat-apis)
     - [Azure OpenAI Chat Completions API (Last generation API)](#azure-openai-chat-completions-api-last-generation-api)
     - [Azure OpenAI Chat Completions API (Next generation API)](#azure-openai-chat-completions-api-next-generation-api)
@@ -36,6 +36,10 @@
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
       - [vLLM tokenization](#vllm-tokenization)
+- [Responses API deployments](#responses-api-deployments)
+  - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
+    - [Azure OpenAI Responses API](#azure-openai-responses-api)
+    - [OpenAI Platform Responses API](#openai-platform-responses-api)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
     - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
@@ -58,7 +62,8 @@
   - [Private CAs and self-signed certificates](#private-cas-and-self-signed-certificates)
     - [Docker](#docker)
 - [Development](#development)
-  - [Development environment](#development-environment)
+  - [Development Environment](#development-environment)
+  - [Setup](#setup)
   - [IDE configuration](#ide-configuration)
   - [Make on Windows](#make-on-windows)
   - [Run](#run)
@@ -74,11 +79,9 @@ LLM Adapters unify the APIs of respective LLMs to align with the Unified Protoco
 
 The project implements [AI DIAL API](https://dialx.ai/dial_api) for language models from [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models).
 
-![ai-dial-core](https://docs.dialx.ai/assets/images/adapters-62587fb74cfb1c4225c20c08273ec5bc.svg)
-
 ---
 
-## Chat completions deployments
+## Chat Completions API deployments
 
 The adapter is able to convert certain upstream APIs to the [DIAL Chat Completions API](https://dialx.ai/dial_api#operation/sendChatCompletionRequest) *(which is an extension of Azure [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat))*.
 
@@ -754,6 +757,83 @@ When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter tr
 
 ---
 
+## Responses API deployments
+
+The adapter is able to proxy requests to models supporting [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
+
+The following Responses API endpoints are exposed by the adapter:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/v1/responses
+```
+
+Current limitations:
+
+1. [Background mode](https://developers.openai.com/api/docs/guides/background/) isn't supported since it makes use of the `GET /responses/{response_id}` [endpoint](https://developers.openai.com/api/reference/resources/responses/methods/retrieve) which isn't supported yet.
+2. [WebSocket mode](https://developers.openai.com/api/docs/guides/websocket-mode/) isn't supported.
+3. [Passing context from the previous response](https://developers.openai.com/api/docs/guides/conversation-state#passing-context-from-the-previous-response) is limited to DIAL deployments with number of upstreams equal **one**.
+4. References to DIAL files aren't supported.
+
+### Supported upstream Responses APIs
+
+#### Azure OpenAI Responses API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME1}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY1}"
+        },
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME2}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY2}"
+        },
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME3}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY3}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+#### OpenAI Platform Responses API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "upstreams": [
+        {
+          "endpoint": "https://api.openai.com/v1/responses",
+          "key": "${API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+---
+
 ## Embedding deployments
 
 The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API](https://dialx.ai/dial_api#operation/sendEmbeddingsRequest) *(which is an extension of Azure [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create))*.
@@ -1246,29 +1326,41 @@ When enabled, the container builds a temporary trust store on startup that combi
 
 ## Development
 
-### Development environment
+### Development Environment
 
-This project uses [Python>=3.11](https://www.python.org/downloads/) and [Poetry>=2.1.1](https://python-poetry.org/) as a dependency manager.
+This project requires [Python ≥3.11](https://www.python.org/downloads/) and [Poetry ≥2.1.1](https://python-poetry.org/) for dependency management.
 
-Check out Poetry's [documentation on how to install it](https://python-poetry.org/docs/#installation) on your system before proceeding.
+### Setup
 
-To install requirements:
+1. Install Poetry. See the official [installation guide](https://python-poetry.org/docs/#installation).
 
-```sh
-poetry install
-```
+2. *(Optional)* Specify custom Python or Poetry executables in `.env.dev`. This is useful if multiple versions are installed. By default, `python` and `poetry` are used.
 
-This will install all requirements for running the package, linting, formatting and tests.
+   ```sh
+   POETRY_PYTHON=path-to-python-exe
+   POETRY=path-to-poetry-exe
+   ```
+
+3. Create and activate the virtual environment:
+
+   ```sh
+   make init_env
+   source .venv/bin/activate
+   ```
+
+4. Install project dependencies (including linting, formatting, and test tools):
+
+   ```sh
+   make install
+   ```
 
 ### IDE configuration
 
 The recommended IDE is [VS Code](https://code.visualstudio.com/).
 Open the project in VS Code and install the recommended extensions.
-VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
+VS Code is configured to use the [Ruff formatter](https://docs.astral.sh/ruff/formatter/).
 
-Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
-Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
-install PyCharm>=2023.2 with [built-in Black support](https://blog.jetbrains.com/pycharm/2023/07/2023-2/#black).
+Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/) that has built-in [Ruff support](https://www.jetbrains.com/help/pycharm/lsp-tools.html#ruff).
 
 ### Make on Windows
 

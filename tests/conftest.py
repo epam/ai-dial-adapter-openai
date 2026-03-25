@@ -1,14 +1,14 @@
 import contextlib
+from typing import Generator, Protocol
 
 import httpx
 import pytest
 from httpx import ASGITransport
-from openai import AsyncAzureOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from aidial_adapter_openai.app import create_app
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.request import get_app_config
-from tests.integration_tests.base import DeploymentConfig
 from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
 
 _TEST_TIMEOUT = httpx.Timeout(30, connect=10)
@@ -73,17 +73,81 @@ async def create_test_client(
         yield client
 
 
+class AzureOpenAIClientFactory(Protocol):
+    def __call__(
+        self,
+        azure_deployment: str,
+        *,
+        max_retries: int | None = None,
+        api_version: str | None = None,
+        upstream_endpoint: str | None = None,
+        upstream_key: str | None = None,
+    ) -> AsyncAzureOpenAI: ...
+
+
 @pytest.fixture
-def create_openai_client(test_app: httpx.AsyncClient):
-    def _create_client(deployment_config: DeploymentConfig) -> AsyncAzureOpenAI:
+def create_azure_openai_client(
+    test_app: httpx.AsyncClient,
+) -> Generator[AzureOpenAIClientFactory, None, None]:
+    def _create_client(
+        azure_deployment: str,
+        *,
+        max_retries: int | None = None,
+        api_version: str | None = None,
+        upstream_endpoint: str | None = None,
+        upstream_key: str | None = "test-upstream-api-key",
+    ) -> AsyncAzureOpenAI:
+        default_headers: dict[str, str] = {}
+        if upstream_key is not None:
+            default_headers["X-UPSTREAM-KEY"] = upstream_key
+        if upstream_endpoint is not None:
+            default_headers["X-UPSTREAM-ENDPOINT"] = upstream_endpoint
+
         return AsyncAzureOpenAI(
             azure_endpoint=str(test_app.base_url),
-            azure_deployment=deployment_config.id_,
-            api_version="2024-12-01-preview",
-            api_key="dummy_key",
-            max_retries=3,
             http_client=test_app,
-            default_headers=deployment_config.upstream_headers,
+            azure_deployment=azure_deployment,
+            api_key="test-adapter-api-key",
+            api_version=api_version or "2024-12-01-preview",
+            max_retries=max_retries or 0,
+            default_headers=default_headers,
+        )
+
+    yield _create_client
+
+
+class OpenAIClientFactory(Protocol):
+    def __call__(
+        self,
+        *,
+        max_retries: int | None = None,
+        upstream_endpoint: str | None = None,
+        upstream_key: str | None = None,
+    ) -> AsyncOpenAI: ...
+
+
+@pytest.fixture
+def create_openai_client(
+    test_app: httpx.AsyncClient,
+) -> Generator[OpenAIClientFactory, None, None]:
+    def _create_client(
+        *,
+        max_retries: int | None = None,
+        upstream_endpoint: str | None = None,
+        upstream_key: str | None = "test-upstream-api-key",
+    ) -> AsyncOpenAI:
+        default_headers: dict[str, str] = {}
+        if upstream_key is not None:
+            default_headers["X-UPSTREAM-KEY"] = upstream_key
+        if upstream_endpoint is not None:
+            default_headers["X-UPSTREAM-ENDPOINT"] = upstream_endpoint
+
+        return AsyncOpenAI(
+            base_url=f"{str(test_app.base_url)}/openai/v1",
+            http_client=test_app,
+            api_key="test-adapter-api-key",
+            max_retries=max_retries or 0,
+            default_headers=default_headers,
         )
 
     yield _create_client
