@@ -134,16 +134,15 @@ async def truncate_prompt(
             discarded = sorted(all_indices - kept)
             return _collect(kept), discarded, last_measured_tokens
 
-    if non_system_indices:
-        if system_set:
+    if system_set:
+        if kept == system_set:
+            system_tokens = last_measured_tokens
+        else:
             system_tokens = await tokenizer.tokenize(_build_request(system_set))
-            if system_tokens > max_prompt_tokens:
-                raise TruncatePromptSystemError(
-                    max_prompt_tokens, system_tokens
-                )
 
-        raise TruncatePromptSystemAndLastUserError(
-            max_prompt_tokens, last_measured_tokens
-        )
-    else:
-        raise TruncatePromptSystemError(max_prompt_tokens, last_measured_tokens)
+        if system_tokens > max_prompt_tokens:
+            raise TruncatePromptSystemError(max_prompt_tokens, system_tokens)
+
+    raise TruncatePromptSystemAndLastUserError(
+        max_prompt_tokens, last_measured_tokens
+    )
