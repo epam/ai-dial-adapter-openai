@@ -4,7 +4,11 @@ import httpx
 import pytest
 import respx
 
-from aidial_adapter_openai.utils.request import get_app_config
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
+from tests.conftest import create_test_client
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
 _UPSTREAM_ENDPOINT = "http://localhost:5001/v1/chat/completions"
@@ -12,19 +16,19 @@ _API_VERSION = "api-version=2024-12-01-preview"
 
 
 @pytest.fixture
-def configure_vllm_deployment(_app_instance):
+async def test_app():
     """Configure vllm-test as a vLLM deployment."""
-    app_config = get_app_config(_app_instance)
-    original_deployments = app_config.VLLM_DEPLOYMENTS.copy()
-    app_config.VLLM_DEPLOYMENTS.append("vllm-test")
-    yield
-    app_config.VLLM_DEPLOYMENTS = original_deployments
+    config = ApplicationConfig().add_deployment(
+        "vllm-test", ChatCompletionDeploymentType.VLLM_CHAT_COMPLETIONS_API
+    )
+    async with create_test_client(config) as client:
+        yield client
 
 
 @respx.mock
 @pytest.mark.asyncio
 async def test_vllm_stream_options_include_usage_injected(
-    test_app: httpx.AsyncClient, configure_vllm_deployment
+    test_app: httpx.AsyncClient,
 ):
     """For vLLM streaming calls, the adapter must force stream_options.include_usage=True."""
 
@@ -77,7 +81,7 @@ async def test_vllm_stream_options_include_usage_injected(
 @respx.mock
 @pytest.mark.asyncio
 async def test_vllm_stream_options_include_usage_merged(
-    test_app: httpx.AsyncClient, configure_vllm_deployment
+    test_app: httpx.AsyncClient,
 ):
     """If stream_options already exists, include_usage must be set/overridden but other fields kept."""
 
@@ -133,7 +137,7 @@ async def test_vllm_stream_options_include_usage_merged(
 @respx.mock
 @pytest.mark.asyncio
 async def test_vllm_non_stream_does_not_inject_stream_options(
-    test_app: httpx.AsyncClient, configure_vllm_deployment
+    test_app: httpx.AsyncClient,
 ):
     """For non-stream calls, adapter shouldn't force stream_options."""
 
