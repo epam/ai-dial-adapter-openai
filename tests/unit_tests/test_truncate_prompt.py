@@ -154,9 +154,9 @@ class TestTruncatePromptToolCallCascade:
         messages = [
             _message("system", 3),
             _message("user", 5),
-            {**_message("assistant", 8), "tool_calls": [{"id": "call_1"}]},
-            {**_message("tool", 8), "tool_call_id": "call_1"},
-            {**_message("tool", 8), "tool_call_id": "call_1"},
+            {**_message("assistant", 8), "tool_calls": [{}]},
+            _message("tool", 8),
+            _message("tool", 8),
             _message("assistant", 7),
             _message("user", 4),
         ]
@@ -173,7 +173,7 @@ class TestTruncatePromptToolCallCascade:
             _message("system", 3),
             _message("user", 9),
             _message("assistant", 6),  # no tool_calls — no cascade on drop
-            {**_message("tool", 4), "tool_call_id": "call_1"},
+            _message("tool", 4),
             _message("user", 4),
         ]
 
