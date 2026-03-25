@@ -55,7 +55,7 @@ class VllmTokenizer:
 
         self._http_client = get_http_client()
 
-    async def tokenize(self, payload: dict) -> int:
+    async def tokenize(self, request: dict) -> int:
         headers: dict[str, str] = {"Content-Type": "application/json"}
         # vLLM /tokenize does not require authorization.
         if self._extra_headers:
@@ -63,14 +63,14 @@ class VllmTokenizer:
 
         logger.debug(
             f"vLLM tokenize request to {self._tokenize_url}, "
-            f"model={payload.get('model')}, "
-            f"messages_count={len(payload.get('messages', []))}"
+            f"model={request.get('model')}, "
+            f"messages_count={len(request.get('messages', []))}"
         )
 
         try:
             response = await self._http_client.post(
                 self._tokenize_url,
-                json=payload,
+                json=request,
                 headers=headers,
             )
             response.raise_for_status()
