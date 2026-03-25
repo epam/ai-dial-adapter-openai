@@ -11,10 +11,9 @@ async def embeddings(
     creds: OpenAICreds,
     endpoint: str,
     api_version: str,
-    headers: dict[str, str] | None = None,
 ) -> CreateEmbeddingResponse:
     client = embeddings_parser.parse(endpoint).get_client(
-        {**creds, "api_version": api_version, "headers": headers or {}}
+        {**creds, "api_version": api_version}
     )
 
     return await call_with_extra_body(client.embeddings.create, request)

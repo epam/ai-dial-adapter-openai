@@ -26,7 +26,6 @@ async def embedding(deployment_id: str, request: Request):
         request.headers,
         azure=deployment_id in app_config.VLLM_DEPLOYMENTS,
     )
-    headers_to_proxy = app_config.get_headers_to_proxy(request.headers)
 
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
@@ -45,5 +44,4 @@ async def embedding(deployment_id: str, request: Request):
         creds=creds,
         endpoint=upstream_endpoint,
         api_version=api_version,
-        headers=headers_to_proxy,
     )

@@ -41,25 +41,18 @@ class VllmTokenizer:
     """Tokenizer backed by a remote vLLM ``/tokenize`` endpoint."""
 
     _tokenize_url: str
-    _extra_headers: dict[str, str]
     _http_client: httpx.AsyncClient
 
     def __init__(
         self,
         *,
         upstream_endpoint: str,
-        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._tokenize_url = derive_tokenize_url(upstream_endpoint)
-        self._extra_headers = extra_headers or {}
-
         self._http_client = get_http_client()
 
     async def tokenize(self, request: dict) -> int:
         headers: dict[str, str] = {"Content-Type": "application/json"}
-        # vLLM /tokenize does not require authorization.
-        if self._extra_headers:
-            headers.update(self._extra_headers)
 
         logger.debug(
             f"vLLM tokenize request to {self._tokenize_url}, "

@@ -102,11 +102,8 @@ async def call_chat_completion(
         request_headers,
         azure=deployment_type != D.VLLM_CHAT_COMPLETIONS_API,
     )
-    headers_to_proxy = app_config.get_headers_to_proxy(request_headers)
 
-    client = endpoint.get_client(
-        {**creds, "api_version": api_version, "headers": headers_to_proxy}
-    )
+    client = endpoint.get_client({**creds, "api_version": api_version})
 
     def _get_tokenizer() -> Tokenizer:
         tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
@@ -211,7 +208,6 @@ async def call_chat_completion(
         case D.VLLM_CHAT_COMPLETIONS_API:
             vllm_tokenizer = VllmTokenizer(
                 upstream_endpoint=upstream_endpoint,
-                extra_headers=headers_to_proxy,
             )
             response = await vllm_chat_completion(
                 request=request_body,
