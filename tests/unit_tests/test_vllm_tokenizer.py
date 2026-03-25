@@ -54,7 +54,7 @@ def _mock_response(token_count: int) -> httpx.Response:
     )
 
 
-class TestVllmTokenizerCallTokenize:
+class TestVllmTokenizerTokenize:
     @pytest.mark.asyncio
     async def test_returns_count_from_response(self):
         tokenizer = _make_tokenizer()
@@ -63,7 +63,7 @@ class TestVllmTokenizerCallTokenize:
         mock_client.post.return_value = _mock_response(42)
         tokenizer._http_client = mock_client
 
-        result = await tokenizer._call_tokenize({"model": "m", "messages": []})
+        result = await tokenizer.tokenize({"model": "m", "messages": []})
         assert result == 42
 
         call_args = mock_client.post.call_args
@@ -83,7 +83,7 @@ class TestVllmTokenizerCallTokenize:
         mock_client.post.return_value = resp
         tokenizer._http_client = mock_client
 
-        result = await tokenizer._call_tokenize({"model": "m", "messages": []})
+        result = await tokenizer.tokenize({"model": "m", "messages": []})
         assert result == 3
 
     @pytest.mark.asyncio
@@ -100,7 +100,7 @@ class TestVllmTokenizerCallTokenize:
         tokenizer._http_client = mock_client
 
         with pytest.raises(InternalServerError):
-            await tokenizer._call_tokenize({"model": "m", "messages": []})
+            await tokenizer.tokenize({"model": "m", "messages": []})
 
     @pytest.mark.asyncio
     async def test_raises_on_http_error(self):
@@ -116,7 +116,7 @@ class TestVllmTokenizerCallTokenize:
         tokenizer._http_client = mock_client
 
         with pytest.raises(InternalServerError, match="HTTP 500"):
-            await tokenizer._call_tokenize({"model": "m", "messages": []})
+            await tokenizer.tokenize({"model": "m", "messages": []})
 
 
 class TestVllmTokenizerForwardingAndHeaders:
