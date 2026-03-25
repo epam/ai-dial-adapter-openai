@@ -24,7 +24,7 @@ async def embedding(deployment_id: str, request: Request):
 
     creds = await get_credentials(
         request.headers,
-        azure=deployment_id in app_config.VLLM_DEPLOYMENTS,
+        azure=deployment_id not in app_config.VLLM_DEPLOYMENTS,
     )
 
     api_version = get_api_version(request)
