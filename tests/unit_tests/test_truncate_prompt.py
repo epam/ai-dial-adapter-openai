@@ -13,8 +13,7 @@ _TEST_IMAGE_URL = "i" * 10
 
 
 def _mm(role: str, content, **extra) -> MultiModalMessage:
-    raw_message = {"role": role, "content": content}
-    raw_message.update(extra)
+    raw_message = {"role": role, "content": content, **extra}
     return MultiModalMessage(raw_message=raw_message)
 
 
