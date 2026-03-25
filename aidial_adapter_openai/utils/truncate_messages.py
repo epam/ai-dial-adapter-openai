@@ -5,6 +5,11 @@ from aidial_sdk.exceptions import (
     TruncatePromptSystemError,
 )
 
+from aidial_adapter_openai.utils.truncation_types import (
+    DiscardedMessages,
+    TruncatedTokens,
+)
+
 _T = TypeVar("_T")
 
 
@@ -14,7 +19,7 @@ async def truncate_messages(
     is_system_message: Callable[[_T], bool],
     max_prompt_tokens: int,
     initial_prompt_tokens: int,
-) -> Tuple[List[_T], List[int], int]:
+) -> Tuple[List[_T], DiscardedMessages, TruncatedTokens]:
     prompt_tokens = initial_prompt_tokens
 
     system_messages_count = 0

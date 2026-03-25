@@ -23,6 +23,7 @@ from aidial_adapter_openai.utils.streaming import (
 from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt,
 )
+from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
 
 
 def _extract_max_prompt_tokens(request: dict) -> int | None:
@@ -46,7 +47,7 @@ def _extract_max_prompt_tokens(request: dict) -> int | None:
 
 async def _truncate_messages(
     request: dict, messages: List[MultiModalMessage], tokenizer: VllmTokenizer
-) -> tuple[List[MultiModalMessage], List[int] | None]:
+) -> tuple[List[MultiModalMessage], DiscardedMessages | None]:
     """vLLM truncation calls tokenize with the full message list each pass."""
     if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is None:
         return messages, None
@@ -121,7 +122,7 @@ async def chat_completion(
 async def _generate_stream(
     *,
     stream: AsyncIterator[dict],
-    discarded_messages: List[int] | None,
+    discarded_messages: DiscardedMessages | None,
 ) -> AsyncIterator[dict]:
     """Pass through vLLM chunks and append discarded message statistics to the last chunk."""
     last_chunk = None

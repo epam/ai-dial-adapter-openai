@@ -21,6 +21,10 @@ from aidial_adapter_openai.utils.streaming import (
 )
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.utils.truncate_messages import truncate_messages
+from aidial_adapter_openai.utils.truncation_types import (
+    DiscardedMessages,
+    TruncatedTokens,
+)
 
 
 async def multi_modal_truncate_prompt(
@@ -28,7 +32,7 @@ async def multi_modal_truncate_prompt(
     messages: List[MultiModalMessage],
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
-) -> Tuple[List[MultiModalMessage], List[int], int]:
+) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     return await truncate_messages(
         messages=messages,
         message_tokens=tokenizer.tokenize_request_message,
@@ -61,7 +65,7 @@ async def _truncate_messages(
     request: dict, messages: List[MultiModalMessage], tokenizer: Tokenizer
 ) -> Tuple[
     List[MultiModalMessage],
-    List[int] | None,
+    DiscardedMessages | None,
     Callable[[], Coroutine[None, None, int]],
 ]:
     if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
