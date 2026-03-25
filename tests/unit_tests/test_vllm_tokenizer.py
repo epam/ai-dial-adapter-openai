@@ -4,7 +4,7 @@ import httpx
 import pytest
 from aidial_sdk.exceptions import InternalServerError
 
-from aidial_adapter_openai.chat_completions.vllm.vllm_tokenizer import (
+from aidial_adapter_openai.chat_completions.vllm.tokenizer import (
     VllmTokenizer,
     derive_tokenize_url,
 )

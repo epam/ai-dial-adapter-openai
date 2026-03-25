@@ -26,13 +26,13 @@ from aidial_adapter_openai.chat_completions.non_gpt import (
     chat_completion as non_gpt_chat_completion,
 )
 from aidial_adapter_openai.chat_completions.vllm import (
+    VllmTokenizer,
+)
+from aidial_adapter_openai.chat_completions.vllm import (
     chat_completion as vllm_chat_completion,
 )
 from aidial_adapter_openai.chat_completions.vllm import (
     extract_reasoning as vllm_extract_reasoning,
-)
-from aidial_adapter_openai.chat_completions.vllm.vllm_tokenizer import (
-    VllmTokenizer,
 )
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig

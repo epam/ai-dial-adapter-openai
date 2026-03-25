@@ -7,7 +7,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
-from aidial_adapter_openai.chat_completions.vllm.vllm_tokenizer import (
+from aidial_adapter_openai.chat_completions.vllm.tokenizer import (
     VllmTokenizer,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
