@@ -24,7 +24,7 @@ async def embedding(deployment_id: str, request: Request):
 
     creds = await get_credentials(
         request.headers,
-        azure=deployment_id in app_config.VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS,
+        azure=deployment_id in app_config.VLLM_DEPLOYMENTS,
     )
     headers_to_proxy = app_config.get_headers_to_proxy(request.headers)
 

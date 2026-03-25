@@ -663,7 +663,7 @@ vLLM provides an OpenAI-compatible Chat Completions API and can be connected to 
 
 </details>
 
-Enable the vLLM-specific flow by adding `${ADAPTER_DEPLOYMENT_ID}` to the environment variable `VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS`.
+Enable the vLLM-specific flow by adding `${ADAPTER_DEPLOYMENT_ID}` to the environment variable `VLLM_DEPLOYMENTS`.
 ##### Request routing / caching headers
 
 Some upstream setups (for example, VLLM) support request routing and/or prompt caching based on a stable marker passed in an HTTP header (for example, conversation id, user session id, etc.).
@@ -745,7 +745,7 @@ Otherwise, images aren’t tokenized — the image tokens are assumed to be 0.
 
 ##### vLLM tokenization
 
-For deployments registered in `VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS`, the adapter relies on the upstream vLLM tokenizer endpoint to count prompt tokens.
+For deployments registered in `VLLM_DEPLOYMENTS`, the adapter relies on the upstream vLLM tokenizer endpoint to count prompt tokens.
 
 The adapter first performs the standard Unified → OpenAI-compatible transformation (including embedding DIAL-private file/image URLs as base64 content). Then it sends the fully constructed request payload to the vLLM endpoint derived from the upstream chat completions URL:
 
@@ -978,7 +978,7 @@ The following variables cluster all deployments into the groups of deployments w
 |DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
-|VLLM_CHAT_COMPLETIONS_API_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`|
+|VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
 
