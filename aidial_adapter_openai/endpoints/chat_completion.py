@@ -218,7 +218,6 @@ async def call_chat_completion(
                 client=client,
                 file_storage=file_storage,
                 tokenizer=vllm_tokenizer,
-                eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
             )
 
             response.body = vllm_extract_reasoning(response.body)

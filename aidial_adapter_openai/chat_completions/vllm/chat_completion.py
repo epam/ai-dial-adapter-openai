@@ -77,7 +77,6 @@ async def chat_completion(
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
     tokenizer: VllmTokenizer,
-    eliminate_empty_choices: bool,
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
     messages: List[dict] = request["messages"]
 
@@ -108,12 +107,8 @@ async def chat_completion(
         body = _generate_stream(
             stream=map_stream(chunk_to_dict, response),
             discarded_messages=discarded_messages,
-            eliminate_empty_choices=eliminate_empty_choices,
         )
         return ResponseWithHeaders(headers=None, body=body)
-
-    if eliminate_empty_choices and response.choices:
-        response.choices = [c for c in response.choices if c]
 
     data = response.to_dict()
     if discarded_messages is not None:
@@ -127,15 +122,11 @@ async def _generate_stream(
     *,
     stream: AsyncIterator[dict],
     discarded_messages: List[int] | None,
-    eliminate_empty_choices: bool,
 ) -> AsyncIterator[dict]:
     """Pass through vLLM chunks and append discarded message statistics to the last chunk."""
     last_chunk = None
 
     async for chunk in stream:
-        if eliminate_empty_choices and isinstance(chunk.get("choices"), list):
-            chunk["choices"] = [c for c in chunk["choices"] if c]
-
         if last_chunk is not None:
             yield last_chunk
         last_chunk = chunk
