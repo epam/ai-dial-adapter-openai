@@ -100,7 +100,7 @@ async def call_chat_completion(
 
     creds = await get_credentials(
         request_headers,
-        azure=deployment_type == D.VLLM_CHAT_COMPLETIONS_API,
+        azure=deployment_type != D.VLLM_CHAT_COMPLETIONS_API,
     )
     headers_to_proxy = app_config.get_headers_to_proxy(request_headers)
 
