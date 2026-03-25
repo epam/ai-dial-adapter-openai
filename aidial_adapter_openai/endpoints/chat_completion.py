@@ -25,6 +25,15 @@ from aidial_adapter_openai.chat_completions.mistral import (
 from aidial_adapter_openai.chat_completions.non_gpt import (
     chat_completion as non_gpt_chat_completion,
 )
+from aidial_adapter_openai.chat_completions.vllm import (
+    VllmTokenizer,
+)
+from aidial_adapter_openai.chat_completions.vllm import (
+    chat_completion as vllm_chat_completion,
+)
+from aidial_adapter_openai.chat_completions.vllm import (
+    extract_reasoning as vllm_extract_reasoning,
+)
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
@@ -89,7 +98,11 @@ async def call_chat_completion(
     logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
-    creds = await get_credentials(request_headers)
+    creds = await get_credentials(
+        request_headers,
+        azure=deployment_type != D.VLLM_CHAT_COMPLETIONS_API,
+    )
+
     client = endpoint.get_client({**creds, "api_version": api_version})
 
     def _get_tokenizer() -> Tokenizer:
@@ -191,6 +204,21 @@ async def call_chat_completion(
                 )
             else:
                 assert_never(deployment_type)
+
+        case D.VLLM_CHAT_COMPLETIONS_API:
+            vllm_tokenizer = VllmTokenizer(
+                upstream_endpoint=upstream_endpoint,
+            )
+            response = await vllm_chat_completion(
+                request=request_body,
+                client=client,
+                file_storage=file_storage,
+                tokenizer=vllm_tokenizer,
+            )
+
+            response.body = vllm_extract_reasoning(response.body)
+
+            return response
 
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
             response = await gpt_chat_completion(

@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
 from fastapi import Request
-from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 from typing_extensions import TypedDict
 
 from aidial_adapter_openai.utils.http_client import get_http_client
@@ -17,7 +17,7 @@ class OpenAIParams(TypedDict, total=False):
     api_key: str
     azure_ad_token: str
     api_version: str | None
-    timeout: Timeout
+    headers: dict[str, str]
 
 
 # Retries are handled on the DIAL Core side
@@ -37,8 +37,8 @@ class AzureOpenAIEndpoint(ExtraForbidModel):
             api_key=params.get("api_key"),
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
-            timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
+            default_headers=params.get("headers"),
             http_client=get_http_client(),
         )
 
@@ -52,8 +52,8 @@ class OpenAIEndpoint(ExtraForbidModel):
         return AsyncOpenAI(
             base_url=self.base_url,
             api_key=api_key,
-            timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
+            default_headers=params.get("headers"),
             http_client=get_http_client(),
         )
 
