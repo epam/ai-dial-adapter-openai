@@ -242,7 +242,7 @@ class ResponseWithHeaders(Generic[_Body]):
 
 
 ChatResponse = (
-    StreamingResponse
+    Response
     | ResponseWithHeaders[AsyncIterator[dict] | dict]
     | AsyncIterator[dict]
     | dict
@@ -288,7 +288,7 @@ async def create_server_response(
         return await stream_to_response(body)
     elif isinstance(body, dict):
         return await block_to_response(body)
-    elif isinstance(body, StreamingResponse):
+    elif isinstance(body, Response):
         return body
     else:
         assert_never(body)
