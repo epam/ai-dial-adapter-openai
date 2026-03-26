@@ -25,11 +25,21 @@ from aidial_adapter_openai.chat_completions.mistral import (
 from aidial_adapter_openai.chat_completions.non_gpt import (
     chat_completion as non_gpt_chat_completion,
 )
+from aidial_adapter_openai.chat_completions.vllm import (
+    VllmTokenizer,
+)
+from aidial_adapter_openai.chat_completions.vllm import (
+    chat_completion as vllm_chat_completion,
+)
+from aidial_adapter_openai.chat_completions.vllm import (
+    extract_reasoning as vllm_extract_reasoning,
+)
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
+from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.image_generation.adapter import (
     chat_completion as image_generation,
@@ -60,15 +70,6 @@ from aidial_adapter_openai.video_generation.openai.adapter import (
 )
 
 
-def _get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:
-    name = "X-UPSTREAM-ENDPOINT"
-    if (endpoint := request_headers.get(name)) is None:
-        raise ValueError(f"{name} header is missing in the request.")
-
-    logger.debug(f"upstream endpoint: {endpoint}")
-    return endpoint
-
-
 async def call_chat_completion(
     *,
     app_config: ApplicationConfig,
@@ -88,7 +89,7 @@ async def call_chat_completion(
     # The same goes for /embeddings endpoint.
     request_body["model"] = request_body.get("model") or deployment_id
 
-    upstream_endpoint = _get_upstream_endpoint(request_headers)
+    upstream_endpoint = get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
 
     deployment = app_config.get_chat_completion_deployment_type(
@@ -97,7 +98,11 @@ async def call_chat_completion(
     logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
-    creds = await get_credentials(request_headers)
+    creds = await get_credentials(
+        request_headers,
+        azure=deployment_type != D.VLLM_CHAT_COMPLETIONS_API,
+    )
+
     client = endpoint.get_client({**creds, "api_version": api_version})
 
     def _get_tokenizer() -> Tokenizer:
@@ -199,6 +204,21 @@ async def call_chat_completion(
                 )
             else:
                 assert_never(deployment_type)
+
+        case D.VLLM_CHAT_COMPLETIONS_API:
+            vllm_tokenizer = VllmTokenizer(
+                upstream_endpoint=upstream_endpoint,
+            )
+            response = await vllm_chat_completion(
+                request=request_body,
+                client=client,
+                file_storage=file_storage,
+                tokenizer=vllm_tokenizer,
+            )
+
+            response.body = vllm_extract_reasoning(response.body)
+
+            return response
 
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
             response = await gpt_chat_completion(
