@@ -29,11 +29,13 @@
     - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
+    - [vLLM Chat Completion API](#vllm-chat-completion-api)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
+      - [vLLM tokenization](#vllm-tokenization)
 - [Responses API deployments](#responses-api-deployments)
   - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
     - [Azure OpenAI Responses API](#azure-openai-responses-api)
@@ -636,6 +638,33 @@ The deployment should be added to the environment variable `MISTRAL_DEPLOYMENTS`
 
 The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#reasoning-with-chat-completions) for Magistral models. The reasoning tokens are displayed in a dedicated stage titled `Reasoning`.
 
+#### vLLM Chat Completion API
+
+vLLM provides an OpenAI-compatible Chat Completions API and can be connected to the adapter.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${VLLM_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "${VLLM_ORIGIN}/v1/chat/completions"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Enable the vLLM-specific flow by adding `${ADAPTER_DEPLOYMENT_ID}` to the environment variable `VLLM_DEPLOYMENTS`.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
@@ -699,6 +728,18 @@ Finally, if the deployment id is neither declared in `TIKTOKEN_MODEL_MAPPING`, n
 If a deployment is registered in `GPT4O_DEPLOYMENTS` or `GPT4O_MINI_DEPLOYMENTS`, the corresponding image-tokenization algorithm described in [the Azure documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/overview#image-input-tokens) is used.
 
 Otherwise, images aren’t tokenized — the image tokens are assumed to be 0.
+
+##### vLLM tokenization
+
+For deployments registered in `VLLM_DEPLOYMENTS`, the adapter relies on the upstream vLLM tokenizer endpoint to count prompt tokens.
+
+The adapter first performs the standard Unified → OpenAI-compatible transformation (including embedding DIAL-private file/image URLs as base64 content). Then it sends the fully constructed request payload to the vLLM endpoint derived from the upstream chat completions URL:
+
+`.../v1/chat/completions` → `.../tokenize`
+
+Token counting is performed by vLLM for the entire request payload as-is (including tools and multimodal message parts). The adapter does not do any modality-specific token counting for vLLM.
+
+When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the vLLM-reported token count fits.
 
 ---
 
@@ -923,6 +964,7 @@ The following variables cluster all deployments into the groups of deployments w
 |DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
+|VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
 

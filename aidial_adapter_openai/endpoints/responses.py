@@ -19,7 +19,7 @@ async def responses(request: fastapi.Request) -> Response:
     request_body = await parse_body(request)
 
     upstream_endpoint = get_upstream_endpoint(request.headers)
-    creds = await get_credentials(request.headers)
+    creds = await get_credentials(request.headers, azure=True)
     api_version = request.query_params.get("api-version")
 
     endpoint = responses_parser.parse(upstream_endpoint)

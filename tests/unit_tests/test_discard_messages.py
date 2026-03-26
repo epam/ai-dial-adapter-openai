@@ -8,7 +8,7 @@ from aidial_adapter_openai.chat_completions.gpt import (
 )
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
-from aidial_adapter_openai.utils.truncate_prompt import (
+from aidial_adapter_openai.utils.truncation_types import (
     DiscardedMessages,
     TruncatedTokens,
 )
@@ -161,7 +161,7 @@ error_cases: List[
 async def test_discarded_messages_without_error(
     messages: List[dict],
     max_prompt_tokens: int,
-    response: Tuple[List[dict], List[int]],
+    response: Tuple[List[dict], DiscardedMessages],
 ):
     tokenizer = Tokenizer(model="gpt-4")
     (
