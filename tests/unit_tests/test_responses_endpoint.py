@@ -12,7 +12,7 @@ from openai.types.responses.response_create_params import (
 )
 
 from tests.conftest import OpenAIClientFactory
-from tests.utils.mock_response import MockResponse
+from tests.utils.mock_response import MockResponse, ResponsesAPIMockResponse
 from tests.utils.mock_server import MockServer
 
 
@@ -24,7 +24,7 @@ class _RequestHandler(Protocol):
 
 class TestResponsesEndpoint:
     UPSTREAM_KEY = "test-upstream-key"
-    UPSTREAM_ENDPOINT = "http://localhost:5001/openai/v1/responses"
+    UPSTREAM_ENDPOINT = "http://test-upstream-hostname/openai/v1/responses"
     UPSTREAM_MODEL = "test-upstream-model-name"
 
     MOCK_RESPONSE = MockServer.mock_responses_api_response("text.txt")
@@ -88,7 +88,7 @@ class TestResponsesEndpoint:
             return httpx.Response(
                 status_code=200,
                 headers={"foo": "bar"},
-                content=self.MOCK_RESPONSE.get_response(stream=stream),
+                content=self.MOCK_RESPONSE.parse(stream).text,
             )
 
         response = await client.responses.with_raw_response.create(
@@ -105,7 +105,7 @@ class TestResponsesEndpoint:
         @self.mock_upstream_response
         def _handler(body, stream, **kwargs):
             gzipped = gzip.compress(
-                self.MOCK_RESPONSE.get_response(stream=stream)
+                self.MOCK_RESPONSE.parse(stream).text.encode()
             )
 
             return httpx.Response(
@@ -162,11 +162,9 @@ class TestResponsesEndpoint:
             assert b"event: " in actual_content
             assert b"data: [DONE]" not in actual_content
 
-        expected_content = resp.get_response(stream=stream)
-        actual_reps = resp.parse(stream=stream, content=actual_content)
-        expected_resp = resp.parse(stream=stream, content=expected_content)
-
-        assert actual_reps == expected_resp
+        expected = resp.parse(stream)
+        actual = ResponsesAPIMockResponse(actual_content).parse(stream)
+        assert actual.json == expected.json
 
     @respx.mock
     async def test_extra_request_field(self, client: AsyncOpenAI, stream: bool):

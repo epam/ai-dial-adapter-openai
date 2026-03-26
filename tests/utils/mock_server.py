@@ -19,8 +19,8 @@ class MockServer:
                 resp = handler(request) if callable(handler) else handler
 
                 if isinstance(resp, MockResponse):
-                    stream = await _get_stream(request)
-                    content = resp.get_response(stream=stream)
+                    stream = await _is_streaming(request)
+                    content = resp.parse(stream).text
                     content_type = (
                         "text/event-stream" if stream else "application/json"
                     )
@@ -29,16 +29,21 @@ class MockServer:
                         content=content,
                         headers={"content-type": content_type},
                     )
+
                 if isinstance(resp, str | bytes):
                     return httpx.Response(status_code=200, content=resp)
+
                 if isinstance(resp, dict):
                     return httpx.Response(status_code=200, json=resp)
+
                 if isinstance(resp, BaseModel):
                     return httpx.Response(
                         status_code=200, json=resp.model_dump()
                     )
+
                 if isinstance(resp, httpx.Response):
                     return resp
+
                 assert_never(resp)
 
             respx.post(url).mock(side_effect=mock_handler)
@@ -58,6 +63,6 @@ class MockServer:
         return ResponsesAPIMockResponse(path)
 
 
-async def _get_stream(request: httpx.Request) -> bool:
+async def _is_streaming(request: httpx.Request) -> bool:
     request_body = json.loads(await request.aread())
     return request_body.get("stream")
