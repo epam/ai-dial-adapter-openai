@@ -100,6 +100,9 @@ class TestResponsesEndpoint:
 
     @respx.mock
     async def test_gzip_encoding(self, client: AsyncOpenAI, stream: bool):
+        if stream:
+            pytest.skip("respx doesn't properly mock compressed responses.")
+
         content_type = "text/event-stream" if stream else "application/json"
 
         @self.mock_upstream_response

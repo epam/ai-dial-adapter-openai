@@ -32,7 +32,10 @@ from aidial_adapter_openai.utils.chat_completion_response import (
 )
 from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
+from aidial_adapter_openai.utils.sse_stream import (
+    SSEStreamFormat,
+    to_sse_stream,
+)
 
 
 def generate_id() -> str:
@@ -250,7 +253,10 @@ ChatResponse = (
 
 
 async def create_server_response(
-    emulate_streaming: bool, response: ChatResponse
+    response: ChatResponse,
+    *,
+    emulate_streaming: bool,
+    see_stream_format: SSEStreamFormat,
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
         body = response.body
@@ -259,19 +265,14 @@ async def create_server_response(
         body = response
         headers = {}
 
-    def block_to_stream(block: dict) -> AsyncIterator[dict]:
-        async def stream():
-            yield block_response_to_streaming_chunk(block)
-
-        return stream()
-
     async def stream_to_response(iterator: AsyncIterator[dict]) -> Response:
         item, stream = await peek_head(reify_exceptions(iterator))
 
         if isinstance(item, Exception):
             return item.to_fastapi_response()
         else:
-            content = to_openai_sse_stream(prepend(item, stream))
+            stream = prepend(item, stream)
+            content = to_sse_stream(stream, see_stream_format)
             return StreamingResponse(
                 content=content,
                 media_type="text/event-stream",
@@ -280,7 +281,11 @@ async def create_server_response(
 
     async def block_to_response(block: dict) -> Response:
         if emulate_streaming:
-            return await stream_to_response(block_to_stream(block))
+
+            async def stream():
+                yield block_response_to_streaming_chunk(block)
+
+            return await stream_to_response(stream())
         else:
             return JSONResponse(block, headers=headers)
 

@@ -67,8 +67,8 @@ class ResponsesAPIEventStream:
                 block += f"event: {event}\n"
             data = json.dumps(entry["data"])
             block += f"data: {data}"
-            blocks.append(block)
-        return "\n\n".join(blocks)
+            blocks.append(block + "\n\n")
+        return "".join(blocks)
 
 
 @dataclass
