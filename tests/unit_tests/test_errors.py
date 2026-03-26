@@ -475,6 +475,27 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
 
 
 @respx.mock
+async def test_invalid_upstream_extra_data_header(test_app: httpx.AsyncClient):
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={"messages": [{"role": "user", "content": "Test content"}]},
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+            "X-UPSTREAM-EXTRA-DATA": "{invalid-json",
+        },
+    )
+
+    assert response.status_code == 502
+    payload = response.json()
+    assert payload["error"]["type"] == "internal_server_error"
+    assert payload["error"]["code"] == "502"
+    assert payload["error"]["message"].startswith(
+        "Invalid X-UPSTREAM-EXTRA-DATA header: JSON parsing failed:"
+    )
+
+
+@respx.mock
 async def test_no_request_response_validation(test_app: httpx.AsyncClient):
     respx.post(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"

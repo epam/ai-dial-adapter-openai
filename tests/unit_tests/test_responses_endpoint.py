@@ -135,3 +135,19 @@ class TestResponsesEndpoint:
         assert error.status_code == 429
         assert error.message == "Too many requests"
         assert error.response.headers.get("retry-after") == "15"
+
+    @respx.mock
+    async def test_proxies_extra_headers(self, client: AsyncOpenAI):
+        client = client.with_options(
+            default_headers={
+                "X-UPSTREAM-EXTRA-DATA": '{"headers_to_proxy": ["x-user-id"]}',
+                "x-user-id": "user-1",
+            }
+        )
+
+        @self.mock_upstream_response()
+        def _handler(body, headers):
+            assert headers.get("x-user-id") == "user-1"
+            return self.TEST_RESPONSE
+
+        await client.responses.create(**self.test_request)
