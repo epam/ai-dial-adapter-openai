@@ -25,7 +25,9 @@ from aidial_adapter_openai.utils.streaming import (
 async def responses(request: Request) -> FastAPIResponse:
     response = await _responses(request)
     return await create_server_response(
-        response=response, emulate_streaming=False
+        response,
+        emulate_streaming=False,
+        sse_stream_format="responses",
     )
 
 
@@ -52,7 +54,7 @@ async def _responses(
     # Reformatting of the chunks may invalidate content length.
     # We don't recompress the response, therefore,
     # the content encoding may invalidate too.
-    for header in ["Content-Length", "Content-Encoding"]:
+    for header in ("content-length", "content-encoding"):
         if header in response_headers:
             del response_headers[header]
 
@@ -68,6 +70,6 @@ async def _responses(
 
 def _to_dict(obj: ResponseStreamEvent | Response) -> dict:
     ret = obj.to_dict()
-    title = "response" if isinstance(obj, Response) else "event"
+    title = "response" if isinstance(obj, Response) else f"event[{obj.type}]"
     debug_print(title, ret)
     return ret
