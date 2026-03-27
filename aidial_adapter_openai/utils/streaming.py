@@ -258,7 +258,7 @@ async def create_server_response(
     *,
     emulate_streaming: bool,
     sse_stream_format: SSEStreamFormat,
-    see_heartbeat_interval: float | None,
+    sse_heartbeat_interval: float | None,
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
         body = response.body
@@ -275,7 +275,7 @@ async def create_server_response(
         else:
             stream = prepend(item, stream)
             stream = to_sse_stream(stream, sse_stream_format)
-            stream = add_sse_heartbeat(stream, see_heartbeat_interval)
+            stream = add_sse_heartbeat(stream, sse_heartbeat_interval)
             return StreamingResponse(
                 content=stream,
                 media_type="text/event-stream",

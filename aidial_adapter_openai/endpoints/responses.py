@@ -30,7 +30,7 @@ async def responses(request: Request) -> FastAPIResponse:
         response,
         emulate_streaming=False,
         sse_stream_format="responses",
-        see_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
+        sse_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
     )
 
 
