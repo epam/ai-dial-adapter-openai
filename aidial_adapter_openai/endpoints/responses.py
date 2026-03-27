@@ -14,6 +14,7 @@ from aidial_adapter_openai.utils.parsers import (
     responses_parser,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
+from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
     create_server_response,
@@ -23,11 +24,13 @@ from aidial_adapter_openai.utils.streaming import (
 
 
 async def responses(request: Request) -> FastAPIResponse:
+    app_config = get_request_app_config(request)
     response = await _responses(request)
     return await create_server_response(
         response,
         emulate_streaming=False,
         sse_stream_format="responses",
+        see_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
     )
 
 

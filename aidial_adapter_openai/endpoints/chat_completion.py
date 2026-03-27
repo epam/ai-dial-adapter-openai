@@ -268,4 +268,5 @@ async def chat_completion(deployment_id: str, request: Request):
         ),
         emulate_streaming=emulate_streaming,
         sse_stream_format="chat-completions",
+        see_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
     )
