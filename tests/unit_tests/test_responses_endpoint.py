@@ -1,6 +1,14 @@
+import asyncio
 import gzip
+import inspect
 import json
-from typing import Mapping, Protocol
+from typing import (
+    AsyncIterator,
+    Awaitable,
+    Generator,
+    Mapping,
+    Protocol,
+)
 
 import httpx
 import openai
@@ -11,15 +19,18 @@ from openai.types.responses.response_create_params import (
     ResponseCreateParamsBase,
 )
 
+from aidial_adapter_openai.utils.request import get_app_config
 from tests.conftest import OpenAIClientFactory
 from tests.utils.mock_response import MockResponse, ResponsesAPIMockResponse
 from tests.utils.mock_server import MockServer
+
+_Response = httpx.Response | MockResponse | dict
 
 
 class _RequestHandler(Protocol):
     def __call__(
         self, *, body: dict, headers: Mapping[str, str], stream: bool
-    ) -> httpx.Response | MockResponse | dict: ...
+    ) -> Awaitable[_Response] | _Response: ...
 
 
 class TestResponsesEndpoint:
@@ -28,6 +39,13 @@ class TestResponsesEndpoint:
     UPSTREAM_MODEL = "test-upstream-model-name"
 
     MOCK_RESPONSE = MockServer.mock_responses_api_response("text.txt")
+
+    @pytest.fixture
+    def sse_heartbeat_interval_1(self, _app_instance):
+        app_config = get_app_config(_app_instance)  # type: ignore
+        app_config.SSE_HEARTBEAT_INTERVAL = 1
+        yield
+        app_config.SSE_HEARTBEAT_INTERVAL = None
 
     @pytest.fixture()
     def client(self, create_openai_client: OpenAIClientFactory):
@@ -52,14 +70,18 @@ class TestResponsesEndpoint:
         else:
 
             @MockServer().post(self.UPSTREAM_ENDPOINT)
-            def _handler(request: httpx.Request):
+            async def _handler(request: httpx.Request):
                 body = json.loads(request.content)
                 stream = body.get("stream")
-                return handler(
+                response = handler(
                     body=body,
                     stream=stream,
                     headers=request.headers,
                 )
+                if inspect.isawaitable(response):
+                    return await response
+                else:
+                    return response
 
     @respx.mock
     async def test_authz(self, client: AsyncOpenAI, stream: bool):
@@ -181,3 +203,41 @@ class TestResponsesEndpoint:
             extra_body={"extra-field": "extra-value"},
             stream=stream,
         )  # type: ignore
+
+    @respx.mock
+    async def test_sse_heartbeat_interval(
+        self, sse_heartbeat_interval_1, client: AsyncOpenAI
+    ):
+        @self.mock_upstream_response
+        async def _handler(body, **kwargs):
+            resp = self.MOCK_RESPONSE.parse_stream()
+
+            async def _stream() -> AsyncIterator[bytes]:
+                [chunk1, chunk2] = list(_chunk_lines(resp.text, n=2))
+                yield chunk1.encode()
+                await asyncio.sleep(2)
+                yield chunk2.encode()
+
+            return httpx.Response(status_code=200, content=_stream())
+
+        response = await client.responses.with_raw_response.create(
+            **self.test_request, stream=True
+        )  # type: ignore
+
+        actual_content = await response.http_response.aread()
+        actual = ResponsesAPIMockResponse(actual_content).parse_stream()
+        assert _is_sublist(
+            ["event", "comment ping", "event"], actual.signature()
+        )
+
+
+def _chunk_lines(text: str, *, n: int) -> Generator[str, None, None]:
+    lines = text.splitlines(keepends=True)
+    size = (len(lines) + n - 1) // n
+    for i in range(n):
+        block = lines[i * size : (i + 1) * size]
+        yield "".join(block)
+
+
+def _is_sublist(small: list[str], big: list[str]) -> bool:
+    return ";".join(small) in ";".join(big)

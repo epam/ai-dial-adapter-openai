@@ -1,7 +1,7 @@
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Self, TypedDict, runtime_checkable
+from typing import Any, List, Self, assert_never, runtime_checkable
 
 from typing_extensions import Protocol
 
@@ -22,23 +22,34 @@ class MockResponse(Protocol):
     def parse(self, stream: bool) -> MockResponsePayload: ...
 
 
-class SSEEvent(TypedDict):
+@dataclass
+class SSEEvent:
     event: str | None
     data: Any
 
 
 @dataclass
+class SSEComment:
+    message: str
+
+
+@dataclass
 class ResponsesAPIEventStream:
-    events: list[SSEEvent]
+    entries: list[SSEEvent | SSEComment]
 
     @classmethod
     def parse(cls, content: bytes) -> "ResponsesAPIEventStream":
-        events: list[SSEEvent] = []
+        entries: list[SSEEvent | SSEComment] = []
         lines = [
             ln for line in content.decode().splitlines() if (ln := line.strip())
         ]
+
         while lines:
             line = lines.pop()
+            if line.startswith(":"):
+                entries.append(SSEComment(line.removeprefix(":")))
+                continue
+
             if not line.startswith("data: "):
                 raise ValueError(
                     f"Invalid data entry in the SSE stream: {line[:100]}"
@@ -50,25 +61,43 @@ class ResponsesAPIEventStream:
             event = None
             if lines and lines[-1].startswith("event:"):
                 event = lines.pop().removeprefix("event: ")
-            events.append({"event": event, "data": data})
-        events.reverse()
-        return cls(events=events)
+            entries.append(SSEEvent(event, data))
+
+        entries.reverse()
+        return cls(entries=entries)
 
     @property
-    def json(self) -> list[SSEEvent]:
-        return self.events
+    def json(self) -> list[dict]:
+        return [asdict(e) for e in self.entries]
 
     @property
     def text(self) -> str:
         blocks: list[str] = []
-        for entry in self.events:
-            block = ""
-            if event := entry["event"]:
-                block += f"event: {event}\n"
-            data = json.dumps(entry["data"])
-            block += f"data: {data}"
+        for entry in self.entries:
+            match entry:
+                case SSEComment(message):
+                    block = f":{message}"
+                case SSEEvent(event, data):
+                    block = ""
+                    if event:
+                        block += f"event: {event}\n"
+                    block += f"data: {_compact_json(data)}"
+                case _:
+                    assert_never(entry)
             blocks.append(block + "\n\n")
         return "".join(blocks)
+
+    def get_last_sse_event(self) -> SSEEvent:
+        for e in reversed(self.entries):
+            if isinstance(e, SSEEvent):
+                return e
+        raise ValueError("The stream doesn't contain any SSE events.")
+
+    def signature(self) -> List[str]:
+        def _get_name(x: SSEEvent | SSEComment) -> str:
+            return "event" if isinstance(x, SSEEvent) else f"comment{x.message}"
+
+        return [_get_name(e) for e in self.entries]
 
 
 @dataclass
@@ -78,8 +107,10 @@ class ResponsesAPIResponse:
     @classmethod
     def parse(cls, content: bytes) -> "ResponsesAPIResponse":
         try:
-            streaming_resp = ResponsesAPIEventStream.parse(content)
-            response = streaming_resp.events[-1]["data"]["response"]
+            stream = ResponsesAPIEventStream.parse(content)
+            last_event = stream.get_last_sse_event()
+            assert last_event.data["type"] == "response.completed"
+            response = last_event.data["response"]
             return cls(response=response)
         except Exception:
             pass
@@ -100,23 +131,28 @@ class ResponsesAPIResponse:
 
     @property
     def text(self) -> str:
-        return json.dumps(self.response)
+        return _compact_json(self.response)
 
 
 @dataclass
 class ResponsesAPIMockResponse:
     source: Path | bytes
 
-    def parse(self, stream: bool):
+    @property
+    def content(self) -> bytes:
         if isinstance(self.source, Path):
-            content = self.source.read_bytes()
+            return self.source.read_bytes()
         else:
-            content = self.source
+            return self.source
 
-        if stream:
-            return ResponsesAPIEventStream.parse(content)
-        else:
-            return ResponsesAPIResponse.parse(content)
+    def parse_stream(self) -> ResponsesAPIEventStream:
+        return ResponsesAPIEventStream.parse(self.content)
+
+    def parse_block(self) -> ResponsesAPIResponse:
+        return ResponsesAPIResponse.parse(self.content)
+
+    def parse(self, stream: bool) -> MockResponsePayload:
+        return self.parse_stream() if stream else self.parse_block()
 
 
 def _coerce_timestamps_to_float(obj: Any):
@@ -133,3 +169,7 @@ def _coerce_timestamps_to_float(obj: Any):
                 obj[key] = float(timestamp)
 
     return obj
+
+
+def _compact_json(x: Any) -> str:
+    return json.dumps(x, separators=(",", ":"))

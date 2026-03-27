@@ -1,6 +1,7 @@
+import inspect
 import json
 from pathlib import Path
-from typing import Callable, assert_never
+from typing import Awaitable, Callable, assert_never
 
 import httpx
 import respx
@@ -9,7 +10,8 @@ from pydantic import BaseModel
 from tests.utils.mock_response import MockResponse, ResponsesAPIMockResponse
 
 _Response = httpx.Response | dict | str | bytes | BaseModel | MockResponse
-_RequestHandler = Callable[[httpx.Request], _Response] | _Response
+_AResponse = Awaitable[_Response] | _Response
+_RequestHandler = Callable[[httpx.Request], _AResponse] | _AResponse
 
 
 class MockServer:
@@ -17,6 +19,9 @@ class MockServer:
         def decorator(handler: _RequestHandler):
             async def mock_handler(request: httpx.Request) -> httpx.Response:
                 resp = handler(request) if callable(handler) else handler
+
+                if inspect.isawaitable(resp):
+                    resp = await resp
 
                 if isinstance(resp, MockResponse):
                     stream = await _is_streaming(request)
@@ -51,7 +56,9 @@ class MockServer:
         return decorator
 
     @classmethod
-    def mock_responses_api_response(cls, filepath: str) -> MockResponse:
+    def mock_responses_api_response(
+        cls, filepath: str
+    ) -> ResponsesAPIMockResponse:
         path = (
             Path(__file__).parent.parent
             / "unit_tests"

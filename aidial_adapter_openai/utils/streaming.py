@@ -21,6 +21,7 @@ from aidial_sdk.utils.merge_chunks import (
     cleanup_indices,
     merge_chat_completion_chunks,
 )
+from aidial_sdk.utils.streaming import add_heartbeat
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
@@ -257,6 +258,7 @@ async def create_server_response(
     *,
     emulate_streaming: bool,
     sse_stream_format: SSEStreamFormat,
+    sse_heartbeat_interval: float | None,
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
         body = response.body
@@ -272,9 +274,10 @@ async def create_server_response(
             return item.to_fastapi_response()
         else:
             stream = prepend(item, stream)
-            content = to_sse_stream(stream, sse_stream_format)
+            stream = to_sse_stream(stream, sse_stream_format)
+            stream = add_sse_heartbeat(stream, sse_heartbeat_interval)
             return StreamingResponse(
-                content=content,
+                content=stream,
                 media_type="text/event-stream",
                 headers=headers,
             )
@@ -365,3 +368,16 @@ def chunk_to_dict(chunk: ChatCompletionChunk) -> dict:
     dict = chunk.to_dict()
     debug_print("chunk", dict)
     return dict
+
+
+def add_sse_heartbeat(
+    stream: AsyncIterator[str], heartbeat_interval: float | None
+) -> AsyncIterator[str]:
+    if heartbeat_interval is None:
+        return stream
+
+    return add_heartbeat(
+        stream,
+        heartbeat_interval=heartbeat_interval,
+        heartbeat_object=": ping\n\n",
+    )
