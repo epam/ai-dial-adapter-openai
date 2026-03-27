@@ -27,7 +27,7 @@ async def responses(request: Request) -> FastAPIResponse:
     return await create_server_response(
         response,
         emulate_streaming=False,
-        see_stream_format="responses",
+        sse_stream_format="responses",
     )
 
 

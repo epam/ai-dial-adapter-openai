@@ -256,7 +256,7 @@ async def create_server_response(
     response: ChatResponse,
     *,
     emulate_streaming: bool,
-    see_stream_format: SSEStreamFormat,
+    sse_stream_format: SSEStreamFormat,
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
         body = response.body
@@ -272,7 +272,7 @@ async def create_server_response(
             return item.to_fastapi_response()
         else:
             stream = prepend(item, stream)
-            content = to_sse_stream(stream, see_stream_format)
+            content = to_sse_stream(stream, sse_stream_format)
             return StreamingResponse(
                 content=content,
                 media_type="text/event-stream",

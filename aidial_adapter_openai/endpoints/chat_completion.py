@@ -267,5 +267,5 @@ async def chat_completion(deployment_id: str, request: Request):
             app_config=app_config,
         ),
         emulate_streaming=emulate_streaming,
-        see_stream_format="chat-completions",
+        sse_stream_format="chat-completions",
     )
