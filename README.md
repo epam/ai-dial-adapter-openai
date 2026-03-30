@@ -1194,10 +1194,10 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
 
 The [upstream `extra_data`](https://github.com/epam/ai-dial-core/blob/development/docs/dynamic-settings/models.md#modelsmodel_nameupstreams) field in the DIAL Core config allows specifying which incoming request headers the adapter should forward to the upstream. DIAL Core provides `extra_data` to the adapter inside the `X-UPSTREAM-EXTRA-DATA` request header. The adapter then attaches every header listed in `headers_to_proxy` that is present in the incoming request to the outgoing upstream call.
 
-<details>
+
 A practical use case is routing requests within a vLLM cluster: [DIAL Chat](https://github.com/epam/ai-dial-chat) generates an `x-conversation-id` header for every conversation, and a vLLM routing can use it as an affinity key to route all turns of the same conversation to the same worker.
 
-**DIAL Core config:**
+<details><summary>DIAL Core Config</summary>
 
 ```json
 {
@@ -1219,8 +1219,9 @@ A practical use case is routing requests within a vLLM cluster: [DIAL Chat](http
 }
 ```
 
-When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and adapter forward that header verbatim to the vLLM upstream, allowing the cluster's routing layer to pin the conversation to a specific worker.
 </details>
+
+When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and adapter forward that header verbatim to the vLLM upstream, allowing the cluster's routing layer to pin the conversation to a specific worker.
 
 > [!NOTE]
 > The adapter returns `502` if `X-UPSTREAM-EXTRA-DATA` contains malformed JSON or an unexpected structure.
