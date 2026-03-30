@@ -2,14 +2,11 @@ from http import HTTPStatus
 from typing import Mapping
 
 from aidial_sdk.exceptions import HTTPException
-from pydantic import AliasChoices, BaseModel, Field, ValidationError
+from pydantic import BaseModel, ValidationError
 
 
 class UpstreamExtraData(BaseModel):
-    headers_to_proxy: list[str] = Field(
-        default=[],
-        validation_alias=AliasChoices("headers_to_proxy", "HEADERS-TO-PROXY"),
-    )
+    headers_to_proxy: list[str] = []
 
 
 def get_upstream_extra_headers(
