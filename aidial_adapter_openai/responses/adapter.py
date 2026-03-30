@@ -122,9 +122,12 @@ async def chat_completion(
         [m.raw_message for m in transformed_messages]  # type: ignore
     )
 
-    res_tools = omit
+    res_tools = []
     if tools := request.get("tools"):
-        res_tools = convert_tools(tools)
+        res_tools.extend(convert_tools(tools))
+
+    if "web_search_options" in request:
+        res_tools.append({"type": "web_search"})
 
     res_tool_choice = omit
     if tool_choice := request.get("tool_choice"):
@@ -148,7 +151,7 @@ async def chat_completion(
         model=model_name,
         stream=is_stream,
         input=input_messages,
-        tools=res_tools,
+        tools=res_tools or omit,
         tool_choice=res_tool_choice,
         top_p=request.get("top_p") or omit,
         temperature=request.get("temperature") or omit,
