@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from typing import Mapping
 
 from aidial_sdk.exceptions import HTTPException
@@ -6,7 +7,7 @@ from pydantic_core import from_json
 
 def _bad_upstream_extra_data(message: str) -> HTTPException:
     return HTTPException(
-        status_code=502,
+        status_code=HTTPStatus.BAD_GATEWAY,
         type="internal_server_error",
         message=f"Invalid X-UPSTREAM-EXTRA-DATA header: {message}",
     )
