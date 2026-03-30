@@ -12,10 +12,7 @@ class UpstreamExtraData(BaseModel):
 def get_upstream_extra_headers(
     request_headers: Mapping[str, str],
 ) -> dict[str, str]:
-    """Extract upstream headers listed in X-UPSTREAM-EXTRA-DATA."""
-    extra_data_header = request_headers.get("X-UPSTREAM-EXTRA-DATA")
-    if not extra_data_header:
-        return {}
+    extra_data_header = request_headers.get("X-UPSTREAM-EXTRA-DATA", "{}")
 
     try:
         extra_data = UpstreamExtraData.model_validate_json(extra_data_header)
