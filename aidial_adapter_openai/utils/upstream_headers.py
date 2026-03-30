@@ -2,14 +2,13 @@ from http import HTTPStatus
 from typing import Mapping
 
 from aidial_sdk.exceptions import HTTPException
-from pydantic_core import from_json
+from pydantic import AliasChoices, BaseModel, Field, ValidationError
 
 
-def _bad_upstream_extra_data(message: str) -> HTTPException:
-    return HTTPException(
-        status_code=HTTPStatus.BAD_GATEWAY,
-        type="internal_server_error",
-        message=f"Invalid X-UPSTREAM-EXTRA-DATA header: {message}",
+class UpstreamExtraData(BaseModel):
+    headers_to_proxy: list[str] = Field(
+        default=[],
+        validation_alias=AliasChoices("headers_to_proxy", "HEADERS-TO-PROXY"),
     )
 
 
@@ -22,32 +21,16 @@ def get_upstream_extra_headers(
         return {}
 
     try:
-        extra_data = from_json(extra_data_header)
-    except ValueError as e:
-        raise _bad_upstream_extra_data(f"JSON parsing failed: {e}") from e
-
-    if not isinstance(extra_data, dict):
-        raise _bad_upstream_extra_data(
-            f"JSON object expected, got {type(extra_data).__name__}"
-        )
-
-    headers_to_proxy = extra_data.get("headers_to_proxy")
-    if headers_to_proxy is None:
-        headers_to_proxy = extra_data.get("HEADERS-TO-PROXY")
-
-    if not headers_to_proxy:
-        return {}
-
-    if not isinstance(headers_to_proxy, list):
-        raise _bad_upstream_extra_data("headers_to_proxy must be a list")
+        extra_data = UpstreamExtraData.model_validate_json(extra_data_header)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_GATEWAY,
+            type="internal_server_error",
+            message=f"Invalid X-UPSTREAM-EXTRA-DATA header: {e}",
+        ) from e
 
     result: dict[str, str] = {}
-    for header_name in headers_to_proxy:
-        if not isinstance(header_name, str):
-            raise _bad_upstream_extra_data(
-                "headers_to_proxy items must be strings"
-            )
-
+    for header_name in extra_data.headers_to_proxy:
         header_value = request_headers.get(header_name)
         if header_value is not None:
             result[header_name] = header_value

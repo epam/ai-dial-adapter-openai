@@ -491,7 +491,7 @@ async def test_invalid_upstream_extra_data_header(test_app: httpx.AsyncClient):
     assert payload["error"]["type"] == "internal_server_error"
     assert payload["error"]["code"] == "502"
     assert payload["error"]["message"].startswith(
-        "Invalid X-UPSTREAM-EXTRA-DATA header: JSON parsing failed:"
+        "Invalid X-UPSTREAM-EXTRA-DATA header:"
     )
 
 
