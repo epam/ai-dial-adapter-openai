@@ -127,7 +127,9 @@ async def chat_completion(
         res_tools.extend(convert_tools(tools))
 
     if "web_search_options" in request:
-        res_tools.append({"type": "web_search"})
+        res_tools.append(
+            {"type": "web_search", **request["web_search_options"]}
+        )
 
     res_tool_choice = omit
     if tool_choice := request.get("tool_choice"):
