@@ -17,6 +17,12 @@ def get_env_bool(name: str, default: bool = False) -> bool:
     return default
 
 
+def get_env_float(name: str) -> float | None:
+    if (value := os.getenv(name)) is not None:
+        return float(value)
+    return None
+
+
 def get_env_list(name: str) -> List[str] | None:
     if (value := os.getenv(name)) is not None:
         return list(map(str.strip, (value).split(",")))

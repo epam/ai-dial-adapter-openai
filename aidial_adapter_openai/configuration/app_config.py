@@ -14,6 +14,7 @@ from aidial_adapter_openai.configuration.deprecations import (
 from aidial_adapter_openai.utils.env import (
     get_env_bool,
     get_env_dict,
+    get_env_float,
     get_env_list,
     get_env_var,
 )
@@ -59,6 +60,7 @@ class ApplicationConfig(ExtraForbidModel):
     COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: Dict[str, str] = {}
     NON_STREAMING_DEPLOYMENTS: List[str] = []
     ELIMINATE_EMPTY_CHOICES: bool = False
+    SSE_HEARTBEAT_INTERVAL: float | None = None
 
     AUDIO_AZURE_API_VERSION: str = "2025-03-01-preview"
 
@@ -254,6 +256,9 @@ class ApplicationConfig(ExtraForbidModel):
                         get_env_dict,
                         "TIKTOKEN_MODEL_MAPPING",
                         deprecated_names=["MODEL_ALIASES"],
+                    ),
+                    "SSE_HEARTBEAT_INTERVAL": get_env_float(
+                        "SSE_HEARTBEAT_INTERVAL"
                     ),
                 }
             ),
