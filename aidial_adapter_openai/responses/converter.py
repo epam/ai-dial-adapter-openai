@@ -1,7 +1,12 @@
 import json
 from typing import Generator, List, assert_never
 
-from aidial_sdk.chat_completion.request import CustomContent, Stage, Status
+from aidial_sdk.chat_completion.request import (
+    Attachment,
+    CustomContent,
+    Stage,
+    Status,
+)
 from aidial_sdk.exceptions import RequestValidationError
 from openai.types.chat import (
     ChatCompletion,
@@ -328,22 +333,30 @@ def convert_messages(
 
 def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     text_content = ""
-    annotations: List[Annotation] = []
     tool_calls: List[ChatCompletionMessageToolCallUnion] = []
     custom_content: CustomContent | None = None
-
     for item in output:
         match item:
             case ResponseOutputMessage(content=content):
                 for part in content:
                     match part:
                         case ResponseOutputText(text=text):
+                            attachments: List[Attachment] = []
                             text_content += text
                             for annotation in part.annotations:
                                 if res_annotation := convert_annotation(
                                     annotation
                                 ):
-                                    annotations.append(res_annotation)
+                                    attachments.append(
+                                        Attachment(
+                                            title=res_annotation.url_citation.title,
+                                            url=res_annotation.url_citation.url,
+                                        )
+                                    )
+                            if attachments:
+                                custom_content = CustomContent(
+                                    attachments=attachments
+                                )
                         case ResponseOutputRefusal():
                             pass
                         case _:
@@ -420,7 +433,6 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     return ChatCompletionMessage(
         role="assistant",
         content=text_content,
-        annotations=annotations or None,
         tool_calls=tool_calls or None,
         **extra_fields,
     )
