@@ -239,13 +239,12 @@ class TestResponsesEndpoint:
             }
         )
 
-        @self.mock_upstream_response()
-        def _handler(body, headers):
+        @self.mock_upstream_response
+        def _handler(headers, **kwargs):
             assert headers.get("x-user-id") == "user-1"
-            return self.TEST_RESPONSE
+            return self.MOCK_RESPONSE
 
         await client.responses.create(**self.test_request)
-
 
 
 def _chunk_lines(text: str, *, n: int) -> Generator[str, None, None]:
