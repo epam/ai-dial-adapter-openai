@@ -1195,7 +1195,6 @@ The [upstream `extra_data`](https://github.com/epam/ai-dial-core/blob/developmen
 
 <details>
 A practical use case is routing requests within a vLLM cluster: [DIAL Chat](https://github.com/epam/ai-dial-chat) generates an `x-conversation-id` header for every conversation, and a vLLM routing can use it as an affinity key to route all turns of the same conversation to the same worker.
-</details>
 
 **DIAL Core config:**
 
@@ -1220,6 +1219,7 @@ A practical use case is routing requests within a vLLM cluster: [DIAL Chat](http
 ```
 
 When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and adapter forward that header verbatim to the vLLM upstream, allowing the cluster's routing layer to pin the conversation to a specific worker.
+</details>
 
 > [!NOTE]
 > The adapter returns `502` if `X-UPSTREAM-EXTRA-DATA` contains malformed JSON or an unexpected structure.
