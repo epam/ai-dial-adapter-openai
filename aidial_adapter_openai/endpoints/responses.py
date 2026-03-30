@@ -14,18 +14,26 @@ from aidial_adapter_openai.utils.parsers import (
     responses_parser,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
+from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
     create_server_response,
     debug_print,
     map_stream,
 )
+from aidial_adapter_openai.utils.upstream_headers import (
+    get_upstream_extra_headers,
+)
 
 
 async def responses(request: Request) -> FastAPIResponse:
+    app_config = get_request_app_config(request)
     response = await _responses(request)
     return await create_server_response(
-        response=response, emulate_streaming=False
+        response,
+        emulate_streaming=False,
+        sse_stream_format="responses",
+        sse_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
     )
 
 
@@ -36,10 +44,13 @@ async def _responses(
 
     upstream_endpoint = get_upstream_endpoint(request.headers)
     creds = await get_credentials(request.headers, azure=True)
+    upstream_extra_headers = get_upstream_extra_headers(request.headers)
     api_version = request.query_params.get("api-version")
 
     endpoint = responses_parser.parse(upstream_endpoint)
-    client = endpoint.get_client({**creds, "api_version": api_version})
+    client = endpoint.get_client(
+        {**creds, "api_version": api_version, "headers": upstream_extra_headers}
+    )
 
     response: LegacyAPIResponse[
         Response | AsyncStream[ResponseStreamEvent]
@@ -52,7 +63,7 @@ async def _responses(
     # Reformatting of the chunks may invalidate content length.
     # We don't recompress the response, therefore,
     # the content encoding may invalidate too.
-    for header in ["Content-Length", "Content-Encoding"]:
+    for header in ("content-length", "content-encoding"):
         if header in response_headers:
             del response_headers[header]
 
@@ -68,6 +79,6 @@ async def _responses(
 
 def _to_dict(obj: ResponseStreamEvent | Response) -> dict:
     ret = obj.to_dict()
-    title = "response" if isinstance(obj, Response) else "event"
+    title = "response" if isinstance(obj, Response) else f"event[{obj.type}]"
     debug_print(title, ret)
     return ret

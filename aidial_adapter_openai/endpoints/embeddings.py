@@ -13,6 +13,9 @@ from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
 )
+from aidial_adapter_openai.utils.upstream_headers import (
+    get_upstream_extra_headers,
+)
 
 
 async def embedding(deployment_id: str, request: Request):
@@ -26,7 +29,7 @@ async def embedding(deployment_id: str, request: Request):
         request.headers,
         azure=deployment_id not in app_config.VLLM_DEPLOYMENTS,
     )
-
+    upstream_extra_headers = get_upstream_extra_headers(request.headers)
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
@@ -44,4 +47,5 @@ async def embedding(deployment_id: str, request: Request):
         creds=creds,
         endpoint=upstream_endpoint,
         api_version=api_version,
+        headers=upstream_extra_headers,
     )

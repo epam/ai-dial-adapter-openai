@@ -62,6 +62,9 @@ from aidial_adapter_openai.utils.streaming import (
     create_server_response,
 )
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.upstream_headers import (
+    get_upstream_extra_headers,
+)
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
 )
@@ -103,7 +106,10 @@ async def call_chat_completion(
         azure=deployment_type != D.VLLM_CHAT_COMPLETIONS_API,
     )
 
-    client = endpoint.get_client({**creds, "api_version": api_version})
+    upstream_extra_headers = get_upstream_extra_headers(request_headers)
+    client = endpoint.get_client(
+        {**creds, "api_version": api_version, "headers": upstream_extra_headers}
+    )
 
     def _get_tokenizer() -> Tokenizer:
         tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
@@ -258,7 +264,6 @@ async def chat_completion(deployment_id: str, request: Request):
     api_version = get_api_version(request)
 
     return await create_server_response(
-        emulate_streaming,
         await call_chat_completion(
             deployment_id=deployment_id,
             request=request,
@@ -267,4 +272,7 @@ async def chat_completion(deployment_id: str, request: Request):
             api_version=api_version,
             app_config=app_config,
         ),
+        emulate_streaming=emulate_streaming,
+        sse_stream_format="chat-completions",
+        sse_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
     )
