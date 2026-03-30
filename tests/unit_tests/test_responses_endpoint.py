@@ -230,6 +230,22 @@ class TestResponsesEndpoint:
             ["event", "comment ping", "event"], actual.signature()
         )
 
+    @respx.mock
+    async def test_proxies_extra_headers(self, client: AsyncOpenAI):
+        client = client.with_options(
+            default_headers={
+                "X-UPSTREAM-EXTRA-DATA": '{"headers_to_proxy": ["x-user-id"]}',
+                "x-user-id": "user-1",
+            }
+        )
+
+        @self.mock_upstream_response
+        def _handler(headers, **kwargs):
+            assert headers.get("x-user-id") == "user-1"
+            return self.MOCK_RESPONSE
+
+        await client.responses.create(**self.test_request)
+
 
 def _chunk_lines(text: str, *, n: int) -> Generator[str, None, None]:
     lines = text.splitlines(keepends=True)
