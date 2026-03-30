@@ -264,7 +264,6 @@ async def chat_completion(deployment_id: str, request: Request):
     api_version = get_api_version(request)
 
     return await create_server_response(
-        emulate_streaming,
         await call_chat_completion(
             deployment_id=deployment_id,
             request=request,
@@ -273,4 +272,7 @@ async def chat_completion(deployment_id: str, request: Request):
             api_version=api_version,
             app_config=app_config,
         ),
+        emulate_streaming=emulate_streaming,
+        sse_stream_format="chat-completions",
+        sse_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
     )
