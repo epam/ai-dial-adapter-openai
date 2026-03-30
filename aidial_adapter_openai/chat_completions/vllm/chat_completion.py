@@ -82,7 +82,8 @@ async def chat_completion(
     messages: List[dict] = request["messages"]
 
     multi_modal_messages = await ResourceProcessor(
-        file_storage=file_storage
+        file_storage=file_storage,
+        support_audio=True,
     ).transform_messages(messages)
 
     (
