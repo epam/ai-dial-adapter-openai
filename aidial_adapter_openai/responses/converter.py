@@ -333,6 +333,7 @@ def convert_messages(
 
 def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     text_content = ""
+    annotations: List[Annotation] = []
     tool_calls: List[ChatCompletionMessageToolCallUnion] = []
     custom_content: CustomContent | None = None
     for item in output:
@@ -347,6 +348,7 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                                 if res_annotation := convert_annotation(
                                     annotation
                                 ):
+                                    annotations.append(res_annotation)
                                     attachments.append(
                                         Attachment(
                                             title=res_annotation.url_citation.title,
@@ -433,6 +435,7 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     return ChatCompletionMessage(
         role="assistant",
         content=text_content,
+        annotations=annotations or None,
         tool_calls=tool_calls or None,
         **extra_fields,
     )
