@@ -21,6 +21,9 @@ from aidial_adapter_openai.utils.streaming import (
     debug_print,
     map_stream,
 )
+from aidial_adapter_openai.utils.upstream_headers import (
+    get_upstream_extra_headers,
+)
 
 
 async def responses(request: Request) -> FastAPIResponse:
@@ -41,10 +44,13 @@ async def _responses(
 
     upstream_endpoint = get_upstream_endpoint(request.headers)
     creds = await get_credentials(request.headers, azure=True)
+    upstream_extra_headers = get_upstream_extra_headers(request.headers)
     api_version = request.query_params.get("api-version")
 
     endpoint = responses_parser.parse(upstream_endpoint)
-    client = endpoint.get_client({**creds, "api_version": api_version})
+    client = endpoint.get_client(
+        {**creds, "api_version": api_version, "headers": upstream_extra_headers}
+    )
 
     response: LegacyAPIResponse[
         Response | AsyncStream[ResponseStreamEvent]
