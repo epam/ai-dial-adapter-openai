@@ -176,7 +176,8 @@ def test_convert_response_with_web_search_call():
         == "The weather in Kyiv is sunny."
     )
     assert chat_completion.choices[0].message.tool_calls is None
-    assert chat_completion.choices[0].message.custom_content == {
+    message_dump = chat_completion.choices[0].message.model_dump()
+    assert message_dump["custom_content"] == {
         "stages": [
             {
                 "name": "Web Search",
@@ -232,7 +233,8 @@ def test_convert_response_with_multiple_web_search_calls():
         == "The weather in Kyiv is sunny."
     )
     assert chat_completion.choices[0].message.tool_calls is None
-    assert chat_completion.choices[0].message.custom_content == {
+    message_dump = chat_completion.choices[0].message.model_dump()
+    assert message_dump["custom_content"] == {
         "stages": [
             {
                 "name": "Web Search",
