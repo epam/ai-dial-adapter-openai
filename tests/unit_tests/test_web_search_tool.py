@@ -3,6 +3,7 @@ import json
 import httpx
 import pytest
 import respx
+from aidial_sdk.exceptions import RequestValidationError
 from openai.types.responses import Response
 from openai.types.responses.response_function_web_search import (
     ActionSearch,
@@ -18,21 +19,36 @@ from aidial_adapter_openai.responses.converter import (
 
 
 @pytest.mark.parametrize(
-    "tool_type",
+    ("request_tool", "expected_tool"),
     [
-        "web_search",
-        "web_search_2025_08_26",
-        "web_search_preview",
-        "web_search_preview_2025_03_11",
+        (
+            {
+                "type": "static_function",
+                "static_function": {"name": "web_search"},
+            },
+            {"type": "web_search"},
+        ),
+        (
+            {
+                "type": "static_function",
+                "static_function": {
+                    "name": "web_search",
+                    "configuration": {"search_context_size": "high"},
+                },
+            },
+            {"type": "web_search", "search_context_size": "high"},
+        ),
     ],
 )
 @respx.mock
 async def test_web_search_tool_conversion(
-    test_app: httpx.AsyncClient, tool_type: str
+    test_app: httpx.AsyncClient,
+    request_tool: dict,
+    expected_tool: dict,
 ):
     def check_request(request: httpx.Request):
         body = json.loads(request.content)
-        assert body["tools"] == [{"type": tool_type}]
+        assert body["tools"] == [expected_tool]
         dummy_response = Response(
             id="id",
             created_at=0,
@@ -72,7 +88,7 @@ async def test_web_search_tool_conversion(
             "messages": [
                 {"role": "user", "content": "What is the weather in Kyiv?"}
             ],
-            "tools": [{"type": tool_type}],
+            "tools": [request_tool],
         },
         headers={
             "X-UPSTREAM-KEY": "test-api-key",
@@ -89,15 +105,37 @@ async def test_web_search_tool_conversion(
 
 
 def test_convert_tools_web_search():
-    tools = convert_tools([{"type": "web_search"}])
+    tools = convert_tools(
+        [{"type": "static_function", "static_function": {"name": "web_search"}}]
+    )
     assert tools == [{"type": "web_search"}]
 
 
 def test_convert_tools_web_search_with_extra_fields():
     tools = convert_tools(
-        [{"type": "web_search", "search_context_size": "high"}]
+        [
+            {
+                "type": "static_function",
+                "static_function": {
+                    "name": "web_search",
+                    "configuration": {"search_context_size": "high"},
+                },
+            }
+        ]
     )
     assert tools == [{"type": "web_search", "search_context_size": "high"}]
+
+
+def test_convert_tools_web_search_with_unsupported_name():
+    with pytest.raises(RequestValidationError):
+        convert_tools(
+            [
+                {
+                    "type": "static_function",
+                    "static_function": {"name": "web_search_preview"},
+                }
+            ]
+        )
 
 
 def test_convert_response_with_web_search_call():

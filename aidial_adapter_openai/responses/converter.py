@@ -60,7 +60,6 @@ from openai.types.responses import (
     ToolChoiceCustomParam,
     ToolChoiceFunctionParam,
     ToolParam,
-    WebSearchPreviewToolParam,
     WebSearchToolParam,
 )
 from openai.types.responses.response_create_params import ToolChoice
@@ -152,21 +151,33 @@ def convert_tool_choice(
     assert_never(tool_choice)
 
 
-_InputToolParam = (
-    ChatCompletionToolParam | WebSearchToolParam | WebSearchPreviewToolParam
-)
+_InputToolParam = ChatCompletionToolParam | dict
 
 
 def convert_tools(tools: List[_InputToolParam]) -> List[ToolParam]:
+    _allowed_static_function_names = {"web_search"}
+
     def _convert_tool(tool: _InputToolParam) -> ToolParam:
         match tool["type"]:
-            case (
-                "web_search"
-                | "web_search_2025_08_26"
-                | "web_search_preview"
-                | "web_search_preview_2025_03_11"
-            ):
-                return tool
+            case "static_function":
+                static_function = tool.get("static_function")
+                if not static_function:
+                    raise RequestValidationError(
+                        "Required field 'static_function' is empty or not found."
+                    )
+
+                static_function_name = static_function.get("name")
+                if static_function_name not in _allowed_static_function_names:
+                    msg = (
+                        f"Provided static function name ('{static_function_name}') is not supported yet. "
+                        f"Allowed values: {list(_allowed_static_function_names)}"
+                    )
+                    raise RequestValidationError(msg)
+
+                return WebSearchToolParam(
+                    type="web_search",
+                    **static_function.get("configuration", {}),
+                )
             case _:
                 function = tool["function"]
                 return FunctionToolParam(
