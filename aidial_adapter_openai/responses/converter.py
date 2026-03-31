@@ -1,4 +1,3 @@
-import json
 from typing import Generator, List, assert_never
 
 from aidial_sdk.chat_completion.request import (
@@ -344,16 +343,19 @@ def convert_messages(
 
 def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     text_content = ""
+    web_search_calls_count = 0
+
     annotations: List[Annotation] = []
+    attachments: List[Attachment] = []
+    stages: List[Stage] = []
     tool_calls: List[ChatCompletionMessageToolCallUnion] = []
-    custom_content: CustomContent | None = None
+
     for item in output:
         match item:
             case ResponseOutputMessage(content=content):
                 for part in content:
                     match part:
                         case ResponseOutputText(text=text):
-                            attachments: List[Attachment] = []
                             text_content += text
                             for annotation in part.annotations:
                                 if res_annotation := convert_annotation(
@@ -366,10 +368,6 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                                             url=res_annotation.url_citation.url,
                                         )
                                     )
-                            if attachments:
-                                custom_content = CustomContent(
-                                    attachments=attachments
-                                )
                         case ResponseOutputRefusal():
                             pass
                         case _:
@@ -388,7 +386,6 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
 
             case ResponseReasoningItem(summary=summary):
                 if summary:
-                    stages: List[Stage] = []
                     for index, summary_part in enumerate(summary):
                         suffix = "" if index == 0 else f" #{index + 1}"
                         stages.append(
@@ -398,22 +395,29 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                                 content=summary_part.text,
                             )
                         )
-                    custom_content = CustomContent(stages=stages)
 
-            case ResponseFunctionWebSearch(
-                id=item_id, type=item_type, action=action
-            ):
+            case ResponseFunctionWebSearch(id=item_id, action=action):
                 logger.info(
                     f"[web_search] tool call: id={item_id}, action={action}"
                 )
-                tool_calls.append(
-                    ChatCompletionMessageToolCall(
-                        id=item_id,
-                        type="function",
-                        function=Function(
-                            name=item_type,
-                            arguments=json.dumps(action.model_dump()),
-                        ),
+                web_search_calls_count += 1
+                suffix = (
+                    ""
+                    if web_search_calls_count == 1
+                    else f" #{web_search_calls_count}"
+                )
+                action_dump = action.model_dump(exclude_none=True)
+                action_type = action_dump.get("type", "unknown")
+                query = action_dump.get("query")
+                details = [f"type: {action_type}"]
+                if query:
+                    details.append(f"query: {query}")
+
+                stages.append(
+                    Stage(
+                        name="Web Search" + suffix,
+                        status=Status.COMPLETED,
+                        content="\n".join(details),
                     )
                 )
 
@@ -440,8 +444,11 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                 assert_never(item)
 
     extra_fields = {}
-    if custom_content:
-        extra_fields["custom_content"] = custom_content.model_dump()
+    if attachments or stages:
+        extra_fields["custom_content"] = CustomContent(
+            attachments=attachments or None,
+            stages=stages or None,
+        ).model_dump(mode="json", exclude_none=True)
 
     return ChatCompletionMessage(
         role="assistant",

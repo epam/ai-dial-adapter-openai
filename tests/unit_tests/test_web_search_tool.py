@@ -175,4 +175,74 @@ def test_convert_response_with_web_search_call():
         chat_completion.choices[0].message.content
         == "The weather in Kyiv is sunny."
     )
+    assert chat_completion.choices[0].message.tool_calls is None
+    assert chat_completion.choices[0].message.custom_content == {
+        "stages": [
+            {
+                "name": "Web Search",
+                "status": "completed",
+                "content": "type: search\nquery: weather Kyiv",
+            }
+        ]
+    }
     assert chat_completion.choices[0].finish_reason == "stop"
+
+
+def test_convert_response_with_multiple_web_search_calls():
+    response = Response(
+        id="id",
+        created_at=0,
+        model="test-model",
+        object="response",
+        output=[
+            ResponseFunctionWebSearch(
+                id="ws_id_1",
+                type="web_search_call",
+                status="completed",
+                action=ActionSearch(type="search", query="weather Kyiv"),
+            ),
+            ResponseFunctionWebSearch(
+                id="ws_id_2",
+                type="web_search_call",
+                status="completed",
+                action=ActionSearch(type="search", query="news Kyiv"),
+            ),
+            ResponseOutputMessage(
+                id="msg_id",
+                type="message",
+                role="assistant",
+                status="completed",
+                content=[
+                    ResponseOutputText(
+                        type="output_text",
+                        text="The weather in Kyiv is sunny.",
+                        annotations=[],
+                    )
+                ],
+            ),
+        ],
+        parallel_tool_calls=False,
+        tool_choice="none",
+        tools=[],
+    )
+
+    chat_completion = convert_response(response)
+    assert (
+        chat_completion.choices[0].message.content
+        == "The weather in Kyiv is sunny."
+    )
+    assert chat_completion.choices[0].message.tool_calls is None
+    assert chat_completion.choices[0].message.custom_content == {
+        "stages": [
+            {
+                "name": "Web Search",
+                "status": "completed",
+                "content": "type: search\nquery: weather Kyiv",
+            },
+            {
+                "name": "Web Search #2",
+                "status": "completed",
+                "content": "type: search\nquery: news Kyiv",
+            },
+        ]
+    }
