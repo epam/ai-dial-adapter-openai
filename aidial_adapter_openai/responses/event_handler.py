@@ -4,6 +4,7 @@ from typing import Dict, Generator, assert_never
 
 import openai
 import pydantic
+from aidial_sdk.chat_completion.request import Attachment
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InternalServerError
 from openai.types.chat.chat_completion_chunk import (
@@ -12,6 +13,10 @@ from openai.types.chat.chat_completion_chunk import (
     ChoiceDelta,
     ChoiceDeltaToolCall,
     ChoiceDeltaToolCallFunction,
+)
+from openai.types.chat.chat_completion_message import (
+    Annotation,
+    AnnotationURLCitation,
 )
 from openai.types.completion_usage import CompletionUsage
 from openai.types.responses import (
@@ -192,16 +197,17 @@ class EventHandler(pydantic.BaseModel):
             )
         )
 
-    def _close_stage(self, stage_index: int) -> ChatCompletionChunk:
+    def _close_stage(
+        self, stage_index: int, name: str | None = None
+    ) -> ChatCompletionChunk:
+        stages = {"index": stage_index, "status": "completed"}
+        if name:
+            stages["name"] = name
         return self._chunk(
             choice=Choice(
                 index=0,
                 delta=ChoiceDelta(
-                    custom_content={  # type: ignore
-                        "stages": [
-                            {"index": stage_index, "status": "completed"}
-                        ]
-                    }
+                    custom_content={"stages": [stages]}  # type: ignore
                 ),
             )
         )
@@ -277,6 +283,60 @@ class EventHandler(pydantic.BaseModel):
                             ),
                         )
                     ]
+                ),
+            )
+        )
+
+    def _annotation_chunks(
+        self, annotation: dict[str, object]
+    ) -> Generator[ChatCompletionChunk, None, None]:
+        annotation_type = annotation.get("type")
+        if annotation_type != "url_citation":
+            logger.warning(
+                f"Unsupported annotation payload type in stream: {annotation_type}"
+            )
+            return
+
+        start_index = annotation.get("start_index")
+        end_index = annotation.get("end_index")
+        title = annotation.get("title")
+        url = annotation.get("url")
+        if not isinstance(start_index, int) or not isinstance(end_index, int):
+            logger.warning("Annotation citation indices are invalid")
+            return
+        if not isinstance(title, str) or not isinstance(url, str):
+            logger.warning("Annotation citation title/url are invalid")
+            return
+
+        annotation_ = Annotation(
+            type="url_citation",
+            url_citation=AnnotationURLCitation(
+                start_index=start_index,
+                end_index=end_index,
+                title=title,
+                url=url,
+            ),
+        )
+        yield self._chunk(
+            choice=Choice(
+                index=0,
+                delta=ChoiceDelta(
+                    annotations=[annotation_]  # type: ignore
+                ),
+            )
+        )
+
+        attachment = Attachment(
+            title=title,
+            url=url,
+        ).model_dump(mode="json", exclude_none=True)
+        yield self._chunk(
+            choice=Choice(
+                index=0,
+                delta=ChoiceDelta(
+                    custom_content={  # type: ignore
+                        "attachments": [attachment]
+                    }
                 ),
             )
         )
@@ -370,7 +430,18 @@ class EventHandler(pydantic.BaseModel):
                 yield from self._append_to_stage(index, content)
 
             case ResponseReasoningSummaryTextDoneEvent(summary_index=index):
-                yield self._close_stage(index)
+                yield self._close_stage(stage_index=index)
+
+            case ResponseWebSearchCallCompletedEvent(output_index=index):
+                yield self._close_stage(stage_index=index, name="Web Search")
+
+            case ResponseOutputTextAnnotationAddedEvent(annotation=annotation):
+                if isinstance(annotation, dict):
+                    yield from self._annotation_chunks(annotation)
+                else:
+                    logger.warning(
+                        f"Unsupported annotation payload type in stream: {type(annotation)}"
+                    )
 
             case (
                 ResponseAudioDeltaEvent()
@@ -396,7 +467,6 @@ class EventHandler(pydantic.BaseModel):
                 | ResponseRefusalDeltaEvent()
                 | ResponseRefusalDoneEvent()
                 | ResponseTextDoneEvent()
-                | ResponseWebSearchCallCompletedEvent()
                 | ResponseWebSearchCallInProgressEvent()
                 | ResponseWebSearchCallSearchingEvent()
                 | ResponseImageGenCallCompletedEvent()
@@ -411,7 +481,6 @@ class EventHandler(pydantic.BaseModel):
                 | ResponseMcpListToolsCompletedEvent()
                 | ResponseMcpListToolsFailedEvent()
                 | ResponseMcpListToolsInProgressEvent()
-                | ResponseOutputTextAnnotationAddedEvent()
                 | ResponseQueuedEvent()
                 | ResponseReasoningSummaryPartAddedEvent()
                 | ResponseReasoningSummaryPartDoneEvent()

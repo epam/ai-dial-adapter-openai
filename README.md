@@ -19,6 +19,7 @@
     - [Azure OpenAI Chat Completions API (Last generation API)](#azure-openai-chat-completions-api-last-generation-api)
     - [Azure OpenAI Chat Completions API (Next generation API)](#azure-openai-chat-completions-api-next-generation-api)
     - [Azure OpenAI Responses API (Next generation API)](#azure-openai-responses-api-next-generation-api)
+      - [Web Search Tool](#web-search-tool)
     - [Azure AI Foundry Chat Completions API](#azure-ai-foundry-chat-completions-api)
     - [Azure OpenAI Images API](#azure-openai-images-api)
     - [Azure OpenAI Video API (Sora 1 API)](#azure-openai-video-api-sora-1-api)
@@ -222,6 +223,70 @@ The last generation API is also supported via an URLs in the following format:
 
 ```text
 "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/responses"
+```
+
+##### Web Search Tool
+
+When this deployment is backed by Azure OpenAI Responses API, a chat completions request can trigger the upstream `web_search` tool.
+
+Example request:
+
+```json
+{
+  "model": "upstream-model-name",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in Kyiv now? Include source links."
+    }
+  ],
+  "tools": [
+    {
+      "type": "static_function",
+      "static_function": {
+        "name": "web_search",
+        "configuration": {
+          "search_context_size": "high"
+        }
+      }
+    }
+  ],
+  "stream": true
+}
+```
+
+The adapter converts this tool declaration to Responses API `{"type": "web_search"}` (including optional configuration fields), and also supports `web_search_options` as an additional way to pass web search settings.
+
+Web Search activity is exposed in chat completions output as `custom_content.stages`, and URL citations are mirrored to `custom_content.attachments`.
+
+Example response fragment:
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "content": "Kyiv weather is mild.",
+        "custom_content": {
+          "stages": [
+            {
+              "name": "Web Search",
+              "status": "completed",
+              "content": "type: search\nquery: weather Kyiv"
+            }
+          ],
+          "attachments": [
+            {
+              "type": "text/markdown",
+              "title": "Kyiv weather source",
+              "url": "https://example.com/weather/kyiv"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
 ```
 
 #### Azure AI Foundry Chat Completions API
