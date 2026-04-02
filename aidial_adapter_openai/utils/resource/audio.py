@@ -2,6 +2,7 @@ from openai.types.chat import ChatCompletionContentPartInputAudioParam
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.validation import ensure_dict, ensure_str
 
 
 class AudioResource(BaseModel):
@@ -14,6 +15,16 @@ class AudioResource(BaseModel):
     @classmethod
     def from_resource(cls, resource: Resource) -> "AudioResource":
         return cls(audio=resource)
+
+    @classmethod
+    def from_content_part(cls, part: dict) -> "AudioResource":
+        """Parse an OpenAI ``input_audio`` content part."""
+        ia = ensure_dict("input_audio", part.get("input_audio"))
+        data = ensure_str("input_audio.data", ia.get("data"))
+        fmt = ensure_str("input_audio.format", ia.get("format"))
+        return cls(
+            audio=Resource.from_base64(type=f"audio/{fmt}", data_base64=data)
+        )
 
     def to_content_part(self) -> ChatCompletionContentPartInputAudioParam:
         """Return the standard OpenAI ``input_audio`` content part."""

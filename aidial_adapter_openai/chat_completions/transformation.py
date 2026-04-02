@@ -111,8 +111,8 @@ class MessageTransformer:
             result = await ImageResource.from_resource(resource, None)
             self.images.append(result)
         elif content_type and content_type.startswith("audio/"):
-            self.audios.append(AudioResource.from_resource(resource))
-            return None
+            result = AudioResource.from_resource(resource)
+            self.audios.append(result)
         else:
             name = await dial_resource.get_resource_name(self.file_storage)
             result = FileResource(name=name, resource=resource)
@@ -142,7 +142,10 @@ class MessageTransformer:
         match part["type"]:
             case "image_url":
                 return await self.download_image_content_part(part)
-            case "text" | "refusal" | "input_audio" | "file":
+            case "input_audio":
+                self.audios.append(AudioResource.from_content_part(part))
+                return part
+            case "text" | "refusal" | "file":
                 return part
             case _:
                 assert_never(part)
