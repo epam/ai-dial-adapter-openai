@@ -12,22 +12,22 @@ See https://docs.vllm.ai/en/latest/features/multimodal_inputs/?h=audio#audio-inp
 from typing import List
 
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.resource.audio import (
-    AudioResource,
-    AudioUrlContentPart,
-)
 from aidial_adapter_openai.utils.resource.base import Resource
 from aidial_adapter_openai.utils.validation import ensure_dict, ensure_str
 
 
-def _convert_input_audio_to_audio_url(part: dict) -> AudioUrlContentPart:
+def _to_audio_url_part(resource: Resource) -> dict:
+    """Build a vLLM ``audio_url`` content part from a Resource."""
+    return {"type": "audio_url", "audio_url": {"url": resource.to_data_url()}}
+
+
+def _convert_input_audio_to_audio_url(part: dict) -> dict:
     """Convert an OpenAI ``input_audio`` content part to ``audio_url``."""
     input_audio = ensure_dict("input_audio", part.get("input_audio"))
     data = ensure_str("input_audio.data", input_audio.get("data"))
     fmt = ensure_str("input_audio.format", input_audio.get("format"))
-    mime = f"audio/{fmt}"
-    resource = Resource.from_base64(type=mime, data_base64=data)
-    return AudioResource(audio=resource).to_content_part()
+    resource = Resource.from_base64(type=f"audio/{fmt}", data_base64=data)
+    return _to_audio_url_part(resource)
 
 
 def transform_audio(
@@ -59,7 +59,7 @@ def _transform_message(message: MultiModalMessage) -> MultiModalMessage:
             new_content.append(part)
 
     for audio in message.audios:
-        new_content.append(audio.to_content_part())
+        new_content.append(_to_audio_url_part(audio.audio))
 
     return MultiModalMessage(
         images=message.images,

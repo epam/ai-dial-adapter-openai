@@ -1,28 +1,12 @@
-from typing import TypedDict
-
+from openai.types.chat import ChatCompletionContentPartInputAudioParam
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.resource.base import Resource
 
 
-class _AudioUrl(TypedDict):
-    url: str
-
-
-class AudioUrlContentPart(TypedDict):
-    """
-    vLLM-specific content part type for audio, analogous to image_url.
-    See https://docs.vllm.ai/projects/recipes/en/latest/Qwen/Qwen3-ASR.html
-    """
-
-    type: str  # "audio_url"
-    audio_url: _AudioUrl
-
-
 class AudioResource(BaseModel):
     """
-    Audio metadata extracted from an attachment with an audio/* content type.
-    Produces an ``audio_url`` content part consumable by vLLM.
+    Audio metadata extracted from an attachment with an ``audio/*`` content type.
     """
 
     audio: Resource
@@ -31,10 +15,17 @@ class AudioResource(BaseModel):
     def from_resource(cls, resource: Resource) -> "AudioResource":
         return cls(audio=resource)
 
-    def to_content_part(self) -> AudioUrlContentPart:
+    def to_content_part(self) -> ChatCompletionContentPartInputAudioParam:
+        """Return the standard OpenAI ``input_audio`` content part."""
+        fmt = (
+            self.audio.type.split("/", 1)[1]
+            if "/" in self.audio.type
+            else self.audio.type
+        )
         return {
-            "type": "audio_url",
-            "audio_url": {
-                "url": self.audio.to_data_url(),
+            "type": "input_audio",
+            "input_audio": {
+                "data": self.audio.data_base64,
+                "format": fmt,  # type: ignore[typeddict-item]
             },
         }
