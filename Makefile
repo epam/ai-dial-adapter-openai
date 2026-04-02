@@ -49,6 +49,7 @@ help:
 	@echo '===================='
 	@echo 'build                        - build the source and wheels archives'
 	@echo 'clean                        - clean virtual env and build artifacts'
+	@echo 'install_git_hooks            - install the git hooks'
 	@echo '-- LINTING --'
 	@echo 'format                       - run code formatters'
 	@echo 'lint                         - run linters'
