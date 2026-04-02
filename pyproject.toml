@@ -41,6 +41,7 @@ azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
 aiohttp = "3.13.3"
 aidial-sdk = { version = "0.32.0", extras = ["telemetry"] }
+pre-commit = "^4.5.1"
 
 [tool.poetry.group.test.dependencies]
 pytest = "7.4.3"
