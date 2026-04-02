@@ -38,4 +38,3 @@ class AudioResource(BaseModel):
                 "url": self.audio.to_data_url(),
             },
         }
-

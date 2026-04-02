@@ -25,10 +25,7 @@ from aidial_adapter_openai.utils.multi_modal_message import (
     MultiModalMessage,
     create_text_content_part,
 )
-from aidial_adapter_openai.utils.resource.audio import (
-    AudioResource,
-    AudioUrlContentPart,
-)
+from aidial_adapter_openai.utils.resource.audio import AudioResource
 from aidial_adapter_openai.utils.resource.base import Resource
 from aidial_adapter_openai.utils.resource.file import FileResource
 from aidial_adapter_openai.utils.resource.image import ImageResource
@@ -54,21 +51,18 @@ class MessageTransformer:
     images: List[ImageResource]
     files: List[FileResource]
     audios: List[AudioResource]
-    support_audio: bool
 
     def __init__(
         self,
         *,
         file_storage: FileStorage | None,
         errors: Set[Error] | None = None,
-        support_audio: bool = False,
     ):
         self.file_storage = file_storage
         self.errors = set() if errors is None else errors
         self.images = []
         self.files = []
         self.audios = []
-        self.support_audio = support_audio
 
     async def try_download_resource(
         self, dial_resource: DialResource
@@ -91,15 +85,11 @@ class MessageTransformer:
 
     async def download_attachments(
         self, attachments: List[dict]
-    ) -> List[
-        ChatCompletionContentPartImageParam | AudioUrlContentPart | File
-    ]:
+    ) -> List[ChatCompletionContentPartImageParam | File]:
         if attachments:
             logger.debug(f"original attachments: {attachments}")
 
-        ret: List[
-            ChatCompletionContentPartImageParam | AudioUrlContentPart | File
-        ] = []
+        ret: List[ChatCompletionContentPartImageParam | File] = []
         for attachment in attachments:
             if result := await self.download_attachment(attachment):
                 ret.append(result)
@@ -107,12 +97,7 @@ class MessageTransformer:
 
     async def download_attachment(
         self, attachment: dict
-    ) -> (
-        ChatCompletionContentPartImageParam
-        | AudioUrlContentPart
-        | File
-        | None
-    ):
+    ) -> ChatCompletionContentPartImageParam | File | None:
         dial_resource = AttachmentResource(
             attachment=parse_attachment(attachment),
             entity_name="attachment",
@@ -125,13 +110,9 @@ class MessageTransformer:
         if content_type and content_type.startswith("image/"):
             result = await ImageResource.from_resource(resource, None)
             self.images.append(result)
-        elif (
-            self.support_audio
-            and content_type
-            and content_type.startswith("audio/")
-        ):
-            result = AudioResource.from_resource(resource)
-            self.audios.append(result)
+        elif content_type and content_type.startswith("audio/"):
+            self.audios.append(AudioResource.from_resource(resource))
+            return None
         else:
             name = await dial_resource.get_resource_name(self.file_storage)
             result = FileResource(name=name, resource=resource)
@@ -154,19 +135,6 @@ class MessageTransformer:
         self.images.append(result)
         return result.to_content_part()
 
-    def _convert_input_audio_to_audio_url(
-        self, part: dict
-    ) -> AudioUrlContentPart:
-        """Convert an OpenAI ``input_audio`` content part to a vLLM ``audio_url`` part."""
-        input_audio = ensure_dict("input_audio", part.get("input_audio"))
-        data = ensure_str("input_audio.data", input_audio.get("data"))
-        fmt = ensure_str("input_audio.format", input_audio.get("format"))
-        mime = f"audio/{fmt}"
-        resource = Resource.from_base64(type=mime, data_base64=data)
-        result = AudioResource(audio=resource)
-        self.audios.append(result)
-        return result.to_content_part()
-
     async def download_content_part(
         self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
     ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart | None:
@@ -174,11 +142,7 @@ class MessageTransformer:
         match part["type"]:
             case "image_url":
                 return await self.download_image_content_part(part)
-            case "input_audio":
-                if self.support_audio:
-                    return self._convert_input_audio_to_audio_url(part)
-                return part
-            case "text" | "refusal" | "audio_url" | "file":
+            case "text" | "refusal" | "input_audio" | "file":
                 return part
             case _:
                 assert_never(part)
@@ -233,7 +197,6 @@ class MessageTransformer:
 
 class ResourceProcessor(BaseModel):
     file_storage: FileStorage | None
-    support_audio: bool = False
 
     async def transform_messages(
         self, messages: List[dict]
@@ -241,9 +204,7 @@ class ResourceProcessor(BaseModel):
         errors: Set[Error] = set()
         transformations = [
             await MessageTransformer(
-                file_storage=self.file_storage,
-                errors=errors,
-                support_audio=self.support_audio,
+                file_storage=self.file_storage, errors=errors
             ).transform_message(message)
             for message in messages
         ]

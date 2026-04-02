@@ -7,6 +7,9 @@ from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.chat_completions.vllm.audio_transformer import (
+    transform_audio,
+)
 from aidial_adapter_openai.chat_completions.vllm.tokenizer import (
     VllmTokenizer,
 )
@@ -83,8 +86,9 @@ async def chat_completion(
 
     multi_modal_messages = await ResourceProcessor(
         file_storage=file_storage,
-        support_audio=True,
     ).transform_messages(messages)
+
+    multi_modal_messages = transform_audio(multi_modal_messages)
 
     (
         multi_modal_messages,
