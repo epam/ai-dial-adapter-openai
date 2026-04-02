@@ -71,6 +71,7 @@
   - [Lint](#lint)
   - [Test](#test)
   - [Clean](#clean)
+  - [Git hooks](#git-hooks)
 
 ---
 
