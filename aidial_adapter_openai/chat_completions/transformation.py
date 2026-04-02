@@ -149,6 +149,16 @@ class MessageTransformer:
         self.images.append(result)
         return result.to_content_part()
 
+    def parse_audio_content_part(
+        self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
+    ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart:
+        input_audio = ensure_dict("input_audio", part.get("input_audio"))  # type: ignore[arg-type]
+        data = ensure_str("input_audio.data", input_audio.get("data"))
+        fmt = ensure_str("input_audio.format", input_audio.get("format"))
+        resource = Resource.from_base64(type=f"audio/{fmt}", data_base64=data)
+        self.audios.append(AudioResource.from_resource(resource))
+        return part
+
     async def download_content_part(
         self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
     ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart | None:
@@ -157,8 +167,7 @@ class MessageTransformer:
             case "image_url":
                 return await self.download_image_content_part(part)
             case "input_audio":
-                self.audios.append(AudioResource.from_content_part(dict(part)))
-                return part
+                return self.parse_audio_content_part(part)
             case "text" | "refusal" | "file":
                 return part
             case _:
