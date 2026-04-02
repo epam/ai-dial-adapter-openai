@@ -4,6 +4,7 @@ from typing import List, Set, assert_never
 from aidial_sdk.exceptions import InvalidRequestError
 from openai.types.chat import (
     ChatCompletionContentPartImageParam,
+    ChatCompletionContentPartInputAudioParam,
     ChatCompletionContentPartParam,
 )
 from openai.types.chat.chat_completion_assistant_message_param import (
@@ -85,11 +86,19 @@ class MessageTransformer:
 
     async def download_attachments(
         self, attachments: List[dict]
-    ) -> List[ChatCompletionContentPartImageParam | File]:
+    ) -> List[
+        ChatCompletionContentPartImageParam
+        | ChatCompletionContentPartInputAudioParam
+        | File
+    ]:
         if attachments:
             logger.debug(f"original attachments: {attachments}")
 
-        ret: List[ChatCompletionContentPartImageParam | File] = []
+        ret: List[
+            ChatCompletionContentPartImageParam
+            | ChatCompletionContentPartInputAudioParam
+            | File
+        ] = []
         for attachment in attachments:
             if result := await self.download_attachment(attachment):
                 ret.append(result)
@@ -97,7 +106,12 @@ class MessageTransformer:
 
     async def download_attachment(
         self, attachment: dict
-    ) -> ChatCompletionContentPartImageParam | File | None:
+    ) -> (
+        ChatCompletionContentPartImageParam
+        | ChatCompletionContentPartInputAudioParam
+        | File
+        | None
+    ):
         dial_resource = AttachmentResource(
             attachment=parse_attachment(attachment),
             entity_name="attachment",
@@ -143,7 +157,7 @@ class MessageTransformer:
             case "image_url":
                 return await self.download_image_content_part(part)
             case "input_audio":
-                self.audios.append(AudioResource.from_content_part(part))
+                self.audios.append(AudioResource.from_content_part(dict(part)))
                 return part
             case "text" | "refusal" | "file":
                 return part
