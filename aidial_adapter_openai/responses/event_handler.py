@@ -144,8 +144,8 @@ class EventHandler(pydantic.BaseModel):
     """Map item_id for a tool call onto its index in the chat completion response
     """
 
-    stages: int = 0
-    """Number of stages attached to the choice"""
+    stage: dict = {}
+    """Stage life cycle memory"""
 
     @property
     def id(self) -> str:
@@ -166,48 +166,58 @@ class EventHandler(pydantic.BaseModel):
         return self.model_
 
     def _append_to_stage(
-        self, stage_index: int, content: str
+        self, content: str, name: str | None = None
     ) -> Generator[ChatCompletionChunk, None, None]:
-        for index in range(self.stages, stage_index + 1):
-            suffix = "" if index == 0 else f" #{index + 1}"
-            yield self._open_stage(index, "Reasoning" + suffix)
+        if not self.stage:
+            yield self._open_stage(name=name or "Default")
 
-        self.stages = max(self.stages, stage_index + 1)
+        self.stage["index"] += 1
+        if name:
+            self.stage["name"] = name
 
+        suffix = f"#{self.stage['index']}"
+        name = f"{self.stage['name']} {suffix}"
+        stage = {"index": self.stage["index"], "name": name, "content": content}
         yield self._chunk(
             choice=Choice(
                 index=0,
                 delta=ChoiceDelta(
                     custom_content={  # type: ignore
-                        "stages": [{"index": stage_index, "content": content}]
+                        "stages": [stage]
                     }
                 ),
             )
         )
 
-    def _open_stage(self, stage_index: int, name: str) -> ChatCompletionChunk:
+    def _open_stage(
+        self, name: str, stage_index: int = 0
+    ) -> ChatCompletionChunk:
+        self.stage = {"index": stage_index, "name": name}
         return self._chunk(
             choice=Choice(
                 index=0,
                 delta=ChoiceDelta(
                     custom_content={  # type: ignore
-                        "stages": [{"index": stage_index, "name": name}]
+                        "stages": [self.stage]
                     }
                 ),
             )
         )
 
     def _close_stage(
-        self, stage_index: int, name: str | None = None
-    ) -> ChatCompletionChunk:
-        stages = {"index": stage_index, "status": "completed"}
-        if name:
-            stages["name"] = name
-        return self._chunk(
+        self, name: str | None = None
+    ) -> Generator[ChatCompletionChunk, None, None]:
+        if not self.stage:
+            yield self._open_stage(name=name or "Default")
+
+        self.stage["index"] += 1
+        self.stage["status"] = "completed"
+        stage = {"index": self.stage["index"], "status": self.stage["status"]}
+        yield self._chunk(
             choice=Choice(
                 index=0,
                 delta=ChoiceDelta(
-                    custom_content={"stages": [stages]}  # type: ignore
+                    custom_content={"stages": [stage]}  # type: ignore
                 ),
             )
         )
@@ -363,7 +373,10 @@ class EventHandler(pydantic.BaseModel):
 
             case ResponseTextDeltaEvent(delta=delta):
                 yield self._chunk(
-                    choice=Choice(index=0, delta=ChoiceDelta(content=delta))
+                    choice=Choice(
+                        index=0,
+                        delta=ChoiceDelta(content=delta, role="assistant"),
+                    )
                 )
 
             case (
@@ -378,6 +391,19 @@ class EventHandler(pydantic.BaseModel):
                     ),
                     usage=get_usage(response),
                 )
+
+            case ResponseOutputItemDoneEvent(item=item):
+                match item:
+                    case ResponseFunctionWebSearch(action=action):
+                        action_dump = action.model_dump()
+                        query = action_dump.get("query", "")
+                        action_type = action_dump.get("type", "unknown")
+                        details = [f"type: {action_type}"]
+                        if query:
+                            details.append(f"query: {query}")
+                        yield from self._append_to_stage(
+                            content=json.dumps("\n".join(details)),
+                        )
 
             case ResponseOutputItemAddedEvent(item=item):
                 match item:
@@ -394,7 +420,8 @@ class EventHandler(pydantic.BaseModel):
                         yield self._tool_call_chunk_open(
                             item_id, arguments, name, call_id
                         )
-
+                    case ResponseFunctionWebSearch():
+                        yield self._open_stage("Web Search")
                     case (
                         ResponseOutputMessage()
                         | ResponseFileSearchToolCall()
@@ -424,16 +451,16 @@ class EventHandler(pydantic.BaseModel):
             ):
                 yield self._tool_call_delta(item_id, delta)
 
-            case ResponseReasoningSummaryTextDeltaEvent(
-                delta=content, summary_index=index
-            ):
-                yield from self._append_to_stage(index, content)
+            case ResponseReasoningSummaryTextDeltaEvent(delta=content):
+                yield from self._append_to_stage(
+                    content=content, name="Reasoning"
+                )
 
-            case ResponseReasoningSummaryTextDoneEvent(summary_index=index):
-                yield self._close_stage(stage_index=index)
+            case ResponseReasoningSummaryTextDoneEvent():
+                yield from self._close_stage()
 
-            case ResponseWebSearchCallCompletedEvent(output_index=index):
-                yield self._close_stage(stage_index=index, name="Web Search")
+            case ResponseWebSearchCallCompletedEvent():
+                yield from self._close_stage()
 
             case ResponseOutputTextAnnotationAddedEvent(annotation=annotation):
                 if isinstance(annotation, dict):

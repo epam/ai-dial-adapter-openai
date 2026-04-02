@@ -177,6 +177,28 @@ async def test_web_search_streaming_annotations_and_attachments(
                 "response": created_response.model_dump(),
             },
             {
+                "item": {
+                    "id": "msg_id",
+                    "action": None,
+                    "status": "in_progress",
+                    "type": "web_search_call",
+                },
+                "output_index": 0,
+                "sequence_number": 2,
+                "type": "response.output_item.added",
+            },
+            {
+                "item": {
+                    "id": "msg_id",
+                    "action": {"query": "Weather in Kyiv", "type": "search"},
+                    "status": "completed",
+                    "type": "web_search_call",
+                },
+                "output_index": 0,
+                "sequence_number": 6,
+                "type": "response.output_item.done",
+            },
+            {
                 "type": "response.output_text.delta",
                 "delta": "Kyiv weather is mild.",
                 "item_id": "msg_id",
@@ -242,11 +264,21 @@ async def test_web_search_streaming_annotations_and_attachments(
     chunks, saw_done = _read_stream_chunks(response)
     assert saw_done
 
-    assert chunks[0]["choices"][0]["delta"]["role"] == "assistant"
+    assert chunks[1]["choices"][0]["delta"]["custom_content"] == {
+        "stages": [{"index": 0, "name": "Web Search"}]
+    }
+    assert chunks[2]["choices"][0]["delta"]["custom_content"]["stages"] == [
+        {
+            "index": 1,
+            "name": "Web Search #1",
+            "content": '"type: search\\nquery: Weather in Kyiv"',
+        }
+    ]
+    assert chunks[3]["choices"][0]["delta"]["role"] == "assistant"
     assert (
-        chunks[1]["choices"][0]["delta"]["content"] == "Kyiv weather is mild."
+        chunks[3]["choices"][0]["delta"]["content"] == "Kyiv weather is mild."
     )
-    assert chunks[2]["choices"][0]["delta"]["annotations"] == [
+    assert chunks[4]["choices"][0]["delta"]["annotations"] == [
         {
             "type": "url_citation",
             "url_citation": {
@@ -257,7 +289,7 @@ async def test_web_search_streaming_annotations_and_attachments(
             },
         }
     ]
-    assert chunks[3]["choices"][0]["delta"]["custom_content"] == {
+    assert chunks[5]["choices"][0]["delta"]["custom_content"] == {
         "attachments": [
             {
                 "type": "text/markdown",
@@ -266,10 +298,10 @@ async def test_web_search_streaming_annotations_and_attachments(
             }
         ]
     }
-    assert chunks[4]["choices"][0]["delta"]["custom_content"] == {
-        "stages": [{"index": 0, "status": "completed", "name": "Web Search"}]
+    assert chunks[6]["choices"][0]["delta"]["custom_content"] == {
+        "stages": [{"index": 2, "status": "completed"}]
     }
-    assert chunks[5]["choices"][0]["finish_reason"] == "stop"
+    assert chunks[7]["choices"][0]["finish_reason"] == "stop"
 
 
 def test_convert_tools_web_search():
