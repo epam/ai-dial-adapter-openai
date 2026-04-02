@@ -38,6 +38,9 @@ test: install
 integration_test: install
 	$(POETRY) run -- nox -s integration_test -- $(ARGS)
 
+install_git_hooks: install
+	$(VENV_DIR)/bin/pre-commit install
+
 docker_serve:
 	docker build --platform $(PLATFORM) -t $(IMAGE_NAME):dev .
 	docker run --platform $(PLATFORM) --env-file ./.env --rm -p $(PORT):5000 $(IMAGE_NAME):dev
@@ -46,6 +49,7 @@ help:
 	@echo '===================='
 	@echo 'build                        - build the source and wheels archives'
 	@echo 'clean                        - clean virtual env and build artifacts'
+	@echo 'install_git_hooks            - install the git hooks'
 	@echo '-- LINTING --'
 	@echo 'format                       - run code formatters'
 	@echo 'lint                         - run linters'
