@@ -32,6 +32,9 @@ from aidial_adapter_openai.chat_completions.vllm import (
     chat_completion as vllm_chat_completion,
 )
 from aidial_adapter_openai.chat_completions.vllm import (
+    extract_qwen3_asr_language as vllm_extract_qwen3_asr_language,
+)
+from aidial_adapter_openai.chat_completions.vllm import (
     extract_reasoning as vllm_extract_reasoning,
 )
 from aidial_adapter_openai.completions import chat_completion as completion
@@ -103,7 +106,11 @@ async def call_chat_completion(
 
     creds = await get_credentials(
         request_headers,
-        azure=deployment_type != D.VLLM_CHAT_COMPLETIONS_API,
+        azure=deployment_type
+        not in (
+            D.VLLM_CHAT_COMPLETIONS_API,
+            D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API,
+        ),
     )
 
     upstream_extra_headers = get_upstream_extra_headers(request_headers)
@@ -223,6 +230,21 @@ async def call_chat_completion(
             )
 
             response.body = vllm_extract_reasoning(response.body)
+
+            return response
+
+        case D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API:
+            vllm_tokenizer = VllmTokenizer(
+                upstream_endpoint=upstream_endpoint,
+            )
+            response = await vllm_chat_completion(
+                request=request_body,
+                client=client,
+                file_storage=file_storage,
+                tokenizer=vllm_tokenizer,
+            )
+
+            response.body = vllm_extract_qwen3_asr_language(response.body)
 
             return response
 

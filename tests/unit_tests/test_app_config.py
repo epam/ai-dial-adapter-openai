@@ -147,3 +147,14 @@ def test_app_config_dalle_azure(
         azure_endpoint=f"{origin}/whatever1/whatever2",
         azure_deployment=deployment_name,
     )
+
+
+def test_app_config_qwen3_asr_vllm_deployments(origin: str, deployment: str):
+    cfg = ApplicationConfig(QWEN3_ASR_VLLM_DEPLOYMENTS=[deployment])
+
+    ty = cfg.get_chat_completion_deployment_type(
+        deployment,
+        f"{origin}/whatever1/whatever2/chat/completions",
+    )
+
+    assert ty.deployment_type == D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
