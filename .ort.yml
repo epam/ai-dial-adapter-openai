@@ -16,6 +16,9 @@ license_choices:
       choice: FTL
 resolutions:
   rule_violations:
+    - message: ".*PyPI::pyjwt:2\\.12\\.0.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "MIT License: https://github.com/jpadilla/pyjwt/blob/2.12.0/LICENSE"
     - message: ".*PyPI::numpy:2\\.3\\.3.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "BSD 3-Clause license: https://github.com/numpy/numpy/blob/v2.3.3/LICENSES_bundled.txt"
