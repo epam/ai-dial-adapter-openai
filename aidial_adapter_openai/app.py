@@ -39,6 +39,7 @@ def create_app(
     set_app_config(app, app_config or ApplicationConfig.from_env())
 
     app.get("/health")(endpoints.health)
+    app.post("/openai/v1/responses")(endpoints.responses)
     app.post("/openai/deployments/{deployment_id:path}/embeddings")(
         endpoints.embedding
     )

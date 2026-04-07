@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
 from fastapi import Request
-from openai import AsyncAzureOpenAI, AsyncOpenAI, Timeout
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 from typing_extensions import TypedDict
 
 from aidial_adapter_openai.utils.http_client import get_http_client
@@ -16,8 +16,8 @@ class OpenAIParams(TypedDict, total=False):
     base_url: str
     api_key: str
     azure_ad_token: str
-    api_version: str
-    timeout: Timeout
+    api_version: str | None
+    headers: dict[str, str]
 
 
 # Retries are handled on the DIAL Core side
@@ -37,8 +37,8 @@ class AzureOpenAIEndpoint(ExtraForbidModel):
             api_key=params.get("api_key"),
             azure_ad_token=params.get("azure_ad_token"),
             api_version=params.get("api_version"),
-            timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
+            default_headers=params.get("headers"),
             http_client=get_http_client(),
         )
 
@@ -52,8 +52,8 @@ class OpenAIEndpoint(ExtraForbidModel):
         return AsyncOpenAI(
             base_url=self.base_url,
             api_key=api_key,
-            timeout=params.get("timeout"),
             max_retries=_MAX_RETRIES,
+            default_headers=params.get("headers"),
             http_client=get_http_client(),
         )
 
@@ -97,6 +97,17 @@ class EndpointParser(ExtraForbidModel):
         raise bad_upstream_endpoint()
 
 
+class OptionalEndpointParser(ExtraForbidModel):
+    name: str | None
+
+    def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
+        result = _parse_endpoint(self.name, endpoint)
+        result = result or _parse_endpoint(None, endpoint)
+        if result:
+            return result
+        raise bad_upstream_endpoint()
+
+
 class CompletionsParser(ExtraForbidModel):
     def try_parse(
         self, endpoint: str
@@ -108,12 +119,14 @@ class CompletionsParser(ExtraForbidModel):
 
 
 chat_completions_parser = EndpointParser(name="chat/completions")
+chat_completions_optional_parser = OptionalEndpointParser(
+    name="chat/completions"
+)
 image_gen_parser = EndpointParser(name="images/generations")
 speech_parser = EndpointParser(name="audio/speech")
 transcriptions_parser = EndpointParser(name="audio/transcriptions")
 embeddings_parser = EndpointParser(name="embeddings")
 responses_parser = EndpointParser(name="responses")
-no_endpoint_parser = EndpointParser(name=None)
 completions_parser = CompletionsParser()
 azure_video_api_parser = EndpointParser(name="video/generations")
 openai_video_api_parser = EndpointParser(name="videos")

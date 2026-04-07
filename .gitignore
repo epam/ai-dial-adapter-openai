@@ -2,6 +2,7 @@
 venv
 .venv
 .env
+.env.dev
 .history
 .idea
 __pycache__
