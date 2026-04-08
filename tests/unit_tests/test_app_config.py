@@ -158,3 +158,24 @@ def test_app_config_qwen3_asr_vllm_deployments(origin: str, deployment: str):
     )
 
     assert ty.deployment_type == D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+
+
+def test_is_azure_for_generic_deployment(deployment: str):
+    cfg = ApplicationConfig()
+    assert cfg.is_azure(deployment)
+
+
+@pytest.mark.parametrize(
+    "cfg",
+    [
+        ApplicationConfig(VLLM_DEPLOYMENTS=["vllm-deployment"]),
+        ApplicationConfig(
+            QWEN3_ASR_VLLM_DEPLOYMENTS=["qwen3-asr-vllm-deployment"]
+        ),
+    ],
+)
+def test_is_azure_for_non_azure_vllm_families(cfg: ApplicationConfig):
+    deployment_id = next(
+        iter(cfg.VLLM_DEPLOYMENTS or cfg.QWEN3_ASR_VLLM_DEPLOYMENTS)
+    )
+    assert not cfg.is_azure(deployment_id)

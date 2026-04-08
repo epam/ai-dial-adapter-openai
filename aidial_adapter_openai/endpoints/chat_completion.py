@@ -106,11 +106,7 @@ async def call_chat_completion(
 
     creds = await get_credentials(
         request_headers,
-        azure=deployment_type
-        not in (
-            D.VLLM_CHAT_COMPLETIONS_API,
-            D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API,
-        ),
+        azure=app_config.is_azure(deployment_id),
     )
 
     upstream_extra_headers = get_upstream_extra_headers(request_headers)

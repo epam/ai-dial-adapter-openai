@@ -65,6 +65,15 @@ class ApplicationConfig(ExtraForbidModel):
 
     AUDIO_AZURE_API_VERSION: str = "2025-03-01-preview"
 
+    def is_azure(self, deployment_id: str) -> bool:
+        for deployments in [
+            self.VLLM_DEPLOYMENTS,
+            self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+        ]:
+            if deployment_id in deployments:
+                return False
+        return True
+
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
     ) -> DeploymentAPIType:
