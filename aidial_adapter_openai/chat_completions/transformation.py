@@ -150,9 +150,9 @@ class MessageTransformer:
         return result.to_content_part()
 
     def parse_audio_content_part(
-        self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
-    ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart:
-        input_audio = ensure_dict("input_audio", part.get("input_audio"))  # type: ignore[arg-type]
+        self, part: ChatCompletionContentPartInputAudioParam
+    ) -> ChatCompletionContentPartInputAudioParam:
+        input_audio = ensure_dict("input_audio", part["input_audio"])
         data = ensure_str("input_audio.data", input_audio.get("data"))
         fmt = ensure_str("input_audio.format", input_audio.get("format"))
         resource = Resource.from_base64(type=f"audio/{fmt}", data_base64=data)
