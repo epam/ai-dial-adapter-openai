@@ -214,7 +214,9 @@ async def call_chat_completion(
             else:
                 assert_never(deployment_type)
 
-        case D.VLLM_CHAT_COMPLETIONS_API:
+        case (
+            D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+        ):
             vllm_tokenizer = VllmTokenizer(
                 upstream_endpoint=upstream_endpoint,
             )
@@ -225,22 +227,10 @@ async def call_chat_completion(
                 tokenizer=vllm_tokenizer,
             )
 
-            response.body = vllm_extract_reasoning(response.body)
-
-            return response
-
-        case D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API:
-            vllm_tokenizer = VllmTokenizer(
-                upstream_endpoint=upstream_endpoint,
-            )
-            response = await vllm_chat_completion(
-                request=request_body,
-                client=client,
-                file_storage=file_storage,
-                tokenizer=vllm_tokenizer,
-            )
-
-            response.body = vllm_extract_qwen3_asr_language(response.body)
+            if deployment_type == D.VLLM_CHAT_COMPLETIONS_API:
+                response.body = vllm_extract_reasoning(response.body)
+            else:
+                response.body = vllm_extract_qwen3_asr_language(response.body)
 
             return response
 
