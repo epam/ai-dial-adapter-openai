@@ -30,7 +30,7 @@
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
     - [vLLM Chat Completion API](#vllm-chat-completion-api)
-    - [Qwen3-ASR via vLLM Chat Completion API](#qwen3-asr-via-vllm-chat-completion-api)
+      - [Qwen3-ASR](#qwen3-asr)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
@@ -668,12 +668,12 @@ vLLM provides an OpenAI-compatible Chat Completions API and can be connected to 
 
 Enable the vLLM-specific flow by adding `${ADAPTER_DEPLOYMENT_ID}` to the environment variable `VLLM_DEPLOYMENTS`.
 
-#### Qwen3-ASR via vLLM Chat Completion API
+##### Qwen3-ASR
 
-[Qwen3-ASR](https://huggingface.co/Qwen/Qwen3-ASR) is an automatic speech recognition model that can be served via vLLM. The adapter provides first-class support for Qwen3-ASR deployments:
+You can connect the [Qwen3-ASR](https://docs.vllm.ai/projects/recipes/en/latest/Qwen/Qwen3-ASR.html) model served with vLLM to DIAL. This adapter provides first-class support for this integration scenario:
 
-- **Audio attachments**: Clients send audio files as DIAL attachments (any format supported by the model). The adapter converts them into the `input_audio` content parts expected by the vLLM Chat Completions API.
-- **ASR language metadata extraction**: Qwen3-ASR prepends its output with a language header in the form `language English<asr_text>recognized text`. The adapter automatically parses this prefix, strips it from the response content, and reports the detected language in a dedicated DIAL stage titled `Language: English` (or whichever language was detected). If the prefix is absent the response is passed through unchanged.
+- **Audio attachments**: Clients send audio files as DIAL attachments (mime types `audio/*`). The adapter converts them into the content parts expected by the vLLM Chat Completions API.
+- **ASR language metadata extraction**: The adapter reports the detected language in a dedicated DIAL stage titled `Language: English` (or whichever language was detected).
 
 > [!NOTE]
 > `QWEN3_ASR_VLLM_DEPLOYMENTS` is separate from `VLLM_DEPLOYMENTS`. Deployments listed in `QWEN3_ASR_VLLM_DEPLOYMENTS` receive the ASR language extraction post-processing, while regular `VLLM_DEPLOYMENTS` receive reasoning extraction instead.
@@ -967,20 +967,20 @@ Copy `.env.example` to `.env` and customize it for your environment.
 
 The following variables cluster all deployments into the groups of deployments which share the same API and the same tokenization algorithm.
 
-|Variable|Default|Description|
-|---|---|---|
-|DALLE3_DEPLOYMENTS|``|Comma-separated list of deployments that support DALL-E 3 API. Example: `dall-e-3,dalle3,dall-e`|
-|DALLE3_AZURE_API_VERSION|2024-02-01|The API version for requests to the Azure DALL·E 3 API|
-|GPT_IMAGE_1_DEPLOYMENTS|``|Comma-separated list of deployments that support GPT-Image 1 API. Example: `gpt-image-1`|
-|GPT_IMAGE_1_AZURE_API_VERSION|2024-02-01|The API version for requests to the Azure GPT-Image 1 API|
-|MISTRAL_DEPLOYMENTS|``|Comma-separated list of deployments that support Mistral Large Azure API. Example: `mistral-large-azure,mistral-large`|
-|DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
-|GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
-|GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
-|VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`|
-|QWEN3_ASR_VLLM_DEPLOYMENTS|``|Comma-separated list of Qwen3-ASR deployments served via vLLM. These deployments accept audio attachments and have the ASR language metadata automatically extracted into a DIAL stage. Example: `qwen3-asr`|
-|AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
-|AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
+|Variable|Default| Description                                                                                                                                                                                    |
+|---|---|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|DALLE3_DEPLOYMENTS|``| Comma-separated list of deployments that support DALL-E 3 API. Example: `dall-e-3,dalle3,dall-e`                                                                                               |
+|DALLE3_AZURE_API_VERSION|2024-02-01| The API version for requests to the Azure DALL·E 3 API                                                                                                                                         |
+|GPT_IMAGE_1_DEPLOYMENTS|``| Comma-separated list of deployments that support GPT-Image 1 API. Example: `gpt-image-1`                                                                                                       |
+|GPT_IMAGE_1_AZURE_API_VERSION|2024-02-01| The API version for requests to the Azure GPT-Image 1 API                                                                                                                                      |
+|MISTRAL_DEPLOYMENTS|``| Comma-separated list of deployments that support Mistral Large Azure API. Example: `mistral-large-azure,mistral-large`                                                                         |
+|DATABRICKS_DEPLOYMENTS|``| Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`                               |
+|GPT4O_DEPLOYMENTS|``| Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`                                                                                                       |
+|GPT4O_MINI_DEPLOYMENTS|``| Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`                                                                                             |
+|VLLM_DEPLOYMENTS|``| Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`                                                                              |
+|QWEN3_ASR_VLLM_DEPLOYMENTS|``| Comma-separated list of [Qwen3-ASR deployments](#qwen3-asr) served via vLLM. Example: `qwen3-asr`                                                                                              |
+|AZURE_AI_VISION_DEPLOYMENTS|``| Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/` |
+|AUDIO_AZURE_API_VERSION|2025-03-01-preview| The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.                                                                                                             |
 
 Deployments that do not fall into any of the categories are considered to support text-to-text chat completion OpenAI API or text embeddings OpenAI API.
 
