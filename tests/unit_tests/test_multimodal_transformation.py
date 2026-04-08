@@ -370,7 +370,7 @@ async def test_transform_to_unified_messages(
     assert result == expected_transformations
 
 
-async def test_input_audio_passthrough(
+async def test_audio_in_content_part(
     mock_resource_processor: ResourceProcessor,
 ):
     messages = [
@@ -397,7 +397,7 @@ async def test_input_audio_passthrough(
     assert result[0].audios[0].audio.type == "audio/wav"
 
 
-async def test_audio_attachment_stored_in_audios(
+async def test_audio_in_attachments(
     mock_message_transformer: MessageTransformer,
 ):
     message = {
