@@ -1,5 +1,3 @@
-import base64
-
 import pytest
 
 from aidial_adapter_openai.chat_completions.transformation import (
@@ -61,7 +59,7 @@ async def test_audio_attachment_converted_to_audio_url(audio, text):
 
 
 async def test_input_audio_converted_to_audio_url():
-    wav_b64 = base64.b64encode(b"RIFF\x00\x00\x00\x00WAVEfmt ").decode()
+    wav_b64 = _audio_wav.data_base64
     messages = [
         {
             "role": "user",
