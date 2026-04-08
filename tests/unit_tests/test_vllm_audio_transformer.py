@@ -16,18 +16,18 @@ _audio_wav = Resource(type="audio/wav", data=b"RIFF\x00\x00\x00\x00WAVEfmt ")
 _audio_mp3 = Resource(type="audio/mpeg", data=b"\xff\xfb\x90\x00dummy mp3")
 
 
-def attachment(resource: Resource) -> dict:
+def _attachment(resource: Resource) -> dict:
     return {"type": resource.type, "data": resource.data_base64}
 
 
-def audio_url_part(resource: Resource) -> dict:
+def _audio_url_part(resource: Resource) -> dict:
     return {
         "type": "audio_url",
         "audio_url": {"url": resource.to_data_url()},
     }
 
 
-def text_part(text: str) -> dict:
+def _text_part(text: str) -> dict:
     return {"type": "text", "text": text}
 
 
@@ -48,15 +48,15 @@ async def test_audio_attachment_converted_to_audio_url(audio, text):
     message = {
         "role": "user",
         "content": text,
-        "custom_content": {"attachments": [attachment(audio)]},
+        "custom_content": {"attachments": [_attachment(audio)]},
     }
     general = await _general_transform([message])
     result = transform_audio(general)
 
     assert len(result) == 1
     assert result[0].raw_message["content"] == [
-        text_part(text),
-        audio_url_part(audio),
+        _text_part(text),
+        _audio_url_part(audio),
     ]
 
 
