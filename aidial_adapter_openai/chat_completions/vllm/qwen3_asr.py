@@ -19,9 +19,12 @@ class _Qwen3AsrResponseTransformer(BaseModel):
     """Extract leading Qwen3-ASR language metadata from vLLM content.
 
     Supported prefix format:
-    `language English<asr_text>recognized text`
+        `language English<asr_text>recognized text`
 
-    See: https://docs.vllm.ai/projects/recipes/en/latest/Qwen/Qwen3-ASR.html
+    References:
+        - vLLM guide: https://docs.vllm.ai/projects/recipes/en/latest/Qwen/Qwen3-ASR.html
+        - Model maintainer's API call examples: https://github.com/QwenLM/Qwen3-ASR#vllm-backend
+        - Upstream parsing logic: https://github.com/QwenLM/Qwen3-ASR/blob/c17a131fe028b2e428b6e80a33d30bb4fa57b8df/qwen_asr/inference/utils.py#L403
     """
 
     streaming: bool
