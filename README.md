@@ -30,6 +30,7 @@
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
     - [vLLM Chat Completion API](#vllm-chat-completion-api)
+      - [Qwen3-ASR](#qwen3-asr)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
@@ -667,6 +668,16 @@ vLLM provides an OpenAI-compatible Chat Completions API and can be connected to 
 
 Enable the vLLM-specific flow by adding `${ADAPTER_DEPLOYMENT_ID}` to the environment variable `VLLM_DEPLOYMENTS`.
 
+##### Qwen3-ASR
+
+You can connect the [Qwen3-ASR](https://docs.vllm.ai/projects/recipes/en/latest/Qwen/Qwen3-ASR.html) model served with vLLM to DIAL. This adapter provides first-class support for this integration scenario:
+
+- **Audio attachments**: Clients send audio files as DIAL attachments (mime types `audio/*`). The adapter converts them into the content parts expected by the vLLM Chat Completions API.
+- **ASR language metadata extraction**: The adapter reports the detected language in a dedicated DIAL stage titled `Language: English` (or whichever language was detected).
+
+> [!NOTE]
+> `QWEN3_ASR_VLLM_DEPLOYMENTS` is separate from `VLLM_DEPLOYMENTS`. Deployments listed in `QWEN3_ASR_VLLM_DEPLOYMENTS` receive the ASR language extraction post-processing, while regular `VLLM_DEPLOYMENTS` receive reasoning extraction instead.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
@@ -975,6 +986,7 @@ The following variables cluster all deployments into the groups of deployments w
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
 |VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`|
+|QWEN3_ASR_VLLM_DEPLOYMENTS|``| Comma-separated list of [Qwen3-ASR deployments](#qwen3-asr) served via vLLM. Example: `qwen3-asr`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
 

@@ -56,6 +56,7 @@ def _get_deployment_configuration(
             | D.DATABRICKS
             | D.GPT_GENERIC
             | D.VLLM_CHAT_COMPLETIONS_API
+            | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
         ):
             return None
 

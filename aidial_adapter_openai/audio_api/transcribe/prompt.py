@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import mimetypes
-from typing import Any, List
+from typing import Any
 
 from aidial_sdk.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -11,7 +11,6 @@ from aidial_adapter_openai.chat_completions.transformation import (
 )
 from aidial_adapter_openai.dial_api.request import collect_message_text_content
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.resource.file import FileResource
 
 
 def _collect_system_messages(messages: list[dict]) -> str | None:
@@ -50,12 +49,7 @@ class TranscribePrompt(BaseModel):
 
         system_message = _collect_system_messages(messages)
 
-        audios: List[FileResource] = []
-
-        for message in result:
-            for file in message.files:
-                if file.resource.type.startswith("audio"):
-                    audios.append(file)
+        audios = [audio for message in result for audio in message.audios]
 
         if not audios:
             msg = "No audio attachment found in the last message"
@@ -66,7 +60,7 @@ class TranscribePrompt(BaseModel):
             raise RequestValidationError(message=msg, display_message=msg)
 
         audio = audios[0]
-        audio_data, audio_type = (audio.resource.data, audio.resource.type)
+        audio_data, audio_type = (audio.audio.data, audio.audio.type)
         fileext = mimetypes.guess_extension(audio_type) or ".mp3"
         audio_filename = f"file{fileext}"
 
