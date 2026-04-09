@@ -72,6 +72,7 @@
   - [Lint](#lint)
   - [Test](#test)
   - [Clean](#clean)
+  - [Git hooks](#git-hooks)
 
 ---
 
@@ -811,6 +812,8 @@ When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter tr
 
 ## Responses API deployments
 
+**Since:** `ai-dial-adapter-openai:0.38.0` AND `ai-dial-core:0.42.0`
+
 The adapter is able to proxy requests to models supporting [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
 
 The following Responses API endpoints are exposed by the adapter:
@@ -828,6 +831,10 @@ Current limitations:
 
 ### Supported upstream Responses APIs
 
+Note that in the following DIAL Core config examples, `responsesEndpoint` URL enables Responses API in DIAL.
+Whereas, `endpoint` URL is required and enables Chat Completions API in DIAL.
+If you don't need Chat Completions API, the `endpoint` URL could be set to any dummy value. Otherwise, configure it according to the instructions in the [Chat Completions section](#chat-completions-api-deployments).
+
 #### Azure OpenAI Responses API
 
 <details><summary>DIAL Core Config</summary>
@@ -838,18 +845,19 @@ Current limitations:
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
       "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "endpoint": "http://dummy-endpoint",
       "upstreams": [
         {
-          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME1}.openai.azure.com/openai/v1/responses",
+          "responsesEndpoint": "https://${AZURE_OPENAI_SERVICE_NAME1}.openai.azure.com/openai/v1/responses",
           "key": "${OPTIONAL_API_KEY1}"
         },
         {
-          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME2}.openai.azure.com/openai/v1/responses",
+          "responsesEndpoint": "https://${AZURE_OPENAI_SERVICE_NAME2}.openai.azure.com/openai/v1/responses",
           "key": "${OPTIONAL_API_KEY2}"
         },
         {
-          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME3}.openai.azure.com/openai/v1/responses",
+          "responsesEndpoint": "https://${AZURE_OPENAI_SERVICE_NAME3}.openai.azure.com/openai/v1/responses",
           "key": "${OPTIONAL_API_KEY3}"
         }
       ]
@@ -869,11 +877,12 @@ Current limitations:
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "overrideName": "${OPENAI_PLATFORM_MODEL_NAME}",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "endpoint": "http://dummy-endpoint",
       "upstreams": [
         {
-          "endpoint": "https://api.openai.com/v1/responses",
+          "responsesEndpoint": "https://api.openai.com/v1/responses",
           "key": "${API_KEY}"
         }
       ]
@@ -1507,3 +1516,15 @@ To remove the virtual environment and build artifacts:
 ```sh
 make clean
 ```
+
+
+### Git hooks
+
+You may optionally install Git hooks that will automatically run the linting step on Git push. You only need to do it once for the given repository.
+
+```sh
+make install_git_hooks
+```
+
+> [!IMPORTANT]
+> This command doesn't work if you have already installed Git hooks locally or globally.
