@@ -400,6 +400,11 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                 logger.info(
                     f"[web_search] tool call: id={item_id}, action={action}"
                 )
+                action_to_content_field_name = {
+                    "search": "query",
+                    "open_page": "url",
+                    "unknown": "",
+                }
                 web_search_calls_count += 1
                 suffix = (
                     ""
@@ -408,16 +413,14 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                 )
                 action_dump = action.model_dump(exclude_none=True)
                 action_type = action_dump.get("type", "unknown")
-                query = action_dump.get("query")
-                details = [f"type: {action_type}"]
-                if query:
-                    details.append(f"query: {query}")
-
+                content = action_dump.get(
+                    action_to_content_field_name[action_type]
+                )
                 stages.append(
                     Stage(
                         name="Web Search" + suffix,
                         status=Status.COMPLETED,
-                        content="\n".join(details),
+                        content=f"{action_type}: {content}",
                     )
                 )
 

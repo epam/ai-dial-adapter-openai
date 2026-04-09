@@ -177,6 +177,11 @@ async def test_web_search_streaming_annotations_and_attachments(
                 "response": created_response.model_dump(),
             },
             {
+                "type": "response.web_search_call.in_progress",
+                "item_id": "msg_id",
+                "output_index": 0,
+            },
+            {
                 "item": {
                     "id": "msg_id",
                     "action": None,
@@ -218,11 +223,6 @@ async def test_web_search_streaming_annotations_and_attachments(
                 "item_id": "msg_id",
                 "output_index": 0,
                 "content_index": 0,
-            },
-            {
-                "type": "response.web_search_call.completed",
-                "item_id": "ws_id",
-                "output_index": 0,
             },
             {
                 "type": "response.completed",
@@ -269,16 +269,18 @@ async def test_web_search_streaming_annotations_and_attachments(
     }
     assert chunks[2]["choices"][0]["delta"]["custom_content"]["stages"] == [
         {
-            "index": 1,
-            "name": "Web Search #1",
-            "content": '"type: search\\nquery: Weather in Kyiv"',
+            "index": 0,
+            "content": "search: Weather in Kyiv",
         }
     ]
-    assert chunks[3]["choices"][0]["delta"]["role"] == "assistant"
+    assert chunks[3]["choices"][0]["delta"]["custom_content"] == {
+        "stages": [{"index": 0, "status": "completed"}]
+    }
+    assert chunks[4]["choices"][0]["delta"]["role"] is None
     assert (
-        chunks[3]["choices"][0]["delta"]["content"] == "Kyiv weather is mild."
+        chunks[4]["choices"][0]["delta"]["content"] == "Kyiv weather is mild."
     )
-    assert chunks[4]["choices"][0]["delta"]["annotations"] == [
+    assert chunks[5]["choices"][0]["delta"]["annotations"] == [
         {
             "type": "url_citation",
             "url_citation": {
@@ -289,7 +291,7 @@ async def test_web_search_streaming_annotations_and_attachments(
             },
         }
     ]
-    assert chunks[5]["choices"][0]["delta"]["custom_content"] == {
+    assert chunks[6]["choices"][0]["delta"]["custom_content"] == {
         "attachments": [
             {
                 "type": "text/markdown",
@@ -297,9 +299,6 @@ async def test_web_search_streaming_annotations_and_attachments(
                 "url": "https://example.com/weather/kyiv",
             }
         ]
-    }
-    assert chunks[6]["choices"][0]["delta"]["custom_content"] == {
-        "stages": [{"index": 2, "status": "completed"}]
     }
     assert chunks[7]["choices"][0]["finish_reason"] == "stop"
 
@@ -370,7 +369,7 @@ def test_convert_response_with_web_search_call():
             {
                 "name": "Web Search",
                 "status": "completed",
-                "content": "type: search\nquery: weather Kyiv",
+                "content": "search: weather Kyiv",
             }
         ]
     }
@@ -405,12 +404,12 @@ def test_convert_response_with_multiple_web_search_calls():
             {
                 "name": "Web Search",
                 "status": "completed",
-                "content": "type: search\nquery: weather Kyiv",
+                "content": "search: weather Kyiv",
             },
             {
                 "name": "Web Search #2",
                 "status": "completed",
-                "content": "type: search\nquery: news Kyiv",
+                "content": "search: news Kyiv",
             },
         ]
     }
