@@ -6,10 +6,11 @@ import openai
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
 from fastapi.responses import StreamingResponse
-from openai import AsyncAzureOpenAI, AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI, omit
 from openai.types.audio import (
     TranscriptionTextDeltaEvent,
     TranscriptionTextDoneEvent,
+    TranscriptionTextSegmentEvent,
     TranscriptionVerbose,
 )
 from openai.types.audio.transcription_create_response import (
@@ -46,26 +47,19 @@ def _get_usage(
     if duration is not None and isinstance(duration, (float, int)):
         return TokenUsage(prompt_tokens=int(duration))
 
-    usage_dict: dict | None = getattr(chunk, "usage", None)  # type: ignore
-    if usage_dict is None:
+    if (token_usage := chunk.usage) is None:
         return None
 
-    if (type := usage_dict.get("type")) is None:
-        return None
-
-    # NOTE: gpt-4o supposed to return usage in tokens, whisper - in seconds,
-    # however whisper doesn't return usage field at all.
-    match type:
+    match token_usage.type:
         case "tokens":
             return TokenUsage(
-                prompt_tokens=usage_dict.get("input_tokens"),
-                completion_tokens=usage_dict.get("output_tokens"),
+                prompt_tokens=token_usage.input_tokens,
+                completion_tokens=token_usage.output_tokens,
             )
         case "duration":
-            return TokenUsage(prompt_tokens=int(usage_dict.get("seconds") or 0))
+            return TokenUsage(prompt_tokens=int(token_usage.seconds))
         case _:
-            logger.error(f"Unknown type of usage: {type!r}.")
-            return None
+            assert_never(token_usage.type)
 
 
 AudioResponse = (
@@ -79,13 +73,15 @@ async def normalize_audio_response(response: AudioResponse) -> AudioResponse:
     It ignores stream=true parameter and returns a block JSON response
     which is wrapped by the openai library into AsyncStream.
     """
-    if isinstance(response, openai.AsyncStream):
-        if "application/json" in response.response.headers["content-type"]:
-            response_bytes = await response.response.aread()
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"raw response: {response_bytes!r}")
+    if (
+        isinstance(response, openai.AsyncStream)
+        and "application/json" in response.response.headers["content-type"]
+    ):
+        response_bytes = await response.response.aread()
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"raw response: {response_bytes!r}")
 
-            return TranscriptionVerbose.parse_raw(response_bytes)
+        return TranscriptionVerbose.model_validate_json(response_bytes)
 
     return response
 
@@ -109,11 +105,11 @@ async def chat_completion(
 
     audio_response = await client.audio.transcriptions.create(
         file=file,
-        prompt=prompt.system_message or openai.NOT_GIVEN,
+        prompt=prompt.system_message or omit,
         model=model_name,
         stream=is_stream,
         response_format=response_format,
-        temperature=request_body.get("temperature") or openai.NOT_GIVEN,
+        temperature=request_body.get("temperature") or omit,
     )
 
     audio_response = await normalize_audio_response(audio_response)
@@ -127,9 +123,13 @@ async def chat_completion(
             if isinstance(audio_response, openai.AsyncStream):
                 async for chunk in audio_response:
                     if logger.isEnabledFor(logging.DEBUG):
-                        logger.debug(f"response chunk: {chunk.json()}")
+                        logger.debug(
+                            f"response chunk: {chunk.model_dump_json()}"
+                        )
 
                     match chunk:
+                        case TranscriptionTextSegmentEvent():
+                            pass
                         case TranscriptionTextDeltaEvent(delta=delta):
                             choice.append_content(delta)
                         case TranscriptionTextDoneEvent():
@@ -139,7 +139,9 @@ async def chat_completion(
                             assert_never(chunk)
             else:
                 if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"response: {audio_response.json()}")
+                    logger.debug(
+                        f"response: {audio_response.model_dump_json()}"
+                    )
 
                 choice.append_content(audio_response.text)
                 if usage := _get_usage(audio_response):

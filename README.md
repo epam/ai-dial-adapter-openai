@@ -14,25 +14,33 @@
 </h4>
 
 - [Overview](#overview)
-- [Chat completions deployments](#chat-completions-deployments)
+- [Chat Completions API deployments](#chat-completions-api-deployments)
   - [Supported upstream chat APIs](#supported-upstream-chat-apis)
     - [Azure OpenAI Chat Completions API (Last generation API)](#azure-openai-chat-completions-api-last-generation-api)
     - [Azure OpenAI Chat Completions API (Next generation API)](#azure-openai-chat-completions-api-next-generation-api)
     - [Azure OpenAI Responses API (Next generation API)](#azure-openai-responses-api-next-generation-api)
     - [Azure AI Foundry Chat Completions API](#azure-ai-foundry-chat-completions-api)
     - [Azure OpenAI Images API](#azure-openai-images-api)
-    - [Azure OpenAI Video API](#azure-openai-video-api)
+    - [Azure OpenAI Video API (Sora 1 API)](#azure-openai-video-api-sora-1-api)
+    - [Azure OpenAI Sora 2 API](#azure-openai-sora-2-api)
     - [Azure Audio API](#azure-audio-api)
       - [Text-to-speech models (TTS)](#text-to-speech-models-tts)
       - [Speech-to-text models (STT)](#speech-to-text-models-stt)
     - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
+    - [vLLM Chat Completion API](#vllm-chat-completion-api)
+      - [Qwen3-ASR](#qwen3-asr)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
+      - [vLLM tokenization](#vllm-tokenization)
+- [Responses API deployments](#responses-api-deployments)
+  - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
+    - [Azure OpenAI Responses API](#azure-openai-responses-api)
+    - [OpenAI Platform Responses API](#openai-platform-responses-api)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
     - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
@@ -48,6 +56,7 @@
   - [Models based on Responses API](#models-based-on-responses-api)
     - [Reasoning configuration](#reasoning-configuration)
 - [Load balancing](#load-balancing)
+- [Upstream header proxying](#upstream-header-proxying)
 - [Prompt caching](#prompt-caching)
 - [API versioning](#api-versioning)
 - [Server performance configuration](#server-performance-configuration)
@@ -55,13 +64,15 @@
   - [Private CAs and self-signed certificates](#private-cas-and-self-signed-certificates)
     - [Docker](#docker)
 - [Development](#development)
-  - [Development environment](#development-environment)
+  - [Development Environment](#development-environment)
+  - [Setup](#setup)
   - [IDE configuration](#ide-configuration)
   - [Make on Windows](#make-on-windows)
   - [Run](#run)
   - [Lint](#lint)
   - [Test](#test)
   - [Clean](#clean)
+  - [Git hooks](#git-hooks)
 
 ---
 
@@ -71,11 +82,9 @@ LLM Adapters unify the APIs of respective LLMs to align with the Unified Protoco
 
 The project implements [AI DIAL API](https://dialx.ai/dial_api) for language models from [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models).
 
-![ai-dial-core](https://docs.dialx.ai/assets/images/adapters-62587fb74cfb1c4225c20c08273ec5bc.svg)
-
 ---
 
-## Chat completions deployments
+## Chat Completions API deployments
 
 The adapter is able to convert certain upstream APIs to the [DIAL Chat Completions API](https://dialx.ai/dial_api#operation/sendChatCompletionRequest) *(which is an extension of Azure [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat))*.
 
@@ -296,7 +305,7 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
 > [!IMPORTANT]
 > The DALL·E 3 adapter deployment must be declared in `DALLE3_DEPLOYMENTS` env variable, and GPT-Image 1 deployment - in `GPT_IMAGE_1_DEPLOYMENTS`.
 
-#### [Azure OpenAI Video API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/video-generation-quickstart)
+#### [Azure OpenAI Video API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/video-generation-quickstart) (Sora 1 API)
 
 <details><summary>DIAL Core Config</summary>
 
@@ -305,8 +314,8 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "overrideName": "sora",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/sora/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/video/generations",
@@ -319,8 +328,6 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
 ```
 
 </details>
-
-The supported upstream models are `sora`. This is the value that `AZURE_OPENAI_DEPLOYMENT_ID` variable can take.
 
 The video generation models support configuration via the `custom_fields.configuration` field in the chat completion request:
 
@@ -350,6 +357,109 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
 
 > [!NOTE]
 > `n_variants>1` results in multiple video attachments to a **single chat completion choice**.
+
+> [!IMPORTANT]
+> Prompt tokens in the usage are set to zero.
+> Completion tokens are set to the overall number of seconds in the generated video(s).
+
+#### Azure OpenAI Sora 2 API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "sora-2",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/sora-2/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/videos",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+The Sora 2 deployment works in either of following modes:
+
+1. **[text-to-video](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#videoscreate) generation**: the last user message is used as a text prompt sent to Sora 2
+
+    <details> <summary>Chat completion request</summary>
+
+    ```json
+    {
+      "model": "sora-2",
+      "messages": [
+        {
+          "role": "system",
+          "content": "A system message that will be ignored"
+        },
+        {
+          "role": "user",
+          "content": "A cat playing with a ball of yarn"
+        }
+      ]
+    }
+    ```
+
+    </details>
+
+2. **[image-to-video](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#video-generation-from-reference-source) generation**: if the last user message has an attachment, this attachment is sent to Sora 2 as a reference source along with the last user message as a text prompt.
+
+    <details> <summary>Chat completion request</summary>
+
+    ```json
+    {
+      "model": "sora-2",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {"type": "text", "text": "Animate the image"},
+            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}}
+          ]
+        }
+      ]
+    }
+    ```
+
+    </details>
+
+[Video remixing](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation?view=foundry-classic&tabs=python-env#remix-video) *(video-to-video generation)* isn't supported.
+
+The Sora 2 deployment supports configuration via the `custom_fields.configuration` field in the chat completion request:
+
+```json
+{
+  "model": "sora-2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "A cat playing with a ball of yarn"
+    }
+  ],
+  "custom_fields": {
+    "configuration": {
+      "seconds": 4,
+      "size": "720x1280",
+      "auto_crop_reference_images": true
+    }
+  }
+}
+```
+
+The size is defaulted to 720x1280 if not specified.
+The duration is defaulted to 4 seconds if not specified.
+
+The auto cropping flag enables cropping of the input reference image to the output video size. It can be useful, since Sora 2 rejects any requests where the resolution of the source image and final video do not match. The flag defaults to False.
+
+Find the details in the [Azure Sora 2 API specification](https://github.com/Azure/azure-rest-api-specs/blob/bdd435e2f7a24479ddcc5e37d3e9484742f200a4/specification/ai/data-plane/OpenAI.v1/azure-v1-preview-generated.yaml#L11612-L11634).
 
 > [!IMPORTANT]
 > Prompt tokens in the usage are set to zero.
@@ -527,6 +637,47 @@ The Mistral Platform provides [Chat Completions API](https://docs.mistral.ai/api
 
 Where `MISTRAL_MODEL_NAME` is one of the available [models](https://docs.mistral.ai/getting-started/models/models_overview/) on the Platform.
 
+The deployment should be added to the environment variable `MISTRAL_DEPLOYMENTS`.
+
+The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#reasoning-with-chat-completions) for Magistral models. The reasoning tokens are displayed in a dedicated stage titled `Reasoning`.
+
+#### vLLM Chat Completion API
+
+vLLM provides an OpenAI-compatible Chat Completions API and can be connected to the adapter.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${VLLM_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "${VLLM_ORIGIN}/v1/chat/completions"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Enable the vLLM-specific flow by adding `${ADAPTER_DEPLOYMENT_ID}` to the environment variable `VLLM_DEPLOYMENTS`.
+
+##### Qwen3-ASR
+
+You can connect the [Qwen3-ASR](https://docs.vllm.ai/projects/recipes/en/latest/Qwen/Qwen3-ASR.html) model served with vLLM to DIAL. This adapter provides first-class support for this integration scenario:
+
+- **Audio attachments**: Clients send audio files as DIAL attachments (mime types `audio/*`). The adapter converts them into the content parts expected by the vLLM Chat Completions API.
+- **ASR language metadata extraction**: The adapter reports the detected language in a dedicated DIAL stage titled `Language: English` (or whichever language was detected).
+
+> [!NOTE]
+> `QWEN3_ASR_VLLM_DEPLOYMENTS` is separate from `VLLM_DEPLOYMENTS`. Deployments listed in `QWEN3_ASR_VLLM_DEPLOYMENTS` receive the ASR language extraction post-processing, while regular `VLLM_DEPLOYMENTS` receive reasoning extraction instead.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
@@ -590,6 +741,103 @@ Finally, if the deployment id is neither declared in `TIKTOKEN_MODEL_MAPPING`, n
 If a deployment is registered in `GPT4O_DEPLOYMENTS` or `GPT4O_MINI_DEPLOYMENTS`, the corresponding image-tokenization algorithm described in [the Azure documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/overview#image-input-tokens) is used.
 
 Otherwise, images aren’t tokenized — the image tokens are assumed to be 0.
+
+##### vLLM tokenization
+
+For deployments registered in `VLLM_DEPLOYMENTS`, the adapter relies on the upstream vLLM tokenizer endpoint to count prompt tokens.
+
+The adapter first performs the standard Unified → OpenAI-compatible transformation (including embedding DIAL-private file/image URLs as base64 content). Then it sends the fully constructed request payload to the vLLM endpoint derived from the upstream chat completions URL:
+
+`.../v1/chat/completions` → `.../tokenize`
+
+Token counting is performed by vLLM for the entire request payload as-is (including tools and multimodal message parts). The adapter does not do any modality-specific token counting for vLLM.
+
+When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the vLLM-reported token count fits.
+
+---
+
+## Responses API deployments
+
+**Since:** `ai-dial-adapter-openai:0.38.0` AND `ai-dial-core:0.42.0`
+
+The adapter is able to proxy requests to models supporting [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
+
+The following Responses API endpoints are exposed by the adapter:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/v1/responses
+```
+
+Current limitations:
+
+1. [Background mode](https://developers.openai.com/api/docs/guides/background/) isn't supported since it makes use of the `GET /responses/{response_id}` [endpoint](https://developers.openai.com/api/reference/resources/responses/methods/retrieve) which isn't supported yet.
+2. [WebSocket mode](https://developers.openai.com/api/docs/guides/websocket-mode/) isn't supported.
+3. [Passing context from the previous response](https://developers.openai.com/api/docs/guides/conversation-state#passing-context-from-the-previous-response) is limited to DIAL deployments with number of upstreams equal **one**.
+4. References to DIAL files aren't supported.
+
+### Supported upstream Responses APIs
+
+Note that in the following DIAL Core config examples, `responsesEndpoint` URL enables Responses API in DIAL.
+Whereas, `endpoint` URL is required and enables Chat Completions API in DIAL.
+If you don't need Chat Completions API, the `endpoint` URL could be set to any dummy value. Otherwise, configure it according to the instructions in the [Chat Completions section](#chat-completions-api-deployments).
+
+#### Azure OpenAI Responses API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "endpoint": "http://dummy-endpoint",
+      "upstreams": [
+        {
+          "responsesEndpoint": "https://${AZURE_OPENAI_SERVICE_NAME1}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY1}"
+        },
+        {
+          "responsesEndpoint": "https://${AZURE_OPENAI_SERVICE_NAME2}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY2}"
+        },
+        {
+          "responsesEndpoint": "https://${AZURE_OPENAI_SERVICE_NAME3}.openai.azure.com/openai/v1/responses",
+          "key": "${OPTIONAL_API_KEY3}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+#### OpenAI Platform Responses API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${OPENAI_PLATFORM_MODEL_NAME}",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "endpoint": "http://dummy-endpoint",
+      "upstreams": [
+        {
+          "responsesEndpoint": "https://api.openai.com/v1/responses",
+          "key": "${API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
 
 ---
 
@@ -737,6 +985,8 @@ The following variables cluster all deployments into the groups of deployments w
 |DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
+|VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`|
+|QWEN3_ASR_VLLM_DEPLOYMENTS|``| Comma-separated list of [Qwen3-ASR deployments](#qwen3-asr) served via vLLM. Example: `qwen3-asr`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
 
@@ -757,6 +1007,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 |ELIMINATE_EMPTY_CHOICES|False|When enabled, the response stream is guaranteed to exclude chunks with an empty list of choices. This is useful when a DIAL client doesn't support such chunks. An empty list of choices can be generated by Azure OpenAI in at least two cases: (1) when the **Content filter** is not disabled, Azure includes [prompt filter results](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter?tabs=warning%2Cuser-prompt%2Cpython-new#prompt-annotation-message) in the first chunk with an empty list of choices; (2) when `stream_options.include_usage` is enabled, the last chunk contains usage data and an empty list of choices.|
 |WEB_CONCURRENCY|1|Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).|
 |THREAD_POOL_SIZE||The size of a thread pool for CPU-heavy tasks such as tokenization and image analysis. The [default](https://github.com/python/cpython/blob/3.11/Lib/concurrent/futures/thread.py#L142) is `min(32, #logicalCPUs + 4)`. Find the details in the section about [performance](#server-performance-configuration).|
+|SSE_HEARTBEAT_INTERVAL||If set, the adapter inserts ping comments into streaming chat completion responses after the connection has been idle for the specified number of seconds, helping prevent read timeouts when the upstream is unresponsive.|
 
 ---
 
@@ -960,6 +1211,44 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
 
 ---
 
+## Upstream header proxying
+
+The [upstream `extra_data`](https://github.com/epam/ai-dial-core/blob/development/docs/dynamic-settings/models.md#modelsmodel_nameupstreams) field in the DIAL Core config allows specifying which incoming request headers the adapter should forward to the upstream. DIAL Core provides `extra_data` to the adapter inside the `X-UPSTREAM-EXTRA-DATA` request header. The adapter then attaches every header listed in `headers_to_proxy` that is present in the incoming request to the outgoing upstream call.
+
+
+A practical use case is routing requests within a vLLM cluster: [DIAL Chat](https://github.com/epam/ai-dial-chat) generates an `x-conversation-id` header for every conversation, and a vLLM routing can use it as an affinity key to route all turns of the same conversation to the same worker.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${VLLM_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "${VLLM_ORIGIN}/v1/chat/completions",
+          "extra_data": {
+            "headers_to_proxy": ["x-conversation-id"]
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and adapter forward that header verbatim to the vLLM upstream, allowing the cluster's routing layer to pin the conversation to a specific worker.
+
+> [!NOTE]
+> The adapter returns `502` if `X-UPSTREAM-EXTRA-DATA` contains malformed JSON or an unexpected structure.
+
+---
+
 ## Prompt caching
 
 [Prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching) can be enabled via the `autoCachingSupported` flag in the DIAL Core config.
@@ -1083,29 +1372,41 @@ When enabled, the container builds a temporary trust store on startup that combi
 
 ## Development
 
-### Development environment
+### Development Environment
 
-This project uses [Python>=3.11](https://www.python.org/downloads/) and [Poetry>=2.1.1](https://python-poetry.org/) as a dependency manager.
+This project requires [Python ≥3.11](https://www.python.org/downloads/) and [Poetry ≥2.1.1](https://python-poetry.org/) for dependency management.
 
-Check out Poetry's [documentation on how to install it](https://python-poetry.org/docs/#installation) on your system before proceeding.
+### Setup
 
-To install requirements:
+1. Install Poetry. See the official [installation guide](https://python-poetry.org/docs/#installation).
 
-```sh
-poetry install
-```
+2. *(Optional)* Specify custom Python or Poetry executables in `.env.dev`. This is useful if multiple versions are installed. By default, `python` and `poetry` are used.
 
-This will install all requirements for running the package, linting, formatting and tests.
+   ```sh
+   POETRY_PYTHON=path-to-python-exe
+   POETRY=path-to-poetry-exe
+   ```
+
+3. Create and activate the virtual environment:
+
+   ```sh
+   make init_env
+   source .venv/bin/activate
+   ```
+
+4. Install project dependencies (including linting, formatting, and test tools):
+
+   ```sh
+   make install
+   ```
 
 ### IDE configuration
 
 The recommended IDE is [VS Code](https://code.visualstudio.com/).
 Open the project in VS Code and install the recommended extensions.
-VS Code is configured to use PEP-8 compatible formatter [Black](https://black.readthedocs.io/en/stable/index.html).
+VS Code is configured to use the [Ruff formatter](https://docs.astral.sh/ruff/formatter/).
 
-Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/).
-Set up the Black in PyCharm [manually](https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea) or
-install PyCharm>=2023.2 with [built-in Black support](https://blog.jetbrains.com/pycharm/2023/07/2023-2/#black).
+Alternatively you can use [PyCharm](https://www.jetbrains.com/pycharm/) that has built-in [Ruff support](https://www.jetbrains.com/help/pycharm/lsp-tools.html#ruff).
 
 ### Make on Windows
 
@@ -1162,3 +1463,15 @@ To remove the virtual environment and build artifacts:
 ```sh
 make clean
 ```
+
+
+### Git hooks
+
+You may optionally install Git hooks that will automatically run the linting step on Git push. You only need to do it once for the given repository.
+
+```sh
+make install_git_hooks
+```
+
+> [!IMPORTANT]
+> This command doesn't work if you have already installed Git hooks locally or globally.

@@ -9,7 +9,8 @@ from openai.types.chat import (
     ChatCompletionMessage,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCall,
-    ChatCompletionMessageToolCallParam,
+    ChatCompletionMessageToolCallUnion,
+    ChatCompletionMessageToolCallUnionParam,
     ChatCompletionToolChoiceOptionParam,
     ChatCompletionToolParam,
 )
@@ -26,9 +27,16 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionToolParam,
     Response,
+    ResponseApplyPatchToolCall,
+    ResponseApplyPatchToolCallOutput,
     ResponseCodeInterpreterToolCall,
+    ResponseCompactionItem,
     ResponseComputerToolCall,
+    ResponseCustomToolCall,
+    ResponseCustomToolCallParam,
     ResponseFileSearchToolCall,
+    ResponseFunctionShellToolCall,
+    ResponseFunctionShellToolCallOutput,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
     ResponseFunctionWebSearch,
@@ -42,6 +50,8 @@ from openai.types.responses import (
     ResponseOutputRefusal,
     ResponseOutputText,
     ResponseReasoningItem,
+    ToolChoiceAllowedParam,
+    ToolChoiceCustomParam,
     ToolChoiceFunctionParam,
     ToolParam,
 )
@@ -110,11 +120,27 @@ def convert_tool_choice(
 ) -> ToolChoice:
     if isinstance(tool_choice, str):
         return tool_choice
+
     if isinstance(tool_choice, dict):
-        return ToolChoiceFunctionParam(
-            type="function",
-            name=tool_choice["function"]["name"],
-        )
+        match tool_choice["type"]:
+            case "allowed_tools":
+                return ToolChoiceAllowedParam(
+                    type="allowed_tools",
+                    mode=tool_choice["allowed_tools"]["mode"],
+                    tools=tool_choice["allowed_tools"]["tools"],
+                )
+            case "function":
+                return ToolChoiceFunctionParam(
+                    type="function",
+                    name=tool_choice["function"]["name"],
+                )
+            case "custom":
+                return ToolChoiceCustomParam(
+                    type="custom", name=tool_choice["custom"]["name"]
+                )
+            case _:
+                assert_never(tool_choice["type"])
+
     assert_never(tool_choice)
 
 
@@ -195,15 +221,27 @@ def _convert_input_content_part(
 
 
 def _convert_tool_call(
-    tool_call: ChatCompletionMessageToolCallParam,
-) -> ResponseFunctionToolCallParam:
-    function = tool_call["function"]
-    return ResponseFunctionToolCallParam(
-        type="function_call",
-        call_id=tool_call["id"],
-        name=function["name"],
-        arguments=function["arguments"],
-    )
+    tool_call: ChatCompletionMessageToolCallUnionParam,
+) -> ResponseFunctionToolCallParam | ResponseCustomToolCallParam:
+    match tool_call["type"]:
+        case "function":
+            function = tool_call["function"]
+            return ResponseFunctionToolCallParam(
+                type="function_call",
+                call_id=tool_call["id"],
+                name=function["name"],
+                arguments=function["arguments"],
+            )
+        case "custom":
+            custom = tool_call["custom"]
+            return ResponseCustomToolCallParam(
+                type="custom_tool_call",
+                call_id=tool_call["id"],
+                name=custom["name"],
+                input=custom["input"],
+            )
+        case _:
+            assert_never(tool_call["type"])
 
 
 def _convert_message(
@@ -211,7 +249,6 @@ def _convert_message(
 ) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
         case "user" | "assistant" | "system" | "developer":
-
             if message.get("function_call"):
                 raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
@@ -275,7 +312,7 @@ def convert_messages(
 def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     text_content = ""
     annotations: List[Annotation] = []
-    tool_calls: List[ChatCompletionMessageToolCall] = []
+    tool_calls: List[ChatCompletionMessageToolCallUnion] = []
     custom_content: CustomContent | None = None
 
     for item in output:
@@ -310,7 +347,7 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                 if summary:
                     stages: List[Stage] = []
                     for index, summary_part in enumerate(summary):
-                        suffix = "" if index == 0 else f" #{index+1}"
+                        suffix = "" if index == 0 else f" #{index + 1}"
                         stages.append(
                             Stage(
                                 name="Reasoning" + suffix,
@@ -330,6 +367,12 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                 | McpCall()
                 | McpListTools()
                 | McpApprovalRequest()
+                | ResponseCompactionItem()
+                | ResponseFunctionShellToolCall()
+                | ResponseFunctionShellToolCallOutput()
+                | ResponseApplyPatchToolCall()
+                | ResponseApplyPatchToolCallOutput()
+                | ResponseCustomToolCall()
             ):
                 raise RequestValidationError(
                     f"The response output contains an unsupported item type: {item.type}"
@@ -339,7 +382,7 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
 
     extra_fields = {}
     if custom_content:
-        extra_fields["custom_content"] = custom_content.dict()
+        extra_fields["custom_content"] = custom_content.model_dump()
 
     return ChatCompletionMessage(
         role="assistant",

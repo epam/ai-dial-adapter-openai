@@ -1,29 +1,5 @@
 {
     "models": {
-        "gpt-35-turbo-0125": {
-            "type": "chat",
-            "upstreams": [
-                {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-35-turbo-0125/chat/completions",
-                    "key": "optional-api-key"
-                }
-            ],
-            "features": {
-                "responseFormatJsonSchemaSupported": false
-            }
-        },
-        "gpt-35-turbo-1106": {
-            "type": "chat",
-            "upstreams": [
-                {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-35-turbo-1106/chat/completions",
-                    "key": "optional-api-key"
-                }
-            ],
-            "features": {
-                "responseFormatJsonSchemaSupported": false
-            }
-        },
         "gpt-5-2025-08-07": {
             "overrideName": "gpt-5-2025-08-07",
             "type": "chat",
@@ -136,19 +112,6 @@
                 "image/*"
             ]
         },
-        "gpt-4-turbo-2024-04-09": {
-            "type": "chat",
-            "upstreams": [
-                {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-4-turbo-2024-04-09/chat/completions",
-                    "key": "optional-api-key"
-                }
-            ],
-            "features": {
-                "parallelToolCallsSupported": false,
-                "responseFormatJsonSchemaSupported": false
-            }
-        },
         "gpt-4.1-2025-04-14": {
             "type": "chat",
             "upstreams": [
@@ -249,25 +212,6 @@
                 "image/*"
             ]
         },
-        "o1-mini-2024-09-12": {
-            "type": "chat",
-            "upstreams": [
-                {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/o1-mini-2024-09-12/chat/completions",
-                    "key": "optional-api-key"
-                }
-            ],
-            "features": {
-                "systemPromptSupported": false,
-                "toolsSupported": false,
-                "maxTokensSupported": false,
-                "reasoningSupported": true,
-                "stopSupported": false,
-                "temperatureSupported": false,
-                "responseFormatJsonObjectSupported": false,
-                "responseFormatJsonSchemaSupported": false
-            }
-        },
         "o3-mini-2025-01-31": {
             "type": "chat",
             "upstreams": [
@@ -287,7 +231,7 @@
             "type": "embedding",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings",
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/deployments/text-embedding-3-large/embeddings",
                     "key": "optional-api-key"
                 }
             ]
@@ -364,12 +308,22 @@
                 "imageGenerationSupported": true
             }
         },
-        "sora": {
+        "sora-1": {
             "overrideName": "sora",
             "type": "chat",
             "upstreams": [
                 {
                     "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/video/generations",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
+        "sora-2": {
+            "overrideName": "sora-2",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/videos",
                     "key": "optional-api-key"
                 }
             ]

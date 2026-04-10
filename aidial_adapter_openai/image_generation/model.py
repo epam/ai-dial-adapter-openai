@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Generic, Literal, TypeVar, assert_never
 
-from openai import NotGiven
+from openai import Omit
 from pydantic import BaseModel
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
@@ -22,7 +22,7 @@ class ImageGenerationModel(ABC, Generic[_Config]):
     def get_configuration(self) -> type[_Config]: ...
 
     @abstractmethod
-    def get_response_format(self) -> NotGiven | Literal["b64_json"]: ...
+    def get_response_format(self) -> Omit | Literal["b64_json"]: ...
 
     @abstractmethod
     def get_image_content_type(self, config: _Config) -> str: ...

@@ -50,14 +50,13 @@ async def chat_completion(
     deployment_id: str,
     client: AsyncAnthropicFoundry,
 ) -> StreamingResponse | dict:
-
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
         model = await create_adapter(deployment_id, request.api_key, client)
         response.set_model(deployment_id)
 
         params = ModelParameters.create(request)
 
-        with ChoiceConsumer(response) as consumer:
+        async with ChoiceConsumer(response) as consumer:
             try:
                 await model.chat(consumer, params, request.messages)
             except UserError as e:

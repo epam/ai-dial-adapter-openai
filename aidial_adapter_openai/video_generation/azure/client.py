@@ -82,7 +82,7 @@ class AzureVideoAPIClient(BaseModel):
         if files:
             client_options["headers"].pop("Content-Type", None)
 
-        request_body = request.dict(exclude_none=True)
+        request_body = request.model_dump(exclude_none=True)
 
         resp = await self._client.post(
             url=url,
@@ -95,7 +95,7 @@ class AzureVideoAPIClient(BaseModel):
 
         resp_body = resp.json()
         logger.debug(f"job created: {json.dumps(resp_body)}")
-        return VideoGenerationJob.parse_obj(resp_body).raise_on_failure()
+        return VideoGenerationJob.model_validate(resp_body).raise_on_failure()
 
     async def get_job_status(self, job_id: str) -> VideoGenerationJob:
         url = f"{self.base_url}/jobs/{job_id}"
@@ -105,7 +105,7 @@ class AzureVideoAPIClient(BaseModel):
 
         resp_body = resp.json()
         logger.debug(f"job status polled: {json.dumps(resp_body)}")
-        return VideoGenerationJob.parse_obj(resp_body).raise_on_failure()
+        return VideoGenerationJob.model_validate(resp_body).raise_on_failure()
 
     async def get_video_content(self, generation_id: str) -> bytes:
         url = f"{self.base_url}/{generation_id}/content/video"

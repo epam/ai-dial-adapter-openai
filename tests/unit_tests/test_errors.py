@@ -195,7 +195,6 @@ async def test_nested_extra_field(test_app: httpx.AsyncClient):
 
 @respx.mock
 async def test_missing_api_version(test_app: httpx.AsyncClient):
-
     response = await test_app.post(
         "/openai/deployments/gpt-4/chat/completions",
         json={
@@ -465,14 +464,35 @@ async def test_incorrect_upstream_url(test_app: httpx.AsyncClient):
         },
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 502
     assert response.json() == {
         "error": {
             "message": "Invalid upstream endpoint format",
-            "type": "invalid_request_error",
-            "code": "400",
+            "type": "internal_server_error",
+            "code": "502",
         }
     }
+
+
+@respx.mock
+async def test_invalid_upstream_extra_data_header(test_app: httpx.AsyncClient):
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={"messages": [{"role": "user", "content": "Test content"}]},
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+            "X-UPSTREAM-EXTRA-DATA": "{invalid-json",
+        },
+    )
+
+    assert response.status_code == 502
+    payload = response.json()
+    assert payload["error"]["type"] == "internal_server_error"
+    assert payload["error"]["code"] == "502"
+    assert payload["error"]["message"].startswith(
+        "Invalid X-UPSTREAM-EXTRA-DATA header:"
+    )
 
 
 @respx.mock
@@ -1236,7 +1256,7 @@ async def test_rate_limit_exceeded_during_streaming():
     )
 
     mock_stream = OpenAIStream(
-        mock_event.dict(),
+        mock_event.model_dump(),
         {
             "error": {
                 "message": "no_kv_space",

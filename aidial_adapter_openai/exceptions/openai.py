@@ -1,3 +1,5 @@
+import contextlib
+
 from aidial_sdk.exceptions import HTTPException as DialException
 from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError
 
@@ -9,7 +11,6 @@ from aidial_adapter_openai.utils.adapter_exception import (
 
 
 def convert_openai_exception(exc: Exception) -> AdapterException | None:
-
     if isinstance(exc, ResponseWrapper):
         return exc
 
@@ -53,10 +54,8 @@ def convert_openai_exception(exc: Exception) -> AdapterException | None:
         # Streaming errors are reported by `openai` library via this exception
         status_code: int = 500
         if exc.code:
-            try:
+            with contextlib.suppress(Exception):
                 status_code = int(exc.code)
-            except Exception:
-                pass
             if exc.code == "rate_limit_exceeded":
                 status_code = 429
 

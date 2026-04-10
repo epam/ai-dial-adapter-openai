@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "aidial-adapter-openai"
-version = "0.37.0rc"
+version = "0.39.0rc"
 description = "DIAL adapter for OpenAI"
 authors = [{ name = "EPAM RAIL", email = "SpecialEPM-DIALDevTeam@epam.com" }]
 license = "Apache-2.0"
@@ -27,46 +27,46 @@ package-mode = false
 
 [tool.poetry.dependencies]
 fastapi = "0.120.2"
-openai = "1.90.0"
+openai = "2.16.0"
 tiktoken = "0.12.0"
 uvicorn = "0.23.0"
 wrapt = "1.15.0"
-pydantic = "1.10.17"
+pydantic = "2.10.4"
 httpx = "0.27.0"
 # required by openai embeddings; avoiding openai[datalib],
 # since it also depends on pandas
 numpy = "2.3.3"
-pillow = "10.4.0"
+pillow = "12.1.1"
 azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
-aiohttp = "3.13.3"
-aidial-sdk = { version = "0.28.0", extras = ["telemetry"] }
-aidial-adapter-anthropic = { version = "0.1.0rc0" }
-anthropic = "0.75.0"
+aiohttp = "3.13.4"
+aidial-sdk = { version = "0.32.0", extras = ["telemetry"] }
+aidial-adapter-anthropic = { version = "0.6.0" }
+anthropic = "0.79.0"
 
 [tool.poetry.group.test.dependencies]
-pytest = "7.4.0"
+pytest = "7.4.3"
 pytest-asyncio = "0.21.1"
 pytest-xdist = "^3.5.0"
 respx = "^0.21.1"
 pytest-timeout = "^2.4.0"
 pytest-sugar = "^1.0.0"
+pytest-env = "1.1.1"
 rapidfuzz = "^3.14.1"
 
 [tool.poetry.group.lint.dependencies]
-pyright = "1.1.324"
-black = "24.3.0"
-isort = "5.12.0"
-autoflake = "2.2.0"
-flake8 = "6.0.0"
+pyright = "1.1.408"
+ruff = "0.12.11"
 
 [tool.poetry.group.dev.dependencies]
 nox = "^2023.4.22"
+pre-commit = "^4.5.1"
 # Required for `make serve` which loads .env file
 python-dotenv = "^1.0.1"
 
 [tool.pytest.ini_options]
 addopts = "-n=auto --asyncio-mode=auto --timeout=300"
+env = ["PYDANTIC_V2=1"]
 testpaths = ["tests"]
 filterwarnings = [
   "error",
@@ -75,33 +75,47 @@ filterwarnings = [
   # muting warnings coming from opentelemetry and pkg_resources packages
   "ignore::DeprecationWarning:opentelemetry.instrumentation.dependencies",
   "ignore::DeprecationWarning:pkg_resources",
+  # Workaround for this bug: https://github.com/openai/openai-python/issues/1039
+  "ignore:Pydantic serializer warnings:UserWarning:pydantic.*",
 ]
 
 [tool.pyright]
 typeCheckingMode = "basic"
 reportUnusedVariable = "error"
 reportIncompatibleMethodOverride = "error"
-exclude = [".git", ".venv", ".nox", "**/__pycache__"]
 
-[tool.black]
+[tool.ruff]
+target-version = "py311"
 line-length = 80
-exclude = '''
-/(
-    \.git
-  | \.venv
-  | \.nox
-  | \.__pycache__
-)/
-'''
 
-[tool.isort]
-line_length = 80
-profile = "black"
+[tool.ruff.lint]
+select = [
+  "ERA",  # flake8-eradicate
+  "B",    # flake8-builtins
+  "C4",   # flake8-comprehensions
+  "SIM",  # flake8-simplify
+  "B9",   # flake8-bugbear
+  "E",    # pycodestyle
+  "W",    # pycodestyle
+  "F",    # pyflakes
+  "I",    # flake8-isort
+  "S",    # flake8-bandit
+  "FURB", # refurb
+]
+ignore = [
+  "E501", # string literal is too long
+  "E203", # whitespace before ':' (triggered on list slices like xs[i : i + 5])
+  "S101", # Use of `assert` detected
+  "S110", # `try`-`except`-`pass` detected
+  "B904", # Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None`
+]
 
-[tool.autoflake]
-ignore_init_module_imports = true
-remove_all_unused_imports = true
-in_place = true
-recursive = true
-quiet = true
-exclude = ["\\.venv", "\\.nox"]
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "B011", # Do not `assert False`
+  "B006", # Do not use mutable data structures for argument defaults
+  "E731", # Do not assign a `lambda` expression, use a `def`
+]
+"*/__init__.py" = [
+  "F401", # imported but unused
+]

@@ -20,10 +20,10 @@ from aidial_adapter_openai.utils.streaming import (
     map_stream,
 )
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
-from aidial_adapter_openai.utils.truncate_prompt import (
+from aidial_adapter_openai.utils.truncate_messages import truncate_messages
+from aidial_adapter_openai.utils.truncation_types import (
     DiscardedMessages,
     TruncatedTokens,
-    truncate_prompt,
 )
 
 
@@ -33,7 +33,7 @@ async def multi_modal_truncate_prompt(
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
 ) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
-    return await truncate_prompt(
+    return await truncate_messages(
         messages=messages,
         message_tokens=tokenizer.tokenize_request_message,
         is_system_message=lambda message: message.raw_message["role"]
@@ -66,16 +66,18 @@ async def _truncate_messages(
 ) -> Tuple[
     List[MultiModalMessage],
     DiscardedMessages | None,
-    Callable[[], Coroutine[None, None, TruncatedTokens]],
+    Callable[[], Coroutine[None, None, int]],
 ]:
     if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
-        messages, discarded_indices, prompt_tokens = (
-            await multi_modal_truncate_prompt(
-                request=request,
-                messages=messages,
-                max_prompt_tokens=max_prompt_tokens,
-                tokenizer=tokenizer,
-            )
+        (
+            messages,
+            discarded_indices,
+            prompt_tokens,
+        ) = await multi_modal_truncate_prompt(
+            request=request,
+            messages=messages,
+            max_prompt_tokens=max_prompt_tokens,
+            tokenizer=tokenizer,
         )
 
         logger.debug(
@@ -114,15 +116,17 @@ async def chat_completion(
         file_storage=file_storage
     ).transform_messages(messages)
 
-    multi_modal_messages, discarded_messages, get_prompt_tokens = (
-        await _truncate_messages(request, multi_modal_messages, tokenizer)
-    )
+    (
+        multi_modal_messages,
+        discarded_messages,
+        get_prompt_tokens,
+    ) = await _truncate_messages(request, multi_modal_messages, tokenizer)
 
     request["messages"] = [m.raw_message for m in multi_modal_messages]
 
-    response: AsyncStream[ChatCompletionChunk] | ChatCompletion = (
-        await call_with_extra_body(client.chat.completions.create, request)
-    )
+    response: (
+        AsyncStream[ChatCompletionChunk] | ChatCompletion
+    ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
         response_headers = await get_response_headers_for_caching(

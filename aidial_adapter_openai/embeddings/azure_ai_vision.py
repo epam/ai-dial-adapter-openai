@@ -38,7 +38,6 @@ from aidial_sdk.chat_completion.request import Attachment
 from aidial_sdk.embeddings.request import EmbeddingsRequest
 from aidial_sdk.embeddings.response import Embedding, EmbeddingResponse, Usage
 from aidial_sdk.exceptions import HTTPException as DialException
-from pydantic import BaseModel
 
 from aidial_adapter_openai.dial_api.embedding_inputs import (
     collect_embedding_inputs,
@@ -47,6 +46,7 @@ from aidial_adapter_openai.dial_api.resource import AttachmentResource
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
+from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from aidial_adapter_openai.utils.resource.base import Resource
 
 # The latest Image Analysis API offers two models:
@@ -68,10 +68,7 @@ def _get_auth_headers(creds: OpenAICreds) -> dict[str, str]:
     raise ValueError("Invalid credentials")
 
 
-class VectorizeResponse(BaseModel):
-    class Config:
-        extra = "allow"
-
+class VectorizeResponse(ExtraAllowedModel):
     vector: List[float]
 
 
@@ -82,7 +79,7 @@ async def embeddings(
     endpoint: str,
     file_storage: FileStorage | None,
 ) -> EmbeddingResponse:
-    input = EmbeddingsRequest.parse_obj(request)
+    input = EmbeddingsRequest.model_validate(request)
 
     async def on_text(text: str) -> str:
         return text
@@ -109,7 +106,7 @@ async def embeddings(
             response = await _get_image_embedding(headers, endpoint, input)
         else:
             assert_never(input)
-        return VectorizeResponse.parse_obj(response)
+        return VectorizeResponse.model_validate(response)
 
     tasks = [asyncio.create_task(_get_embedding(input_)) for input_ in inputs]
     responses = await asyncio.gather(*tasks)

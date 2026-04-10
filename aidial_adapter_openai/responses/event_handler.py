@@ -28,6 +28,8 @@ from openai.types.responses import (
     ResponseContentPartAddedEvent,
     ResponseContentPartDoneEvent,
     ResponseCreatedEvent,
+    ResponseCustomToolCallInputDeltaEvent,
+    ResponseCustomToolCallInputDoneEvent,
     ResponseErrorEvent,
     ResponseFailedEvent,
     ResponseFileSearchCallCompletedEvent,
@@ -53,14 +55,12 @@ from openai.types.responses import (
     ResponseOutputItemDoneEvent,
     ResponseOutputTextAnnotationAddedEvent,
     ResponseQueuedEvent,
-    ResponseReasoningDeltaEvent,
-    ResponseReasoningDoneEvent,
-    ResponseReasoningSummaryDeltaEvent,
-    ResponseReasoningSummaryDoneEvent,
     ResponseReasoningSummaryPartAddedEvent,
     ResponseReasoningSummaryPartDoneEvent,
     ResponseReasoningSummaryTextDeltaEvent,
     ResponseReasoningSummaryTextDoneEvent,
+    ResponseReasoningTextDeltaEvent,
+    ResponseReasoningTextDoneEvent,
     ResponseRefusalDeltaEvent,
     ResponseRefusalDoneEvent,
     ResponseStreamEvent,
@@ -70,14 +70,32 @@ from openai.types.responses import (
     ResponseWebSearchCallInProgressEvent,
     ResponseWebSearchCallSearchingEvent,
 )
+from openai.types.responses.response_apply_patch_tool_call import (
+    ResponseApplyPatchToolCall,
+)
+from openai.types.responses.response_apply_patch_tool_call_output import (
+    ResponseApplyPatchToolCallOutput,
+)
 from openai.types.responses.response_code_interpreter_tool_call import (
     ResponseCodeInterpreterToolCall,
+)
+from openai.types.responses.response_compaction_item import (
+    ResponseCompactionItem,
 )
 from openai.types.responses.response_computer_tool_call import (
     ResponseComputerToolCall,
 )
+from openai.types.responses.response_custom_tool_call import (
+    ResponseCustomToolCall,
+)
 from openai.types.responses.response_file_search_tool_call import (
     ResponseFileSearchToolCall,
+)
+from openai.types.responses.response_function_shell_tool_call import (
+    ResponseFunctionShellToolCall,
+)
+from openai.types.responses.response_function_shell_tool_call_output import (
+    ResponseFunctionShellToolCallOutput,
 )
 from openai.types.responses.response_function_tool_call import (
     ResponseFunctionToolCall,
@@ -146,7 +164,7 @@ class EventHandler(pydantic.BaseModel):
         self, stage_index: int, content: str
     ) -> Generator[ChatCompletionChunk, None, None]:
         for index in range(self.stages, stage_index + 1):
-            suffix = "" if index == 0 else f" #{index+1}"
+            suffix = "" if index == 0 else f" #{index + 1}"
             yield self._open_stage(index, "Reasoning" + suffix)
 
         self.stages = max(self.stages, stage_index + 1)
@@ -267,7 +285,9 @@ class EventHandler(pydantic.BaseModel):
         self, event: ResponseStreamEvent
     ) -> Generator[ChatCompletionChunk | ErrorChunk, None, None]:
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"event[{event.type}]: {json.dumps(event.dict())}")
+            logger.debug(
+                f"event[{event.type}]: {json.dumps(event.model_dump())}"
+            )
 
         match event:
             case ResponseCreatedEvent(response=response):
@@ -286,9 +306,10 @@ class EventHandler(pydantic.BaseModel):
                     choice=Choice(index=0, delta=ChoiceDelta(content=delta))
                 )
 
-            case ResponseCompletedEvent(
-                response=response
-            ) | ResponseIncompleteEvent(response=response):
+            case (
+                ResponseCompletedEvent(response=response)
+                | ResponseIncompleteEvent(response=response)
+            ):
                 yield self._chunk(
                     choice=Choice(
                         index=0,
@@ -321,12 +342,18 @@ class EventHandler(pydantic.BaseModel):
                         | ResponseFunctionWebSearch()
                         | ResponseComputerToolCall()
                         | ResponseReasoningItem()
-                        | ImageGenerationCall()
                         | ResponseCodeInterpreterToolCall()
+                        | ImageGenerationCall()
                         | LocalShellCall()
                         | McpCall()
                         | McpListTools()
                         | McpApprovalRequest()
+                        | ResponseCompactionItem()
+                        | ResponseFunctionShellToolCall()
+                        | ResponseFunctionShellToolCallOutput()
+                        | ResponseApplyPatchToolCall()
+                        | ResponseApplyPatchToolCallOutput()
+                        | ResponseCustomToolCall()
                     ):
                         pass
                     case _:
@@ -386,10 +413,14 @@ class EventHandler(pydantic.BaseModel):
                 | ResponseMcpListToolsInProgressEvent()
                 | ResponseOutputTextAnnotationAddedEvent()
                 | ResponseQueuedEvent()
-                | ResponseReasoningDeltaEvent()
-                | ResponseReasoningDoneEvent()
-                | ResponseReasoningSummaryDeltaEvent()
-                | ResponseReasoningSummaryDoneEvent()
+                | ResponseReasoningSummaryPartAddedEvent()
+                | ResponseReasoningSummaryPartDoneEvent()
+                | ResponseReasoningSummaryTextDeltaEvent()
+                | ResponseReasoningSummaryTextDoneEvent()
+                | ResponseReasoningTextDeltaEvent()
+                | ResponseReasoningTextDoneEvent()
+                | ResponseCustomToolCallInputDeltaEvent()
+                | ResponseCustomToolCallInputDoneEvent()
             ):
                 pass
             case _:

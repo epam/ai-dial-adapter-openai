@@ -25,7 +25,7 @@ from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 
 class UpstreamConfig(ExtraAllowedModel):
     endpoint: str
-    key: str | None
+    key: str | None = None
 
 
 class Features(ExtraAllowedModel):
@@ -165,12 +165,14 @@ class DeploymentConfig(BaseModel, Generic[_T]):
 
     @property
     def supports_video_generation(self):
-        if (
+        return bool(
             isinstance(self.type_, ChatCompletionDeploymentType)
-            and self.type_ == ChatCompletionDeploymentType.AZURE_VIDEO_API
-        ):
-            return True
-        return False
+            and self.type_
+            in (
+                ChatCompletionDeploymentType.AZURE_VIDEO_API,
+                ChatCompletionDeploymentType.OPENAI_VIDEO_API,
+            )
+        )
 
     @property
     def supports_tts(self):

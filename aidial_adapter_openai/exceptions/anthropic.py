@@ -26,9 +26,10 @@ def _get_exception_type(status_code: int) -> str | None:
 
 
 def _get_error_message(e: APIStatusError) -> str:
-    if isinstance(body := e.body, dict):
-        if isinstance((msg := body.get("message")), str):
-            return msg
+    if isinstance(body := e.body, dict) and isinstance(
+        (msg := body.get("message")), str
+    ):
+        return msg
     return e.message
 
 

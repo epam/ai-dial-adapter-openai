@@ -4,11 +4,11 @@ from typing import Any, AsyncIterator, Dict, List
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai import (
-    NOT_GIVEN,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     AsyncStream,
     BaseModel,
+    omit,
 )
 from openai.types.responses import ResponseTextConfigParam
 from openai.types.shared_params import Reasoning
@@ -75,7 +75,7 @@ def _validate_request(request: Dict[str, Any]) -> None:
 
 
 def _to_dict(x: BaseModel) -> dict:
-    ret = x.dict()
+    ret = x.model_dump()
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(f"chat completion API response: {json.dumps(ret)}")
     return ret
@@ -98,7 +98,7 @@ def _get_configuration(request: Dict[str, Any]) -> ResponsesConfig:
     ):
         configuration.reasoning = Reasoning(effort=reasoning_effort)
 
-    logger.debug(f"configuration: {configuration.json()}")
+    logger.debug(f"configuration: {configuration.model_dump_json()}")
     return configuration
 
 
@@ -122,23 +122,23 @@ async def chat_completion(
         [m.raw_message for m in transformed_messages]  # type: ignore
     )
 
-    res_tools = NOT_GIVEN
+    res_tools = omit
     if tools := request.get("tools"):
         res_tools = convert_tools(tools)
 
-    res_tool_choice = NOT_GIVEN
+    res_tool_choice = omit
     if tool_choice := request.get("tool_choice"):
         res_tool_choice = convert_tool_choice(tool_choice)
 
     max_output_tokens = (
         request.get("max_tokens")
         or request.get("max_completion_tokens")
-        or NOT_GIVEN
+        or omit
     )
 
     configuration = _get_configuration(request)
 
-    text = NOT_GIVEN
+    text = omit
     if response_format := request.get("response_format"):
         text = ResponseTextConfigParam(
             format=convert_response_format(response_format)
@@ -150,12 +150,12 @@ async def chat_completion(
         input=input_messages,
         tools=res_tools,
         tool_choice=res_tool_choice,
-        top_p=request.get("top_p") or NOT_GIVEN,
-        temperature=request.get("temperature") or NOT_GIVEN,
+        top_p=request.get("top_p") or omit,
+        temperature=request.get("temperature") or omit,
         max_output_tokens=max_output_tokens,
-        parallel_tool_calls=request.get("parallel_tool_calls") or NOT_GIVEN,
+        parallel_tool_calls=request.get("parallel_tool_calls") or omit,
         text=text,
-        **configuration.dict(),
+        **configuration.model_dump(),
     )
 
     if isinstance(response, AsyncStream):
@@ -166,6 +166,6 @@ async def chat_completion(
     else:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
-                f"responses API response: {json.dumps(response.dict())}"
+                f"responses API response: {json.dumps(response.model_dump())}"
             )
         return _to_dict(convert_response(response))

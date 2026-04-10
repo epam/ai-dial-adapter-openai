@@ -24,7 +24,7 @@ def mock_message_transformer():
     [
         ("image.jpg", "image/jpeg"),
         ("image.png", "image/png"),
-        ("a/b/c/doc.text", "text/plain"),
+        ("a/b/c/doc.txt", "text/plain"),
         ("dir1/dir2/", None),
         ("no_ext", None),
         ("unknown.x", None),

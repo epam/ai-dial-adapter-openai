@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Iterator, List
 
-from openai import NOT_GIVEN, NotGiven
+from openai import Omit, omit
 from openai.types import ReasoningEffort
 from openai.types.chat import (
     ChatCompletionMessageParam,
@@ -31,18 +31,18 @@ class TestCase:
 
     expected: Callable[[ChatCompletionResult], bool] | ExpectedException
 
-    max_tokens: int | NotGiven
-    max_completion_tokens: int | NotGiven
-    stop: List[str] | NotGiven
+    max_tokens: int | Omit
+    max_completion_tokens: int | Omit
+    stop: List[str] | Omit
 
-    n: int | NotGiven
+    n: int | Omit
 
-    functions: List[Function] | NotGiven
-    tools: List[ChatCompletionToolParam] | NotGiven
-    temperature: float | NotGiven
+    functions: List[Function] | Omit
+    tools: List[ChatCompletionToolParam] | Omit
+    temperature: float | Omit
 
-    reasoning_effort: ReasoningEffort | NotGiven
-    response_format: ResponseFormat | NotGiven
+    reasoning_effort: ReasoningEffort | Omit
+    response_format: ResponseFormat | Omit
 
     extra_body: dict | None
 
@@ -75,15 +75,15 @@ class TestSuite:
         *,
         name: str,
         messages: List[ChatCompletionMessageParam],
-        max_tokens: int | NotGiven = NOT_GIVEN,
-        max_completion_tokens: int | NotGiven = NOT_GIVEN,
-        stop: List[str] | NotGiven = NOT_GIVEN,
-        n: int | NotGiven = NOT_GIVEN,
-        functions: List[Function] | NotGiven = NOT_GIVEN,
-        tools: List[ChatCompletionToolParam] | NotGiven = NOT_GIVEN,
-        temperature: float | NotGiven = NOT_GIVEN,
-        reasoning_effort: ReasoningEffort | NotGiven = NOT_GIVEN,
-        response_format: ResponseFormat | NotGiven = NOT_GIVEN,
+        max_tokens: int | Omit = omit,
+        max_completion_tokens: int | Omit = omit,
+        stop: List[str] | Omit = omit,
+        n: int | Omit = omit,
+        functions: List[Function] | Omit = omit,
+        tools: List[ChatCompletionToolParam] | Omit = omit,
+        temperature: float | Omit = omit,
+        reasoning_effort: ReasoningEffort | Omit = omit,
+        response_format: ResponseFormat | Omit = omit,
         expected: (
             Callable[[ChatCompletionResult], bool] | ExpectedException
         ) = lambda *args, **kwargs: True,
@@ -177,12 +177,8 @@ class TestSuite:
 
     @property
     def supports_response_format_json_object(self):
-        return (
-            self.deployment_config.model_features.responseFormatJsonObjectSupported
-        )
+        return self.deployment_config.model_features.responseFormatJsonObjectSupported
 
     @property
     def supports_response_format_json_schema(self):
-        return (
-            self.deployment_config.model_features.responseFormatJsonSchemaSupported
-        )
+        return self.deployment_config.model_features.responseFormatJsonSchemaSupported

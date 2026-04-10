@@ -28,10 +28,12 @@ RUN apk add --no-cache ca-certificates && update-ca-certificates
 
 # fix CVE-2023-52425
 RUN apk upgrade --no-cache libexpat
-# fix CVE-2025-47273
-RUN pip install setuptools==78.1.1
-# fix CVE-2025-6965
-RUN apk upgrade --no-cache sqlite-libs
+# fix CVE-2026-23949
+RUN pip install setuptools==80.10.2
+# fix CVE-2026-24049
+RUN pip install wheel==0.46.2
+# fix CVE-2025-6965 and CVE-2026-22184
+RUN apk upgrade --no-cache sqlite-libs zlib
 
 WORKDIR /app
 
@@ -53,5 +55,6 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
 
 ENV TIKTOKEN_CACHE_DIR=/app/tiktoken_cache
+ENV PYDANTIC_V2=1
 
 ENTRYPOINT ["/docker_entrypoint.sh"]

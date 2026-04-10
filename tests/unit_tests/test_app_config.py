@@ -1,5 +1,5 @@
 import pytest
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import HTTPException
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
@@ -114,7 +114,7 @@ def test_app_config_chat_completions_azure_next_gen(
 
 
 def test_app_config_chat_invalid(origin: str, deployment: str):
-    with pytest.raises(InvalidRequestError) as exc_info:
+    with pytest.raises(HTTPException) as exc_info:
         (
             ApplicationConfig()
             .add_deployment(deployment, D.GPT4O)
@@ -124,6 +124,9 @@ def test_app_config_chat_invalid(origin: str, deployment: str):
         )
 
     error = exc_info.value
+    assert error.status_code == 502
+    assert error.code == "502"
+    assert error.type == "internal_server_error"
     assert error.message == "Invalid upstream endpoint format"
 
 
@@ -144,3 +147,35 @@ def test_app_config_dalle_azure(
         azure_endpoint=f"{origin}/whatever1/whatever2",
         azure_deployment=deployment_name,
     )
+
+
+def test_app_config_qwen3_asr_vllm_deployments(origin: str, deployment: str):
+    cfg = ApplicationConfig(QWEN3_ASR_VLLM_DEPLOYMENTS=[deployment])
+
+    ty = cfg.get_chat_completion_deployment_type(
+        deployment,
+        f"{origin}/whatever1/whatever2/chat/completions",
+    )
+
+    assert ty.deployment_type == D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+
+
+def test_is_azure_for_generic_deployment(deployment: str):
+    cfg = ApplicationConfig()
+    assert cfg.is_azure(deployment)
+
+
+@pytest.mark.parametrize(
+    "cfg",
+    [
+        ApplicationConfig(VLLM_DEPLOYMENTS=["vllm-deployment"]),
+        ApplicationConfig(
+            QWEN3_ASR_VLLM_DEPLOYMENTS=["qwen3-asr-vllm-deployment"]
+        ),
+    ],
+)
+def test_is_azure_for_non_azure_vllm_families(cfg: ApplicationConfig):
+    deployment_id = next(
+        iter(cfg.VLLM_DEPLOYMENTS or cfg.QWEN3_ASR_VLLM_DEPLOYMENTS)
+    )
+    assert not cfg.is_azure(deployment_id)

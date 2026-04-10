@@ -14,6 +14,7 @@ from aidial_adapter_openai.configuration.deprecations import (
 from aidial_adapter_openai.utils.env import (
     get_env_bool,
     get_env_dict,
+    get_env_float,
     get_env_list,
     get_env_var,
 )
@@ -24,10 +25,11 @@ from aidial_adapter_openai.utils.parsers import (
     OpenAIEndpoint,
     anthropic_messages_parser,
     azure_video_api_parser,
+    chat_completions_optional_parser,
     chat_completions_parser,
     completions_parser,
     image_gen_parser,
-    no_endpoint_parser,
+    openai_video_api_parser,
     responses_parser,
     speech_parser,
     transcriptions_parser,
@@ -53,14 +55,26 @@ class ApplicationConfig(ExtraForbidModel):
     DATABRICKS_DEPLOYMENTS: List[str] = []
     GPT4O_DEPLOYMENTS: List[str] = []
     GPT4O_MINI_DEPLOYMENTS: List[str] = []
+    VLLM_DEPLOYMENTS: List[str] = []
+    QWEN3_ASR_VLLM_DEPLOYMENTS: List[str] = []
     AZURE_AI_VISION_DEPLOYMENTS: List[str] = []
 
     API_VERSIONS_MAPPING: Dict[str, str] = {}
     COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: Dict[str, str] = {}
     NON_STREAMING_DEPLOYMENTS: List[str] = []
     ELIMINATE_EMPTY_CHOICES: bool = False
+    SSE_HEARTBEAT_INTERVAL: float | None = None
 
     AUDIO_AZURE_API_VERSION: str = "2025-03-01-preview"
+
+    def is_azure(self, deployment_id: str) -> bool:
+        for deployments in [
+            self.VLLM_DEPLOYMENTS,
+            self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+        ]:
+            if deployment_id in deployments:
+                return False
+        return True
 
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
@@ -80,6 +94,12 @@ class ApplicationConfig(ExtraForbidModel):
         if endpoint := responses_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
                 deployment_type=D.RESPONSES_API,
+                endpoint=endpoint,
+            )
+
+        if endpoint := openai_video_api_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.OPENAI_VIDEO_API,
                 endpoint=endpoint,
             )
 
@@ -130,12 +150,26 @@ class ApplicationConfig(ExtraForbidModel):
         if deployment_id in self.MISTRAL_DEPLOYMENTS:
             return DeploymentAPIType(
                 deployment_type=D.MISTRAL,
-                endpoint=no_endpoint_parser.parse(upstream_endpoint),
+                endpoint=chat_completions_optional_parser.parse(
+                    upstream_endpoint
+                ),
             )
 
         if deployment_id in self.DATABRICKS_DEPLOYMENTS:
             return DeploymentAPIType(
                 deployment_type=D.DATABRICKS,
+                endpoint=chat_completions_parser.parse(upstream_endpoint),
+            )
+
+        if deployment_id in self.VLLM_DEPLOYMENTS:
+            return DeploymentAPIType(
+                deployment_type=D.VLLM_CHAT_COMPLETIONS_API,
+                endpoint=chat_completions_parser.parse(upstream_endpoint),
+            )
+
+        if deployment_id in self.QWEN3_ASR_VLLM_DEPLOYMENTS:
+            return DeploymentAPIType(
+                deployment_type=D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API,
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
@@ -172,6 +206,10 @@ class ApplicationConfig(ExtraForbidModel):
                 self.GPT4O_DEPLOYMENTS.append(deployment_id)
             case D.GPT4O_MINI:
                 self.GPT4O_MINI_DEPLOYMENTS.append(deployment_id)
+            case D.VLLM_CHAT_COMPLETIONS_API:
+                self.VLLM_DEPLOYMENTS.append(deployment_id)
+            case D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API:
+                self.QWEN3_ASR_VLLM_DEPLOYMENTS.append(deployment_id)
             case (
                 D.GPT_GENERIC
                 | D.RESPONSES_API
@@ -179,6 +217,7 @@ class ApplicationConfig(ExtraForbidModel):
                 | D.AZURE_VIDEO_API
                 | D.AUDIO_SPEECH_API
                 | D.AUDIO_TRANSCRIPTIONS_API
+                | D.OPENAI_VIDEO_API
                 | D.ANTHROPIC_MESSAGES_API
             ):
                 pass
@@ -205,6 +244,8 @@ class ApplicationConfig(ExtraForbidModel):
                 "DATABRICKS_DEPLOYMENTS",
                 "GPT4O_DEPLOYMENTS",
                 "GPT4O_MINI_DEPLOYMENTS",
+                "VLLM_DEPLOYMENTS",
+                "QWEN3_ASR_VLLM_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
             )
@@ -243,6 +284,9 @@ class ApplicationConfig(ExtraForbidModel):
                         get_env_dict,
                         "TIKTOKEN_MODEL_MAPPING",
                         deprecated_names=["MODEL_ALIASES"],
+                    ),
+                    "SSE_HEARTBEAT_INTERVAL": get_env_float(
+                        "SSE_HEARTBEAT_INTERVAL"
                     ),
                 }
             ),

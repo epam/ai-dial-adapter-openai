@@ -1,4 +1,6 @@
+import json
 import logging
+from dataclasses import dataclass
 from time import time
 from typing import (
     AsyncIterator,
@@ -19,9 +21,9 @@ from aidial_sdk.utils.merge_chunks import (
     cleanup_indices,
     merge_chat_completion_chunks,
 )
+from aidial_sdk.utils.streaming import add_heartbeat
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
-from pydantic import BaseModel
 
 from aidial_adapter_openai.exceptions.handlers import to_adapter_exception
 from aidial_adapter_openai.utils.adapter_exception import AdapterException
@@ -31,7 +33,10 @@ from aidial_adapter_openai.utils.chat_completion_response import (
 )
 from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import to_openai_sse_stream
+from aidial_adapter_openai.utils.sse_stream import (
+    SSEStreamFormat,
+    to_sse_stream,
+)
 
 
 def generate_id() -> str:
@@ -84,7 +89,6 @@ async def generate_stream(
     discarded_messages: Optional[list[int]],
     eliminate_empty_choices: bool,
 ) -> AsyncIterator[dict]:
-
     empty_chunk = build_chunk(
         id=generate_id(),
         created=generate_created(),
@@ -235,13 +239,14 @@ def streaming_chunks_to_block_response(chunks: List[dict]) -> dict:
 _Body = TypeVar("_Body")
 
 
-class ResponseWithHeaders(Generic[_Body], BaseModel):
-    headers: dict[str, str] | None = None
+@dataclass
+class ResponseWithHeaders(Generic[_Body]):
+    headers: dict[str, str] | None
     body: _Body
 
 
 ChatResponse = (
-    StreamingResponse
+    Response
     | ResponseWithHeaders[AsyncIterator[dict] | dict]
     | AsyncIterator[dict]
     | dict
@@ -249,7 +254,11 @@ ChatResponse = (
 
 
 async def create_server_response(
-    emulate_streaming: bool, response: ChatResponse
+    response: ChatResponse,
+    *,
+    emulate_streaming: bool,
+    sse_stream_format: SSEStreamFormat,
+    sse_heartbeat_interval: float | None,
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
         body = response.body
@@ -258,28 +267,28 @@ async def create_server_response(
         body = response
         headers = {}
 
-    def block_to_stream(block: dict) -> AsyncIterator[dict]:
-        async def stream():
-            yield block_response_to_streaming_chunk(block)
-
-        return stream()
-
     async def stream_to_response(iterator: AsyncIterator[dict]) -> Response:
         item, stream = await peek_head(reify_exceptions(iterator))
 
         if isinstance(item, Exception):
             return item.to_fastapi_response()
         else:
-            content = to_openai_sse_stream(prepend(item, stream))
+            stream = prepend(item, stream)
+            stream = to_sse_stream(stream, sse_stream_format)
+            stream = add_sse_heartbeat(stream, sse_heartbeat_interval)
             return StreamingResponse(
-                content=content,
+                content=stream,
                 media_type="text/event-stream",
                 headers=headers,
             )
 
     async def block_to_response(block: dict) -> Response:
         if emulate_streaming:
-            return await stream_to_response(block_to_stream(block))
+
+            async def stream():
+                yield block_response_to_streaming_chunk(block)
+
+            return await stream_to_response(stream())
         else:
             return JSONResponse(block, headers=headers)
 
@@ -287,7 +296,7 @@ async def create_server_response(
         return await stream_to_response(body)
     elif isinstance(body, dict):
         return await block_to_response(body)
-    elif isinstance(body, StreamingResponse):
+    elif isinstance(body, Response):
         return body
     else:
         assert_never(body)
@@ -352,10 +361,23 @@ async def reify_exceptions(
 
 def debug_print(title: str, chunk: dict) -> None:
     if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(f"{title}: {chunk}")
+        logger.debug(f"{title}: {json.dumps(chunk)}")
 
 
 def chunk_to_dict(chunk: ChatCompletionChunk) -> dict:
     dict = chunk.to_dict()
     debug_print("chunk", dict)
     return dict
+
+
+def add_sse_heartbeat(
+    stream: AsyncIterator[str], heartbeat_interval: float | None
+) -> AsyncIterator[str]:
+    if heartbeat_interval is None:
+        return stream
+
+    return add_heartbeat(
+        stream,
+        heartbeat_interval=heartbeat_interval,
+        heartbeat_object=": ping\n\n",
+    )

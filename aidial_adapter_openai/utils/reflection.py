@@ -1,13 +1,14 @@
 import functools
 import inspect
-from typing import Any, Callable, Coroutine, TypeVar
+from collections.abc import Awaitable
+from typing import Any, Callable, TypeVar
 
 from aidial_sdk.exceptions import InvalidRequestError
 
 
 @functools.lru_cache(maxsize=64)
 def _inspect_signature(
-    func: Callable[..., Coroutine[Any, Any, Any]]
+    func: Callable[..., Awaitable[Any]],
 ) -> inspect.Signature:
     return inspect.signature(func)
 
@@ -16,7 +17,7 @@ T = TypeVar("T")
 
 
 async def call_with_extra_body(
-    func: Callable[..., Coroutine[Any, Any, T]], arg: dict
+    func: Callable[..., Awaitable[T]], arg: dict
 ) -> T:
     if has_kwargs_argument(func):
         return await func(**arg)
@@ -40,7 +41,7 @@ async def call_with_extra_body(
     return await func(**arg)
 
 
-def has_kwargs_argument(func: Callable[..., Coroutine[Any, Any, Any]]) -> bool:
+def has_kwargs_argument(func: Callable[..., Awaitable[Any]]) -> bool:
     """
     Determines if the given function accepts a variable keyword argument (**kwargs).
     """

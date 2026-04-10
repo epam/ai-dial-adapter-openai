@@ -16,6 +16,8 @@ from tests.utils.storage import DummyFileStorage
 _file_1 = Resource(type="application/pdf", data=b"document content 1")
 _file_2 = Resource(type="application/pdf", data=b"document content 2")
 
+_audio_wav = Resource(type="audio/wav", data=b"RIFF\x00\x00\x00\x00WAVEfmt ")
+
 
 def attachment(resource: Resource) -> dict:
     return {"type": resource.type, "data": resource.data_base64}
@@ -366,3 +368,51 @@ async def test_transform_to_unified_messages(
 ):
     result = await mock_resource_processor.transform_messages(messages)
     assert result == expected_transformations
+
+
+async def test_audio_in_content_part(
+    mock_resource_processor: ResourceProcessor,
+):
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "transcribe"},
+                {
+                    "type": "input_audio",
+                    "input_audio": {"data": "AAAA", "format": "wav"},
+                },
+            ],
+        },
+    ]
+    result = await mock_resource_processor.transform_messages(messages)
+    assert len(result) == 1
+    content = result[0].raw_message["content"]
+    assert len(content) == 2
+    assert content[1] == {
+        "type": "input_audio",
+        "input_audio": {"data": "AAAA", "format": "wav"},
+    }
+    assert len(result[0].audios) == 1
+    assert result[0].audios[0].audio.type == "audio/wav"
+
+
+async def test_audio_in_attachments(
+    mock_message_transformer: MessageTransformer,
+):
+    message = {
+        "role": "user",
+        "content": "listen",
+        "custom_content": {
+            "attachments": [attachment(_audio_wav)],
+        },
+    }
+    result = await mock_message_transformer.transform_message(message)
+
+    assert isinstance(result, MultiModalMessage)
+    assert len(result.audios) == 1
+    assert result.audios[0].audio.type == "audio/wav"
+    assert result.files == []
+    assert len(result.raw_message["content"]) == 2
+    assert result.raw_message["content"][0] == text_part("listen")
+    assert result.raw_message["content"][1]["type"] == "input_audio"

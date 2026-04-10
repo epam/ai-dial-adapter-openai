@@ -95,25 +95,25 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
         actual_exc = exc_info.value
 
         expected = test_case.expected
-        assert isinstance(
-            actual_exc, expected.type
-        ), f"Expected exception of type {expected.type}, but got {type(actual_exc)}"
+        assert isinstance(actual_exc, expected.type), (
+            f"Expected exception of type {expected.type}, but got {type(actual_exc)}"
+        )
 
         if (status_code := expected.status_code) is not None:
             actual_status_code = getattr(actual_exc, "status_code", None)
             assert actual_status_code == status_code
 
         if (message := expected.message) is not None:
-            assert re.search(
-                message, str(actual_exc)
-            ), f"Cannot match the error message {message!r} against the pattern {str(actual_exc)!r}"
+            assert re.search(message, str(actual_exc)), (
+                f"Cannot match the error message {message!r} against the pattern {str(actual_exc)!r}"
+            )
 
         if (display_message := expected.display_message) is not None:
-            assert re.search(
-                display_message, str(actual_exc)
-            ), f"Cannot match the display error message {message!r} against the pattern {str(actual_exc)!r}"
+            assert re.search(display_message, str(actual_exc)), (
+                f"Cannot match the display error message {message!r} against the pattern {str(actual_exc)!r}"
+            )
     else:
         actual_output = await run_chat_completion()
-        assert test_case.expected(
-            actual_output
-        ), f"Failed output test, actual output: {actual_output}"
+        assert test_case.expected(actual_output), (
+            f"Failed output test, actual output: {actual_output}"
+        )
