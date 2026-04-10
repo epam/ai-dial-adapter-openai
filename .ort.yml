@@ -64,3 +64,6 @@ resolutions:
     - message: ".*PyPI::pyjwt.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "ORT cannot pick up license information"
+    - message: ".*PyPI::aidial-adapter-anthropic.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "ORT cannot pick up license information"
