@@ -115,10 +115,7 @@ def build_text_common(s: TestSuite) -> None:
             and s.stages[0]["name"] == "Reasoning",
         )
 
-    if (
-        s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API
-        and s.supports_function_calling
-    ):
+    if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
         s.test_case(
             name="web search tool",
             messages=[

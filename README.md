@@ -228,9 +228,10 @@ The last generation API is also supported via an URLs in the following format:
 
 ##### Web Search Tool
 
-When this deployment is backed by Azure OpenAI Responses API, a chat completions request can trigger the upstream `web_search` tool.
+The deployments backed by Azure OpenAI Responses API support the [Web Search tool](https://developers.openai.com/api/docs/guides/tools-web-search), which could be enabled by passing a static function called `web_search` as one of the tools:
 
-Example request:
+<details>
+<summary>Example request</summary>
 
 ```json
 {
@@ -255,12 +256,12 @@ Example request:
   "stream": true
 }
 ```
+</details>
 
-The adapter converts this tool declaration to Responses API `{"type": "web_search"}` (including optional configuration fields), and also supports `web_search_options` as an additional way to pass web search settings.
+Each Web Search tool calls are translated into a DIAL stages, and URL citations are mirrored as DIAL attachments:
 
-Web Search activity is exposed in chat completions output as `custom_content.stages`, and URL citations are mirrored to `custom_content.attachments`.
-
-Example response fragment:
+<details>
+<summary>Example response:</summary>
 
 ```json
 {
@@ -289,6 +290,7 @@ Example response fragment:
   ]
 }
 ```
+</details>
 
 #### Azure AI Foundry Chat Completions API
 

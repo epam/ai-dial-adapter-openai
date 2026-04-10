@@ -88,6 +88,7 @@ from openai.types.responses.response_output_text import (
 from aidial_adapter_openai.responses.response import (
     get_finish_reason,
     get_usage,
+    get_web_search_action_content,
 )
 from aidial_adapter_openai.utils.log_config import logger
 
@@ -400,27 +401,18 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                 logger.info(
                     f"[web_search] tool call: id={item_id}, action={action}"
                 )
-                action_to_content_field_name = {
-                    "search": "query",
-                    "open_page": "url",
-                    "unknown": "",
-                }
                 web_search_calls_count += 1
                 suffix = (
                     ""
                     if web_search_calls_count == 1
                     else f" #{web_search_calls_count}"
                 )
-                action_dump = action.model_dump(exclude_none=True)
-                action_type = action_dump.get("type", "unknown")
-                content = action_dump.get(
-                    action_to_content_field_name[action_type]
-                )
+                content = get_web_search_action_content(action)
                 stages.append(
                     Stage(
                         name="Web Search" + suffix,
                         status=Status.COMPLETED,
-                        content=f"{action_type}: {content}",
+                        content=content,
                     )
                 )
 

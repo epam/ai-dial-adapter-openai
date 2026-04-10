@@ -14,10 +14,6 @@ from openai.types.chat.chat_completion_chunk import (
     ChoiceDeltaToolCall,
     ChoiceDeltaToolCallFunction,
 )
-from openai.types.chat.chat_completion_message import (
-    Annotation,
-    AnnotationURLCitation,
-)
 from openai.types.completion_usage import CompletionUsage
 from openai.types.responses import (
     ResponseAudioDeltaEvent,
@@ -116,11 +112,16 @@ from openai.types.responses.response_output_item import (
     McpListTools,
 )
 from openai.types.responses.response_output_message import ResponseOutputMessage
+from openai.types.responses.response_output_text import (
+    AnnotationURLCitation as ResponsesAnnotationURLCitation,
+)
 from openai.types.responses.response_reasoning_item import ResponseReasoningItem
 
+from aidial_adapter_openai.responses.converter import convert_annotation
 from aidial_adapter_openai.responses.response import (
     get_finish_reason,
     get_usage,
+    get_web_search_action_content,
 )
 from aidial_adapter_openai.utils.log_config import logger
 
@@ -170,6 +171,14 @@ class EventHandler(pydantic.BaseModel):
             raise DialException("Response model is not set")
         return self.model_
 
+    def _stage_chunk(self, stage: dict) -> ChatCompletionChunk:
+        return self._chunk(
+            choice=Choice(
+                index=0,
+                delta=ChoiceDelta(custom_content={"stages": [stage]}),  # type: ignore
+            )
+        )
+
     def _resolve_stage_index(self, stage_key: str) -> int:
         stage_index = self.stage_key_to_index.get(stage_key)
         if stage_index is None:
@@ -190,74 +199,38 @@ class EventHandler(pydantic.BaseModel):
     def _append_to_stage(
         self,
         stage_key: str,
-        content: str | None = None,
-        name: str | None = None,
+        content: str,
     ) -> ChatCompletionChunk:
-        """
-        Append data to an existing stage by its stable key.
-        """
         stage_index = self._resolve_stage_index(stage_key)
+        stage: dict[str, int | str] = {"index": stage_index, "content": content}
+        return self._stage_chunk(stage)
 
-        stage: dict[str, int | str] = {"index": stage_index}
-        if content:
-            stage["content"] = content
-        if name:
-            stage["name"] = name
-        return self._chunk(
-            choice=Choice(
-                index=0,
-                delta=ChoiceDelta(
-                    custom_content={  # type: ignore
-                        "stages": [stage]
-                    }
-                ),
-            )
-        )
-
-    def _open_stage(self, name: str, stage_key: str) -> ChatCompletionChunk:
+    def _open_stage(
+        self, name: str, stage_key: str
+    ) -> ChatCompletionChunk | None:
         """
-        Open (create) a new stage by a stable key.
+        Returns `ChatCompletionChunk`.
+        Returns `None` if stage is already open.
         """
         stage_index = self.stage_key_to_index.get(stage_key)
-        if stage_index is None:
-            stage_index = len(self.stage_key_to_index)
-            self.stage_key_to_index[stage_key] = stage_index
-            self.stage_key_to_name[stage_key] = self._build_stage_name(name)
+        if stage_index is not None:
+            logger.info("Stage is already open. This step does nothing.")
+            return None
+
+        stage_index = len(self.stage_key_to_index)
+        self.stage_key_to_index[stage_key] = stage_index
+        self.stage_key_to_name[stage_key] = self._build_stage_name(name)
         name = self.stage_key_to_name[stage_key]
+        stage = {"index": stage_index, "name": name}
+        return self._stage_chunk(stage)
 
-        return self._chunk(
-            choice=Choice(
-                index=0,
-                delta=ChoiceDelta(
-                    custom_content={  # type: ignore
-                        "stages": [{"index": stage_index, "name": name}]
-                    }
-                ),
-            )
-        )
-
-    def _close_stage(
-        self, stage_key: str, name: str | None = None
-    ) -> ChatCompletionChunk:
-        """
-        Close an existing stage by its stable key.
-        """
+    def _close_stage(self, stage_key: str) -> ChatCompletionChunk:
         stage_index = self._resolve_stage_index(stage_key)
-
         stage: dict[str, int | str] = {
             "index": stage_index,
             "status": "completed",
         }
-        if name:
-            stage["name"] = name
-        return self._chunk(
-            choice=Choice(
-                index=0,
-                delta=ChoiceDelta(
-                    custom_content={"stages": [stage]}  # type: ignore
-                ),
-            )
-        )
+        return self._stage_chunk(stage)
 
     def _chunk(
         self,
@@ -335,35 +308,12 @@ class EventHandler(pydantic.BaseModel):
         )
 
     def _annotation_chunks(
-        self, annotation: dict[str, object]
+        self, annotation: ResponsesAnnotationURLCitation
     ) -> Generator[ChatCompletionChunk, None, None]:
-        annotation_type = annotation.get("type")
-        if annotation_type != "url_citation":
-            logger.warning(
-                f"Unsupported annotation payload type in stream: {annotation_type}"
-            )
-            return
+        annotation_ = convert_annotation(annotation)
+        if annotation_ is None:
+            raise DialException("Failed to convert annotation.")
 
-        start_index = annotation.get("start_index")
-        end_index = annotation.get("end_index")
-        title = annotation.get("title")
-        url = annotation.get("url")
-        if not isinstance(start_index, int) or not isinstance(end_index, int):
-            logger.warning("Annotation citation indices are invalid")
-            return
-        if not isinstance(title, str) or not isinstance(url, str):
-            logger.warning("Annotation citation title/url are invalid")
-            return
-
-        annotation_ = Annotation(
-            type="url_citation",
-            url_citation=AnnotationURLCitation(
-                start_index=start_index,
-                end_index=end_index,
-                title=title,
-                url=url,
-            ),
-        )
         yield self._chunk(
             choice=Choice(
                 index=0,
@@ -374,15 +324,16 @@ class EventHandler(pydantic.BaseModel):
         )
 
         attachment = Attachment(
-            title=title,
-            url=url,
-        ).model_dump(mode="json", exclude_none=True)
+            title=annotation_.url_citation.title,
+            url=annotation_.url_citation.url,
+        )
+        attachment_dict = attachment.model_dump(mode="json", exclude_none=True)
         yield self._chunk(
             choice=Choice(
                 index=0,
                 delta=ChoiceDelta(
                     custom_content={  # type: ignore
-                        "attachments": [attachment]
+                        "attachments": [attachment_dict]
                     }
                 ),
             )
@@ -395,6 +346,7 @@ class EventHandler(pydantic.BaseModel):
             logger.debug(
                 f"event[{event.type}]: {json.dumps(event.model_dump())}"
             )
+
         match event:
             case ResponseCreatedEvent(response=response):
                 self.id_ = response.id
@@ -409,10 +361,7 @@ class EventHandler(pydantic.BaseModel):
 
             case ResponseTextDeltaEvent(delta=delta):
                 yield self._chunk(
-                    choice=Choice(
-                        index=0,
-                        delta=ChoiceDelta(content=delta),
-                    )
+                    choice=Choice(index=0, delta=ChoiceDelta(content=delta))
                 )
 
             case (
@@ -431,38 +380,20 @@ class EventHandler(pydantic.BaseModel):
             case ResponseOutputItemDoneEvent(item=item):
                 match item:
                     case ResponseFunctionWebSearch(action=action, id=stage_id):
-                        """
-                        Web Search final event.
-                        Contains actions related to a completed internet search query.
-                        """
-                        action_to_content_field_name_map = {
-                            "search": "query",
-                            "open_page": "url",
-                            "unknown": "",
-                        }
-
-                        action_dump = action.model_dump()
-                        action_type = action_dump.get("type", "unknown")
-                        content = action_dump.get(
-                            action_to_content_field_name_map[action_type]
-                        )
+                        content = get_web_search_action_content(action)
                         stage_key = f"web_search:{stage_id}"
                         yield self._append_to_stage(
-                            stage_key=stage_key,
-                            content=f"{action_type}: {content}",
+                            stage_key=stage_key, content=content
                         )
                         yield self._close_stage(stage_key=stage_key)
 
             case ResponseWebSearchCallInProgressEvent(item_id=stage_id):
-                """
-                Web Search initial event.
-                Contains item_id as the tool call identifier.
-                """
                 stage_key = f"web_search:{stage_id}"
-                yield self._open_stage(
-                    name="Web Search",
-                    stage_key=stage_key,
+                open_stage_chunk = self._open_stage(
+                    name="Web Search", stage_key=stage_key
                 )
+                if open_stage_chunk is not None:
+                    yield open_stage_chunk
 
             case ResponseOutputItemAddedEvent(item=item):
                 match item:
@@ -512,21 +443,16 @@ class EventHandler(pydantic.BaseModel):
             case ResponseReasoningSummaryPartAddedEvent(
                 item_id=stage_id, summary_index=summary_index
             ):
-                """
-                Reasoning initial event.
-                Contains item_id as the tool call identifier and summary_index as the order key.
-                """
                 stage_key = f"reasoning:{stage_id}:{summary_index}"
-                yield self._open_stage(name="Reasoning", stage_key=stage_key)
+                open_stage_chunk = self._open_stage(
+                    name="Reasoning", stage_key=stage_key
+                )
+                if open_stage_chunk is not None:
+                    yield open_stage_chunk
 
             case ResponseReasoningSummaryTextDeltaEvent(
                 item_id=stage_id, summary_index=summary_index, delta=content
             ):
-                """
-                Reasoning intermediate event.
-                Contains delta as text fragments with justification to be merged with the previous fragment,
-                and item_id as the tool invocation identifier.
-                """
                 stage_key = f"reasoning:{stage_id}:{summary_index}"
                 yield self._append_to_stage(
                     stage_key=stage_key, content=content
@@ -535,16 +461,14 @@ class EventHandler(pydantic.BaseModel):
             case ResponseReasoningSummaryTextDoneEvent(
                 item_id=stage_id, summary_index=summary_index
             ):
-                """
-                Reasoning final event.
-                Means that reasoning is over.
-                """
                 stage_key = f"reasoning:{stage_id}:{summary_index}"
                 yield self._close_stage(stage_key=stage_key)
 
             case ResponseOutputTextAnnotationAddedEvent(annotation=annotation):
                 if isinstance(annotation, dict):
-                    yield from self._annotation_chunks(annotation)
+                    yield from self._annotation_chunks(
+                        ResponsesAnnotationURLCitation(**annotation)
+                    )
                 else:
                     logger.warning(
                         f"Unsupported annotation payload type in stream: {type(annotation)}"
