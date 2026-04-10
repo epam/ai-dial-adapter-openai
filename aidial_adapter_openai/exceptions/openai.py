@@ -10,13 +10,13 @@ from aidial_adapter_openai.utils.adapter_exception import (
 )
 
 
-def convert_openai_exception(exc: Exception) -> AdapterException | None:
-    if isinstance(exc, ResponseWrapper):
-        return exc
+def convert_openai_exception(e: Exception) -> AdapterException | None:
+    if isinstance(e, ResponseWrapper):
+        return e
 
-    if isinstance(exc, APIStatusError):
+    if isinstance(e, APIStatusError):
         # Non-streaming errors are reported by `openai` library via this exception
-        r = exc.response
+        r = e.response
         httpx_headers = r.headers
 
         # httpx library (used by openai) automatically sets
@@ -34,7 +34,7 @@ def convert_openai_exception(exc: Exception) -> AdapterException | None:
             content=r.text,
         )
 
-    if isinstance(exc, APITimeoutError):
+    if isinstance(e, APITimeoutError):
         return DialException(
             status_code=504,
             type="timeout",
@@ -42,7 +42,7 @@ def convert_openai_exception(exc: Exception) -> AdapterException | None:
             display_message="Request timed out. Please try again later.",
         )
 
-    if isinstance(exc, APIConnectionError):
+    if isinstance(e, APIConnectionError):
         return DialException(
             status_code=502,
             type="connection",
@@ -50,19 +50,19 @@ def convert_openai_exception(exc: Exception) -> AdapterException | None:
             display_message="OpenAI server is not responsive. Please try again later.",
         )
 
-    if isinstance(exc, APIError):
+    if isinstance(e, APIError):
         # Streaming errors are reported by `openai` library via this exception
         status_code: int = 500
-        if exc.code:
+        if e.code:
             with contextlib.suppress(Exception):
-                status_code = int(exc.code)
-            if exc.code == "rate_limit_exceeded":
+                status_code = int(e.code)
+            if e.code == "rate_limit_exceeded":
                 status_code = 429
 
         return parse_adapter_exception(
             status_code=status_code,
             headers={},
-            content={"error": exc.body or {}},
+            content={"error": e.body or {}},
         )
 
     return None

@@ -20,12 +20,12 @@ from aidial_adapter_openai.utils.adapter_exception import (
 from aidial_adapter_openai.utils.log_config import logger
 
 
-def to_adapter_exception(exc: Exception) -> AdapterException:
+def to_adapter_exception(e: Exception) -> AdapterException:
     e = (
-        convert_openai_exception(exc)
-        or convert_anthropic_errors(exc)
-        or convert_application_errors(exc)
-        or InternalServerError(str(exc))
+        convert_openai_exception(e)
+        or convert_anthropic_errors(e)
+        or convert_application_errors(e)
+        or InternalServerError(str(e))
     )
     return _expose_error_message_to_user(e)
 
@@ -38,15 +38,15 @@ def _truncate_long_string(s: str, *, limit: int) -> str:
     return s
 
 
-def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
-    if isinstance(exc, DialException) and exc.status_code == 400:
-        message = exc.message
+def _expose_error_message_to_user(e: AdapterException) -> AdapterException:
+    if isinstance(e, DialException) and e.status_code == 400:
+        message = e.message
         if (
             "this model does not support file content types" in message.lower()
             or "the file type you uploaded is not supported" in message.lower()
         ):
-            exc.display_message = (
-                exc.display_message
+            e.display_message = (
+                e.display_message
                 or "The provided file attachments aren't supported."
             )
 
@@ -55,8 +55,8 @@ def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
         )
         if match:
             mime_type = match[2]
-            exc.display_message = (
-                exc.display_message
+            e.display_message = (
+                e.display_message
                 or f"The file attachments of the MIME type {mime_type!r} aren't supported."
             )
 
@@ -65,60 +65,58 @@ def _expose_error_message_to_user(exc: AdapterException) -> AdapterException:
             or "the image data you provided does not represent a valid image"
             in message.lower()
         ):
-            exc.display_message = (
-                exc.display_message
+            e.display_message = (
+                e.display_message
                 or "The provided image attachment is either corrupt or of unsupported MIME type."
             )
 
         # Special handling of GPT Image 1 exception when the prompt is too long
         if "Invalid 'prompt': string too long" in message:
-            exc.display_message = (
-                exc.display_message or "The prompt is too long."
-            )
+            e.display_message = e.display_message or "The prompt is too long."
 
         # Special handling of DALL·E 3 exception when the prompt is too long
         if "is too long - 'prompt'" in message:
             # DALL·E 3 is notorious for including the whole prompt in the error message,
             # therefore, we override it with a short one.
-            exc.message = "The prompt is too long."
-            exc.display_message = exc.display_message or exc.message
+            e.message = "The prompt is too long."
+            e.display_message = e.display_message or e.message
 
         # Just in case any other sensitive information leaked to the error message, we truncate it
-        exc.message = _truncate_long_string(exc.message, limit=1024)
+        e.message = _truncate_long_string(e.message, limit=1024)
 
-    return exc
+    return e
 
 
 def fastapi_exception_handler(
-    request: FastAPIRequest, exc: Exception
+    request: FastAPIRequest, e: Exception
 ) -> FastAPIResponse:
-    assert isinstance(exc, fastapi.HTTPException)
+    assert isinstance(e, fastapi.HTTPException)
     return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.detail,
-        headers=exc.headers,
+        status_code=e.status_code,
+        content=e.detail,
+        headers=e.headers,
     )
 
 
 def adapter_exception_handler(
-    request: FastAPIRequest, exc: Exception
+    request: FastAPIRequest, e: Exception
 ) -> FastAPIResponse:
-    adapter_exception = to_adapter_exception(exc)
+    adapter_exception = to_adapter_exception(e)
 
     logger.error(
-        f"Caught exception: {type(exc).__module__}.{type(exc).__name__}. "
+        f"Caught exception: {type(e).__module__}.{type(e).__name__}. "
         f"Converted to the adapter exception: {adapter_exception!r}",
-        exc_info=exc,
+        exc_info=e,
     )
     return adapter_exception.to_fastapi_response()
 
 
-def _to_dial_exception(exc: Exception) -> DialException:
-    exc = to_adapter_exception(exc)
-    if isinstance(exc, ResponseWrapper):
-        return exc.to_dial_exception()
+def _to_dial_exception(e: Exception) -> DialException:
+    e = to_adapter_exception(e)
+    if isinstance(e, ResponseWrapper):
+        return e.to_dial_exception()
     else:
-        return exc
+        return e
 
 
 def dial_exception_decorator(func):

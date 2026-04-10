@@ -245,6 +245,11 @@ async def call_chat_completion(
 
             return response
 
+        case D.ANTHROPIC_MESSAGES_API:
+            raise RuntimeError(
+                "Anthropic API endpoint must have resulted in Anthropic client"
+            )
+
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
             response = await gpt_chat_completion(
                 request=request_body,
@@ -259,11 +264,6 @@ async def call_chat_completion(
             response.body = extract_audio_content(response.body, request_body)
 
             return response
-
-        case D.ANTHROPIC_MESSAGES_API:
-            raise RuntimeError(
-                "Anthropic API endpoint must have resulted in Anthropic client"
-            )
 
         case _:
             assert_never(deployment_type)

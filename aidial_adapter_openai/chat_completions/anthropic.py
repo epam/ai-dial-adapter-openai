@@ -1,5 +1,3 @@
-import os
-
 import fastapi
 from aidial_adapter_anthropic.adapter import ChatCompletionAdapter, UserError
 from aidial_adapter_anthropic.adapter.claude import ApproximateTokenizer
@@ -15,9 +13,10 @@ from anthropic import AsyncAnthropicFoundry
 from fastapi.responses import StreamingResponse
 
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
+from aidial_adapter_openai.dial_api.storage import DIAL_URL
 from aidial_adapter_openai.utils.env import get_env_int
 
-DIAL_URL = os.getenv("DIAL_URL")
+_CLAUDE_DEFAULT_MAX_TOKENS = get_env_int("CLAUDE_DEFAULT_MAX_TOKENS", 1536)
 
 
 def _create_file_storage(api_key: str | None) -> FileStorage | None:
@@ -25,9 +24,6 @@ def _create_file_storage(api_key: str | None) -> FileStorage | None:
         return None
 
     return FileStorage(dial_url=DIAL_URL, api_key=api_key)
-
-
-CLAUDE_DEFAULT_MAX_TOKENS = get_env_int("CLAUDE_DEFAULT_MAX_TOKENS", 1536)
 
 
 async def create_adapter(
@@ -38,7 +34,7 @@ async def create_adapter(
         storage=_create_file_storage(api_key),
         client=client,
         custom_tokenizer=ApproximateTokenizer(),
-        default_max_tokens=CLAUDE_DEFAULT_MAX_TOKENS,
+        default_max_tokens=_CLAUDE_DEFAULT_MAX_TOKENS,
         supports_thinking=True,
         supports_documents=True,
     )
