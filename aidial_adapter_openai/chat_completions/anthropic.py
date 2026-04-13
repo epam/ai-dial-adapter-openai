@@ -26,7 +26,7 @@ def _create_file_storage(api_key: str | None) -> FileStorage | None:
     return FileStorage(dial_url=DIAL_URL, api_key=api_key)
 
 
-async def create_adapter(
+async def _create_adapter(
     deployment: str, api_key: str, client: AsyncAnthropicFoundry
 ) -> ChatCompletionAdapter:
     return await create_anthropic_adapter(
@@ -47,7 +47,7 @@ async def chat_completion(
     client: AsyncAnthropicFoundry,
 ) -> StreamingResponse | dict:
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
-        model = await create_adapter(deployment_id, request.api_key, client)
+        model = await _create_adapter(deployment_id, request.api_key, client)
         response.set_model(deployment_id)
 
         params = ModelParameters.create(request)

@@ -374,7 +374,7 @@
             ],
             "features": {
                 "responseFormatJsonObjectSupported": false,
-                "responseFormatJsonSchemaSupported": false,
+                "responseFormatJsonSchemaSupported": true,
                 "emptyDialogSupported": false
             },
             "inputAttachmentTypes": [
