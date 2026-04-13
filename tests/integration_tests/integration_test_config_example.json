@@ -5,7 +5,7 @@
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/v1/chat/completions",
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/chat/completions",
                     "key": "optional-api-key"
                 }
             ],
@@ -20,11 +20,11 @@
                 "image/*"
             ]
         },
-        "gpt-5-chat-2025-08-07": {
+        "gpt-5-chat-2025-10-03": {
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/deployments/gpt-5-chat-2025-08-07/chat/completions",
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/deployments/gpt-5-chat-2025-10-03/chat/completions",
                     "key": "optional-api-key"
                 }
             ],
@@ -42,7 +42,7 @@
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-openai-service-name.openai.azure.com/openai/v1/responses",
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/responses",
                     "key": "optional-api-key"
                 }
             ],

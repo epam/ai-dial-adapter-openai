@@ -13,6 +13,7 @@ from aidial_adapter_openai.exception_handlers import (
     adapter_exception_handler,
     fastapi_exception_handler,
 )
+from aidial_adapter_openai.utils.auth import get_azure_token_provider
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import configure_loggers, logger
 from aidial_adapter_openai.utils.request import set_app_config
@@ -22,7 +23,8 @@ from aidial_adapter_openai.utils.request import set_app_config
 async def lifespan(app: FastAPI):
     yield
     logger.info("Application shutdown")
-    await get_http_client().aclose()
+    await get_http_client.clear()
+    await get_azure_token_provider.clear()
 
 
 def create_app(
