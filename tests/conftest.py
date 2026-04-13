@@ -19,7 +19,7 @@ async def disable_caches():
     # Disable all caches that may retain references to event loops.
     #
     # pytest-asyncio creates a new event loop for each test with scope="function".
-    # If a cached object is created or a global object is constructed in an early test,
+    # If a cached object is created or a global object is constructed in an earlier test,
     # it may hold a reference to that test’s event loop.
     #
     # Once that loop is closed and a new one is created for the next test,
@@ -29,9 +29,13 @@ async def disable_caches():
     # To avoid this, we clear or disable any caches that may hold event loop-bound state.
 
     # Disable `functools.cache` caches
-    from aidial_adapter_openai.utils.http_client import get_http_client
+    from aidial_adapter_openai.utils.http_client import (
+        get_anthropic_httpx_client,
+        get_http_client,
+    )
 
     get_http_client.cache_clear()
+    get_anthropic_httpx_client.cache_clear()
 
 
 @pytest.fixture(scope="session")
