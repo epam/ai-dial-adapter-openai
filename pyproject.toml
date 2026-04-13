@@ -51,6 +51,7 @@ pytest-timeout = "^2.4.0"
 pytest-sugar = "^1.0.0"
 pytest-env = "1.1.1"
 rapidfuzz = "^3.14.1"
+asgi-lifespan = "2.1.0"
 
 [tool.poetry.group.lint.dependencies]
 pyright = "1.1.408"

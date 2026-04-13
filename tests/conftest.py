@@ -3,6 +3,7 @@ from typing import Generator, Protocol
 
 import httpx
 import pytest
+from asgi_lifespan import LifespanManager
 from httpx import ASGITransport
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 
@@ -13,14 +14,17 @@ from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
 _TEST_TIMEOUT = httpx.Timeout(30, connect=10)
 
 
-@pytest.fixture()
-def _app_instance():
+@pytest.fixture
+async def _app_instance():
     from aidial_adapter_openai.app import create_app
 
-    return create_app(
+    app = create_app(
         init_telemetry=False,
         app_config=TEST_DEPLOYMENTS_CONFIG.app_config,
     )
+
+    async with LifespanManager(app):
+        yield app
 
 
 @pytest.fixture
@@ -48,11 +52,14 @@ async def create_test_client(
     from aidial_adapter_openai.app import create_app
 
     app = create_app(init_telemetry=False, app_config=app_config)
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=app, raise_app_exceptions=False),  # type: ignore
-        base_url=base_url,
-        timeout=_TEST_TIMEOUT,
-    ) as client:
+    async with (
+        LifespanManager(app),
+        httpx.AsyncClient(
+            transport=ASGITransport(app=app, raise_app_exceptions=False),  # type: ignore
+            base_url=base_url,
+            timeout=_TEST_TIMEOUT,
+        ) as client,
+    ):
         yield client
 
 
