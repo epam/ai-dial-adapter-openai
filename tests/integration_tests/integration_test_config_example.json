@@ -207,7 +207,7 @@
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com",
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/models",
                     "key": "optional-api-key"
                 }
             ],
@@ -219,7 +219,7 @@
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com",
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/models",
                     "key": "optional-api-key"
                 }
             ]
@@ -321,10 +321,11 @@
             ]
         },
         "o3-pro-2025-06-10": {
+            "overrideName": "o3-pro-2025-06-10",
             "type": "chat",
             "upstreams": [
                 {
-                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/deployments/o3-pro-2025-06-10/responses",
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/responses",
                     "key": "optional-api-key"
                 }
             ]
