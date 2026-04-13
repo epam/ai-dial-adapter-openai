@@ -27,7 +27,7 @@ async def test_get_credentials_falls_back_to_azure_ad_token(monkeypatch):
     async def _mock_get_api_key() -> str:
         return "token-123"
 
-    monkeypatch.setattr(auth, "get_azure_access_token", _mock_get_api_key)
+    monkeypatch.setattr(auth, "get_api_key", _mock_get_api_key)
 
     creds = await auth.get_credentials({}, azure=True)
 
