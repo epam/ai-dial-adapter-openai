@@ -270,7 +270,7 @@ async def test_web_search_streaming_annotations_and_attachments(
     assert chunks[2]["choices"][0]["delta"]["custom_content"]["stages"] == [
         {
             "index": 0,
-            "content": "Search Weather in Kyiv",
+            "content": "Search 'Weather in Kyiv'",
         }
     ]
     assert chunks[3]["choices"][0]["delta"]["custom_content"] == {
@@ -369,7 +369,7 @@ def test_convert_response_with_web_search_call():
             {
                 "name": "Web Search",
                 "status": "completed",
-                "content": "Search weather Kyiv",
+                "content": "Search 'weather Kyiv'",
             }
         ]
     }
@@ -404,12 +404,12 @@ def test_convert_response_with_multiple_web_search_calls():
             {
                 "name": "Web Search",
                 "status": "completed",
-                "content": "Search weather Kyiv",
+                "content": "Search 'weather Kyiv'",
             },
             {
                 "name": "Web Search #2",
                 "status": "completed",
-                "content": "Search news Kyiv",
+                "content": "Search 'news Kyiv'",
             },
         ]
     }
