@@ -31,6 +31,8 @@
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
     - [vLLM Chat Completion API](#vllm-chat-completion-api)
       - [Qwen3-ASR](#qwen3-asr)
+    - [Anthropic Messages API](#anthropic-messages-api)
+      - [Default `max_tokens` for Claude models](#default-max_tokens-for-claude-models)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
@@ -678,6 +680,59 @@ You can connect the [Qwen3-ASR](https://docs.vllm.ai/projects/recipes/en/latest/
 > [!NOTE]
 > `QWEN3_ASR_VLLM_DEPLOYMENTS` is separate from `VLLM_DEPLOYMENTS`. Deployments listed in `QWEN3_ASR_VLLM_DEPLOYMENTS` receive the ASR language extraction post-processing, while regular `VLLM_DEPLOYMENTS` receive reasoning extraction instead.
 
+#### Anthropic Messages API
+
+The adapter supports Claude models deployed in Azure Foundry and exposing Anthropic Messages API:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${ANTHROPIC_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/anthropic/v1/messages",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+##### Default `max_tokens` for Claude models
+
+Unlike OpenAI GPT models, Claude models require the `max_tokens` parameter in the chat completion request.
+
+We recommend configuring `max_tokens` default value on a per-model basis in the DIAL Core Config, for example:
+
+```json
+{
+    "models": {
+        "dial-claude-deployment-id": {
+            "type": "chat",
+            "description": "...",
+            "endpoint": "...",
+            "defaults": {
+                "max_tokens": 2048
+            }
+        }
+    }
+}
+```
+
+If the default is missing in the DIAL Core Config, it will be taken from the `CLAUDE_DEFAULT_MAX_TOKENS` environment variable.
+However, we strongly recommend not to rely on this variable and instead configure the defaults in the DIAL Core Config.
+Such a **per-model** configuration is operationally cleaner since all the information relevant to tokens *(like pricing and token limits)* is kept in the same place.
+
+The default value set in the DIAL Core Config takes precedence over the one configured in the adapter.
+
+Make sure the default doesn't exceed Claude's [max output tokens](https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table), otherwise, you will receive an error like this one: `max_tokens: 10000 > 8192, which is the maximum allowed number of output tokens for claude-...)`.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
@@ -1008,6 +1063,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 |WEB_CONCURRENCY|1|Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).|
 |THREAD_POOL_SIZE||The size of a thread pool for CPU-heavy tasks such as tokenization and image analysis. The [default](https://github.com/python/cpython/blob/3.11/Lib/concurrent/futures/thread.py#L142) is `min(32, #logicalCPUs + 4)`. Find the details in the section about [performance](#server-performance-configuration).|
 |SSE_HEARTBEAT_INTERVAL||If set, the adapter inserts ping comments into streaming chat completion responses after the connection has been idle for the specified number of seconds, helping prevent read timeouts when the upstream is unresponsive.|
+|CLAUDE_DEFAULT_MAX_TOKENS|1536|The default value of `max_tokens` chat completion parameter if it is not provided in the request.<br>**:warning: Using the variable is discouraged**.<br>Consider configuring the default in the DIAL Core Config instead as demonstrated in the [example below](#default-max_tokens-for-claude-models).|
 
 ---
 

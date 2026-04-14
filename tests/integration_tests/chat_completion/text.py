@@ -50,24 +50,25 @@ def build_text_common(s: TestSuite) -> None:
             status_code=400,
         )
 
-    s.test_case(
-        name="empty dialog",
-        messages=[],
-        expected=empty_messages_expected,
-        **be_brief,
-    )
+    if s.supports_empty_dialog:
+        s.test_case(
+            name="empty dialog",
+            messages=[],
+            expected=empty_messages_expected,
+            **be_brief,
+        )
 
-    s.test_case(
-        name="empty user message",
-        messages=[user("")],
-        **be_brief,
-    )
+        s.test_case(
+            name="empty user message",
+            messages=[user("")],
+            **be_brief,
+        )
 
-    s.test_case(
-        name="single space user message",
-        messages=[user(" ")],
-        **be_brief,
-    )
+        s.test_case(
+            name="single space user message",
+            messages=[user(" ")],
+            **be_brief,
+        )
 
     if s.supports_reasoning:
         s.test_case(

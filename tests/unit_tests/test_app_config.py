@@ -42,7 +42,7 @@ def test_app_config_chat_openai_platform(origin: str, deployment: str):
     assert ty.deployment_type == D.GPT_GENERIC
     endpoint = ty.endpoint
     assert isinstance(endpoint, OpenAIEndpoint)
-    assert endpoint.base_url == f"{origin}/whatever1/whatever2"
+    assert endpoint.openai_base_url == f"{origin}/whatever1/whatever2"
 
 
 def test_app_config_chat_azure(
@@ -78,7 +78,7 @@ def test_app_config_chat_responses_azure_next_gen(origin: str, deployment: str):
 
     assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == OpenAIEndpoint(
-        base_url=f"{origin}/whatever1/whatever2/openai/v1"
+        openai_base_url=f"{origin}/whatever1/whatever2/openai/v1"
     )
 
 
@@ -91,7 +91,7 @@ def test_app_config_chat_responses_openai_platform(
 
     assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == OpenAIEndpoint(
-        base_url=f"{origin}/whatever1/whatever2"
+        openai_base_url=f"{origin}/whatever1/whatever2"
     )
 
 
@@ -109,7 +109,7 @@ def test_app_config_chat_completions_azure_next_gen(
 
     assert ty.deployment_type == D.GPT4O
     assert ty.endpoint == OpenAIEndpoint(
-        base_url=f"{origin}/whatever1/whatever2/openai/v1"
+        openai_base_url=f"{origin}/whatever1/whatever2/openai/v1"
     )
 
 

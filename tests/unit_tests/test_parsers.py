@@ -16,7 +16,7 @@ from tests.conftest import create_test_client
 RESPONSE_CASES = [
     (
         "https://test.com/openai/v1/responses",
-        OpenAIEndpoint(base_url="https://test.com/openai/v1"),
+        OpenAIEndpoint(openai_base_url="https://test.com/openai/v1"),
     ),
     (
         "https://test.com/openai/responses",
@@ -50,11 +50,11 @@ OPTIONAL_CHAT_ENDPOINT_CASES = [
     ),
     (
         "https://test.com/openai/deployments",
-        OpenAIEndpoint(base_url="https://test.com/openai/deployments"),
+        OpenAIEndpoint(openai_base_url="https://test.com/openai/deployments"),
     ),
     (
         "https://test.com/my/endpoint",
-        OpenAIEndpoint(base_url="https://test.com/my/endpoint"),
+        OpenAIEndpoint(openai_base_url="https://test.com/my/endpoint"),
     ),
     (
         "https://test.com/openai/deployments/test-deployment/chat/completions",
@@ -79,11 +79,11 @@ OPTIONAL_CHAT_ENDPOINT_CASES = [
     ),
     (
         "https://test.com/openai/deployments/chat/completions",
-        OpenAIEndpoint(base_url="https://test.com/openai/deployments"),
+        OpenAIEndpoint(openai_base_url="https://test.com/openai/deployments"),
     ),
     (
         "https://test.com/my/endpoint/chat/completions",
-        OpenAIEndpoint(base_url="https://test.com/my/endpoint"),
+        OpenAIEndpoint(openai_base_url="https://test.com/my/endpoint"),
     ),
 ]
 
@@ -113,13 +113,13 @@ NORMAL_CHAT_CASES = [
     (
         "https://test.com/openai/deployments/chat/completions",
         OpenAIEndpoint(
-            base_url="https://test.com/openai/deployments",
+            openai_base_url="https://test.com/openai/deployments",
         ),
     ),
     (
         "https://test.com/my/endpoint/chat/completions",
         OpenAIEndpoint(
-            base_url="https://test.com/my/endpoint",
+            openai_base_url="https://test.com/my/endpoint",
         ),
     ),
 ]
@@ -156,13 +156,13 @@ NORMAL_COMPLETIONS_CASES = [
     (
         "https://test.com/openai/deployments/completions",
         OpenAIEndpoint(
-            base_url="https://test.com/openai/deployments",
+            openai_base_url="https://test.com/openai/deployments",
         ),
     ),
     (
         "https://test.com/my/endpoint/completions",
         OpenAIEndpoint(
-            base_url="https://test.com/my/endpoint",
+            openai_base_url="https://test.com/my/endpoint",
         ),
     ),
 ]
@@ -207,7 +207,7 @@ def test_optional_chat_endpoint_parser(endpoint, parsed):
 OPENAI_VIDEO_API_CASES = [
     (
         "https://test.com/openai/v1/videos",
-        OpenAIEndpoint(base_url="https://test.com/openai/v1"),
+        OpenAIEndpoint(openai_base_url="https://test.com/openai/v1"),
     ),
     (
         "https://test.com/openai/deployments/test-deployment/videos",

@@ -40,6 +40,10 @@ def get_env_dict(key: str) -> Dict[str, str] | None:
     return None
 
 
+def get_env_int(name: str, default: int) -> int:
+    return int(os.getenv(name) or default)
+
+
 _T = TypeVar("_T")
 
 
