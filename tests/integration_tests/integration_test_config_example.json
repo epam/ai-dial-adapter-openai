@@ -223,7 +223,10 @@
                     "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/models",
                     "key": "optional-api-key"
                 }
-            ]
+            ],
+            "features": {
+                "responseFormatJsonSchemaSupported": false
+            }
         },
         "gpt-oss-120b": {
             "type": "chat",
@@ -310,6 +313,7 @@
                 }
             ],
             "features": {
+                "parallelToolCallsSupported": false,
                 "reasoningSupported": true,
                 "temperatureSupported": false
             }

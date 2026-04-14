@@ -63,7 +63,7 @@ def build_text_common(s: TestSuite) -> None:
 
     if s.supports_reasoning:
         s.test_case(
-            name="short pinocchio",
+            name="finish reason length",
             messages=[user("tell me the full story of Pinocchio")],
             max_completion_tokens=128,
             expected=lambda s: len(s.response.id) <= 100
