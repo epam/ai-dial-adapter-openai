@@ -23,6 +23,14 @@ def to_adapter_exception(exc: Exception) -> AdapterException:
     return _expose_error_message_to_user(_convert_to_adapter_exception(exc))
 
 
+def _get_status_code(exc: APIStatusError) -> int:
+    has_api_key_header = "api-key" in exc.request.headers
+    code = exc.status_code
+    if code == 500 or (code in (401, 403) and has_api_key_header):
+        code = 502
+    return code
+
+
 def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
     if isinstance(exc, (DialException, ResponseWrapper)):
         return exc
@@ -50,8 +58,10 @@ def _convert_to_adapter_exception(exc: Exception) -> AdapterException:
         if "Content-Encoding" in httpx_headers:
             del httpx_headers["Content-Encoding"]
 
+        status_code = _get_status_code(exc)
+
         return parse_adapter_exception(
-            status_code=r.status_code,
+            status_code=status_code,
             headers=httpx_headers,
             content=r.text,
         )

@@ -32,6 +32,20 @@ from tests.utils.stream import (
     single_choice_chunk,
 )
 
+_API_VERSION = "api-version=2023-03-15-preview"
+_UPSTREAM_ENDPOINT = (
+    "http://localhost:5001/openai/deployments/gpt-4/chat/completions"
+)
+
+
+@pytest.fixture(autouse=True)
+def mock_azure_ad_token():
+    with patch(
+        "aidial_adapter_openai.utils.auth.get_api_key",
+        return_value="test-azure-ad-token",
+    ):
+        yield
+
 
 def assert_equal(actual: Any, expected: Any):
     assert actual == expected
@@ -1064,7 +1078,7 @@ async def test_error_from_gpt_multi_modal(stream: bool):
             },
         )
 
-        assert response.status_code == 500
+        assert response.status_code == 502
         assert response.content == b"Something went wrong"
 
 
@@ -1296,3 +1310,74 @@ async def test_rate_limit_exceeded_during_streaming():
                 "type": "server_error",
             }
         }
+
+
+@respx.mock
+@pytest.mark.parametrize("upstream_error_code", [400, 401, 403, 500, 502, 503])
+@pytest.mark.parametrize(
+    "error_during_streaming",
+    [True, False],
+    ids=["error-in-stream", "error-before-stream"],
+)
+@pytest.mark.parametrize(
+    "with_api_key", [True, False], ids=["with-key", "no-key"]
+)
+@pytest.mark.parametrize("stream", [True, False], ids=["stream", "block"])
+async def test_upstream_errors_to_adapter_errors(
+    test_app: httpx.AsyncClient,
+    upstream_error_code: int,
+    error_during_streaming: bool,
+    with_api_key: bool,
+    stream: bool,
+):
+    mock_stream = OpenAIStream(
+        single_choice_chunk(delta={"role": "assistant", "content": "test"}),
+        {
+            "error": {
+                "message": "Upstream streaming error",
+                "code": int(upstream_error_code),
+            }
+        },
+    )
+
+    def chat_completion_handler(request: httpx.Request):
+        streaming = json.loads(request.content).get("stream", False)
+        if streaming and error_during_streaming:
+            return httpx.Response(
+                status_code=200,
+                headers={"Content-Type": "text/event-stream"},
+                content=mock_stream.to_content(),
+            )
+        else:
+            return httpx.Response(
+                status_code=upstream_error_code,
+                content="Upstream error",
+            )
+
+    respx.post(f"{_UPSTREAM_ENDPOINT}?{_API_VERSION}").mock(
+        side_effect=chat_completion_handler
+    )
+
+    headers = {"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT}
+    if with_api_key:
+        headers["X-UPSTREAM-KEY"] = "TEST_API_KEY"
+
+    response = await test_app.post(
+        f"/openai/deployments/gpt-4/chat/completions?{_API_VERSION}",
+        json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": stream,
+        },
+        headers=headers,
+    )
+
+    if stream and error_during_streaming:
+        assert response.status_code == 200
+        return
+
+    if upstream_error_code == 500 or (
+        upstream_error_code in (401, 403) and with_api_key
+    ):
+        assert response.status_code == 502
+    else:
+        assert response.status_code == upstream_error_code
