@@ -1,4 +1,7 @@
+from typing import cast
+
 from openai import BadRequestError, UnprocessableEntityError
+from openai.types.chat import ChatCompletionToolParam
 
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
@@ -111,6 +114,36 @@ def build_text_common(s: TestSuite) -> None:
             expected=lambda s: s.response.choices[0].finish_reason == "stop"
             and len(s.stages) >= 1
             and s.stages[0]["name"] == "Reasoning",
+        )
+
+    if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:
+        s.test_case(
+            name="web search tool",
+            messages=[
+                user(
+                    "What is the latest EUR/USD exchange rate? "
+                    "Use web search and include source links."
+                )
+            ],
+            # static_function is adapter-specific and converted to Responses API
+            # tools internally, but OpenAI's ChatCompletionToolParam typing doesn't include it.
+            tools=cast(
+                list[ChatCompletionToolParam],
+                [
+                    {
+                        "type": "static_function",
+                        "static_function": {"name": "web_search"},
+                    }
+                ],
+            ),
+            expected=lambda r: r.response.choices[0].finish_reason == "stop"
+            and any(
+                str(stage.get("name", "")).startswith("Web Search")
+                for stage in r.response.choices[0]
+                .message.model_dump()
+                .get("custom_content", {})
+                .get("stages", [])
+            ),
         )
 
     if s.deployment_type == ChatCompletionDeploymentType.RESPONSES_API:

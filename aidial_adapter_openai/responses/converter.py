@@ -1,6 +1,12 @@
 from typing import Generator, List, assert_never
 
-from aidial_sdk.chat_completion.request import CustomContent, Stage, Status
+import pydantic
+from aidial_sdk.chat_completion.request import (
+    Attachment,
+    CustomContent,
+    Stage,
+    Status,
+)
 from aidial_sdk.exceptions import RequestValidationError
 from openai.types.chat import (
     ChatCompletion,
@@ -54,6 +60,7 @@ from openai.types.responses import (
     ToolChoiceCustomParam,
     ToolChoiceFunctionParam,
     ToolParam,
+    WebSearchToolParam,
 )
 from openai.types.responses.response_create_params import ToolChoice
 from openai.types.responses.response_input_item_param import (
@@ -82,6 +89,7 @@ from openai.types.responses.response_output_text import (
 from aidial_adapter_openai.responses.response import (
     get_finish_reason,
     get_usage,
+    get_web_search_action_content,
 )
 from aidial_adapter_openai.utils.log_config import logger
 
@@ -115,6 +123,25 @@ def convert_annotation(annotation: ResponsesAnnotation) -> Annotation | None:
             assert_never(annotation)
 
 
+def parse_response_url_citation(
+    annotation: dict,
+) -> ResponsesAnnotation | None:
+    if annotation.get("type") != "url_citation":
+        logger.warning(
+            "Unsupported type of an annotation in stream: "
+            f"{annotation.get('type')}"
+        )
+        return None
+
+    try:
+        return ResponsesAnnotationURLCitation.model_validate(annotation)
+    except pydantic.ValidationError:
+        logger.warning(
+            f"Failed to parse URL citation annotation in stream: {annotation}"
+        )
+        return None
+
+
 def convert_tool_choice(
     tool_choice: ChatCompletionToolChoiceOptionParam,
 ) -> ToolChoice:
@@ -144,16 +171,42 @@ def convert_tool_choice(
     assert_never(tool_choice)
 
 
-def convert_tools(tools: List[ChatCompletionToolParam]) -> List[ToolParam]:
-    def _convert_tool(tool: ChatCompletionToolParam) -> ToolParam:
-        function = tool["function"]
-        return FunctionToolParam(
-            type="function",
-            name=function["name"],
-            parameters=function.get("parameters"),
-            strict=function.get("strict"),
-            description=function.get("description"),
-        )
+_InputToolParam = ChatCompletionToolParam | dict
+
+
+def convert_tools(tools: List[_InputToolParam]) -> List[ToolParam]:
+    _allowed_static_function_names = {"web_search"}
+
+    def _convert_tool(tool: _InputToolParam) -> ToolParam:
+        match tool["type"]:
+            case "static_function":
+                static_function = tool.get("static_function")
+                if not static_function:
+                    raise RequestValidationError(
+                        "Required field 'static_function' is empty or not found."
+                    )
+
+                static_function_name = static_function.get("name")
+                if static_function_name not in _allowed_static_function_names:
+                    msg = (
+                        f"Provided static function name ('{static_function_name}') is not supported yet. "
+                        f"Allowed values: {list(_allowed_static_function_names)}"
+                    )
+                    raise RequestValidationError(msg)
+
+                return WebSearchToolParam(
+                    type="web_search",
+                    **static_function.get("configuration", {}),
+                )
+            case _:
+                function = tool["function"]
+                return FunctionToolParam(
+                    type="function",
+                    name=function["name"],
+                    parameters=function.get("parameters"),
+                    strict=function.get("strict"),
+                    description=function.get("description"),
+                )
 
     return [_convert_tool(tool) for tool in tools]
 
@@ -311,9 +364,12 @@ def convert_messages(
 
 def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
     text_content = ""
+    web_search_calls_count = 0
+
     annotations: List[Annotation] = []
+    attachments: List[Attachment] = []
+    stages: List[Stage] = []
     tool_calls: List[ChatCompletionMessageToolCallUnion] = []
-    custom_content: CustomContent | None = None
 
     for item in output:
         match item:
@@ -327,6 +383,12 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                                     annotation
                                 ):
                                     annotations.append(res_annotation)
+                                    attachments.append(
+                                        Attachment(
+                                            title=res_annotation.url_citation.title,
+                                            url=res_annotation.url_citation.url,
+                                        )
+                                    )
                         case ResponseOutputRefusal():
                             pass
                         case _:
@@ -345,7 +407,6 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
 
             case ResponseReasoningItem(summary=summary):
                 if summary:
-                    stages: List[Stage] = []
                     for index, summary_part in enumerate(summary):
                         suffix = "" if index == 0 else f" #{index + 1}"
                         stages.append(
@@ -355,11 +416,28 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                                 content=summary_part.text,
                             )
                         )
-                    custom_content = CustomContent(stages=stages)
+
+            case ResponseFunctionWebSearch(id=item_id, action=action):
+                logger.info(
+                    f"[web_search] tool call: id={item_id}, action={action}"
+                )
+                web_search_calls_count += 1
+                suffix = (
+                    ""
+                    if web_search_calls_count == 1
+                    else f" #{web_search_calls_count}"
+                )
+                content = get_web_search_action_content(action)
+                stages.append(
+                    Stage(
+                        name="Web Search" + suffix,
+                        status=Status.COMPLETED,
+                        content=content,
+                    )
+                )
 
             case (
                 ResponseFileSearchToolCall()
-                | ResponseFunctionWebSearch()
                 | ResponseComputerToolCall()
                 | ImageGenerationCall()
                 | ResponseCodeInterpreterToolCall()
@@ -381,8 +459,11 @@ def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
                 assert_never(item)
 
     extra_fields = {}
-    if custom_content:
-        extra_fields["custom_content"] = custom_content.model_dump()
+    if attachments or stages:
+        extra_fields["custom_content"] = CustomContent(
+            attachments=attachments or None,
+            stages=stages or None,
+        ).model_dump(mode="json", exclude_none=True)
 
     return ChatCompletionMessage(
         role="assistant",
