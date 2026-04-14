@@ -1,5 +1,6 @@
 from typing import Generator, List, assert_never
 
+import pydantic
 from aidial_sdk.chat_completion.request import (
     Attachment,
     CustomContent,
@@ -120,6 +121,25 @@ def convert_annotation(annotation: ResponsesAnnotation) -> Annotation | None:
             return None
         case _:
             assert_never(annotation)
+
+
+def parse_response_url_citation(
+    annotation: dict,
+) -> ResponsesAnnotation | None:
+    if annotation.get("type") != "url_citation":
+        logger.warning(
+            "Unsupported type of an annotation in stream: "
+            f"{annotation.get('type')}"
+        )
+        return None
+
+    try:
+        return ResponsesAnnotationURLCitation.model_validate(annotation)
+    except pydantic.ValidationError:
+        logger.warning(
+            f"Failed to parse URL citation annotation in stream: {annotation}"
+        )
+        return None
 
 
 def convert_tool_choice(

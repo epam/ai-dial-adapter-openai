@@ -112,12 +112,12 @@ from openai.types.responses.response_output_item import (
     McpListTools,
 )
 from openai.types.responses.response_output_message import ResponseOutputMessage
-from openai.types.responses.response_output_text import (
-    AnnotationURLCitation as ResponsesAnnotationURLCitation,
-)
 from openai.types.responses.response_reasoning_item import ResponseReasoningItem
 
-from aidial_adapter_openai.responses.converter import convert_annotation
+from aidial_adapter_openai.responses.converter import (
+    convert_annotation,
+    parse_response_url_citation,
+)
 from aidial_adapter_openai.responses.response import (
     get_finish_reason,
     get_usage,
@@ -197,9 +197,7 @@ class EventHandler(pydantic.BaseModel):
         return f"{base_name} {suffix}"
 
     def _append_to_stage(
-        self,
-        stage_key: str,
-        content: str,
+        self, stage_key: str, content: str
     ) -> ChatCompletionChunk:
         stage_index = self._resolve_stage_index(stage_key)
         stage: dict[str, int | str] = {"index": stage_index, "content": content}
@@ -209,8 +207,7 @@ class EventHandler(pydantic.BaseModel):
         self, name: str, stage_key: str
     ) -> ChatCompletionChunk | None:
         """
-        Returns `ChatCompletionChunk`.
-        Returns `None` if stage is already open.
+        Returns None if the stage is already open, otherwise, a chunk opening the stage.
         """
         stage_index = self.stage_key_to_index.get(stage_key)
         if stage_index is not None:
@@ -308,24 +305,28 @@ class EventHandler(pydantic.BaseModel):
         )
 
     def _annotation_chunks(
-        self, annotation: ResponsesAnnotationURLCitation
+        self, annotation: dict
     ) -> Generator[ChatCompletionChunk, None, None]:
-        annotation_ = convert_annotation(annotation)
-        if annotation_ is None:
-            raise DialException("Failed to convert annotation.")
+        parsed_annotation = parse_response_url_citation(annotation)
+        if parsed_annotation is None:
+            return
+
+        converted_annotation = convert_annotation(parsed_annotation)
+        if converted_annotation is None:
+            return
 
         yield self._chunk(
             choice=Choice(
                 index=0,
                 delta=ChoiceDelta(
-                    annotations=[annotation_]  # type: ignore
+                    annotations=[converted_annotation]  # type: ignore
                 ),
             )
         )
 
         attachment = Attachment(
-            title=annotation_.url_citation.title,
-            url=annotation_.url_citation.url,
+            title=converted_annotation.url_citation.title,
+            url=converted_annotation.url_citation.url,
         )
         attachment_dict = attachment.model_dump(mode="json", exclude_none=True)
         yield self._chunk(
@@ -389,11 +390,9 @@ class EventHandler(pydantic.BaseModel):
 
             case ResponseWebSearchCallInProgressEvent(item_id=stage_id):
                 stage_key = f"web_search:{stage_id}"
-                open_stage_chunk = self._open_stage(
-                    name="Web Search", stage_key=stage_key
-                )
-                if open_stage_chunk is not None:
-                    yield open_stage_chunk
+                chunk = self._open_stage(name="Web Search", stage_key=stage_key)
+                if chunk is not None:
+                    yield chunk
 
             case ResponseOutputItemAddedEvent(item=item):
                 match item:
@@ -444,11 +443,9 @@ class EventHandler(pydantic.BaseModel):
                 item_id=stage_id, summary_index=summary_index
             ):
                 stage_key = f"reasoning:{stage_id}:{summary_index}"
-                open_stage_chunk = self._open_stage(
-                    name="Reasoning", stage_key=stage_key
-                )
-                if open_stage_chunk is not None:
-                    yield open_stage_chunk
+                chunk = self._open_stage(name="Reasoning", stage_key=stage_key)
+                if chunk is not None:
+                    yield chunk
 
             case ResponseReasoningSummaryTextDeltaEvent(
                 item_id=stage_id, summary_index=summary_index, delta=content
@@ -466,9 +463,7 @@ class EventHandler(pydantic.BaseModel):
 
             case ResponseOutputTextAnnotationAddedEvent(annotation=annotation):
                 if isinstance(annotation, dict):
-                    yield from self._annotation_chunks(
-                        ResponsesAnnotationURLCitation(**annotation)
-                    )
+                    yield from self._annotation_chunks(annotation)
                 else:
                     logger.warning(
                         f"Unsupported annotation payload type in stream: {type(annotation)}"

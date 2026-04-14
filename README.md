@@ -274,7 +274,7 @@ Each Web Search tool calls are translated into a DIAL stages, and URL citations 
             {
               "name": "Web Search",
               "status": "completed",
-              "content": "type: search\nquery: weather Kyiv"
+              "content": "Search weather Kyiv"
             }
           ],
           "attachments": [
