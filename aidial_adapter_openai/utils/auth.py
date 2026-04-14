@@ -8,10 +8,8 @@ from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
 from typing_extensions import TypedDict
 
+from aidial_adapter_openai.utils.cache import cache
 from aidial_adapter_openai.utils.log_config import logger
-
-default_credential = DefaultAzureCredential()
-access_token: AccessToken | None = None
 
 EXPIRATION_WINDOW_IN_SEC: int = int(
     os.getenv("ACCESS_TOKEN_EXPIRATION_WINDOW", 10)
@@ -21,25 +19,49 @@ AZURE_OPEN_AI_SCOPE: str = os.getenv(
 )
 
 
-async def get_api_key() -> str:
-    now = int(time.time())
-    global access_token
+class _AzureTokenProvider:
+    _credential: DefaultAzureCredential
+    _access_token: AccessToken | None
 
-    if (
-        access_token is None
-        or now + EXPIRATION_WINDOW_IN_SEC > access_token.expires_on
-    ):
-        try:
-            access_token = await default_credential.get_token(
-                AZURE_OPEN_AI_SCOPE
-            )
-        except ClientAuthenticationError as e:
-            logger.error(
-                f"Default Azure credential failed with the error: {e.message}"
-            )
-            raise DialException("Authentication failed", 401, "Unauthorized")
+    def __init__(self) -> None:
+        self._credential = DefaultAzureCredential()
+        self._access_token = None
 
-    return access_token.token
+    async def aclose(self):
+        await self._credential.close()
+
+    async def get_token(self) -> str:
+        now = int(time.time())
+
+        if (
+            self._access_token is None
+            or now + EXPIRATION_WINDOW_IN_SEC > self._access_token.expires_on
+        ):
+            try:
+                self._access_token = await self._credential.get_token(
+                    AZURE_OPEN_AI_SCOPE
+                )
+                logger.debug(
+                    f"Obtained new Azure access token, expires on {self._access_token.expires_on}"
+                )
+            except ClientAuthenticationError as e:
+                logger.error(
+                    f"Default Azure credential failed with the error: {e.message}"
+                )
+                raise DialException(
+                    "Authentication failed", 401, "Unauthorized"
+                )
+
+        return self._access_token.token
+
+
+async def _close_token_provider(provider: _AzureTokenProvider):
+    await provider.aclose()
+
+
+@cache(_close_token_provider)
+def get_azure_token_provider() -> _AzureTokenProvider:
+    return _AzureTokenProvider()
 
 
 class OpenAICreds(TypedDict, total=False):
@@ -55,6 +77,6 @@ async def get_credentials(
         return {"api_key": api_key}
 
     if azure:
-        return {"azure_ad_token": await get_api_key()}
+        return {"azure_ad_token": await get_azure_token_provider().get_token()}
 
     raise DialException("X-UPSTREAM-KEY header is missing", 401, "Unauthorized")

@@ -1,7 +1,6 @@
-import functools
-
 import httpx
 
+from aidial_adapter_openai.utils.cache import cache
 from aidial_adapter_openai.utils.httpx import get_tracing_event_hooks
 
 # connect timeout and total timeout
@@ -13,7 +12,11 @@ DEFAULT_CONNECTION_LIMITS = httpx.Limits(
 )
 
 
-@functools.cache
+async def _close_httpx_client(client: httpx.AsyncClient) -> None:
+    await client.aclose()
+
+
+@cache(_close_httpx_client)
 def get_http_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=DEFAULT_TIMEOUT,

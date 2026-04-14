@@ -24,10 +24,14 @@ async def test_get_credentials_returns_api_key_when_present_for_azure_false():
 
 @pytest.mark.asyncio
 async def test_get_credentials_falls_back_to_azure_ad_token(monkeypatch):
-    async def _mock_get_api_key() -> str:
-        return "token-123"
+    class _mock_token_provider:
+        async def aclose(self):
+            pass
 
-    monkeypatch.setattr(auth, "get_api_key", _mock_get_api_key)
+        async def get_token(self) -> str:
+            return "token-123"
+
+    monkeypatch.setattr(auth, "_AzureTokenProvider", _mock_token_provider)
 
     creds = await auth.get_credentials({}, azure=True)
 
