@@ -308,7 +308,11 @@ def is_valid_tool_call(
 ) -> bool:
     assert calls is not None
 
+    assert len(calls) > tool_call_idx, (
+        f"Expected at least {tool_call_idx + 1} tool calls, but got only {len(calls)}"
+    )
     call = calls[tool_call_idx]
+
     assert call.type == "function"
 
     function = call.function
