@@ -144,7 +144,7 @@ class CompletionsParser(ExtraForbidModel):
         return _parse_endpoint("completions", endpoint)
 
 
-class AnthropicMessagesParser:
+class AnthropicEndpointParser:
     def try_parse(self, endpoint: str) -> AnthropicEndpoint | None:
         if match := re.match(r"(.*/anthropic)/v1/messages", endpoint):
             base_url = match.group(1)
@@ -164,7 +164,7 @@ responses_parser = EndpointParser(name="responses")
 completions_parser = CompletionsParser()
 azure_video_api_parser = EndpointParser(name="video/generations")
 openai_video_api_parser = EndpointParser(name="videos")
-anthropic_messages_parser = AnthropicMessagesParser()
+anthropic_messages_parser = AnthropicEndpointParser()
 
 
 async def parse_body(request: Request) -> Dict[str, Any]:

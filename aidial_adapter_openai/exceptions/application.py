@@ -9,22 +9,24 @@ from aidial_adapter_openai.utils.adapter_exception import (
 
 
 def convert_application_errors(e: Exception) -> AdapterException | None:
-    if isinstance(e, httpx.HTTPStatusError):
-        r = e.response
-        if ret := parse_adapter_exception(
-            status_code=r.status_code,
-            headers={},
-            content=r.text,
-        ):
-            return ret
+    match e:
+        case httpx.HTTPStatusError():
+            r = e.response
+            if ret := parse_adapter_exception(
+                status_code=r.status_code,
+                headers={},
+                content=r.text,
+            ):
+                return ret
 
-    if isinstance(e, ValidationError):
-        return e.to_dial_exception()
+        case ValidationError():
+            return e.to_dial_exception()
 
-    if isinstance(e, UserError):
-        return e.to_dial_exception()
+        case UserError():
+            return e.to_dial_exception()
 
-    if isinstance(e, DialException):
-        return e
+        case DialException():
+            return e
 
-    return None
+        case _:
+            return None
