@@ -20,8 +20,10 @@ from aidial_adapter_openai.utils.env import (
 )
 from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.parsers import (
+    AnthropicEndpoint,
     AzureOpenAIEndpoint,
     OpenAIEndpoint,
+    anthropic_messages_parser,
     azure_video_api_parser,
     chat_completions_optional_parser,
     chat_completions_parser,
@@ -37,7 +39,7 @@ from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 class DeploymentAPIType(ExtraForbidModel):
     deployment_type: D
-    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint
+    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint | AnthropicEndpoint
 
 
 class ApplicationConfig(ExtraForbidModel):
@@ -54,6 +56,7 @@ class ApplicationConfig(ExtraForbidModel):
     GPT4O_DEPLOYMENTS: List[str] = []
     GPT4O_MINI_DEPLOYMENTS: List[str] = []
     VLLM_DEPLOYMENTS: List[str] = []
+    QWEN3_ASR_VLLM_DEPLOYMENTS: List[str] = []
     AZURE_AI_VISION_DEPLOYMENTS: List[str] = []
 
     API_VERSIONS_MAPPING: Dict[str, str] = {}
@@ -64,9 +67,24 @@ class ApplicationConfig(ExtraForbidModel):
 
     AUDIO_AZURE_API_VERSION: str = "2025-03-01-preview"
 
+    def is_azure(self, deployment_id: str) -> bool:
+        for deployments in [
+            self.VLLM_DEPLOYMENTS,
+            self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+        ]:
+            if deployment_id in deployments:
+                return False
+        return True
+
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
     ) -> DeploymentAPIType:
+        if endpoint := anthropic_messages_parser.try_parse(upstream_endpoint):
+            return DeploymentAPIType(
+                deployment_type=D.ANTHROPIC_MESSAGES_API,
+                endpoint=endpoint,
+            )
+
         if endpoint := completions_parser.try_parse(upstream_endpoint):
             return DeploymentAPIType(
                 deployment_type=D.COMPLETIONS_API,
@@ -149,6 +167,12 @@ class ApplicationConfig(ExtraForbidModel):
                 endpoint=chat_completions_parser.parse(upstream_endpoint),
             )
 
+        if deployment_id in self.QWEN3_ASR_VLLM_DEPLOYMENTS:
+            return DeploymentAPIType(
+                deployment_type=D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API,
+                endpoint=chat_completions_parser.parse(upstream_endpoint),
+            )
+
         if deployment_id in self.GPT4O_DEPLOYMENTS:
             return DeploymentAPIType(
                 deployment_type=D.GPT4O,
@@ -184,6 +208,8 @@ class ApplicationConfig(ExtraForbidModel):
                 self.GPT4O_MINI_DEPLOYMENTS.append(deployment_id)
             case D.VLLM_CHAT_COMPLETIONS_API:
                 self.VLLM_DEPLOYMENTS.append(deployment_id)
+            case D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API:
+                self.QWEN3_ASR_VLLM_DEPLOYMENTS.append(deployment_id)
             case (
                 D.GPT_GENERIC
                 | D.RESPONSES_API
@@ -192,6 +218,7 @@ class ApplicationConfig(ExtraForbidModel):
                 | D.AUDIO_SPEECH_API
                 | D.AUDIO_TRANSCRIPTIONS_API
                 | D.OPENAI_VIDEO_API
+                | D.ANTHROPIC_MESSAGES_API
             ):
                 pass
             case _:
@@ -218,6 +245,7 @@ class ApplicationConfig(ExtraForbidModel):
                 "GPT4O_DEPLOYMENTS",
                 "GPT4O_MINI_DEPLOYMENTS",
                 "VLLM_DEPLOYMENTS",
+                "QWEN3_ASR_VLLM_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
             )

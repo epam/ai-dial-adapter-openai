@@ -47,6 +47,11 @@ from tests.conftest import create_test_client
             "responses",
             {"reasoning"},
         ),
+        (
+            ChatCompletionDeploymentType.ANTHROPIC_MESSAGES_API,
+            "anthropic/v1/messages",
+            {"betas", "thinking", "enable_citations"},
+        ),
     ],
 )
 async def test_configuration_endpoint_supported_types(

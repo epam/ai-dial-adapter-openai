@@ -152,6 +152,10 @@ class TestSuite:
         return self.deployment_config.model_features.reasoningSupported
 
     @property
+    def supports_empty_dialog(self):
+        return self.deployment_config.model_features.emptyDialogSupported
+
+    @property
     def supports_reasoning_summary(self):
         return self.deployment_config.model_features.reasoningSummarySupported
 

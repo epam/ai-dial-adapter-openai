@@ -42,7 +42,7 @@ def test_app_config_chat_openai_platform(origin: str, deployment: str):
     assert ty.deployment_type == D.GPT_GENERIC
     endpoint = ty.endpoint
     assert isinstance(endpoint, OpenAIEndpoint)
-    assert endpoint.base_url == f"{origin}/whatever1/whatever2"
+    assert endpoint.openai_base_url == f"{origin}/whatever1/whatever2"
 
 
 def test_app_config_chat_azure(
@@ -78,7 +78,7 @@ def test_app_config_chat_responses_azure_next_gen(origin: str, deployment: str):
 
     assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == OpenAIEndpoint(
-        base_url=f"{origin}/whatever1/whatever2/openai/v1"
+        openai_base_url=f"{origin}/whatever1/whatever2/openai/v1"
     )
 
 
@@ -91,7 +91,7 @@ def test_app_config_chat_responses_openai_platform(
 
     assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == OpenAIEndpoint(
-        base_url=f"{origin}/whatever1/whatever2"
+        openai_base_url=f"{origin}/whatever1/whatever2"
     )
 
 
@@ -109,7 +109,7 @@ def test_app_config_chat_completions_azure_next_gen(
 
     assert ty.deployment_type == D.GPT4O
     assert ty.endpoint == OpenAIEndpoint(
-        base_url=f"{origin}/whatever1/whatever2/openai/v1"
+        openai_base_url=f"{origin}/whatever1/whatever2/openai/v1"
     )
 
 
@@ -147,3 +147,35 @@ def test_app_config_dalle_azure(
         azure_endpoint=f"{origin}/whatever1/whatever2",
         azure_deployment=deployment_name,
     )
+
+
+def test_app_config_qwen3_asr_vllm_deployments(origin: str, deployment: str):
+    cfg = ApplicationConfig(QWEN3_ASR_VLLM_DEPLOYMENTS=[deployment])
+
+    ty = cfg.get_chat_completion_deployment_type(
+        deployment,
+        f"{origin}/whatever1/whatever2/chat/completions",
+    )
+
+    assert ty.deployment_type == D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+
+
+def test_is_azure_for_generic_deployment(deployment: str):
+    cfg = ApplicationConfig()
+    assert cfg.is_azure(deployment)
+
+
+@pytest.mark.parametrize(
+    "cfg",
+    [
+        ApplicationConfig(VLLM_DEPLOYMENTS=["vllm-deployment"]),
+        ApplicationConfig(
+            QWEN3_ASR_VLLM_DEPLOYMENTS=["qwen3-asr-vllm-deployment"]
+        ),
+    ],
+)
+def test_is_azure_for_non_azure_vllm_families(cfg: ApplicationConfig):
+    deployment_id = next(
+        iter(cfg.VLLM_DEPLOYMENTS or cfg.QWEN3_ASR_VLLM_DEPLOYMENTS)
+    )
+    assert not cfg.is_azure(deployment_id)
