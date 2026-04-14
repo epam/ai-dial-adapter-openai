@@ -1,5 +1,8 @@
 from typing import Type, assert_never
 
+from aidial_adapter_anthropic.adapter._claude.config import (
+    ClaudeConfigurationWithThinking,
+)
 from aidial_sdk.exceptions import ResourceNotFoundError
 from fastapi import Request
 from pydantic import BaseModel
@@ -23,9 +26,7 @@ from aidial_adapter_openai.video_generation.openai.configuration import (
 )
 
 
-def _get_deployment_configuration(
-    deployment_type: D,
-) -> Type[BaseModel] | None:
+def _get_deployment_configuration(deployment_type: D) -> Type[BaseModel] | None:
     match deployment_type:
         case D.DALLE3:
             model = ImageGenerationModel.create(D.DALLE3)
@@ -46,6 +47,9 @@ def _get_deployment_configuration(
 
         case D.RESPONSES_API:
             return ResponsesConfig
+
+        case D.ANTHROPIC_MESSAGES_API:
+            return ClaudeConfigurationWithThinking
 
         case (
             D.COMPLETIONS_API
