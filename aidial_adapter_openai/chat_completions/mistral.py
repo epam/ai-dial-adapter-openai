@@ -6,7 +6,7 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
-from aidial_adapter_openai.utils.streaming import map_stream
+from aidial_adapter_openai.utils.streaming import debug_print, map_stream
 
 
 def _to_dial_finish_reason(finish_reason: str | None) -> str | None:
@@ -129,7 +129,10 @@ def _response_to_dict(obj: ChatCompletionChunk | ChatCompletion) -> dict:
     # Magistral returns an invalid OpenAI response.
     # Suppressing warnings from pydantic:
     # > Expected `str` but got `list` with value `[{'type': 'thinking', 'thinking': []}]` - serialized value may not be as expected
-    return obj.to_dict(warnings=False)
+    ret = obj.to_dict(warnings=False, exclude_unset=False)
+    title = "response" if isinstance(obj, ChatCompletion) else "chunk"
+    debug_print(title, ret)
+    return ret
 
 
 async def chat_completion(
@@ -140,7 +143,8 @@ async def chat_completion(
     ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
-        raw_stream = map_stream(_response_to_dict, response)
-        return extract_reasoning_content(raw_stream)
+        output = map_stream(_response_to_dict, response)
     else:
-        return extract_reasoning_content(_response_to_dict(response))
+        output = _response_to_dict(response)
+
+    return extract_reasoning_content(output)
