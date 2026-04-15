@@ -201,7 +201,10 @@
                     "endpoint": "https://azure-computer-vision-service-name.cognitiveservices.azure.com",
                     "key": "optional-api-key"
                 }
-            ]
+            ],
+            "env": {
+                "AZURE_AI_VISION_DEPLOYMENTS": true
+            }
         },
         "Mistral-Large-3": {
             "type": "chat",
@@ -214,6 +217,9 @@
             "features": {
                 "toolsSupported": false,
                 "emptyDialogSupported": false
+            },
+            "env": {
+                "MISTRAL_DEPLOYMENTS": true
             }
         },
         "grok-3": {
@@ -227,6 +233,9 @@
             "features": {
                 "parallelToolCallsSupported": false,
                 "responseFormatJsonSchemaSupported": false
+            },
+            "env": {
+                "MISTRAL_DEPLOYMENTS": true
             }
         },
         "gpt-oss-120b": {
@@ -256,6 +265,9 @@
             "features": {
                 "imageGenerationSupported": true,
                 "imageEditingSupported": true
+            },
+            "env": {
+                "GPT_IMAGE_1_DEPLOYMENTS": true
             }
         },
         "sora-2": {

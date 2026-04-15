@@ -53,11 +53,28 @@ class Features(ExtraAllowedModel):
     responseFormatJsonSchemaSupported: bool = True
 
 
+class Env(ExtraAllowedModel):
+    GPT_IMAGE_1_DEPLOYMENTS: bool = False
+    MISTRAL_DEPLOYMENTS: bool = False
+    AZURE_AI_VISION_DEPLOYMENTS: bool = False
+
+    def save_to_application_config(
+        self, deployment_id: str, conf: ApplicationConfig
+    ):
+        if self.GPT_IMAGE_1_DEPLOYMENTS:
+            conf.GPT_IMAGE_1_DEPLOYMENTS.append(deployment_id)
+        if self.MISTRAL_DEPLOYMENTS:
+            conf.MISTRAL_DEPLOYMENTS.append(deployment_id)
+        if self.AZURE_AI_VISION_DEPLOYMENTS:
+            conf.AZURE_AI_VISION_DEPLOYMENTS.append(deployment_id)
+
+
 class ModelConfig(ExtraAllowedModel):
     type: Literal["chat", "embedding"]
     overrideName: str | None = None
     upstreams: List[UpstreamConfig]
     features: Features = Features()
+    env: Env = Env()
     inputAttachmentTypes: List[str] | None = None
 
 
@@ -70,6 +87,12 @@ class CoreConfig(ExtraAllowedModel):
             test_config = json.load(f)
 
         return cls(**test_config)
+
+    def get_app_config(self) -> ApplicationConfig:
+        ret = ApplicationConfig()
+        for model_id, model_config in self.models.items():
+            model_config.env.save_to_application_config(model_id, ret)
+        return ret
 
 
 class EmbeddingsDeploymentType(BaseModel):
@@ -197,8 +220,8 @@ class TestDeployments(BaseModel):
 
     @classmethod
     def from_config(cls, config_path: str):
-        app_config = ApplicationConfig.from_env()
         core_config = CoreConfig.from_config(config_path)
+        app_config = core_config.get_app_config()
 
         return cls(
             app_config=app_config,
