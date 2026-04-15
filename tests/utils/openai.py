@@ -1,7 +1,5 @@
 import json
-import logging
-import re
-from typing import Any, Callable, List, TypeVar
+from typing import Any, Callable, List
 
 from aidial_sdk.utils.merge_chunks import (
     cleanup_indices,
@@ -37,9 +35,7 @@ from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.resource.base import Resource
-from tests.utils.json import match_objects
-
-_log = logging.getLogger(__name__)
+from tests.utils.json import cleanup_repeated_tags, match_objects
 
 
 def sys(content: str) -> ChatCompletionSystemMessageParam:
@@ -250,9 +246,7 @@ async def chat_completion(
         )
 
         if isinstance(response, AsyncStream):
-            chunks: List[dict] = [
-                {}
-            ]  # workaround for https://github.com/epam/ai-dial-sdk/pull/269
+            chunks: List[dict] = []
             async for chunk in response:
                 chunks.append(chunk.model_dump())
 
@@ -263,7 +257,7 @@ async def chat_completion(
                 del choice["delta"]
 
             response_dict["object"] = "chat.completion"
-            response_dict = _cleanup_repeated_tags(response_dict)
+            response_dict = cleanup_repeated_tags(response_dict)
 
             return ChatCompletion.model_validate(response_dict)
         else:
@@ -271,53 +265,6 @@ async def chat_completion(
 
     response = await get_response()
     return ChatCompletionResult(response=response)
-
-
-_T = TypeVar("_T")
-
-
-def _cleanup_repeated_tags(o: _T, path: str = "") -> _T:
-    """
-    Certain models like Grok return an invalid stream of chunks,
-    whose merge results into an invalid Chat Completion response
-    failing OpenAI SDK validation.
-    We attempt to fix it in this helper.
-    The input object is mutated inplace.
-    """
-
-    _path_patterns = {
-        r".choices\.[0-9]+\.message\.tool_calls\.[0-9]+\.type",
-        r".choices\.[0-9]+\.finish_reason",
-    }
-
-    def _remove_repetition(string: str) -> str:
-        n = len(string)
-        for i in range(2, n):
-            if n % i == 0:
-                m = n // i
-                prefix = string[:i]
-                if prefix * m == string:
-                    _log.warning(
-                        f"Model returned a repeated string value at {path!r}: {string!r}. "
-                        f"Collapsing it to a single repetition: {prefix!r}."
-                    )
-                    return prefix
-        return string
-
-    if isinstance(o, str):
-        for pattern in _path_patterns:
-            if re.fullmatch(pattern, path):
-                return _remove_repetition(o)
-
-    if isinstance(o, list):
-        for i, e in enumerate(o):
-            o[i] = _cleanup_repeated_tags(e, path + f".{i}")
-
-    if isinstance(o, dict):
-        for k, v in o.items():
-            o[k] = _cleanup_repeated_tags(v, path + f".{k}")
-
-    return o
 
 
 GET_WEATHER_FUNCTION: FunctionDefinition = {

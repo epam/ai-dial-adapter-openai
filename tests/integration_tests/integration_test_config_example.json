@@ -225,6 +225,7 @@
                 }
             ],
             "features": {
+                "parallelToolCallsSupported": false,
                 "responseFormatJsonSchemaSupported": false
             }
         },
