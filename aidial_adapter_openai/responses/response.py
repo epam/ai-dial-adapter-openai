@@ -9,6 +9,12 @@ from openai.types.responses import Response, ResponseUsage
 from openai.types.responses.response_function_tool_call import (
     ResponseFunctionToolCall,
 )
+from openai.types.responses.response_function_web_search import (
+    Action,
+    ActionFind,
+    ActionOpenPage,
+    ActionSearch,
+)
 
 ChatCompletionFinishReason = Literal[
     "stop", "length", "tool_calls", "content_filter", "function_call"
@@ -52,3 +58,15 @@ def get_finish_reason(response: Response) -> ChatCompletionFinishReason:
             return "tool_calls"
 
     return "stop"
+
+
+def get_web_search_action_content(action: Action) -> str:
+    match action:
+        case ActionSearch(query=query):
+            return f"Search {query!r}"
+        case ActionOpenPage(url=url):
+            return f"Open page {url}"
+        case ActionFind(pattern=pattern, url=url):
+            return f"Find {pattern!r} in {url}"
+        case _:
+            return f"Unknown action of type {action.type!r}"
