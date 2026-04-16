@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, assert_never
+from typing import Any, assert_never
 
 import fastapi
 from aidial_sdk.chat_completion import Choice, Stage
@@ -62,7 +62,7 @@ async def _poll_job(
     client: AzureVideoAPIClient,
     job_id: str,
     polling_interval: float,
-) -> List[VideoGeneration]:
+) -> list[VideoGeneration]:
     while True:
         await asyncio.sleep(polling_interval)
 
@@ -105,7 +105,7 @@ async def _download_videos(
     response: DIALResponse,
     choice: Choice,
     client: AzureVideoAPIClient,
-    video_generations: List[VideoGeneration],
+    video_generations: list[VideoGeneration],
     storage: FileStorage | None,
 ):
     n = len(video_generations)
@@ -134,7 +134,7 @@ async def _download_videos(
 async def chat_completion(
     *,
     request: fastapi.Request,
-    request_body: Dict[str, Any],
+    request_body: dict[str, Any],
     creds: OpenAICreds,
     deployment_id: str,
     upstream_endpoint: str,

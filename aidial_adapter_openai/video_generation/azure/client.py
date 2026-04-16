@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Literal, NoReturn, Self
+from typing import Literal, NoReturn, Self
 
 import httpx
 from aidial_sdk.exceptions import InternalServerError, InvalidRequestError
@@ -23,7 +23,7 @@ class VideoGenerationJob(BaseModel):
 
     id: str
     status: JobStatus
-    generations: List[VideoGeneration] | None = None
+    generations: list[VideoGeneration] | None = None
     failure_reason: (
         str | Literal["input_moderation", "internal_error"] | None
     ) = None
@@ -57,7 +57,7 @@ class AzureVideoAPIClient(BaseModel):
         return get_http_client()
 
     @property
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if key := self.creds.get("api_key"):
             headers["api-key"] = key
@@ -66,7 +66,7 @@ class AzureVideoAPIClient(BaseModel):
         return headers
 
     @property
-    def _params(self) -> Dict[str, str]:
+    def _params(self) -> dict[str, str]:
         return {"api-version": "preview"}
 
     @property

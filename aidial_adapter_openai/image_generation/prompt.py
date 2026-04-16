@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any
 
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ from aidial_adapter_openai.utils.resource.base import Resource
 
 class ImageGenPrompt(BaseModel):
     text_prompt: str
-    images: List[Resource]
+    images: list[Resource]
 
     @classmethod
     async def from_request(
@@ -26,7 +26,7 @@ class ImageGenPrompt(BaseModel):
         ).transform_messages(data["messages"])
 
         text_prompt = ""
-        images: List[Resource] = []
+        images: list[Resource] = []
 
         for message in result:
             text_prompt += collect_message_text_content(message.raw_message)

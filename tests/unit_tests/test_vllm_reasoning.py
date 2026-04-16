@@ -1,6 +1,7 @@
 """Unit tests for vLLM reasoning content transformation."""
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from aidial_adapter_openai.chat_completions.vllm import extract_reasoning
 from tests.utils.stream import single_choice_chunk

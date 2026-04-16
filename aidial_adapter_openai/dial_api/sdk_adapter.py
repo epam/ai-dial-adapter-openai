@@ -1,4 +1,4 @@
-from typing import Callable, Coroutine
+from collections.abc import Callable, Coroutine
 
 import fastapi
 from aidial_sdk.chat_completion import Request as DIALRequest

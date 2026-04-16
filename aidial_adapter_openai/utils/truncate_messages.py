@@ -1,4 +1,5 @@
-from typing import Callable, Coroutine, List, Set, Tuple, TypeVar
+from collections.abc import Callable, Coroutine
+from typing import TypeVar
 
 from aidial_sdk.exceptions import (
     TruncatePromptSystemAndLastUserError,
@@ -14,16 +15,16 @@ _T = TypeVar("_T")
 
 
 async def truncate_messages(
-    messages: List[_T],
+    messages: list[_T],
     message_tokens: Callable[[_T], Coroutine[None, None, int]],
     is_system_message: Callable[[_T], bool],
     max_prompt_tokens: int,
     initial_prompt_tokens: int,
-) -> Tuple[List[_T], DiscardedMessages, TruncatedTokens]:
+) -> tuple[list[_T], DiscardedMessages, TruncatedTokens]:
     prompt_tokens = initial_prompt_tokens
 
     system_messages_count = 0
-    kept_messages: Set[int] = set()
+    kept_messages: set[int] = set()
 
     # Count system messages first
     for idx, message_holder in enumerate(messages):

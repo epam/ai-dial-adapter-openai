@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Callable, Iterator, List
 
 from openai import Omit, omit
 from openai.types import ReasoningEffort
@@ -27,18 +27,18 @@ class TestCase:
     name: str
     streaming: bool
 
-    messages: List[ChatCompletionMessageParam]
+    messages: list[ChatCompletionMessageParam]
 
     expected: Callable[[ChatCompletionResult], bool] | ExpectedException
 
     max_tokens: int | Omit
     max_completion_tokens: int | Omit
-    stop: List[str] | Omit
+    stop: list[str] | Omit
 
     n: int | Omit
 
-    functions: List[Function] | Omit
-    tools: List[ChatCompletionToolParam] | Omit
+    functions: list[Function] | Omit
+    tools: list[ChatCompletionToolParam] | Omit
     temperature: float | Omit
 
     reasoning_effort: ReasoningEffort | Omit
@@ -68,19 +68,19 @@ class TestSuite:
 
     deployment_config: DeploymentConfig[ChatCompletionDeploymentType]
     streaming: bool
-    test_cases: List[TestCase] = field(default_factory=list)
+    test_cases: list[TestCase] = field(default_factory=list)
 
     def test_case(
         self,
         *,
         name: str,
-        messages: List[ChatCompletionMessageParam],
+        messages: list[ChatCompletionMessageParam],
         max_tokens: int | Omit = omit,
         max_completion_tokens: int | Omit = omit,
-        stop: List[str] | Omit = omit,
+        stop: list[str] | Omit = omit,
         n: int | Omit = omit,
-        functions: List[Function] | Omit = omit,
-        tools: List[ChatCompletionToolParam] | Omit = omit,
+        functions: list[Function] | Omit = omit,
+        tools: list[ChatCompletionToolParam] | Omit = omit,
         temperature: float | Omit = omit,
         reasoning_effort: ReasoningEffort | Omit = omit,
         response_format: ResponseFormat | Omit = omit,

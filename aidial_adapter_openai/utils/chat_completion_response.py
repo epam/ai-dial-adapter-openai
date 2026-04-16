@@ -1,4 +1,5 @@
-from typing import Any, Iterable, Literal, Self, Set
+from collections.abc import Iterable
+from typing import Any, Literal, Self
 
 from aidial_sdk.utils.merge_chunks import merge_chat_completion_chunks
 from pydantic import BaseModel
@@ -26,7 +27,7 @@ class ChatCompletionResponse(BaseModel):
     def has_messages(self) -> bool:
         return len(list(self.messages)) > 0
 
-    def get_missing_finish_reasons(self, n: int) -> Set[int]:
+    def get_missing_finish_reasons(self, n: int) -> set[int]:
         missing = set(range(n))
         for choice in self.response.get("choices") or []:
             if choice.get("finish_reason") is not None:

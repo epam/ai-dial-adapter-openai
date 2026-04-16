@@ -1,4 +1,2 @@
-from typing import List
-
-DiscardedMessages = List[int]
+DiscardedMessages = list[int]
 TruncatedTokens = int

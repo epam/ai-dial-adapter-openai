@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, List, Tuple
+from typing import Any
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai._types import FileTypes
@@ -22,7 +22,7 @@ from aidial_adapter_openai.video_generation.openai.configuration import (
 
 class VideoGenPrompt(BaseModel):
     prompt: str
-    images: List[ImageResource]
+    images: list[ImageResource]
 
     @classmethod
     async def from_request(
@@ -58,7 +58,7 @@ class VideoGenPrompt(BaseModel):
 _SIZE_RE = re.compile(r"^(\d+)x(\d+)$")
 
 
-def _parse_video_size(config: VideoGenerationConfig) -> Tuple[int, int] | None:
+def _parse_video_size(config: VideoGenerationConfig) -> tuple[int, int] | None:
     size = config.size or "720x1280"
     if m := _SIZE_RE.match(size):
         return int(m.group(1)), int(m.group(2))

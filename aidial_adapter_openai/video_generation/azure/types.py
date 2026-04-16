@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List
 
 from pydantic import BaseModel, RootModel
 
@@ -41,7 +40,7 @@ class InpaintItem(BaseModel):
 
 
 class InpaintItems(RootModel):
-    root: List[InpaintItem]
+    root: list[InpaintItem]
 
 
 class CreateVideoGenerationRequest(BaseModel):
@@ -68,7 +67,7 @@ class CreateVideoGenerationRequest(BaseModel):
         height: int,
         n_seconds: int | None,
         n_variants: int | None,
-        inpaint_items: List[InpaintItem] | None,
+        inpaint_items: list[InpaintItem] | None,
     ) -> "CreateVideoGenerationRequest":
         inpaint_items_str = (
             InpaintItems(inpaint_items).model_dump_json()

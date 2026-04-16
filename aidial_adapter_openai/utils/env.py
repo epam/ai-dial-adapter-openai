@@ -1,11 +1,12 @@
 import json
 import os
-from typing import Callable, Dict, List, Optional, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 from aidial_adapter_openai.utils.log_config import logger
 
 
-def get_env(name: str, err_msg: Optional[str] = None) -> str:
+def get_env(name: str, err_msg: str | None = None) -> str:
     if (val := os.getenv(name)) is not None:
         return val
     raise Exception(err_msg or f"{name} env variable is not set")
@@ -23,13 +24,13 @@ def get_env_float(name: str) -> float | None:
     return None
 
 
-def get_env_list(name: str) -> List[str] | None:
+def get_env_list(name: str) -> list[str] | None:
     if (value := os.getenv(name)) is not None:
         return list(map(str.strip, (value).split(",")))
     return None
 
 
-def get_env_dict(key: str) -> Dict[str, str] | None:
+def get_env_dict(key: str) -> dict[str, str] | None:
     if (value := os.getenv(key)) is not None:
         try:
             return json.loads(value)
@@ -51,7 +52,7 @@ def get_env_var(
     parser: Callable[[str], _T],
     name: str,
     *,
-    deprecated_names: List[str] | None = None,
+    deprecated_names: list[str] | None = None,
 ) -> _T:
     for alt in deprecated_names or []:
         if os.getenv(alt) is not None:

@@ -1,6 +1,7 @@
 """Unit tests for Magistral reasoning content transformation."""
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from aidial_adapter_openai.chat_completions.mistral import (
     extract_reasoning_content,

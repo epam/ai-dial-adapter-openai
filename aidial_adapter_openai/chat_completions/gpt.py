@@ -1,4 +1,4 @@
-from typing import AsyncIterator, Callable, Coroutine, List, Mapping, Tuple
+from collections.abc import AsyncIterator, Callable, Coroutine, Mapping
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
@@ -29,10 +29,10 @@ from aidial_adapter_openai.utils.truncation_types import (
 
 async def multi_modal_truncate_prompt(
     request: dict,
-    messages: List[MultiModalMessage],
+    messages: list[MultiModalMessage],
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
-) -> Tuple[List[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
+) -> tuple[list[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     return await truncate_messages(
         messages=messages,
         message_tokens=tokenizer.tokenize_request_message,
@@ -62,9 +62,9 @@ def _extract_max_prompt_tokens(request: dict) -> int | None:
 
 
 async def _truncate_messages(
-    request: dict, messages: List[MultiModalMessage], tokenizer: Tokenizer
-) -> Tuple[
-    List[MultiModalMessage],
+    request: dict, messages: list[MultiModalMessage], tokenizer: Tokenizer
+) -> tuple[
+    list[MultiModalMessage],
     DiscardedMessages | None,
     Callable[[], Coroutine[None, None, int]],
 ]:
@@ -109,7 +109,7 @@ async def chat_completion(
     eliminate_empty_choices: bool,
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
     n: int = request.get("n") or 1
-    messages: List[dict] = request["messages"]
+    messages: list[dict] = request["messages"]
     model_name = request["model"]
 
     multi_modal_messages = await ResourceProcessor(

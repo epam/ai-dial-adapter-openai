@@ -1,5 +1,6 @@
 import json
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
 from aidial_sdk.utils.merge_chunks import (
     cleanup_indices,
@@ -53,13 +54,13 @@ def ai_function(
 
 
 def ai_tools(
-    tool_calls: List[ChatCompletionMessageToolCallParam],
+    tool_calls: list[ChatCompletionMessageToolCallParam],
 ) -> ChatCompletionAssistantMessageParam:
     return {"role": "assistant", "tool_calls": tool_calls}
 
 
 def user(
-    content: str | List[ChatCompletionContentPartParam],
+    content: str | list[ChatCompletionContentPartParam],
     **kwargs,
 ) -> ChatCompletionUserMessageParam:
     return {"role": "user", "content": content, **kwargs}  # type: ignore
@@ -186,7 +187,7 @@ class ChatCompletionResult(BaseModel):
         return self.message.content or ""
 
     @property
-    def contents(self) -> List[str]:
+    def contents(self) -> list[str]:
         return [
             choice.message.content or "" for choice in self.response.choices
         ]
@@ -200,10 +201,10 @@ class ChatCompletionResult(BaseModel):
         return self.message.function_call
 
     @property
-    def tool_calls(self) -> List[ChatCompletionMessageToolCallUnion] | None:
+    def tool_calls(self) -> list[ChatCompletionMessageToolCallUnion] | None:
         return self.message.tool_calls
 
-    def content_contains_all(self, matches: List[Any]) -> bool:
+    def content_contains_all(self, matches: list[Any]) -> bool:
         return all(
             str(match).lower() in self.content.lower() for match in matches
         )
@@ -213,14 +214,14 @@ async def chat_completion(
     client: AsyncAzureOpenAI,
     *,
     deployment_id: str,
-    messages: List[ChatCompletionMessageParam],
+    messages: list[ChatCompletionMessageParam],
     stream: bool,
-    stop: List[str] | Omit = omit,
+    stop: list[str] | Omit = omit,
     max_completion_tokens: int | Omit = omit,
     max_tokens: int | Omit = omit,
     n: int | Omit = omit,
-    functions: List[Function] | Omit = omit,
-    tools: List[ChatCompletionToolParam] | Omit = omit,
+    functions: list[Function] | Omit = omit,
+    tools: list[ChatCompletionToolParam] | Omit = omit,
     temperature: float | Omit = omit,
     reasoning_effort: ReasoningEffort | Omit = omit,
     response_format: ResponseFormat | Omit = omit,
@@ -246,7 +247,7 @@ async def chat_completion(
         )
 
         if isinstance(response, AsyncStream):
-            chunks: List[dict] = []
+            chunks: list[dict] = []
             async for chunk in response:
                 chunks.append(chunk.model_dump())
 
@@ -299,7 +300,7 @@ def is_valid_function_call(
 
 
 def is_valid_tool_call(
-    calls: List[ChatCompletionMessageToolCallUnion] | None,
+    calls: list[ChatCompletionMessageToolCallUnion] | None,
     tool_call_idx: int,
     check_tool_id: Callable[[str], bool],
     expected_name: str,

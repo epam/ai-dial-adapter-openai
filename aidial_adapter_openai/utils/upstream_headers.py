@@ -1,5 +1,5 @@
+from collections.abc import Mapping
 from http import HTTPStatus
-from typing import Mapping
 
 from aidial_sdk.exceptions import HTTPException
 from pydantic import BaseModel, ValidationError

@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Mapping
+from collections.abc import Mapping
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from azure.core.credentials import AccessToken

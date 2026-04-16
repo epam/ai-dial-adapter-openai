@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
-from typing import Any, Callable, Dict, assert_never
+from collections.abc import Callable
+from typing import Any, assert_never
 
 import fastapi
 from aidial_sdk.chat_completion import Choice, Stage
@@ -126,7 +127,7 @@ def _timed_stage(stage: Stage):
 async def chat_completion(
     *,
     request: fastapi.Request,
-    request_body: Dict[str, Any],
+    request_body: dict[str, Any],
     client: AsyncOpenAI,
     deployment_id: str,
     file_storage: FileStorage | None,

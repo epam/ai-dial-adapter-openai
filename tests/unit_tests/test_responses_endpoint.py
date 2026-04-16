@@ -2,11 +2,8 @@ import asyncio
 import gzip
 import inspect
 import json
+from collections.abc import AsyncIterator, Awaitable, Generator, Mapping
 from typing import (
-    AsyncIterator,
-    Awaitable,
-    Generator,
-    Mapping,
     Protocol,
 )
 

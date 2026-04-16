@@ -1,10 +1,10 @@
-from typing import Any, Tuple, Type, Union
+from typing import Any
 
 from aidial_sdk.exceptions import InvalidRequestError
 
 
 def _ensure_type(
-    name: str, value: Any, expected: Union[Type, Tuple[Type, ...]]
+    name: str, value: Any, expected: type | tuple[type, ...]
 ) -> Any:
     expected = expected if isinstance(expected, tuple) else (expected,)
     if isinstance(value, expected):

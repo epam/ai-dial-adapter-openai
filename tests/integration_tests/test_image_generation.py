@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List
 from unittest.mock import patch
 
 import openai
@@ -33,7 +33,7 @@ def mock_storage(request):
 
 D = DeploymentConfig[ChatCompletionDeploymentType]
 
-_deployments: List[D] = [
+_deployments: list[D] = [
     d
     for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments
     if d.model_features.imageGenerationSupported
@@ -54,7 +54,7 @@ else:
 
 @pytest.fixture
 def vision_deployment() -> D:
-    vision_deployments: List[D] = [
+    vision_deployments: list[D] = [
         d
         for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments
         if d.supports_vision and not d.supports_reasoning

@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Any, AsyncIterator, Dict, List
+from collections.abc import AsyncIterator
+from typing import Any
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai import (
@@ -36,15 +37,15 @@ from aidial_adapter_openai.utils.streaming import (
 )
 
 
-def _validate_request(request: Dict[str, Any]) -> None:
-    errors: List[str] = []
+def _validate_request(request: dict[str, Any]) -> None:
+    errors: list[str] = []
 
     if (n := request.get("n")) not in [None, 1]:
         errors.append(
             f"The deployment doesn't support request.n parameter other than 1, but got {n}."
         )
 
-    unsupported_params: List[str] = []
+    unsupported_params: list[str] = []
     for param in [
         "stop",
         "seed",
@@ -88,7 +89,7 @@ class ResponsesConfig(ExtraAllowedModel):
     )
 
 
-def _get_configuration(request: Dict[str, Any]) -> ResponsesConfig:
+def _get_configuration(request: dict[str, Any]) -> ResponsesConfig:
     configuration = (
         parse_configuration(ResponsesConfig, request) or ResponsesConfig()
     )
@@ -104,7 +105,7 @@ def _get_configuration(request: Dict[str, Any]) -> ResponsesConfig:
 
 async def chat_completion(
     *,
-    request: Dict[str, Any],
+    request: dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
 ) -> AsyncIterator[dict] | dict:

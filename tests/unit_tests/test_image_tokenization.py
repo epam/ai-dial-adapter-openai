@@ -1,11 +1,9 @@
-from typing import List, Tuple
-
 import pytest
 
 from aidial_adapter_openai.utils.image_tokenizer import GPT4O_IMAGE_TOKENIZER
 from aidial_adapter_openai.utils.resource.image import ImageDetail
 
-test_cases: List[Tuple[int, int, ImageDetail, int]] = [
+test_cases: list[tuple[int, int, ImageDetail, int]] = [
     (1, 1, "auto", 85),
     (1, 1, "high", 170 * 1 + 85),
     (100, 100, "low", 85),

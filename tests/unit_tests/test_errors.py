@@ -1,5 +1,6 @@
 import json
-from typing import Any, AsyncIterable, AsyncIterator, Callable
+from collections.abc import AsyncIterable, AsyncIterator, Callable
+from typing import Any
 from unittest.mock import patch
 
 import httpx

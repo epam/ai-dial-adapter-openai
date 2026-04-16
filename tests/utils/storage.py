@@ -1,7 +1,6 @@
 import mimetypes
 import os
 from pathlib import Path
-from typing import List
 from urllib.parse import urlparse
 
 from pydantic import SecretStr
@@ -42,7 +41,7 @@ class DummyFileStorage(FileStorage):
 
 class MockFileStorage(FileStorage):
     root_dir: Path
-    files: List[Path]
+    files: list[Path]
 
     @classmethod
     def create(cls, root_dir: Path) -> "MockFileStorage":

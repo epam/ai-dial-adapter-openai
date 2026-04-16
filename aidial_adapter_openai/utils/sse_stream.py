@@ -1,5 +1,6 @@
 import json
-from typing import AsyncIterator, Literal
+from collections.abc import AsyncIterator
+from typing import Literal
 
 from aidial_adapter_openai.utils.adapter_exception import AdapterException
 

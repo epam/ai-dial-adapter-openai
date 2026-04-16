@@ -1,6 +1,5 @@
 import dataclasses
 import json
-from typing import List
 
 import httpx
 import pytest
@@ -14,7 +13,7 @@ from tests.conftest import create_test_client
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
 
-def _mock_response(upstream_url: str, stream: bool, chunks: List[dict]):
+def _mock_response(upstream_url: str, stream: bool, chunks: list[dict]):
     mock_stream = OpenAIStream(*chunks)
     if stream:
         respx.post(upstream_url).respond(

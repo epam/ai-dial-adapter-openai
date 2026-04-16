@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List, assert_never
+from typing import assert_never
 
 from aidial_sdk.exceptions import InternalServerError
 
@@ -43,25 +43,25 @@ class DeploymentAPIType(ExtraForbidModel):
 
 
 class ApplicationConfig(ExtraForbidModel):
-    TIKTOKEN_MODEL_MAPPING: Dict[str, str] = {}
+    TIKTOKEN_MODEL_MAPPING: dict[str, str] = {}
 
-    DALLE3_DEPLOYMENTS: List[str] = []
+    DALLE3_DEPLOYMENTS: list[str] = []
     DALLE3_AZURE_API_VERSION: str = "2024-02-01"
 
-    GPT_IMAGE_1_DEPLOYMENTS: List[str] = []
+    GPT_IMAGE_1_DEPLOYMENTS: list[str] = []
     GPT_IMAGE_1_AZURE_API_VERSION: str = "2025-04-01-preview"
 
-    MISTRAL_DEPLOYMENTS: List[str] = []
-    DATABRICKS_DEPLOYMENTS: List[str] = []
-    GPT4O_DEPLOYMENTS: List[str] = []
-    GPT4O_MINI_DEPLOYMENTS: List[str] = []
-    VLLM_DEPLOYMENTS: List[str] = []
-    QWEN3_ASR_VLLM_DEPLOYMENTS: List[str] = []
-    AZURE_AI_VISION_DEPLOYMENTS: List[str] = []
+    MISTRAL_DEPLOYMENTS: list[str] = []
+    DATABRICKS_DEPLOYMENTS: list[str] = []
+    GPT4O_DEPLOYMENTS: list[str] = []
+    GPT4O_MINI_DEPLOYMENTS: list[str] = []
+    VLLM_DEPLOYMENTS: list[str] = []
+    QWEN3_ASR_VLLM_DEPLOYMENTS: list[str] = []
+    AZURE_AI_VISION_DEPLOYMENTS: list[str] = []
 
-    API_VERSIONS_MAPPING: Dict[str, str] = {}
-    COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: Dict[str, str] = {}
-    NON_STREAMING_DEPLOYMENTS: List[str] = []
+    API_VERSIONS_MAPPING: dict[str, str] = {}
+    COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: dict[str, str] = {}
+    NON_STREAMING_DEPLOYMENTS: list[str] = []
     ELIMINATE_EMPTY_CHOICES: bool = False
     SSE_HEARTBEAT_INTERVAL: float | None = None
 

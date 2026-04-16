@@ -1,4 +1,5 @@
-from typing import AsyncIterator, Set, TypeVar
+from collections.abc import AsyncIterator
+from typing import TypeVar
 
 from pydantic import BaseModel
 
@@ -17,7 +18,7 @@ class _ReasoningResponseTransformer(BaseModel):
     - Streaming: https://docs.vllm.ai/en/latest/examples/online_serving/openai_chat_completion_with_reasoning_streaming/
     """
 
-    opened_reasoning_stages: Set[int] = set()
+    opened_reasoning_stages: set[int] = set()
 
     streaming: bool
 

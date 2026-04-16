@@ -1,4 +1,4 @@
-from typing import Iterable
+from collections.abc import Iterable
 
 
 def exclude_keys(d: dict, keys: Iterable[str]) -> dict:

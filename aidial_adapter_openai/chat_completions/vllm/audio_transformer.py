@@ -8,8 +8,6 @@ from ``MultiModalMessage.audios`` in the format expected by vLLM.
 See https://docs.vllm.ai/en/latest/features/multimodal_inputs/?h=audio#audio-inputs_1
 """
 
-from typing import List
-
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 
 
@@ -18,8 +16,8 @@ def _audio_url_part(data_url: str) -> dict:
 
 
 def transform_audio(
-    messages: List[MultiModalMessage],
-) -> List[MultiModalMessage]:
+    messages: list[MultiModalMessage],
+) -> list[MultiModalMessage]:
     """Replace ``input_audio`` parts with ``audio_url`` from audios."""
     result = []
     for message in messages:

@@ -1,5 +1,3 @@
-from typing import List
-
 from openai.types.chat import ChatCompletionContentPartTextParam
 from openai.types.chat.chat_completion_content_part_param import File
 from pydantic import BaseModel
@@ -25,7 +23,7 @@ def create_text_content_part(text: str) -> ChatCompletionContentPartTextParam:
 
 
 class MultiModalMessage(BaseModel):
-    images: List[ImageResource] = []
-    files: List[FileResource] = []
-    audios: List[AudioResource] = []
+    images: list[ImageResource] = []
+    files: list[FileResource] = []
+    audios: list[AudioResource] = []
     raw_message: dict
