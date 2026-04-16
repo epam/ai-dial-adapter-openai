@@ -13,3 +13,5 @@ dist
 ~*
 integration_test_config.json
 .python-version
+allure-results
+allure-report

@@ -35,7 +35,7 @@ from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.resource.base import Resource
-from tests.utils.json import match_objects
+from tests.utils.json import cleanup_repeated_tags, match_objects
 
 
 def sys(content: str) -> ChatCompletionSystemMessageParam:
@@ -246,9 +246,7 @@ async def chat_completion(
         )
 
         if isinstance(response, AsyncStream):
-            chunks: List[dict] = [
-                {}
-            ]  # workaround for https://github.com/epam/ai-dial-sdk/pull/269
+            chunks: List[dict] = []
             async for chunk in response:
                 chunks.append(chunk.model_dump())
 
@@ -259,6 +257,7 @@ async def chat_completion(
                 del choice["delta"]
 
             response_dict["object"] = "chat.completion"
+            response_dict = cleanup_repeated_tags(response_dict)
 
             return ChatCompletion.model_validate(response_dict)
         else:
@@ -308,7 +307,11 @@ def is_valid_tool_call(
 ) -> bool:
     assert calls is not None
 
+    assert len(calls) > tool_call_idx, (
+        f"Expected at least {tool_call_idx + 1} tool calls, but got only {len(calls)}"
+    )
     call = calls[tool_call_idx]
+
     assert call.type == "function"
 
     function = call.function

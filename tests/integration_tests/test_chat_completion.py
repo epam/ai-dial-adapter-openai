@@ -105,12 +105,12 @@ async def test_chat_completion(test_case: TestCase, create_openai_client):
 
         if (message := expected.message) is not None:
             assert re.search(message, str(actual_exc)), (
-                f"Cannot match the error message {message!r} against the pattern {str(actual_exc)!r}"
+                f"Cannot match the error message {str(actual_exc)!r} against the pattern {str(message)!r}"
             )
 
         if (display_message := expected.display_message) is not None:
             assert re.search(display_message, str(actual_exc)), (
-                f"Cannot match the display error message {message!r} against the pattern {str(actual_exc)!r}"
+                f"Cannot match the display error message {str(actual_exc)!r} against the pattern {display_message!r}"
             )
     else:
         actual_output = await run_chat_completion()

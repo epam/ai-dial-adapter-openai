@@ -52,7 +52,7 @@ def build_vision_common(s: TestSuite) -> None:
     else:
         expected_unsupported = ExpectedException(
             type=openai.BadRequestError,
-            display_message="The provided image attachment is either corrupt or of unsupported MIME type",
+            message="(You uploaded an unsupported image|The image data you provided does not represent a valid image)",
         )
 
     s.test_case(

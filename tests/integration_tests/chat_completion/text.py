@@ -11,11 +11,6 @@ from tests.utils.openai import ExpectedException, ai, sys, user
 
 
 def build_text_common(s: TestSuite) -> None:
-    if s.supports_reasoning:
-        be_brief: dict = {"max_completion_tokens": 512}
-    else:
-        be_brief = {"max_tokens": 32}
-
     s.test_case(
         name="dialog recall",
         messages=[
@@ -24,7 +19,6 @@ def build_text_common(s: TestSuite) -> None:
             user("what city do I like?"),
         ],
         expected=lambda r: "toronto" in r.content.lower(),
-        **be_brief,
     )
 
     s.test_case(
@@ -58,24 +52,21 @@ def build_text_common(s: TestSuite) -> None:
             name="empty dialog",
             messages=[],
             expected=empty_messages_expected,
-            **be_brief,
         )
 
         s.test_case(
             name="empty user message",
             messages=[user("")],
-            **be_brief,
         )
 
         s.test_case(
             name="single space user message",
             messages=[user(" ")],
-            **be_brief,
         )
 
     if s.supports_reasoning:
         s.test_case(
-            name="short pinocchio",
+            name="finish reason length",
             messages=[user("tell me the full story of Pinocchio")],
             max_completion_tokens=128,
             expected=lambda s: len(s.response.id) <= 100
@@ -170,7 +161,6 @@ def build_text_common(s: TestSuite) -> None:
             messages=[user("2+3=?")],
             temperature=0.42,
             expected=lambda s: "5" in s.content,
-            **be_brief,
         )
 
 
