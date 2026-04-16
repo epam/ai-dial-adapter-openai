@@ -1,5 +1,5 @@
 import json
-from typing import Any, List
+from typing import Any
 
 from openai.types.chat import ChatCompletionMessageParam
 
@@ -15,7 +15,7 @@ def _assert_valid_json(text: str) -> Any:
 
 
 def build_response_format(s: TestSuite) -> None:
-    messages: List[ChatCompletionMessageParam] = [
+    messages: list[ChatCompletionMessageParam] = [
         user("extract name and surname from 'John Doe' in json format")
     ]
 
@@ -25,7 +25,7 @@ def build_response_format(s: TestSuite) -> None:
             messages=messages,
             response_format={"type": "json_object"},
             expected=lambda r: isinstance(
-                _assert_valid_json(r.content), (dict, list)
+                _assert_valid_json(r.content), dict | list
             ),
         )
 

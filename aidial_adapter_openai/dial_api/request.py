@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Any, Type, TypeVar
+from typing import Any, TypeVar
 
 from aidial_sdk.exceptions import RequestValidationError
 from pydantic import BaseModel, ValidationError
@@ -9,7 +9,7 @@ from aidial_adapter_openai.utils.log_config import logger
 _T = TypeVar("_T", bound=BaseModel)
 
 
-def parse_configuration(cls: Type[_T], data: Any) -> _T | None:
+def parse_configuration(cls: type[_T], data: Any) -> _T | None:
     if (cf := data.get("custom_fields")) is None:
         return None
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Set, assert_never
+from typing import assert_never
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai.types.chat import (
@@ -48,16 +48,16 @@ class Error:
 
 class MessageTransformer:
     file_storage: FileStorage | None
-    errors: Set[Error]
-    images: List[ImageResource]
-    files: List[FileResource]
-    audios: List[AudioResource]
+    errors: set[Error]
+    images: list[ImageResource]
+    files: list[FileResource]
+    audios: list[AudioResource]
 
     def __init__(
         self,
         *,
         file_storage: FileStorage | None,
-        errors: Set[Error] | None = None,
+        errors: set[Error] | None = None,
     ):
         self.file_storage = file_storage
         self.errors = set() if errors is None else errors
@@ -85,8 +85,8 @@ class MessageTransformer:
             return None
 
     async def download_attachments(
-        self, attachments: List[dict]
-    ) -> List[
+        self, attachments: list[dict]
+    ) -> list[
         ChatCompletionContentPartImageParam
         | ChatCompletionContentPartInputAudioParam
         | File
@@ -94,7 +94,7 @@ class MessageTransformer:
         if attachments:
             logger.debug(f"original attachments: {attachments}")
 
-        ret: List[
+        ret: list[
             ChatCompletionContentPartImageParam
             | ChatCompletionContentPartInputAudioParam
             | File
@@ -177,15 +177,15 @@ class MessageTransformer:
         self,
         content: (
             str
-            | List[ChatCompletionContentPartParam | ContentArrayOfContentPart]
+            | list[ChatCompletionContentPartParam | ContentArrayOfContentPart]
         ),
-    ) -> List[ChatCompletionContentPartParam | ContentArrayOfContentPart]:
+    ) -> list[ChatCompletionContentPartParam | ContentArrayOfContentPart]:
         if isinstance(content, str):
             parts = [create_text_content_part(content)]
         else:
             parts = content
 
-        ret: List[
+        ret: list[
             ChatCompletionContentPartParam | ContentArrayOfContentPart
         ] = []
         for part in parts:
@@ -225,9 +225,9 @@ class ResourceProcessor(BaseModel):
     file_storage: FileStorage | None
 
     async def transform_messages(
-        self, messages: List[dict]
-    ) -> List[MultiModalMessage]:
-        errors: Set[Error] = set()
+        self, messages: list[dict]
+    ) -> list[MultiModalMessage]:
+        errors: set[Error] = set()
         transformations = [
             await MessageTransformer(
                 file_storage=self.file_storage, errors=errors

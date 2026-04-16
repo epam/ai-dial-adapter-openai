@@ -1,4 +1,5 @@
-from typing import Mapping, assert_never
+from collections.abc import Mapping
+from typing import assert_never
 
 import fastapi
 from anthropic import AsyncAnthropicFoundry

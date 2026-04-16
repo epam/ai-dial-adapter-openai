@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Literal, Optional, assert_never
+from typing import Literal, assert_never
 
 from openai.types.chat import ChatCompletionContentPartImageParam
 from PIL import Image
@@ -39,7 +39,7 @@ class ImageResource(BaseModel):
 
     @classmethod
     def _from_resource(
-        cls, image: Resource, detail: Optional[ImageDetail]
+        cls, image: Resource, detail: ImageDetail | None
     ) -> "ImageResource":
         with Image.open(BytesIO(image.data)) as img:
             width, height = img.size
@@ -53,7 +53,7 @@ class ImageResource(BaseModel):
 
     @classmethod
     async def from_resource(
-        cls, image: Resource, detail: Optional[ImageDetail]
+        cls, image: Resource, detail: ImageDetail | None
     ) -> "ImageResource":
         return await run_in_threadpool(
             lambda: cls._from_resource(image, detail)

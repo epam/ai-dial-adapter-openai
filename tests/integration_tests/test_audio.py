@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List
 from unittest.mock import patch
 
 import openai
@@ -41,7 +41,7 @@ def mock_storage(request):
 
 D = DeploymentConfig[ChatCompletionDeploymentType]
 
-_tts_deployments: List[D] = [
+_tts_deployments: list[D] = [
     d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if d.supports_tts
 ]
 
@@ -58,7 +58,7 @@ else:
         pytest.skip("No TTS deployments were found")
 
 
-_stt_deployments: List[D] = [
+_stt_deployments: list[D] = [
     d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if d.supports_stt
 ]
 

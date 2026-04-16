@@ -1,5 +1,6 @@
 import json
-from typing import Any, MutableMapping
+from collections.abc import MutableMapping
+from typing import Any
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from fastapi.responses import Response as FastAPIResponse
@@ -25,11 +26,7 @@ class ResponseWrapper(Exception):
     def __repr__(self):
         # headers field is omitted deliberately
         # since it may contain sensitive information
-        return "%s(content=%r, status_code=%r)" % (
-            self.__class__.__name__,
-            self.content,
-            self.status_code,
-        )
+        return f"{self.__class__.__name__}(content={self.content!r}, status_code={self.status_code!r})"
 
     def to_fastapi_response(self) -> FastAPIResponse:
         return FastAPIResponse(

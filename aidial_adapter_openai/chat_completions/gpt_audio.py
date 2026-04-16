@@ -6,7 +6,8 @@ from GPT-4o audio completions API responses, transforming them into
 DIAL-compatible format with attachments and stages.
 """
 
-from typing import AsyncIterator, TypeVar
+from collections.abc import AsyncIterator
+from typing import TypeVar
 
 from pydantic import BaseModel
 

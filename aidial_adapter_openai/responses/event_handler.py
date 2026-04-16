@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Dict, Generator, assert_never
+from collections.abc import Generator
+from typing import assert_never
 
 import openai
 import pydantic
@@ -141,7 +142,7 @@ class EventHandler(pydantic.BaseModel):
     created_: int | None = None
     model_: str | None = None
 
-    tool_calls: Dict[str, int] = {}
+    tool_calls: dict[str, int] = {}
     """Map item_id for a tool call onto its index in the chat completion response"""
 
     stage_key_to_index: dict[str, int] = pydantic.Field(default_factory=dict)

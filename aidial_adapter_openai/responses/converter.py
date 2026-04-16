@@ -1,4 +1,5 @@
-from typing import Generator, List, assert_never
+from collections.abc import Generator
+from typing import assert_never
 
 import pydantic
 from aidial_sdk.chat_completion.request import (
@@ -174,7 +175,7 @@ def convert_tool_choice(
 _InputToolParam = ChatCompletionToolParam | dict
 
 
-def convert_tools(tools: List[_InputToolParam]) -> List[ToolParam]:
+def convert_tools(tools: list[_InputToolParam]) -> list[ToolParam]:
     _allowed_static_function_names = {"web_search"}
 
     def _convert_tool(tool: _InputToolParam) -> ToolParam:
@@ -355,21 +356,21 @@ def _convert_message(
 
 
 def convert_messages(
-    messages: List[ChatCompletionMessageParam],
+    messages: list[ChatCompletionMessageParam],
 ) -> ResponseInputParam:
     return [
         param for message in messages for param in _convert_message(message)
     ]
 
 
-def _convert_output(output: List[ResponseOutputItem]) -> ChatCompletionMessage:
+def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
     text_content = ""
     web_search_calls_count = 0
 
-    annotations: List[Annotation] = []
-    attachments: List[Attachment] = []
-    stages: List[Stage] = []
-    tool_calls: List[ChatCompletionMessageToolCallUnion] = []
+    annotations: list[Annotation] = []
+    attachments: list[Attachment] = []
+    stages: list[Stage] = []
+    tool_calls: list[ChatCompletionMessageToolCallUnion] = []
 
     for item in output:
         match item:

@@ -4,8 +4,9 @@ Implemented based on the official recipe: https://cookbook.openai.com/examples/h
 
 import json
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Coroutine
 from functools import cached_property
-from typing import Any, Callable, Coroutine, Generic, List, Set, TypeVar
+from typing import Any, Generic, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
@@ -118,7 +119,7 @@ class BaseTokenizer(ABC, Generic[MessageType]):
         return 1
 
     async def tokenize_request(
-        self, original_request: dict, messages: List[MessageType]
+        self, original_request: dict, messages: list[MessageType]
     ) -> int:
         tokens = self.TOKENS_PER_REQUEST
 
@@ -188,7 +189,7 @@ async def _tokenize_message(
 
 class Tokenizer(BaseTokenizer[MultiModalMessage]):
     image_tokenizer: ImageTokenizer | None
-    warnings: Set[str]
+    warnings: set[str]
 
     def __init__(
         self, *, model: str, image_tokenizer: ImageTokenizer | None = None
@@ -237,7 +238,7 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
         return tokens
 
     async def tokenize_request(
-        self, original_request: dict, messages: List[MultiModalMessage]
+        self, original_request: dict, messages: list[MultiModalMessage]
     ) -> int:
         tokens = await super().tokenize_request(original_request, messages)
 

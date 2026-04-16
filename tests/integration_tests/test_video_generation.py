@@ -1,9 +1,8 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
-    Callable,
     Generic,
-    List,
     Literal,
     TypeGuard,
     TypeVar,
@@ -63,7 +62,7 @@ def _is_video_gen_type(
     )
 
 
-_deployments: List[D] = [
+_deployments: list[D] = [
     d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if _is_video_gen_type(d)
 ]
 

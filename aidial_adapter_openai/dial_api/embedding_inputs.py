@@ -1,8 +1,5 @@
+from collections.abc import AsyncIterator, Callable, Coroutine
 from typing import (
-    AsyncIterator,
-    Callable,
-    Coroutine,
-    List,
     TypeVar,
     assert_never,
     cast,
@@ -15,7 +12,7 @@ from aidial_sdk.exceptions import RequestValidationError
 _T = TypeVar("_T")
 
 _Coro = Coroutine[None, None, _T]
-_Tokens = List[int]
+_Tokens = list[int]
 
 
 async def reject_tokens(tokens: _Tokens):
@@ -25,7 +22,7 @@ async def reject_tokens(tokens: _Tokens):
     )
 
 
-async def reject_mixed(input: List[str | Attachment]):
+async def reject_mixed(input: list[str | Attachment]):
     raise RequestValidationError(
         "Embedding inputs composed of multiple texts and/or attachments aren't supported"
     )
@@ -37,7 +34,7 @@ async def collect_embedding_inputs(
     on_text: Callable[[str], _Coro[_T]],
     on_attachment: Callable[[Attachment], _Coro[_T]],
     on_tokens: Callable[[_Tokens], _Coro[_T]] = reject_tokens,
-    on_mixed: Callable[[List[str | Attachment]], _Coro[_T]] = reject_mixed,
+    on_mixed: Callable[[list[str | Attachment]], _Coro[_T]] = reject_mixed,
 ) -> AsyncIterator[_T]:
     async def _on_str_or_attachment(input: str | Attachment) -> _T:
         if isinstance(input, str):
@@ -70,7 +67,7 @@ async def collect_embedding_inputs(
         return
 
     for input in request.custom_input:
-        if isinstance(input, (str, Attachment)):
+        if isinstance(input, str | Attachment):
             yield await _on_str_or_attachment(input)
         elif isinstance(input, list):
             if len(input) == 0:

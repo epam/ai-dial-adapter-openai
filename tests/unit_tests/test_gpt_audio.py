@@ -1,6 +1,7 @@
 """Unit tests for GPT-4o audio completions support."""
 
-from typing import Any, AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 import pytest
 

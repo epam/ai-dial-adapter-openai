@@ -1,5 +1,3 @@
-from typing import List
-
 import openai
 import pytest
 
@@ -15,7 +13,7 @@ from tests.integration_tests.constants import (
 
 D = DeploymentConfig[EmbeddingsDeploymentType]
 
-_deployments: List[D] = list(TEST_DEPLOYMENTS_CONFIG.embedding_deployments)
+_deployments: list[D] = list(TEST_DEPLOYMENTS_CONFIG.embedding_deployments)
 
 
 @pytest.fixture

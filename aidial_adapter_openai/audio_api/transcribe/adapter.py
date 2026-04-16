@@ -44,7 +44,7 @@ def _get_usage(
 ) -> TokenUsage | None:
     # NOTE: whisper has completely different API for its responses
     duration: Any | None = getattr(chunk, "duration", None)
-    if duration is not None and isinstance(duration, (float, int)):
+    if duration is not None and isinstance(duration, float | int):
         return TokenUsage(prompt_tokens=int(duration))
 
     if (token_usage := chunk.usage) is None:

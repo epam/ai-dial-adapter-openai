@@ -31,7 +31,8 @@ the "text" field is ignored.
 """
 
 import asyncio
-from typing import AsyncIterator, List, assert_never
+from collections.abc import AsyncIterator
+from typing import assert_never
 
 import httpx
 from aidial_sdk.chat_completion.request import Attachment
@@ -69,7 +70,7 @@ def _get_auth_headers(creds: OpenAICreds) -> dict[str, str]:
 
 
 class VectorizeResponse(ExtraAllowedModel):
-    vector: List[float]
+    vector: list[float]
 
 
 async def embeddings(
@@ -95,7 +96,7 @@ async def embeddings(
         on_attachment=on_attachment,
     )
 
-    inputs: List[str | Resource] = [input async for input in inputs_iter]
+    inputs: list[str | Resource] = [input async for input in inputs_iter]
 
     headers = _get_auth_headers(creds)
 

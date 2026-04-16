@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, List, Self, assert_never, runtime_checkable
+from typing import Any, Self, assert_never, runtime_checkable
 
 from typing_extensions import Protocol
 
@@ -93,7 +93,7 @@ class ResponsesAPIEventStream:
                 return e
         raise ValueError("The stream doesn't contain any SSE events.")
 
-    def signature(self) -> List[str]:
+    def signature(self) -> list[str]:
         def _get_name(x: SSEEvent | SSEComment) -> str:
             return "event" if isinstance(x, SSEEvent) else f"comment{x.message}"
 

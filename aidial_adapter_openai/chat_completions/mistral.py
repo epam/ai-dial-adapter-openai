@@ -1,4 +1,5 @@
-from typing import AsyncIterator, overload
+from collections.abc import AsyncIterator
+from typing import overload
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion

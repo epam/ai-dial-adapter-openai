@@ -1,5 +1,3 @@
-from typing import List, Tuple
-
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
@@ -13,21 +11,21 @@ from aidial_adapter_openai.utils.truncation_types import (
     TruncatedTokens,
 )
 
-PlainTextMessages = List[dict]
+PlainTextMessages = list[dict]
 MaxPromptTokens = int
-TestCase = Tuple[
+TestCase = tuple[
     PlainTextMessages,
     MaxPromptTokens,
-    Tuple[PlainTextMessages, DiscardedMessages],
+    tuple[PlainTextMessages, DiscardedMessages],
 ]
 
 
 async def plain_text_truncate_prompt(
     request: dict,
-    messages: List[dict],
+    messages: list[dict],
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
-) -> Tuple[List[dict], DiscardedMessages, TruncatedTokens]:
+) -> tuple[list[dict], DiscardedMessages, TruncatedTokens]:
     (msgs, disc, tokens) = await multi_modal_truncate_prompt(
         request=request,
         messages=[MultiModalMessage(raw_message=m) for m in messages],
@@ -39,7 +37,7 @@ async def plain_text_truncate_prompt(
     return (msgs, disc, tokens)
 
 
-normal_cases: List[TestCase] = [
+normal_cases: list[TestCase] = [
     (
         [],
         3,
@@ -124,8 +122,8 @@ normal_cases: List[TestCase] = [
 ]
 
 ErrorMessage = str
-error_cases: List[
-    Tuple[
+error_cases: list[
+    tuple[
         PlainTextMessages,
         MaxPromptTokens,
         ErrorMessage,
@@ -159,9 +157,9 @@ error_cases: List[
 
 @pytest.mark.parametrize("messages, max_prompt_tokens, response", normal_cases)
 async def test_discarded_messages_without_error(
-    messages: List[dict],
+    messages: list[dict],
     max_prompt_tokens: int,
-    response: Tuple[List[dict], DiscardedMessages],
+    response: tuple[list[dict], DiscardedMessages],
 ):
     tokenizer = Tokenizer(model="gpt-4")
     (
@@ -178,7 +176,7 @@ async def test_discarded_messages_without_error(
     "messages, max_prompt_tokens, error_message", error_cases
 )
 async def test_discarded_messages_with_error(
-    messages: List[dict],
+    messages: list[dict],
     max_prompt_tokens: int,
     error_message: str,
 ):

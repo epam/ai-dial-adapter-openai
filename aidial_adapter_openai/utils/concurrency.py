@@ -1,7 +1,8 @@
 import asyncio
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 _THREAD_POOL_SIZE = os.getenv("THREAD_POOL_SIZE")
 _THREAD_POOL_SIZE = (

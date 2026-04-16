@@ -8,12 +8,9 @@ for upstreams (for example, vLLM) that expose a dedicated tokenization endpoint
 and can account for all modalities (text, images, files) in one shot.
 """
 
+from collections.abc import Callable
 from typing import (
-    Callable,
-    List,
     Protocol,
-    Set,
-    Tuple,
     TypeVar,
     runtime_checkable,
 )
@@ -43,10 +40,10 @@ class Tokenizer(Protocol):
 async def truncate_prompt(
     tokenizer: Tokenizer,
     original_request: dict,
-    messages: List[_T],
+    messages: list[_T],
     get_raw_message: Callable[[_T], dict],
     max_prompt_tokens: int,
-) -> Tuple[List[_T], DiscardedMessages, TruncatedTokens]:
+) -> tuple[list[_T], DiscardedMessages, TruncatedTokens]:
     """Truncate *messages* to fit within *max_prompt_tokens*.
 
     Token counting is performed by *tokenizer* on the **full** remaining
@@ -79,12 +76,12 @@ async def truncate_prompt(
         Hard upper bound on total token count.
     """
 
-    all_indices: Set[int] = set(range(len(messages)))
+    all_indices: set[int] = set(range(len(messages)))
 
-    def _collect(indices: Set[int]) -> List[_T]:
+    def _collect(indices: set[int]) -> list[_T]:
         return [messages[i] for i in sorted(indices)]
 
-    def _build_request(indices: Set[int]) -> dict:
+    def _build_request(indices: set[int]) -> dict:
         raw_messages: list[dict] = [
             get_raw_message(messages[i]) for i in sorted(indices)
         ]
@@ -103,8 +100,8 @@ async def truncate_prompt(
         else:
             non_system_indices.append(idx)
 
-    system_set: Set[int] = set(system_indices)
-    kept: Set[int] = set(all_indices)
+    system_set: set[int] = set(system_indices)
+    kept: set[int] = set(all_indices)
 
     def _cascade_remove_tool_replies(start_idx: int) -> None:
         """Remove consecutive tool replies after *start_idx* and the next assistant."""

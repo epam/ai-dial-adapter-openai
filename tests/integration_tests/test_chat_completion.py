@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Generator, List
+from collections.abc import Generator
 
 import openai
 import pytest
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_test_cases(
-    builders: List[TestSuiteBuilder],
+    builders: list[TestSuiteBuilder],
 ) -> Generator[TestCase, None, None]:
     for streaming in (False, True):
         for deployment in TEST_DEPLOYMENTS_CONFIG.chat_deployments:

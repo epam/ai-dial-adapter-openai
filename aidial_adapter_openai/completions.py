@@ -1,4 +1,5 @@
-from typing import Any, AsyncIterator, Dict
+from collections.abc import AsyncIterator
+from typing import Any
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
@@ -18,7 +19,7 @@ def sanitize_text(text: str) -> str:
 
 def convert_to_chat_completions_response(
     chunk: Completion, is_stream: bool
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     converted_chunk = build_chunk(
         id=chunk.id,
         model=chunk.model,
@@ -37,7 +38,7 @@ def convert_to_chat_completions_response(
 
 async def chat_completion(
     *,
-    request: Dict[str, Any],
+    request: dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     prompt_template: str | None,
 ) -> AsyncIterator[dict] | dict:

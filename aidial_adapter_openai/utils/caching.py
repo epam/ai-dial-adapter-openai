@@ -1,5 +1,6 @@
 import time
-from typing import Any, Callable, Coroutine, Mapping
+from collections.abc import Callable, Coroutine, Mapping
+from typing import Any
 
 _DIAL_CACHE_BREAKPOINT_PATH = "X-DIAL-CACHE-BREAKPOINT-PATH"
 _DIAL_CACHE_EXPIRE_AT = "X-DIAL-CACHE-EXPIRE-AT"

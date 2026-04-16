@@ -1,17 +1,10 @@
 import json
 import logging
+from collections.abc import AsyncIterator, Callable, Coroutine, Generator
 from dataclasses import dataclass
 from time import time
 from typing import (
-    AsyncIterator,
-    Callable,
-    Coroutine,
-    Generator,
     Generic,
-    List,
-    Optional,
-    Set,
-    Tuple,
     TypeVar,
     assert_never,
 )
@@ -51,8 +44,8 @@ def build_chunk(
     *,
     id: str,
     model: str,
-    finish_reason: Optional[str],
-    message: dict | List[dict],
+    finish_reason: str | None,
+    message: dict | list[dict],
     created: int,
     is_stream: bool,
     **extra,
@@ -86,7 +79,7 @@ async def generate_stream(
         [ChatCompletionResponse], Coroutine[None, None, int]
     ],
     model: str,
-    discarded_messages: Optional[list[int]],
+    discarded_messages: list[int] | None,
     eliminate_empty_choices: bool,
 ) -> AsyncIterator[dict]:
     empty_chunk = build_chunk(
@@ -122,7 +115,7 @@ async def generate_stream(
 
     def set_default_finish_reasons(
         chunk: dict | None,
-        missing_indices: Set[int],
+        missing_indices: set[int],
         default_finish_reason: str,
     ) -> dict:
         def _set_reason(choice: dict) -> dict:
@@ -225,7 +218,7 @@ def block_response_to_streaming_chunk(response: dict) -> dict:
     return response
 
 
-def streaming_chunks_to_block_response(chunks: List[dict]) -> dict:
+def streaming_chunks_to_block_response(chunks: list[dict]) -> dict:
     response = merge_chat_completion_chunks(*chunks)
     response["object"] = "chat.completion"
 
@@ -315,7 +308,7 @@ async def map_stream_generator(
 
 
 async def map_stream(
-    func: Callable[[T], Optional[V]], iterator: AsyncIterator[T]
+    func: Callable[[T], V | None], iterator: AsyncIterator[T]
 ) -> AsyncIterator[V]:
     async for item in iterator:
         new_item = func(item)
@@ -334,7 +327,7 @@ async def prepend(
 
 async def peek_head(
     iterator: AsyncIterator[T],
-) -> Tuple[T | None, AsyncIterator[T]]:
+) -> tuple[T | None, AsyncIterator[T]]:
     try:
         val = await iterator.__anext__()
         return val, iterator

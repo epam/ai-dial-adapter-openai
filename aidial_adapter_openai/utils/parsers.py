@@ -1,7 +1,7 @@
 import re
 from http import HTTPStatus
 from json import JSONDecodeError
-from typing import Any, Dict
+from typing import Any
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
 from anthropic import AsyncAnthropicFoundry
@@ -167,7 +167,7 @@ openai_video_api_parser = EndpointParser(name="videos")
 anthropic_messages_parser = AnthropicEndpointParser()
 
 
-async def parse_body(request: Request) -> Dict[str, Any]:
+async def parse_body(request: Request) -> dict[str, Any]:
     try:
         data = await request.json()
     except JSONDecodeError as e:

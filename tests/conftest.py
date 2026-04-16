@@ -1,5 +1,6 @@
 import contextlib
-from typing import Generator, Protocol
+from collections.abc import Generator
+from typing import Protocol
 
 import httpx
 import pytest

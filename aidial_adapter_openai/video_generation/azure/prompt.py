@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import mimetypes
-from typing import Any, List, Tuple
+from typing import Any
 
 from aidial_sdk.exceptions import InvalidRequestError
 from httpx._types import RequestFiles
@@ -21,7 +21,7 @@ from aidial_adapter_openai.video_generation.azure.types import (
 
 class VideoGenPrompt(BaseModel):
     prompt: str
-    resources: List[Resource]
+    resources: list[Resource]
 
     @classmethod
     async def from_request(
@@ -40,7 +40,7 @@ class VideoGenPrompt(BaseModel):
             ).transform_messages([last_message])
         )[0]
 
-        resources: List[Resource] = []
+        resources: list[Resource] = []
         for image in multi_modal_message.images:
             resources.append(image.image)
 
@@ -49,7 +49,7 @@ class VideoGenPrompt(BaseModel):
 
         return cls(prompt=prompt, resources=resources)
 
-    def get_files(self) -> Tuple[List[InpaintItem], RequestFiles]:
+    def get_files(self) -> tuple[list[InpaintItem], RequestFiles]:
         items, files = [], []
 
         image_idx = 1

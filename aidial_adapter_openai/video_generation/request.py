@@ -1,17 +1,17 @@
-from typing import Any, Dict, List
+from typing import Any
 
 from aidial_sdk.exceptions import RequestValidationError
 
 
-def validate_request(request: Dict[str, Any]) -> None:
-    errors: List[str] = []
+def validate_request(request: dict[str, Any]) -> None:
+    errors: list[str] = []
 
     if (n := request.get("n")) not in [None, 1]:
         errors.append(
             f"The deployment doesn't support request.n parameter other than 1, but got {n}."
         )
 
-    unsupported_params: List[str] = []
+    unsupported_params: list[str] = []
     for param in [
         "stop",
         "seed",

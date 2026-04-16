@@ -18,7 +18,8 @@ https://cookbook.openai.com/articles/gpt-oss/verifying-implementations
 https://cookbook.openai.com/articles/gpt-oss/handle-raw-cot
 """
 
-from typing import AsyncIterator, Set, TypeVar
+from collections.abc import AsyncIterator
+from typing import TypeVar
 
 from pydantic import BaseModel
 
@@ -26,7 +27,7 @@ from aidial_adapter_openai.utils.streaming import map_stream
 
 
 class _ResponseTransformer(BaseModel):
-    opened_reasoning_stages: Set[int] = set()
+    opened_reasoning_stages: set[int] = set()
     """Indices of choices where a reasoning stage was open.
     """
 

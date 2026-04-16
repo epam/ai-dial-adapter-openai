@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import functools
 import json
+from collections.abc import Callable, Generator
 from typing import (
     Any,
-    Callable,
-    Dict,
-    Generator,
     Generic,
-    List,
     Literal,
     TypeVar,
     assert_never,
@@ -72,18 +69,18 @@ class Env(ExtraAllowedModel):
 class ModelConfig(ExtraAllowedModel):
     type: Literal["chat", "embedding"]
     overrideName: str | None = None
-    upstreams: List[UpstreamConfig]
+    upstreams: list[UpstreamConfig]
     features: Features = Features()
     env: Env = Env()
-    inputAttachmentTypes: List[str] | None = None
+    inputAttachmentTypes: list[str] | None = None
 
 
 class CoreConfig(ExtraAllowedModel):
-    models: Dict[str, ModelConfig]
+    models: dict[str, ModelConfig]
 
     @classmethod
     def from_config(cls, config_path: str):
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             test_config = json.load(f)
 
         return cls(**test_config)
@@ -126,14 +123,14 @@ class DeploymentConfig(BaseModel, Generic[_T]):
 
     model_name: str
     model_features: Features
-    model_attachments: List[str] | None
+    model_attachments: list[str] | None
 
     upstream_endpoint: str
     upstream_api_key: str | None
     upstream_idx: int | None
 
     @property
-    def upstream_headers(self) -> Dict[str, str]:
+    def upstream_headers(self) -> dict[str, str]:
         headers = {"X-UPSTREAM-ENDPOINT": self.upstream_endpoint}
         if self.upstream_api_key is not None:
             headers["X-UPSTREAM-KEY"] = self.upstream_api_key
@@ -144,7 +141,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
         cls,
         core_config: CoreConfig,
         get_deployment_type: Callable[[ModelConfig, str, str], _T],
-    ) -> List[DeploymentConfig[_T]]:
+    ) -> list[DeploymentConfig[_T]]:
         configs = []
         for deployment_id, model_config in core_config.models.items():
             for upstream_index, upstream_config in enumerate(
@@ -215,7 +212,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
 class TestDeployments(BaseModel):
     __test__ = False
 
-    deployments: List[DeploymentConfig[DeploymentType]]
+    deployments: list[DeploymentConfig[DeploymentType]]
     app_config: ApplicationConfig
 
     @classmethod
@@ -252,7 +249,7 @@ def sanitize_id_part(value: Any) -> str:
     """Convert any value to a pytest-safe identifier part."""
     if isinstance(value, bool):
         return "on" if value else "off"
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return str(value).replace(".", "p")  # e.g., 0.5 -> 0p5
     if value is None:
         return "none"

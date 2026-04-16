@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Tuple
+from typing import Any
 
 import httpx
 
@@ -21,7 +21,7 @@ TraceCtx = dict[str, Any]
 TraceCallback = Any  # `httpcore` doesn’t publish a public protocol for this
 
 
-def _build_trace() -> Tuple[TraceCtx, TraceCallback]:
+def _build_trace() -> tuple[TraceCtx, TraceCallback]:
     trace_ctx: TraceCtx = {}
     starts: dict[str, float] = {}
 

@@ -1,4 +1,4 @@
-from typing import AsyncIterator, List
+from collections.abc import AsyncIterator
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
@@ -49,8 +49,8 @@ def _extract_max_prompt_tokens(request: dict) -> int | None:
 
 
 async def _truncate_messages(
-    request: dict, messages: List[MultiModalMessage], tokenizer: VllmTokenizer
-) -> tuple[List[MultiModalMessage], DiscardedMessages | None]:
+    request: dict, messages: list[MultiModalMessage], tokenizer: VllmTokenizer
+) -> tuple[list[MultiModalMessage], DiscardedMessages | None]:
     """vLLM truncation calls tokenize with the full message list each pass."""
     if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is None:
         return messages, None
@@ -82,7 +82,7 @@ async def chat_completion(
     file_storage: FileStorage | None,
     tokenizer: VllmTokenizer,
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
-    messages: List[dict] = request["messages"]
+    messages: list[dict] = request["messages"]
 
     multi_modal_messages = await ResourceProcessor(
         file_storage=file_storage

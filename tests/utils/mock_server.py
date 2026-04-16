@@ -1,7 +1,8 @@
 import inspect
 import json
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Awaitable, Callable, assert_never
+from typing import assert_never
 
 import httpx
 import respx

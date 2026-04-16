@@ -1,5 +1,6 @@
 import json
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
 import httpx
 
@@ -9,7 +10,7 @@ from aidial_adapter_openai.utils.streaming import (
 
 
 class OpenAIStream:
-    chunks: List[dict]
+    chunks: list[dict]
 
     def __init__(self, *chunks: dict):
         self.chunks = list(chunks)
@@ -55,7 +56,7 @@ def chunk(
     object_: str = "chat.completion.chunk",
     created: int = 1695940483,
     model: str = "gpt-4",
-    choices: List[dict],
+    choices: list[dict],
     usage: dict | None = None,
     **kwargs,
 ) -> dict:
@@ -125,7 +126,7 @@ def many_choices_chunk(
     created: int = 1695940483,
     model: str = "gpt-4",
     usage: dict | None = None,
-    choices: List[dict] | None = None,
+    choices: list[dict] | None = None,
     **kwargs,
 ) -> dict:
     return chunk(
