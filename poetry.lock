@@ -2,33 +2,33 @@
 
 [[package]]
 name = "aidial-adapter-anthropic"
-version = "0.6.0"
+version = "0.7.0"
 description = "Package implementing adapter from DIAL Chat Completions API to Anthropic API"
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "aidial_adapter_anthropic-0.6.0-py3-none-any.whl", hash = "sha256:07ec0b73d89f99e67b78b4126b7123b4470232f0f22ccc245d9e9d00e84fbfce"},
-    {file = "aidial_adapter_anthropic-0.6.0.tar.gz", hash = "sha256:6db2c6d2e2d78af70f52247608289c7b58c43c41452a63d149583801596dc18d"},
+    {file = "aidial_adapter_anthropic-0.7.0-py3-none-any.whl", hash = "sha256:e2c03ec562f2e10f76766f404ee6f48de5a651c09fe912267534f42189599ff4"},
+    {file = "aidial_adapter_anthropic-0.7.0.tar.gz", hash = "sha256:f2a44e322ad49c6fbdb33db57174e4e4b254e9df238877c6e49f860eb32188bd"},
 ]
 
 [package.dependencies]
-aidial-sdk = ">=0.28.0,<1"
+aidial-sdk = ">=0.35.0,<1"
 aiohttp = ">=3.13.3,<4"
-anthropic = ">=0.79.0,<1"
+anthropic = ">=0.95.0,<1"
 pillow = ">=10.4.0,<13"
 pydantic = ">=2.8.2,<3"
 
 [[package]]
 name = "aidial-sdk"
-version = "0.32.0"
+version = "0.35.0"
 description = "Framework to create applications and model adapters for AI DIAL"
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "aidial_sdk-0.32.0-py3-none-any.whl", hash = "sha256:6d6cee07ea4a932a27e0f0fdf69cef5ecd34569fb492c18392c6277c75d7a548"},
-    {file = "aidial_sdk-0.32.0.tar.gz", hash = "sha256:ea952aab6722d4524783d10e5d7379833f8b1f1f2f6c28bfd53375fa746b5764"},
+    {file = "aidial_sdk-0.35.0-py3-none-any.whl", hash = "sha256:94f9e57284c74231a9a1e6efac22142247059a09892c4166fa05877dfc4263ab"},
+    {file = "aidial_sdk-0.35.0.tar.gz", hash = "sha256:85e2ffdbdf03440970b1550b5181df1ac55179dbfb6b8e68b6a8dbd40fb01727"},
 ]
 
 [package.dependencies]
@@ -281,14 +281,14 @@ files = [
 
 [[package]]
 name = "anthropic"
-version = "0.79.0"
+version = "0.95.0"
 description = "The official Python library for the anthropic API"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "anthropic-0.79.0-py3-none-any.whl", hash = "sha256:04cbd473b6bbda4ca2e41dd670fe2f829a911530f01697d0a1e37321eb75f3cf"},
-    {file = "anthropic-0.79.0.tar.gz", hash = "sha256:8707aafb3b1176ed6c13e2b1c9fb3efddce90d17aee5d8b83a86c70dcdcca871"},
+    {file = "anthropic-0.95.0-py3-none-any.whl", hash = "sha256:9fd3503cb666446e28ab5a5d0ec7feda39968399e494bd2cca2f0b927f8aa7a6"},
+    {file = "anthropic-0.95.0.tar.gz", hash = "sha256:e4d815351489e5627f39806f12561c52b574e69be10d12fcab723264f955c11d"},
 ]
 
 [package.dependencies]
@@ -299,11 +299,13 @@ httpx = ">=0.25.0,<1"
 jiter = ">=0.4.0,<1"
 pydantic = ">=1.9.0,<3"
 sniffio = "*"
-typing-extensions = ">=4.10,<5"
+typing-extensions = ">=4.14,<5"
 
 [package.extras]
 aiohttp = ["aiohttp", "httpx-aiohttp (>=0.1.9)"]
+aws = ["boto3 (>=1.28.57)", "botocore (>=1.31.57)"]
 bedrock = ["boto3 (>=1.28.57)", "botocore (>=1.31.57)"]
+mcp = ["mcp (>=1.0) ; python_version >= \"3.10\""]
 vertex = ["google-auth[requests] (>=2,<3)"]
 
 [[package]]
@@ -3324,4 +3326,4 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "d4a6a59641396ba82b2bcfd9c1ab1bedde9d1664633aa35cc96dc788684c4154"
+content-hash = "2a0de5e4dd09ba6d947e5f2902d85f3e3b839ad48ed5469876791ccd39b72231"
