@@ -34,6 +34,8 @@
       - [Qwen3-ASR](#qwen3-asr)
     - [Anthropic Messages API](#anthropic-messages-api)
       - [Default `max_tokens` for Claude models](#default-max_tokens-for-claude-models)
+      - [Automatic prompt caching](#automatic-prompt-caching)
+      - [Explicit prompt caching](#explicit-prompt-caching)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
@@ -799,6 +801,84 @@ Such a **per-model** configuration is operationally cleaner since all the inform
 The default value set in the DIAL Core Config takes precedence over the one configured in the adapter.
 
 Make sure the default doesn't exceed Claude's [max output tokens](https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table), otherwise, you will receive an error like this one: `max_tokens: 10000 > 8192, which is the maximum allowed number of output tokens for claude-...)`.
+
+##### Automatic prompt caching
+
+The adapter supports [automatic prompt caching](https://github.com/epam/ai-dial-adapter-anthropic/#automatic-caching).
+
+To enable it:
+
+- Configure a top-level cache breakpoint in the chat completion request via `defaults.custom_fields.cache_breakpoint`.
+- If the DIAL deployment uses multiple upstreams, set `autoCachingSupported: true` in the DIAL Core configuration.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${ANTHROPIC_MODEL_NAME}",
+      "defaults": {
+        "custom_fields": {
+          "cache_breakpoint": {}
+        }
+      },
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME1}.services.ai.azure.com/anthropic/v1/messages",
+          "key": "${OPTIONAL_API_KEY1}"
+        },
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME2}.services.ai.azure.com/anthropic/v1/messages",
+          "key": "${OPTIONAL_API_KEY2}"
+        }
+      ],
+      "features": {
+        "autoCachingSupported": true
+      }
+    }
+  }
+}
+```
+
+</details>
+
+##### Explicit prompt caching
+
+The adapter support explicit cache breakpoints in system and user message as well as in the tool definitions. Find the [examples of requests](https://github.com/epam/ai-dial-adapter-anthropic/#explicit-cache-breakpoints) in the Anthropic adapter documentation.
+
+Set the feature flag `cacheSupported: true` in the DIAL Core configuration, when the DIAL deployment has multiple upstreams. This flag enables logic in DIAL Core that routes chat completions requests with the same prefixes to the same upstreams:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${ANTHROPIC_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME1}.services.ai.azure.com/anthropic/v1/messages",
+          "key": "${OPTIONAL_API_KEY1}"
+        },
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME2}.services.ai.azure.com/anthropic/v1/messages",
+          "key": "${OPTIONAL_API_KEY2}"
+        }
+      ],
+      "features": {
+        "cacheSupported": true
+      }
+    }
+  }
+}
+```
+
+</details>
 
 ### Tokenization of chat completion requests/responses
 
