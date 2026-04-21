@@ -14,6 +14,7 @@ from tests.integration_tests.base import DeploymentConfig
 from tests.integration_tests.constants import (
     TEST_DEPLOYMENTS_CONFIG,
 )
+from tests.utils.fixtures import maybe_parametrized_fixture
 from tests.utils.openai import ai, chat_completion, sys, user
 
 D = DeploymentConfig[ChatCompletionDeploymentType]
@@ -24,19 +25,14 @@ _auto_caching_deployments: list[D] = [
     if d.model_features.autoCachingSupported
 ]
 
-if _auto_caching_deployments:
 
-    @pytest.fixture(
-        params=_auto_caching_deployments, ids=lambda d: d.display_config()
-    )
-    def auto_caching_deployment(request) -> D:
-        return request.param
-
-else:
-
-    @pytest.fixture
-    def auto_caching_deployment(request) -> D:
-        pytest.skip("No auto-caching deployments were found")
+@maybe_parametrized_fixture(
+    params=_auto_caching_deployments,
+    ids=lambda d: d.display_config(),
+    skip_reason="No auto-caching deployments were found",
+)
+def auto_caching_deployment(deployment: D) -> D:
+    return deployment
 
 
 @pytest.fixture(params=[True, False], ids=["stream", "block"])
