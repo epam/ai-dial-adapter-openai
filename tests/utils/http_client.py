@@ -25,21 +25,22 @@ def with_request_overrides(
         if "application/json" not in content_type:
             return
 
-        if request.content is None:
-            return
-
+        body = await request.aread()
         try:
-            body = json.loads(request.content)
+            data = json.loads(body)
         except Exception:
             return
 
-        if not isinstance(body, dict):
+        if not isinstance(data, dict):
             return
 
-        merged = _merge_defaults_inplace(body, defaults)
+        _merge_defaults_inplace(data, defaults)
 
-        request._content = json.dumps(merged).encode("utf-8")
-        request.headers["content-length"] = str(len(request.content))
+        new_body = json.dumps(data).encode("utf-8")
+
+        request._content = new_body
+        request.stream = httpx.ByteStream(new_body)
+        request.headers["content-length"] = str(len(new_body))
 
     new_hooks = dict(client.event_hooks)
     new_hooks.setdefault("request", []).append(on_request)

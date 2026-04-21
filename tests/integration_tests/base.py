@@ -70,7 +70,7 @@ class Env(ExtraAllowedModel):
 class ModelConfig(ExtraAllowedModel):
     type: Literal["chat", "embedding"]
     overrideName: str | None = None
-    defaults: dict
+    defaults: dict | None = None
     upstreams: list[UpstreamConfig]
     features: Features = Features()
     env: Env = Env()
