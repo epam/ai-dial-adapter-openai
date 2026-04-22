@@ -39,7 +39,8 @@ def _response_web_search(item_id: str, query: str) -> ResponseFunctionWebSearch:
         id=item_id,
         type="web_search_call",
         status="completed",
-        action=ActionSearch(type="search", query=query),
+        # openai==2.16.0 still validates deprecated `query` as required.
+        action=ActionSearch(type="search", query=query, queries=[query]),
     )
 
 
@@ -195,7 +196,10 @@ async def test_web_search_streaming_annotations_and_attachments(
             {
                 "item": {
                     "id": "msg_id",
-                    "action": {"query": "Weather in Kyiv", "type": "search"},
+                    "action": {
+                        "queries": ["Weather in Kyiv"],
+                        "type": "search",
+                    },
                     "status": "completed",
                     "type": "web_search_call",
                 },
@@ -411,5 +415,43 @@ def test_convert_response_with_multiple_web_search_calls():
                 "status": "completed",
                 "content": "Search 'news Kyiv'",
             },
+        ]
+    }
+
+
+def test_convert_response_with_web_search_multiple_queries():
+    response = Response(
+        id="id",
+        created_at=0,
+        model="test-model",
+        object="response",
+        output=[
+            ResponseFunctionWebSearch(
+                id="ws_id",
+                type="web_search_call",
+                status="completed",
+                action=ActionSearch(
+                    type="search",
+                    # Kept only for SDK validation compatibility.
+                    query="legacy query",
+                    queries=["weather Kyiv", "news Kyiv"],
+                ),
+            ),
+            _response_output_message("The weather in Kyiv is sunny."),
+        ],
+        parallel_tool_calls=False,
+        tool_choice="none",
+        tools=[],
+    )
+
+    chat_completion = convert_response(response)
+    message_dump = chat_completion.choices[0].message.model_dump()
+    assert message_dump["custom_content"] == {
+        "stages": [
+            {
+                "name": "Web Search",
+                "status": "completed",
+                "content": "Search 'weather Kyiv', 'news Kyiv'",
+            }
         ]
     }
