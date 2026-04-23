@@ -126,7 +126,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
     model_name: str
     model_defaults: dict | None
     model_features: Features
-    model_attachments: list[str] | None
+    model_attachments: list[str]
 
     upstream_endpoint: str
     upstream_api_key: str | None
@@ -163,7 +163,8 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                         model_name=model_config.overrideName or deployment_id,
                         model_defaults=model_config.defaults,
                         model_features=model_config.features,
-                        model_attachments=model_config.inputAttachmentTypes,
+                        model_attachments=model_config.inputAttachmentTypes
+                        or [],
                         type_=get_deployment_type(
                             model_config, deployment_id, upstream_endpoint
                         ),
@@ -182,10 +183,13 @@ class DeploymentConfig(BaseModel, Generic[_T]):
 
     @property
     def supports_vision(self):
-        types = self.model_attachments or []
-        return any(
-            ty.startswith("image/") or ty.startswith("*/") for ty in types
-        )
+        types = self.model_attachments
+        return any(ty.startswith("image/") or ty == "*/*" for ty in types)
+
+    @property
+    def supports_pdf(self):
+        types = self.model_attachments
+        return "application/pdf" in types or "*/*" in types
 
     @property
     def supports_video_generation(self):

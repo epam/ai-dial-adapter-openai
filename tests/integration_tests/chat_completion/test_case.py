@@ -140,6 +140,10 @@ class TestSuite:
         return self.deployment_config.supports_vision
 
     @property
+    def supports_pdf(self):
+        return self.deployment_config.supports_pdf
+
+    @property
     def supports_image_generation(self):
         return self.deployment_config.model_features.imageGenerationSupported
 

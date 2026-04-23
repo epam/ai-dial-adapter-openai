@@ -8,7 +8,6 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionContentPartParam,
-    ChatCompletionContentPartTextParam,
     ChatCompletionMessage,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCall,
@@ -38,15 +37,19 @@ from openai.types.responses import (
     ResponseCustomToolCall,
     ResponseCustomToolCallParam,
     ResponseFileSearchToolCall,
+    ResponseFunctionCallOutputItemParam,
     ResponseFunctionShellToolCall,
     ResponseFunctionShellToolCallOutput,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
     ResponseFunctionWebSearch,
     ResponseInputContentParam,
+    ResponseInputFileContentParam,
     ResponseInputFileParam,
+    ResponseInputImageContentParam,
     ResponseInputImageParam,
     ResponseInputParam,
+    ResponseInputTextContentParam,
     ResponseInputTextParam,
     ResponseOutputItem,
     ResponseOutputMessage,
@@ -208,27 +211,43 @@ def convert_tools(tools: list[_InputToolParam]) -> list[ToolParam]:
     return [_convert_tool(tool) for tool in tools]
 
 
-def _convert_output_content_part(
+def _convert_fun_call_part(
     part: ChatCompletionContentPartParam | ContentArrayOfContentPart,
-) -> str:
+) -> ResponseFunctionCallOutputItemParam:
     match part["type"]:
         case "refusal":
             raise RequestValidationError(_NO_REFUSAL)
+
         case "text":
-            return part["text"]
-        case "image_url":
-            raise RequestValidationError(
-                "Images in the assistant messages aren't supported"
+            return ResponseInputTextContentParam(
+                type="input_text", text=part["text"]
             )
+
+        case "image_url":
+            image_url = part["image_url"]
+            return ResponseInputImageContentParam(
+                type="input_image",
+                image_url=image_url["url"],
+                detail=image_url.get("detail", "auto"),
+            )
+
         case "file":
-            raise RequestValidationError("File references aren't supported")
+            file = part["file"]
+            return ResponseInputFileContentParam(
+                type="input_file",
+                file_id=file.get("file_id"),
+                file_data=file.get("file_data"),
+                filename=file.get("filename"),
+            )
+
         case "input_audio":
             raise RequestValidationError("Audio messages aren't supported")
+
         case _:
             assert_never(part["type"])
 
 
-def _convert_input_content_part(
+def _convert_content_part(
     part: ChatCompletionContentPartParam | ContentArrayOfContentPart,
 ) -> ResponseInputContentParam:
     match part["type"]:
@@ -248,20 +267,18 @@ def _convert_input_content_part(
 
         case "file":
             file = part["file"]
-            if (file_data := file.get("file_data")) is None:
-                raise RequestValidationError(
-                    "Base64-encoded file content must be provided."
-                )
-
-            if (filename := file.get("filename")) is None:
-                raise RequestValidationError("Filename must be provided.")
-
-            return ResponseInputFileParam(
+            item = ResponseInputFileParam(
                 type="input_file",
-                file_data=file_data,
                 file_id=file.get("file_id"),
-                filename=filename,
             )
+
+            if (file_data := file.get("file_data")) is not None:
+                item["file_data"] = file_data
+
+            if (filename := file.get("filename")) is not None:
+                item["filename"] = filename
+
+            return item
 
         case "input_audio":
             raise RequestValidationError("Audio messages aren't supported")
@@ -308,35 +325,21 @@ def _convert_message(
             if (content := message.get("content")) is None:
                 return
 
-            if isinstance(content, str):
-                parts = [
-                    ChatCompletionContentPartTextParam(
-                        text=content, type="text"
-                    )
-                ]
-            else:
-                parts = content
-
             role = message["role"]
-            if role == "assistant":
-                for item in parts:
-                    yield EasyInputMessageParam(
-                        role=role, content=_convert_output_content_part(item)
-                    )
+
+            if isinstance(content, str):
+                res_content = content
             else:
-                res_content = [
-                    _convert_input_content_part(item) for item in parts
-                ]
-                yield EasyInputMessageParam(role=role, content=res_content)
+                res_content = [_convert_content_part(part) for part in content]
+
+            yield EasyInputMessageParam(role=role, content=res_content)
 
         case "tool":
-            output = ""
             content = message["content"]
             if isinstance(content, str):
-                output += content
+                output = content
             else:
-                for part in content:
-                    output += part["text"]
+                output = [_convert_fun_call_part(part) for part in content]
 
             yield FunctionCallOutput(
                 call_id=message["tool_call_id"],

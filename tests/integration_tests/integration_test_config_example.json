@@ -17,7 +17,8 @@
                 "temperatureSupported": false
             },
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-5-chat-2025-10-03": {
@@ -34,7 +35,8 @@
                 "responseFormatJsonSchemaSupported": false
             },
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-5-2025-08-07-responses": {
@@ -53,7 +55,8 @@
                 "temperatureSupported": false
             },
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-5-mini-2025-08-07": {
@@ -71,7 +74,8 @@
                 "temperatureSupported": false
             },
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-5-nano-2025-08-07": {
@@ -89,7 +93,8 @@
                 "temperatureSupported": false
             },
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-5.2-2025-12-11": {
@@ -109,7 +114,8 @@
                 "temperatureSupported": false
             },
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-4.1-2025-04-14": {
@@ -133,7 +139,8 @@
                 }
             ],
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-4.1-nano-2025-04-14": {
@@ -145,7 +152,8 @@
                 }
             ],
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-4o-2024-11-20": {
@@ -170,7 +178,8 @@
                 }
             ],
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "gpt-4o-mini-2024-07-18": {
@@ -182,7 +191,8 @@
                 }
             ],
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         },
         "text-embedding-3-large": {
@@ -351,7 +361,8 @@
                 "autoCachingSupported": true
             },
             "inputAttachmentTypes": [
-                "image/*"
+                "image/*",
+                "application/pdf"
             ]
         }
     }
