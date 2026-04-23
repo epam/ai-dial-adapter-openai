@@ -62,8 +62,19 @@ def get_finish_reason(response: Response) -> ChatCompletionFinishReason:
 
 def get_web_search_action_content(action: Action) -> str:
     match action:
-        case ActionSearch(query=query):
-            return f"Search {query!r}"
+        case ActionSearch(queries=queries, sources=sources):
+            content_lines = ["Search"]
+
+            if queries:
+                content_lines.extend(["", "Queries:"])
+                content_lines.extend(f"- {query}" for query in queries)
+
+            source_urls = [source.url for source in sources or [] if source.url]
+            if source_urls:
+                content_lines.extend(["", "Sources:"])
+                content_lines.extend(f"- {url}" for url in source_urls)
+
+            return "\n".join(content_lines)
         case ActionOpenPage(url=url):
             return f"Open page {url}"
         case ActionFind(pattern=pattern, url=url):
