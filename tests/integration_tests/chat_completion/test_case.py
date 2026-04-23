@@ -182,3 +182,7 @@ class TestSuite:
     @property
     def supports_response_format_json_schema(self):
         return self.deployment_config.model_features.responseFormatJsonSchemaSupported
+
+    @property
+    def supports_auto_caching(self):
+        return self.deployment_config.model_features.autoCachingSupported

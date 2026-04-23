@@ -332,6 +332,11 @@
             }
         },
         "claude-sonnet-4-520250929": {
+            "defaults": {
+                "custom_fields": {
+                    "cache_breakpoint": {}
+                }
+            },
             "type": "chat",
             "upstreams": [
                 {
@@ -342,7 +347,8 @@
             "features": {
                 "responseFormatJsonObjectSupported": false,
                 "responseFormatJsonSchemaSupported": true,
-                "emptyDialogSupported": false
+                "emptyDialogSupported": false,
+                "autoCachingSupported": true
             },
             "inputAttachmentTypes": [
                 "image/*"

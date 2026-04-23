@@ -36,6 +36,7 @@ class Features(ExtraAllowedModel):
     toolsSupported: bool = True
     parallelToolCallsSupported: bool = True
     temperatureSupported: bool = True
+    autoCachingSupported: bool = False
 
     # Not in the DIAL Core config yet
     maxTokensSupported: bool = True
@@ -69,6 +70,7 @@ class Env(ExtraAllowedModel):
 class ModelConfig(ExtraAllowedModel):
     type: Literal["chat", "embedding"]
     overrideName: str | None = None
+    defaults: dict | None = None
     upstreams: list[UpstreamConfig]
     features: Features = Features()
     env: Env = Env()
@@ -122,6 +124,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
     type_: _T
 
     model_name: str
+    model_defaults: dict | None
     model_features: Features
     model_attachments: list[str] | None
 
@@ -158,6 +161,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                         upstream_idx=upstream_idx,
                         id_=deployment_id,
                         model_name=model_config.overrideName or deployment_id,
+                        model_defaults=model_config.defaults,
                         model_features=model_config.features,
                         model_attachments=model_config.inputAttachmentTypes,
                         type_=get_deployment_type(
@@ -207,6 +211,10 @@ class DeploymentConfig(BaseModel, Generic[_T]):
     @property
     def supports_reasoning(self):
         return self.model_features.reasoningSupported
+
+    @property
+    def supports_auto_caching(self):
+        return self.model_features.autoCachingSupported
 
 
 class TestDeployments(BaseModel):

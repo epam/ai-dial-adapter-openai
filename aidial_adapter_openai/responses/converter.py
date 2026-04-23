@@ -2,12 +2,8 @@ from collections.abc import Generator
 from typing import assert_never
 
 import pydantic
-from aidial_sdk.chat_completion.request import (
-    Attachment,
-    CustomContent,
-    Stage,
-    Status,
-)
+from aidial_sdk.chat_completion.enums import Status
+from aidial_sdk.chat_completion.request import Attachment, CustomContent, Stage
 from aidial_sdk.exceptions import RequestValidationError
 from openai.types.chat import (
     ChatCompletion,
