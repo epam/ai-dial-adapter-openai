@@ -64,7 +64,7 @@ ruff = "0.12.11"
 nox = "^2023.4.22"
 pre-commit = "^4.5.1"
 # Required for `make serve` which loads .env file
-python-dotenv = "^1.0.1"
+python-dotenv = "^1.2.2"
 
 [tool.pytest.ini_options]
 addopts = "-n=auto --asyncio-mode=auto --timeout=300 --alluredir=allure-results --clean-alluredir"

@@ -7,6 +7,7 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai.types.responses import Response
 from openai.types.responses.response_function_web_search import (
     ActionSearch,
+    ActionSearchSource,
     ResponseFunctionWebSearch,
 )
 from openai.types.responses.response_output_message import ResponseOutputMessage
@@ -39,7 +40,8 @@ def _response_web_search(item_id: str, query: str) -> ResponseFunctionWebSearch:
         id=item_id,
         type="web_search_call",
         status="completed",
-        action=ActionSearch(type="search", query=query),
+        # openai==2.16.0 still validates deprecated `query` as required.
+        action=ActionSearch(type="search", query=query, queries=[query]),
     )
 
 
@@ -195,7 +197,16 @@ async def test_web_search_streaming_annotations_and_attachments(
             {
                 "item": {
                     "id": "msg_id",
-                    "action": {"query": "Weather in Kyiv", "type": "search"},
+                    "action": {
+                        "queries": ["Weather in Kyiv"],
+                        "sources": [
+                            {
+                                "type": "url",
+                                "url": "https://example.com/weather-search",
+                            }
+                        ],
+                        "type": "search",
+                    },
                     "status": "completed",
                     "type": "web_search_call",
                 },
@@ -270,7 +281,10 @@ async def test_web_search_streaming_annotations_and_attachments(
     assert chunks[2]["choices"][0]["delta"]["custom_content"]["stages"] == [
         {
             "index": 0,
-            "content": "Search 'Weather in Kyiv'",
+            "content": (
+                "Search\n\nQueries:\n- Weather in Kyiv\n\nSources:\n"
+                "- https://example.com/weather-search"
+            ),
         }
     ]
     assert chunks[3]["choices"][0]["delta"]["custom_content"] == {
@@ -369,7 +383,7 @@ def test_convert_response_with_web_search_call():
             {
                 "name": "Web Search",
                 "status": "completed",
-                "content": "Search 'weather Kyiv'",
+                "content": "Search\n\nQueries:\n- weather Kyiv",
             }
         ]
     }
@@ -404,12 +418,115 @@ def test_convert_response_with_multiple_web_search_calls():
             {
                 "name": "Web Search",
                 "status": "completed",
-                "content": "Search 'weather Kyiv'",
+                "content": "Search\n\nQueries:\n- weather Kyiv",
             },
             {
                 "name": "Web Search #2",
                 "status": "completed",
-                "content": "Search 'news Kyiv'",
+                "content": "Search\n\nQueries:\n- news Kyiv",
             },
+        ]
+    }
+
+
+def test_convert_response_with_web_search_multiple_queries():
+    response = Response(
+        id="id",
+        created_at=0,
+        model="test-model",
+        object="response",
+        output=[
+            ResponseFunctionWebSearch(
+                id="ws_id",
+                type="web_search_call",
+                status="completed",
+                action=ActionSearch(
+                    type="search",
+                    # Kept only for SDK validation compatibility.
+                    query="legacy query",
+                    queries=["weather Kyiv", "news Kyiv"],
+                    sources=[
+                        ActionSearchSource(
+                            type="url",
+                            url="https://example.com/weather-kyiv",
+                        ),
+                        ActionSearchSource(
+                            type="url",
+                            url="https://example.com/news-kyiv",
+                        ),
+                    ],
+                ),
+            ),
+            _response_output_message("The weather in Kyiv is sunny."),
+        ],
+        parallel_tool_calls=False,
+        tool_choice="none",
+        tools=[],
+    )
+
+    chat_completion = convert_response(response)
+    message_dump = chat_completion.choices[0].message.model_dump()
+    assert message_dump["custom_content"] == {
+        "stages": [
+            {
+                "name": "Web Search",
+                "status": "completed",
+                "content": (
+                    "Search\n\nQueries:\n- weather Kyiv\n- news Kyiv\n\nSources:\n"
+                    "- https://example.com/weather-kyiv\n"
+                    "- https://example.com/news-kyiv"
+                ),
+            }
+        ]
+    }
+
+
+def test_convert_response_with_web_search_sources_only():
+    response = Response(
+        id="id",
+        created_at=0,
+        model="test-model",
+        object="response",
+        output=[
+            ResponseFunctionWebSearch(
+                id="ws_id",
+                type="web_search_call",
+                status="completed",
+                action=ActionSearch(
+                    type="search",
+                    # Kept only for SDK validation compatibility.
+                    query="legacy query",
+                    queries=[],
+                    sources=[
+                        ActionSearchSource(
+                            type="url",
+                            url="https://example.com/weather-1",
+                        ),
+                        ActionSearchSource(
+                            type="url",
+                            url="https://example.com/weather-2",
+                        ),
+                    ],
+                ),
+            ),
+            _response_output_message("The weather in Kyiv is sunny."),
+        ],
+        parallel_tool_calls=False,
+        tool_choice="none",
+        tools=[],
+    )
+
+    chat_completion = convert_response(response)
+    message_dump = chat_completion.choices[0].message.model_dump()
+    assert message_dump["custom_content"] == {
+        "stages": [
+            {
+                "name": "Web Search",
+                "status": "completed",
+                "content": (
+                    "Search\n\nSources:\n- https://example.com/weather-1\n"
+                    "- https://example.com/weather-2"
+                ),
+            }
         ]
     }
