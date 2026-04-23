@@ -1,5 +1,8 @@
 import openai
 
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from tests.integration_tests.chat_completion.test_case import TestSuite
 from tests.integration_tests.constants import (
     PDF_DOCUMENT_RESOURCE,
@@ -8,6 +11,10 @@ from tests.integration_tests.constants import (
 from tests.utils.openai import (
     ChatCompletionResult,
     ExpectedException,
+    ai_tools,
+    tool_request,
+    tool_response,
+    user,
     user_with_attachment_url,
     user_with_file_content_part,
 )
@@ -48,6 +55,23 @@ def build_file_input_common(s: TestSuite) -> None:
         ],
         expected=expected,
     )
+
+    if s.deployment_config.type_ == ChatCompletionDeploymentType.RESPONSES_API:
+        s.test_case(
+            name="document_in_tool_result",
+            messages=[
+                user(query),
+                ai_tools(
+                    [tool_request(id="call-id", name="get_document", args={})]
+                ),
+                tool_response(
+                    id="call-id",
+                    content="here is the document",
+                    resources=[PDF_DOCUMENT_RESOURCE],
+                ),
+            ],
+            expected=expected,
+        )
 
     s.test_case(
         name="unsupported_document_in_attachments",

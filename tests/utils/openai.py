@@ -150,8 +150,21 @@ def function_response(
     return {"role": "function", "name": name, "content": content}
 
 
-def tool_response(id: str, content: str) -> ChatCompletionToolMessageParam:
-    return {"role": "tool", "tool_call_id": id, "content": content}
+def tool_response(
+    id: str, content: str, resources: list[Resource] | None = None
+) -> ChatCompletionToolMessageParam:
+    ret: ChatCompletionToolMessageParam = {
+        "role": "tool",
+        "tool_call_id": id,
+        "content": content,
+    }
+    if resources:
+        ret["custom_content"] = {  # type: ignore
+            "attachments": [
+                {"type": r.type, "url": r.to_data_url()} for r in resources
+            ]
+        }
+    return ret
 
 
 def function_to_tool(function: FunctionDefinition) -> ChatCompletionToolParam:
