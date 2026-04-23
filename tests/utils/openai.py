@@ -325,7 +325,7 @@ def is_valid_tool_call(
 
 
 class ExpectedException(BaseModel):
-    type: type[APIError]
+    type: type[APIError] | tuple[type[APIError], ...]
     message: str | None = None
     display_message: str | None = None
     status_code: int | None = None

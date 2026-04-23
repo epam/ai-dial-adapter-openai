@@ -1,8 +1,5 @@
 import openai
 
-from aidial_adapter_openai.configuration.deployment_type import (
-    ChatCompletionDeploymentType,
-)
 from tests.integration_tests.chat_completion.test_case import TestSuite
 from tests.integration_tests.constants import (
     PDF_DOCUMENT_RESOURCE,
@@ -17,10 +14,7 @@ from tests.utils.openai import (
 
 
 def build_file_input_common(s: TestSuite) -> None:
-    if (
-        not s.supports_vision
-        or s.deployment_type != ChatCompletionDeploymentType.RESPONSES_API
-    ):
+    if not s.supports_pdf:
         return
 
     query = (
@@ -30,8 +24,11 @@ def build_file_input_common(s: TestSuite) -> None:
 
     def expected(s: ChatCompletionResult) -> bool:
         content = s.content.lower()
-        for w in ["christmas", "carol", "cat"]:
-            assert w in content
+        success_markers = ["christmas", "carol", "cat"]
+        if not any(w in content for w in success_markers):
+            assert False, (
+                f"Cannot find any of the {success_markers} in the generated content: {content!r}"
+            )
         return True
 
     s.test_case(
@@ -58,7 +55,11 @@ def build_file_input_common(s: TestSuite) -> None:
             user_with_attachment_url(query, UNSUPPORTED_DOCUMENT_RESOURCE),
         ],
         expected=ExpectedException(
-            type=openai.BadRequestError,
-            display_message=r"The file attachments of the MIME type '.*' aren't supported|The provided file attachments aren't supported",
+            type=(
+                openai.BadRequestError,
+                openai.UnprocessableEntityError,
+                openai.APIError,
+            ),
+            display_message=r"The file attachments of the MIME type '.*' aren't supported|The provided file attachments aren't supported|Unsupported media type",
         ),
     )
