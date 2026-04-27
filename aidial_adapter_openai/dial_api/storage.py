@@ -92,6 +92,10 @@ class FileStorage(BaseModel):
     def _url_to_attachment_link(self, url: str) -> str:
         return url.removeprefix(f"{self.dial_url}/v1/")
 
+    def is_dial_url(self, link: str) -> bool:
+        url = self.attachment_link_to_url(link)
+        return url.lower().startswith(self.dial_url.lower())
+
     async def download_file(self, link: str) -> bytes:
         url = self.attachment_link_to_url(link)
         headers: Mapping[str, str] = {}

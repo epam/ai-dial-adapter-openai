@@ -8,6 +8,12 @@ from openai.types.responses import Response
 from openai.types.responses.response_stream_event import ResponseStreamEvent
 
 from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.storage import (
+    create_file_storage,
+)
+from aidial_adapter_openai.responses.request import (
+    download_dial_urls_in_request,
+)
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.parsers import (
     parse_body,
@@ -42,14 +48,21 @@ async def _responses(
 ) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
     request_body = await parse_body(request)
 
-    upstream_endpoint = get_upstream_endpoint(request.headers)
-    creds = await get_credentials(request.headers, azure=True)
-    upstream_extra_headers = get_upstream_extra_headers(request.headers)
+    headers = request.headers
+    file_storage = create_file_storage(headers)
+    upstream_endpoint = get_upstream_endpoint(headers)
+    creds = await get_credentials(headers, azure=True)
+    upstream_extra_headers = get_upstream_extra_headers(headers)
+
     api_version = request.query_params.get("api-version")
 
     endpoint = responses_parser.parse(upstream_endpoint)
     client = endpoint.get_client(
         {**creds, "api_version": api_version, "headers": upstream_extra_headers}
+    )
+
+    request_body = await download_dial_urls_in_request(
+        file_storage, request_body
     )
 
     response: LegacyAPIResponse[
