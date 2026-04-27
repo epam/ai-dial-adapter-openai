@@ -74,7 +74,7 @@ def _tool_output_file(url: str) -> ResponseInputFileParam:
 
 
 def _message_request(content: ResponseInputMessageContentListParam) -> Request:
-    request: ResponseCreateParamsBase = ResponseCreateParamsBase(
+    request = ResponseCreateParamsBase(
         model="test-model",
         input=[Message(role="user", content=content)],
     )
@@ -84,7 +84,7 @@ def _message_request(content: ResponseInputMessageContentListParam) -> Request:
 def _function_output_request(
     output: ResponseFunctionCallOutputItemListParam,
 ) -> Request:
-    request: ResponseCreateParamsBase = ResponseCreateParamsBase(
+    request = ResponseCreateParamsBase(
         model="test-model",
         input=[
             FunctionCallOutput(
@@ -98,7 +98,7 @@ def _function_output_request(
 
 
 def _custom_output_request(output: list[OutputOutputContentList]) -> Request:
-    request: ResponseCreateParamsBase = ResponseCreateParamsBase(
+    request = ResponseCreateParamsBase(
         model="test-model",
         input=[
             ResponseCustomToolCallOutputParam(
@@ -193,7 +193,7 @@ def mock_dial_files_api():
     with respx.mock(assert_all_called=False) as router:
         route = router.get(pattern).mock(
             side_effect=lambda request: httpx.Response(
-                200, content=f"file-content:{request.url}".encode()
+                200, content=f"file-content:{request.url}"
             )
         )
         yield route
