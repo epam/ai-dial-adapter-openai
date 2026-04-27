@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cache
-from typing import Any, assert_never
+from typing import Any, TypeVar, assert_never
 
 import jmespath
 from openai.types.chat.completion_create_params import ResponseFormat
@@ -102,10 +102,12 @@ _attachment_rules = [
     ),
 ]
 
+_T = TypeVar("_T")
+
 
 async def download_dial_urls_in_request(
-    file_storage: FileStorage | None, request: dict
-) -> dict:
+    file_storage: FileStorage | None, request: _T
+) -> _T:
     if file_storage is None:
         return request
 
