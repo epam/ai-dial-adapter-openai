@@ -12,6 +12,7 @@ from openai.types.shared_params.response_format_json_schema import JSONSchema
 
 from aidial_adapter_openai.dial_api.resource import URLResource
 from aidial_adapter_openai.dial_api.storage import FileStorage
+from aidial_adapter_openai.utils.log_config import logger
 
 
 def convert_response_format(
@@ -66,8 +67,7 @@ class AttachmentRule:
     dst_field: str | None = None
 
     async def apply(self, file_storage: FileStorage, request: Any) -> None:
-        for match in _compile_jmespath(self.path).search(request):
-            obj = match.value
+        for obj in _compile_jmespath(self.path).search(request):
             if not isinstance(obj, dict):
                 continue
 
@@ -83,20 +83,20 @@ class AttachmentRule:
 
 _attachment_rules = [
     AttachmentRule(
-        "input[?type == null || type == 'message'].content[?type == 'input_image'] | []",
+        "input[?type == null || type == 'message'].content[] | [?type == 'input_image']",
         "image_url",
     ),
     AttachmentRule(
-        "input[?type == null || type == 'message'].content[?type == 'input_file'] | []",
+        "input[?type == null || type == 'message'].content[] | [?type == 'input_file']",
         "file_url",
         "file_data",
     ),
     AttachmentRule(
-        "input[?type == 'custom_tool_call_output' || type == 'function_call_output'].output[?type == 'input_image'] | []",
+        "input[?type == 'custom_tool_call_output' || type == 'function_call_output'].output[] | [?type == 'input_image']",
         "image_url",
     ),
     AttachmentRule(
-        "input[?type == 'custom_tool_call_output' || type == 'function_call_output'].output[?type == 'input_file'] | []",
+        "input[?type == 'custom_tool_call_output' || type == 'function_call_output'].output[] | [?type == 'input_file']",
         "file_url",
         "file_data",
     ),
@@ -110,6 +110,12 @@ async def download_dial_urls_in_request(
         return request
 
     for rule in _attachment_rules:
-        await rule.apply(file_storage, request)
+        try:
+            await rule.apply(file_storage, request)
+        except Exception:
+            logger.error(
+                f"An unexpected error occurred while applying the attachment rule: {rule}",
+                exc_info=True,
+            )
 
     return request
