@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from functools import cache
 from typing import Any, assert_never
 
-import jsonpath_ng
+import jmespath
 from openai.types.chat.completion_create_params import ResponseFormat
 from openai.types.responses import (
     ResponseFormatTextConfigParam,
@@ -55,8 +55,8 @@ async def _download_url_field(
 
 
 @cache
-def _compile_json_path(path: str) -> jsonpath_ng.JSONPath:
-    return jsonpath_ng.parse(path)
+def _compile_jmespath(path: str) -> jmespath.parser.ParsedResult:
+    return jmespath.compile(path)
 
 
 @dataclass
@@ -66,7 +66,7 @@ class AttachmentRule:
     dst_field: str | None = None
 
     async def apply(self, file_storage: FileStorage, request: Any) -> None:
-        for match in _compile_json_path(self.path).find(request):
+        for match in _compile_jmespath(self.path).search(request):
             obj = match.value
             if not isinstance(obj, dict):
                 continue
@@ -83,20 +83,20 @@ class AttachmentRule:
 
 _attachment_rules = [
     AttachmentRule(
-        "$.input[?(!@.type || @.type == 'message')].content[?(@.type == 'input_image')]",
+        "input[?type == null || type == 'message'].content[?type == 'input_image'] | []",
         "image_url",
     ),
     AttachmentRule(
-        "$.input[?(!@.type || @.type == 'message')].content[?(@.type == 'input_file')]",
+        "input[?type == null || type == 'message'].content[?type == 'input_file'] | []",
         "file_url",
         "file_data",
     ),
     AttachmentRule(
-        "$.input[?(@.type == 'custom_tool_call_output' || @.type == 'function_call_output')].output[?(@.type == 'input_image')]",
+        "input[?type == 'custom_tool_call_output' || type == 'function_call_output'].output[?type == 'input_image'] | []",
         "image_url",
     ),
     AttachmentRule(
-        "$.input[?(@.type == 'custom_tool_call_output' || @.type == 'function_call_output')].output[?(@.type == 'input_file')]",
+        "input[?type == 'custom_tool_call_output' || type == 'function_call_output'].output[?type == 'input_file'] | []",
         "file_url",
         "file_data",
     ),
