@@ -1,14 +1,12 @@
 import base64
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
-import httpx
 import pytest
 import respx
 from openai.types.responses import (
     ResponseCustomToolCallOutputParam,
+    ResponseInputFileContentParam,
     ResponseInputFileParam,
     ResponseInputImageContentParam,
     ResponseInputImageParam,
@@ -29,204 +27,196 @@ from openai.types.responses.response_input_param import (
     FunctionCallOutput,
     Message,
 )
+from pydantic import SecretStr
 
-from aidial_adapter_openai.dial_api.storage import create_file_storage
+from aidial_adapter_openai.dial_api.storage import (
+    FileStorage,
+)
 from aidial_adapter_openai.responses.request import (
     download_dial_urls_in_request,
 )
 
-_API_KEY = "test-dial-api-key"
 _DIAL_URL = "http://test-dial-url"
-_IMAGE_URL = f"{_DIAL_URL}/images/img.jpg"
-_FILE_URL = f"{_DIAL_URL}/documents/doc.pdf"
-_GLOBAL_URL = "http://example.com/file"
-Request = dict[str, Any]
+_IMAGE_URL = "images/img.jpg"
+_FILE_URL = "documents/doc.pdf"
 
 
-def _data_url(content_type: str, url: str) -> str:
-    content = f"file-content:{url}".encode()
-    encoded = base64.b64encode(content).decode()
-    return f"data:{content_type};base64,{encoded}"
-
-
-def _message_image(url: str) -> ResponseInputImageParam:
+def _image(url: str) -> ResponseInputImageParam:
     return ResponseInputImageParam(
-        type="input_image",
-        image_url=url,
-        detail="auto",
+        type="input_image", image_url=url, detail="auto"
     )
 
 
-def _message_file(url: str) -> ResponseInputFileParam:
+def _image_content(url: str) -> ResponseInputImageContentParam:
+    return ResponseInputImageContentParam(type="input_image", image_url=url)
+
+
+def _file(url: str) -> ResponseInputFileParam:
     return ResponseInputFileParam(type="input_file", file_url=url)
 
 
-def _function_output_image(url: str) -> ResponseInputImageContentParam:
-    return ResponseInputImageContentParam(
-        type="input_image",
-        image_url=url,
-        detail="auto",
-    )
+def _file_content(url: str) -> ResponseInputFileContentParam:
+    return ResponseInputFileContentParam(type="input_file", file_url=url)
 
 
-def _tool_output_file(url: str) -> ResponseInputFileParam:
-    return ResponseInputFileParam(type="input_file", file_url=url)
+def _message(
+    content: ResponseInputMessageContentListParam, with_type: bool
+) -> ResponseCreateParamsBase:
+    message = Message(role="user", content=content)
+    if with_type:
+        message["type"] = "message"
+    return ResponseCreateParamsBase(model="test-model", input=[message])
 
 
-def _message_request(content: ResponseInputMessageContentListParam) -> Request:
-    request = ResponseCreateParamsBase(
-        model="test-model",
-        input=[Message(role="user", content=content)],
-    )
-    return dict(request)
-
-
-def _function_output_request(
+def _function_call(
     output: ResponseFunctionCallOutputItemListParam,
-) -> Request:
+) -> ResponseCreateParamsBase:
     request = ResponseCreateParamsBase(
         model="test-model",
         input=[
             FunctionCallOutput(
-                type="function_call_output",
-                call_id="call-1",
-                output=output,
+                type="function_call_output", call_id="call-1", output=output
             )
         ],
     )
-    return dict(request)
+    return request
 
 
-def _custom_output_request(output: list[OutputOutputContentList]) -> Request:
+def _custom_tool_call(
+    output: list[OutputOutputContentList],
+) -> ResponseCreateParamsBase:
     request = ResponseCreateParamsBase(
         model="test-model",
         input=[
             ResponseCustomToolCallOutputParam(
-                type="custom_tool_call_output",
-                call_id="call-1",
-                output=output,
+                type="custom_tool_call_output", call_id="call-1", output=output
             )
         ],
     )
-    return dict(request)
-
-
-@dataclass(frozen=True)
-class Case:
-    name: str
-    request_factory: Callable[[], Request]
-    part: Callable[[Request], dict[str, Any]]
-    src_field: str
-    dst_field: str
-    expected: str
-    invalid_value: str | dict[str, str]
-
-
-CASES = (
-    Case(
-        name="message-image",
-        request_factory=lambda: _message_request([_message_image(_IMAGE_URL)]),
-        part=lambda request: request["input"][0]["content"][0],
-        src_field="image_url",
-        dst_field="image_url",
-        expected=_data_url("image/jpeg", _IMAGE_URL),
-        invalid_value=_GLOBAL_URL,
-    ),
-    Case(
-        name="message-file",
-        request_factory=lambda: _message_request([_message_file(_FILE_URL)]),
-        part=lambda request: request["input"][0]["content"][0],
-        src_field="file_url",
-        dst_field="file_data",
-        expected=_data_url("application/pdf", _FILE_URL),
-        invalid_value={"url": _FILE_URL},
-    ),
-    Case(
-        name="function-output-image",
-        request_factory=lambda: _function_output_request(
-            [_function_output_image(_IMAGE_URL)]
-        ),
-        part=lambda request: request["input"][0]["output"][0],
-        src_field="image_url",
-        dst_field="image_url",
-        expected=_data_url("image/jpeg", _IMAGE_URL),
-        invalid_value=_GLOBAL_URL,
-    ),
-    Case(
-        name="custom-output-file",
-        request_factory=lambda: _custom_output_request(
-            [_tool_output_file(_FILE_URL)]
-        ),
-        part=lambda request: request["input"][0]["output"][0],
-        src_field="file_url",
-        dst_field="file_data",
-        expected=_data_url("application/pdf", _FILE_URL),
-        invalid_value={"url": _FILE_URL},
-    ),
-)
+    return request
 
 
 @pytest.fixture
-def dial_url_env(monkeypatch):
-    monkeypatch.setenv("DIAL_URL", _DIAL_URL)
-    monkeypatch.setattr(
-        "aidial_adapter_openai.dial_api.storage.DIAL_URL", _DIAL_URL
-    )
-    monkeypatch.setattr(
-        "aidial_adapter_openai.dial_api.storage.DIAL_USE_FILE_STORAGE", True
-    )
+def file_storage():
+    return FileStorage(dial_url=_DIAL_URL, api_key=SecretStr("test-api-key"))
 
 
-@pytest.fixture
-def file_storage(dial_url_env):
-    storage = create_file_storage({"api-key": _API_KEY})
-    assert storage is not None
-    return storage
+@pytest.fixture(params=[True, False], ids=["with_type", "without_type"])
+def with_type(request) -> bool:
+    return request.param
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mock_dial_files_api():
-    pattern = re.compile(
-        rf"{re.escape(_DIAL_URL)}/(images/img\.jpg|documents/doc\.pdf)"
-    )
-
-    with respx.mock(assert_all_called=False) as router:
-        route = router.get(pattern).mock(
-            side_effect=lambda request: httpx.Response(
-                200, content=f"file-content:{request.url}"
-            )
-        )
-        yield route
+    pattern = re.compile(r"(images/img\.jpg|documents/doc\.pdf)")
+    base_url = _DIAL_URL + "/v1"
+    with respx.mock(
+        base_url=base_url,
+        assert_all_called=False,
+        assert_all_mocked=True,
+    ) as router:
+        yield router.get(pattern).respond(text="file-content")
 
 
-@pytest.mark.parametrize("case", CASES, ids=[case.name for case in CASES])
-async def test_download_dial_urls_in_request_positive(
-    file_storage,
-    mock_dial_files_api,
-    case: Case,
+@dataclass
+class UrlCase:
+    url: str
+    type_: str
+    is_dial: bool
+
+    @property
+    def expected_data_url(self) -> str:
+        encoded = base64.b64encode(b"file-content").decode()
+        return f"data:{self.type_};base64,{encoded}"
+
+    def check_image(self, part: dict) -> None:
+        if self.is_dial:
+            assert part["image_url"] == self.expected_data_url
+        else:
+            assert part["image_url"] == self.url
+
+    def check_file(self, part: dict) -> None:
+        if self.is_dial:
+            assert part["file_data"] == self.expected_data_url
+            assert "file_url" not in part
+        else:
+            assert part["file_url"] == self.url
+            assert "file_data" not in part
+
+
+@pytest.fixture(
+    params=[
+        UrlCase(_IMAGE_URL, "image/jpeg", True),
+        UrlCase(_FILE_URL, "application/pdf", True),
+        UrlCase("http://example.com/file.txt", "text/plain", False),
+    ],
+    ids=["dial_image", "dial_doc", "external_url"],
+)
+def url_case(request) -> UrlCase:
+    return request.param
+
+
+async def test_download_dial_urls_in_request_message_image(
+    file_storage, with_type: bool, url_case: UrlCase
 ):
-    request = case.request_factory()
+    request = _message([_image(url_case.url)], with_type)
 
-    await download_dial_urls_in_request(file_storage, request)
+    result = await download_dial_urls_in_request(file_storage, request)
+    part: dict = result["input"][0]["content"][0]  # type: ignore
 
-    part = case.part(request)
-    assert part[case.dst_field] == case.expected
-    assert (case.src_field in part) is (case.src_field == case.dst_field)
-    assert mock_dial_files_api.call_count == 1
+    url_case.check_image(part)
 
 
-@pytest.mark.parametrize("case", CASES, ids=[case.name for case in CASES])
-async def test_download_dial_urls_in_request_negative(
-    file_storage,
-    mock_dial_files_api,
-    case: Case,
+async def test_download_dial_urls_in_request_message_file(
+    file_storage, with_type: bool, url_case: UrlCase
 ):
-    request = case.request_factory()
-    part = case.part(request)
-    part[case.src_field] = case.invalid_value
+    request = _message([_file(url_case.url)], with_type)
 
-    await download_dial_urls_in_request(file_storage, request)
+    result = await download_dial_urls_in_request(file_storage, request)
+    part: dict = result["input"][0]["content"][0]  # type: ignore
 
-    assert part[case.src_field] == case.invalid_value
-    assert case.dst_field not in part or case.dst_field == case.src_field
-    assert mock_dial_files_api.call_count == 0
+    url_case.check_file(part)
+
+
+async def test_download_dial_urls_in_request_function_output_image(
+    file_storage, url_case: UrlCase
+):
+    request = _function_call([_image_content(url_case.url)])
+
+    result = await download_dial_urls_in_request(file_storage, request)
+    part: dict = result["input"][0]["output"][0]  # type: ignore
+
+    url_case.check_image(part)
+
+
+async def test_download_dial_urls_in_request_function_output_file(
+    file_storage, url_case: UrlCase
+):
+    request = _function_call([_file_content(url_case.url)])
+
+    result = await download_dial_urls_in_request(file_storage, request)
+    part: dict = result["input"][0]["output"][0]  # type: ignore
+
+    url_case.check_file(part)
+
+
+async def test_download_dial_urls_in_request_custom_output_image(
+    file_storage, url_case: UrlCase
+):
+    request = _custom_tool_call([_image(url_case.url)])
+
+    result = await download_dial_urls_in_request(file_storage, request)
+    part: dict = result["input"][0]["output"][0]  # type: ignore
+
+    url_case.check_image(part)
+
+
+async def test_download_dial_urls_in_request_custom_output_file(
+    file_storage, url_case: UrlCase
+):
+    request = _custom_tool_call([_file(url_case.url)])
+
+    result = await download_dial_urls_in_request(file_storage, request)
+    part: dict = result["input"][0]["output"][0]  # type: ignore
+
+    url_case.check_file(part)
