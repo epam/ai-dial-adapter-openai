@@ -56,7 +56,10 @@ def build_file_input_common(s: TestSuite) -> None:
         expected=expected,
     )
 
-    if s.deployment_config.type_ == ChatCompletionDeploymentType.RESPONSES_API:
+    if s.deployment_config.type_ in (
+        ChatCompletionDeploymentType.RESPONSES_API,
+        ChatCompletionDeploymentType.ANTHROPIC_MESSAGES_API,
+    ):
         s.test_case(
             name="document_in_tool_result",
             messages=[
