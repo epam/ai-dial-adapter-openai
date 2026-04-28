@@ -1,11 +1,18 @@
-from typing import assert_never
+from dataclasses import dataclass
+from functools import cache
+from typing import Any, TypeVar, assert_never
 
+import jmespath
 from openai.types.chat.completion_create_params import ResponseFormat
 from openai.types.responses import (
     ResponseFormatTextConfigParam,
     ResponseFormatTextJSONSchemaConfigParam,
 )
 from openai.types.shared_params.response_format_json_schema import JSONSchema
+
+from aidial_adapter_openai.dial_api.resource import URLResource
+from aidial_adapter_openai.dial_api.storage import FileStorage
+from aidial_adapter_openai.utils.log_config import logger
 
 
 def convert_response_format(
@@ -32,3 +39,85 @@ def convert_response_format(
             return ret
         case _:
             assert_never(response_format["type"])
+
+
+async def _download_url_field(
+    file_storage: FileStorage, obj: dict, field: str
+) -> str | None:
+    if not (url := obj.get(field)) or not isinstance(url, str):
+        return None
+
+    if not file_storage.is_dial_url(url):
+        return None
+
+    dial_resource = URLResource(url=url, entity_name=field)
+    resource = await dial_resource.download(file_storage)
+    return resource.to_data_url()
+
+
+@cache
+def _compile_jmespath(path: str) -> jmespath.parser.ParsedResult:
+    return jmespath.compile(path)
+
+
+@dataclass
+class AttachmentRule:
+    path: str
+    src_field: str
+    dst_field: str | None = None
+
+    async def apply(self, file_storage: FileStorage, request: Any) -> None:
+        for obj in _compile_jmespath(self.path).search(request):
+            if not isinstance(obj, dict):
+                continue
+
+            if data_url := await _download_url_field(
+                file_storage, obj, self.src_field
+            ):
+                if self.dst_field is None:
+                    obj[self.src_field] = data_url
+                else:
+                    obj.pop(self.src_field, None)
+                    obj[self.dst_field] = data_url
+
+
+_attachment_rules = [
+    AttachmentRule(
+        "input[?type == null || type == 'message'].content[] | [?type == 'input_image']",
+        "image_url",
+    ),
+    AttachmentRule(
+        "input[?type == null || type == 'message'].content[] | [?type == 'input_file']",
+        "file_url",
+        "file_data",
+    ),
+    AttachmentRule(
+        "input[?type == 'custom_tool_call_output' || type == 'function_call_output'].output[] | [?type == 'input_image']",
+        "image_url",
+    ),
+    AttachmentRule(
+        "input[?type == 'custom_tool_call_output' || type == 'function_call_output'].output[] | [?type == 'input_file']",
+        "file_url",
+        "file_data",
+    ),
+]
+
+_T = TypeVar("_T")
+
+
+async def download_dial_urls_in_request(
+    file_storage: FileStorage | None, request: _T
+) -> _T:
+    if file_storage is None:
+        return request
+
+    for rule in _attachment_rules:
+        try:
+            await rule.apply(file_storage, request)
+        except Exception:
+            logger.error(
+                f"An unexpected error occurred while applying the attachment rule: {rule}",
+                exc_info=True,
+            )
+
+    return request
