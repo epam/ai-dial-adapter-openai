@@ -981,7 +981,6 @@ Current limitations:
 
 Note that in the following DIAL Core config examples, `responsesEndpoint` URL enables Responses API in DIAL.
 Whereas, `endpoint` URL is required and enables Chat Completions API in DIAL.
-If you don't need Chat Completions API, the `endpoint` URL could be set to any dummy value. Otherwise, configure it according to the instructions in the [Chat Completions section](#chat-completions-api-deployments).
 
 #### Azure OpenAI Responses API
 
@@ -994,7 +993,6 @@ If you don't need Chat Completions API, the `endpoint` URL could be set to any d
       "type": "chat",
       "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
       "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
-      "endpoint": "http://dummy-endpoint",
       "upstreams": [
         {
           "responsesEndpoint": "https://${AZURE_OPENAI_SERVICE_NAME1}.openai.azure.com/openai/v1/responses",
@@ -1027,7 +1025,6 @@ If you don't need Chat Completions API, the `endpoint` URL could be set to any d
       "type": "chat",
       "overrideName": "${OPENAI_PLATFORM_MODEL_NAME}",
       "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
-      "endpoint": "http://dummy-endpoint",
       "upstreams": [
         {
           "responsesEndpoint": "https://api.openai.com/v1/responses",
