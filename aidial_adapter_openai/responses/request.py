@@ -12,7 +12,6 @@ from openai.types.shared_params.response_format_json_schema import JSONSchema
 
 from aidial_adapter_openai.dial_api.resource import URLResource
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.log_config import logger
 
 
 def convert_response_format(
@@ -112,12 +111,6 @@ async def download_dial_urls_in_request(
         return request
 
     for rule in _attachment_rules:
-        try:
-            await rule.apply(file_storage, request)
-        except Exception:
-            logger.error(
-                f"An unexpected error occurred while applying the attachment rule: {rule}",
-                exc_info=True,
-            )
+        await rule.apply(file_storage, request)
 
     return request

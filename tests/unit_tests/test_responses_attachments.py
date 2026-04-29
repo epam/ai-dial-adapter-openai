@@ -1,9 +1,12 @@
 import base64
 import re
 from dataclasses import dataclass
+from unittest.mock import patch
 
+import openai
 import pytest
 import respx
+from openai import AsyncOpenAI
 from openai.types.responses import (
     ResponseCustomToolCallOutputParam,
     ResponseInputFileContentParam,
@@ -35,6 +38,8 @@ from aidial_adapter_openai.dial_api.storage import (
 from aidial_adapter_openai.responses.request import (
     download_dial_urls_in_request,
 )
+from tests.conftest import OpenAIClientFactory
+from tests.utils.mock_server import MockServer
 
 _DIAL_URL = "http://test-dial-url"
 _IMAGE_URL = "images/img.jpg"
@@ -106,18 +111,6 @@ def with_type(request) -> bool:
     return request.param
 
 
-@pytest.fixture(autouse=True)
-def mock_dial_files_api():
-    pattern = re.compile(r"(images/img\.jpg|documents/doc\.pdf)")
-    base_url = _DIAL_URL + "/v1"
-    with respx.mock(
-        base_url=base_url,
-        assert_all_called=False,
-        assert_all_mocked=True,
-    ) as router:
-        yield router.get(pattern).respond(text="file-content")
-
-
 @dataclass
 class UrlCase:
     url: str
@@ -156,67 +149,135 @@ def url_case(request) -> UrlCase:
     return request.param
 
 
-async def test_download_dial_urls_in_request_message_image(
-    file_storage, with_type: bool, url_case: UrlCase
-):
-    request = _message([_image(url_case.url)], with_type)
+class TestDownloadDialUrlsInRequestSuccess:
+    @pytest.fixture(autouse=True)
+    def mock_dial_files_api(self):
+        pattern = re.compile(r"(images/img\.jpg|documents/doc\.pdf)")
+        base_url = _DIAL_URL + "/v1"
+        with respx.mock(
+            base_url=base_url,
+            assert_all_called=False,
+            assert_all_mocked=True,
+        ) as router:
+            yield router.get(pattern).respond(text="file-content")
 
-    result = await download_dial_urls_in_request(file_storage, request)
-    part: dict = result["input"][0]["content"][0]  # type: ignore
+    async def test_download_dial_urls_in_request_message_image(
+        self, file_storage, with_type: bool, url_case: UrlCase
+    ):
+        request = _message([_image(url_case.url)], with_type)
 
-    url_case.check_image(part)
+        result = await download_dial_urls_in_request(file_storage, request)
+        part: dict = result["input"][0]["content"][0]  # type: ignore
+
+        url_case.check_image(part)
+
+    async def test_download_dial_urls_in_request_message_file(
+        self, file_storage, with_type: bool, url_case: UrlCase
+    ):
+        request = _message([_file(url_case.url)], with_type)
+
+        result = await download_dial_urls_in_request(file_storage, request)
+        part: dict = result["input"][0]["content"][0]  # type: ignore
+
+        url_case.check_file(part)
+
+    async def test_download_dial_urls_in_request_function_output_image(
+        self, file_storage, url_case: UrlCase
+    ):
+        request = _function_call([_image_content(url_case.url)])
+
+        result = await download_dial_urls_in_request(file_storage, request)
+        part: dict = result["input"][0]["output"][0]  # type: ignore
+
+        url_case.check_image(part)
+
+    async def test_download_dial_urls_in_request_function_output_file(
+        self, file_storage, url_case: UrlCase
+    ):
+        request = _function_call([_file_content(url_case.url)])
+
+        result = await download_dial_urls_in_request(file_storage, request)
+        part: dict = result["input"][0]["output"][0]  # type: ignore
+
+        url_case.check_file(part)
+
+    async def test_download_dial_urls_in_request_custom_output_image(
+        self, file_storage, url_case: UrlCase
+    ):
+        request = _custom_tool_call([_image(url_case.url)])
+
+        result = await download_dial_urls_in_request(file_storage, request)
+        part: dict = result["input"][0]["output"][0]  # type: ignore
+
+        url_case.check_image(part)
+
+    async def test_download_dial_urls_in_request_custom_output_file(
+        self, file_storage, url_case: UrlCase
+    ):
+        request = _custom_tool_call([_file(url_case.url)])
+
+        result = await download_dial_urls_in_request(file_storage, request)
+        part: dict = result["input"][0]["output"][0]  # type: ignore
+
+        url_case.check_file(part)
 
 
-async def test_download_dial_urls_in_request_message_file(
-    file_storage, with_type: bool, url_case: UrlCase
-):
-    request = _message([_file(url_case.url)], with_type)
+class TestDownloadDialUrlsInRequestFailure:
+    UPSTREAM_KEY = "test-upstream-key"
+    UPSTREAM_ENDPOINT = "http://test-upstream-hostname/openai/v1/responses"
 
-    result = await download_dial_urls_in_request(file_storage, request)
-    part: dict = result["input"][0]["content"][0]  # type: ignore
+    @pytest.fixture(autouse=True)
+    def mock_dial_files_api(self):
+        with respx.mock(
+            assert_all_called=False,
+            assert_all_mocked=False,
+        ) as router:
+            yield router.get(_DIAL_URL + "/v1/" + _IMAGE_URL).respond(
+                status_code=403, text="Access denied"
+            )
 
-    url_case.check_file(part)
+    @pytest.fixture(autouse=True)
+    def mock_file_storage(self, file_storage):
+        with (
+            patch(
+                "aidial_adapter_openai.endpoints.responses.create_file_storage",
+                return_value=file_storage,
+            ),
+        ):
+            yield
 
+    @pytest.fixture()
+    def client(self, create_openai_client: OpenAIClientFactory):
+        return create_openai_client(
+            upstream_endpoint=self.UPSTREAM_ENDPOINT,
+            upstream_key=self.UPSTREAM_KEY,
+        )
 
-async def test_download_dial_urls_in_request_function_output_image(
-    file_storage, url_case: UrlCase
-):
-    request = _function_call([_image_content(url_case.url)])
+    @pytest.fixture(params=[True, False], ids=["stream", "block"])
+    def stream(self, request) -> bool:
+        return request.param
 
-    result = await download_dial_urls_in_request(file_storage, request)
-    part: dict = result["input"][0]["output"][0]  # type: ignore
+    async def test_downloading_error_propagation(
+        self, client: AsyncOpenAI, stream: bool
+    ):
+        MockServer().post(self.UPSTREAM_ENDPOINT)(
+            MockServer.mock_responses_api_response("text.txt")
+        )
 
-    url_case.check_image(part)
+        request = _message([_image(_IMAGE_URL)], True)
 
+        with pytest.raises(openai.BadRequestError) as exc:
+            await client.responses.with_raw_response.create(
+                **request, stream=stream
+            )
 
-async def test_download_dial_urls_in_request_function_output_file(
-    file_storage, url_case: UrlCase
-):
-    request = _function_call([_file_content(url_case.url)])
+        error = exc.value
 
-    result = await download_dial_urls_in_request(file_storage, request)
-    part: dict = result["input"][0]["output"][0]  # type: ignore
-
-    url_case.check_file(part)
-
-
-async def test_download_dial_urls_in_request_custom_output_image(
-    file_storage, url_case: UrlCase
-):
-    request = _custom_tool_call([_image(url_case.url)])
-
-    result = await download_dial_urls_in_request(file_storage, request)
-    part: dict = result["input"][0]["output"][0]  # type: ignore
-
-    url_case.check_image(part)
-
-
-async def test_download_dial_urls_in_request_custom_output_file(
-    file_storage, url_case: UrlCase
-):
-    request = _custom_tool_call([_file(url_case.url)])
-
-    result = await download_dial_urls_in_request(file_storage, request)
-    part: dict = result["input"][0]["output"][0]  # type: ignore
-
-    url_case.check_file(part)
+        assert error.status_code == 400
+        assert error.response.json() == {
+            "error": {
+                "code": "400",
+                "message": f"Failed to download file '{_IMAGE_URL}' (status code 403)",
+                "type": "invalid_request_error",
+            }
+        }

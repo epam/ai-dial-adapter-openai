@@ -4,6 +4,8 @@ import mimetypes
 from collections.abc import Mapping
 from urllib.parse import unquote, urljoin
 
+import httpx
+from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel, SecretStr
 from typing_extensions import TypedDict
 
@@ -101,7 +103,14 @@ class FileStorage(BaseModel):
         headers: Mapping[str, str] = {}
         if url.lower().startswith(self.dial_url.lower()):
             headers = self.headers
-        return await download_file(url, headers)
+
+        try:
+            return await download_file(url, headers)
+        except httpx.HTTPStatusError as e:
+            code = e.response.status_code
+            raise InvalidRequestError(
+                f"Failed to download file {link!r} (status code {code})"
+            ) from e
 
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
