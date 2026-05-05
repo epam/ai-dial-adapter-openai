@@ -17,6 +17,10 @@ In the unlikely case that the deployments declared under this variable are still
         f"{_gpt4_deprecation_message} "
         f"The variable is of no use, it could be safely removed."
     ),
+    "DIAL_USE_FILE_STORAGE": (
+        "The DIAL Storage is enabled automatically when 'DIAL_URL' is set. 'DIAL_USE_FILE_STORAGE' is deprecated and no longer forces storage to be enabled when 'DIAL_URL' is missing. "
+        "'DIAL_USE_FILE_STORAGE' is of no use, it could be safely removed."
+    ),
 }
 
 

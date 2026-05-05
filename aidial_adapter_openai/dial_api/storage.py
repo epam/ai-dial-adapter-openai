@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import mimetypes
+import os
 from collections.abc import Mapping
 from urllib.parse import unquote, urljoin
 
@@ -9,7 +10,6 @@ from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel, SecretStr
 from typing_extensions import TypedDict
 
-from aidial_adapter_openai.utils.env import get_env, get_env_bool
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
 
@@ -140,17 +140,11 @@ def _compute_hash_digest(file_content: str | bytes) -> str:
     return hashlib.sha256(file_content).hexdigest()
 
 
-DIAL_USE_FILE_STORAGE = get_env_bool("DIAL_USE_FILE_STORAGE", False)
-
-DIAL_URL: str | None = None
-if DIAL_USE_FILE_STORAGE:
-    DIAL_URL = get_env(
-        "DIAL_URL", "DIAL_URL must be set to use the DIAL file storage"
-    )
+DIAL_URL = os.getenv("DIAL_URL")
 
 
 def create_file_storage(headers: Mapping[str, str]) -> FileStorage | None:
-    if not DIAL_USE_FILE_STORAGE or DIAL_URL is None:
+    if DIAL_URL is None:
         return None
 
     if (api_key := headers.get("api-key")) is None:
