@@ -21,7 +21,11 @@ from openai.types.audio.transcription_stream_event import (
 )
 from pydantic import BaseModel
 
+from aidial_adapter_openai.audio_api.transcribe.configuration import (
+    Configuration,
+)
 from aidial_adapter_openai.audio_api.transcribe.prompt import TranscribePrompt
+from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
@@ -102,6 +106,8 @@ async def chat_completion(
 
     prompt = await TranscribePrompt.from_request(request_body, file_storage)
     file = (prompt.audio_filename, prompt.audio_data, prompt.audio_type)
+    config = parse_configuration(Configuration, request_body) or Configuration()
+    extra_body = config.model_dump(exclude_none=True)
 
     audio_response = await client.audio.transcriptions.create(
         file=file,
@@ -110,6 +116,7 @@ async def chat_completion(
         stream=is_stream,
         response_format=response_format,
         temperature=request_body.get("temperature") or omit,
+        **extra_body,
     )
 
     audio_response = await normalize_audio_response(audio_response)
