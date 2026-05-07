@@ -12,8 +12,9 @@ from aidial_adapter_openai.configuration.deployment_type import (
 from aidial_adapter_openai.utils.resource.base import Resource
 from tests.integration_tests.base import DeploymentConfig
 from tests.integration_tests.constants import (
-    AUDIO_RESOURCE,
     TEST_DEPLOYMENTS_CONFIG,
+    AUDIO_11s_RESOURCE,
+    AUDIO_39s_RESOURCE,
 )
 from tests.utils.openai import (
     chat_completion,
@@ -62,6 +63,16 @@ _stt_deployments: list[D] = [
     d for d in TEST_DEPLOYMENTS_CONFIG.chat_deployments if d.supports_stt
 ]
 
+
+def _is_diarization_deployment(deployment: D) -> bool:
+    return "diarize" in deployment.model_name.lower()
+
+
+_stt_diarize_deployments: list[D] = [
+    d for d in _stt_deployments if _is_diarization_deployment(d)
+]
+
+
 if _stt_deployments:
 
     @pytest.fixture(params=_stt_deployments, ids=lambda d: d.display_config())
@@ -73,6 +84,21 @@ else:
     @pytest.fixture
     def stt_deployment(request) -> D:
         pytest.skip("No STT deployments were found")
+
+
+if _stt_diarize_deployments:
+
+    @pytest.fixture(
+        params=_stt_diarize_deployments, ids=lambda d: d.display_config()
+    )
+    def diarize_stt_deployment(request) -> D:
+        return request.param
+
+else:
+
+    @pytest.fixture
+    def diarize_stt_deployment(request) -> D:
+        pytest.skip("No diarization STT deployments were found")
 
 
 @pytest.fixture
@@ -99,6 +125,18 @@ def message_with_attachment(request):
 @pytest.fixture()
 def text_query() -> str:
     return "Call me Ishmael. Some years ago, never mind how long precisely, having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world."
+
+
+@pytest.fixture(
+    params=[AUDIO_11s_RESOURCE, AUDIO_39s_RESOURCE],
+    ids=["audio-11s", "audio-39s"],
+)
+def diarize_audio_resource(request) -> Resource:
+    return request.param
+
+
+def _assert_has_content(content: str) -> None:
+    assert content.strip()
 
 
 async def test_text_to_speech_and_back(
@@ -146,7 +184,60 @@ async def test_speech_to_text(
         create_openai_client(stt_deployment),
         stream=stream,
         deployment_id=stt_deployment.model_name,
-        messages=[message_with_attachment(" ", AUDIO_RESOURCE)],
+        messages=[message_with_attachment(" ", AUDIO_11s_RESOURCE)],
     )
 
     assert is_close_enough(text_query, response.content)
+
+
+async def test_diarize_not_empty(
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    diarize_stt_deployment: D,
+    stream: bool,
+    diarize_audio_resource: Resource,
+):
+    response = await chat_completion(
+        create_openai_client(diarize_stt_deployment),
+        stream=stream,
+        deployment_id=diarize_stt_deployment.model_name,
+        messages=[user_with_attachment_data(" ", diarize_audio_resource)],
+    )
+
+    _assert_has_content(response.content)
+
+
+async def test_diarize_default_chunking_auto(
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    diarize_stt_deployment: D,
+    stream: bool,
+    diarize_audio_resource: Resource,
+):
+    response = await chat_completion(
+        create_openai_client(diarize_stt_deployment),
+        stream=stream,
+        deployment_id=diarize_stt_deployment.model_name,
+        messages=[user_with_attachment_data(" ", diarize_audio_resource)],
+    )
+
+    _assert_has_content(response.content)
+
+
+async def test_diarize_long_audio_without_chunking_fails(
+    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
+    diarize_stt_deployment: D,
+    stream: bool,
+):
+    with pytest.raises(openai.APIError) as exc_info:
+        await chat_completion(
+            create_openai_client(diarize_stt_deployment),
+            stream=stream,
+            deployment_id=diarize_stt_deployment.model_name,
+            messages=[user_with_attachment_data(" ", AUDIO_39s_RESOURCE)],
+            extra_body={
+                "custom_fields": {"configuration": {"chunking_strategy": None}}
+            },
+        )
+
+    err = exc_info.value.body or {}
+    assert getattr(exc_info.value, "status_code", None) == 400
+    assert "chunking_strategy is required" in str(err)
