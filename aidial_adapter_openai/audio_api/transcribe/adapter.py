@@ -135,8 +135,8 @@ async def chat_completion(
                         )
 
                     match chunk:
-                        case TranscriptionTextSegmentEvent():
-                            pass
+                        case TranscriptionTextSegmentEvent(text=text):
+                            choice.append_content(text)
                         case TranscriptionTextDeltaEvent(delta=delta):
                             choice.append_content(delta)
                         case TranscriptionTextDoneEvent():
