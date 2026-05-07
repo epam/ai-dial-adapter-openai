@@ -27,7 +27,7 @@ ChunkingStrategy = Literal["auto"] | ChunkingStrategyConfig | None
 
 class Configuration(BaseModel):
     chunking_strategy: ChunkingStrategy = Field(
-        default=None,
+        default="auto",
         description="Controls how the audio is cut into chunks. "
         'When set to "auto", the server first normalizes loudness and then uses '
         "voice activity detection (VAD) to choose boundaries. server_vad object "
