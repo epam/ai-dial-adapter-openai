@@ -32,7 +32,7 @@ from aidial_adapter_openai.utils.upstream_headers import (
 )
 
 
-async def responses(request: Request) -> FastAPIResponse:
+async def post_responses(request: Request) -> FastAPIResponse:
     app_config = get_request_app_config(request)
     response = await _responses(request)
     return await create_server_response(
