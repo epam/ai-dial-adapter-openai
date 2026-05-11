@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Self, overload
+from typing import Self
 
 from fastapi import Request
 from fastapi.responses import Response as FastAPIResponse
@@ -102,7 +102,7 @@ async def post_responses_cancel(
         responses_id,
         extra_query=context.query_params,
     )
-    response_with_headers = _to_response_with_headers(response)
+    response_with_headers = _to_response_with_headers(response)  # type: ignore
     return await _to_fast_api_response(request, response_with_headers)
 
 
@@ -131,18 +131,6 @@ async def _to_fast_api_response(
         sse_stream_format="responses",
         sse_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
     )
-
-
-@overload
-def _to_response_with_headers(
-    response: LegacyAPIResponse[Response],
-) -> ResponseWithHeaders[dict]: ...
-
-
-@overload
-def _to_response_with_headers(
-    response: LegacyAPIResponse[AsyncStream[ResponseStreamEvent]],
-) -> ResponseWithHeaders[AsyncIterator[dict]]: ...
 
 
 def _to_response_with_headers(
