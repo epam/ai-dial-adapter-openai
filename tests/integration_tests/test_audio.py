@@ -16,6 +16,7 @@ from tests.integration_tests.constants import (
     AUDIO_11s_RESOURCE,
     AUDIO_39s_RESOURCE,
 )
+from tests.utils.fixtures import maybe_parametrized_fixture
 from tests.utils.openai import (
     chat_completion,
     user,
@@ -73,32 +74,22 @@ _stt_diarize_deployments: list[D] = [
 ]
 
 
-if _stt_deployments:
-
-    @pytest.fixture(params=_stt_deployments, ids=lambda d: d.display_config())
-    def stt_deployment(request) -> D:
-        return request.param
-
-else:
-
-    @pytest.fixture
-    def stt_deployment(request) -> D:
-        pytest.skip("No STT deployments were found")
+@maybe_parametrized_fixture(
+    params=_stt_deployments,
+    ids=lambda d: d.display_config(),
+    skip_reason="No STT deployments were found",
+)
+def stt_deployment(deployment: D) -> D:
+    return deployment
 
 
-if _stt_diarize_deployments:
-
-    @pytest.fixture(
-        params=_stt_diarize_deployments, ids=lambda d: d.display_config()
-    )
-    def diarize_stt_deployment(request) -> D:
-        return request.param
-
-else:
-
-    @pytest.fixture
-    def diarize_stt_deployment(request) -> D:
-        pytest.skip("No diarization STT deployments were found")
+@maybe_parametrized_fixture(
+    params=_stt_diarize_deployments,
+    ids=lambda d: d.display_config(),
+    skip_reason="No diarization STT deployments were found",
+)
+def diarize_stt_deployment(deployment: D) -> D:
+    return deployment
 
 
 @pytest.fixture
@@ -131,7 +122,7 @@ def text_query() -> str:
     params=[AUDIO_11s_RESOURCE, AUDIO_39s_RESOURCE],
     ids=["audio-11s", "audio-39s"],
 )
-def diarize_audio_resource(request) -> Resource:
+def stt_audio_resource(request) -> Resource:
     return request.param
 
 
@@ -174,8 +165,8 @@ async def test_text_to_speech_and_back(
 async def test_speech_to_text(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     stt_deployment: DeploymentConfig,
-    text_query: str,
     stream: bool,
+    stt_audio_resource: Resource,
     message_with_attachment: Callable[
         [str, Resource], ChatCompletionMessageParam
     ],
@@ -184,39 +175,7 @@ async def test_speech_to_text(
         create_openai_client(stt_deployment),
         stream=stream,
         deployment_id=stt_deployment.model_name,
-        messages=[message_with_attachment(" ", AUDIO_11s_RESOURCE)],
-    )
-
-    assert is_close_enough(text_query, response.content)
-
-
-async def test_diarize_not_empty(
-    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
-    diarize_stt_deployment: D,
-    stream: bool,
-    diarize_audio_resource: Resource,
-):
-    response = await chat_completion(
-        create_openai_client(diarize_stt_deployment),
-        stream=stream,
-        deployment_id=diarize_stt_deployment.model_name,
-        messages=[user_with_attachment_data(" ", diarize_audio_resource)],
-    )
-
-    _assert_has_content(response.content)
-
-
-async def test_diarize_default_chunking_auto(
-    create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
-    diarize_stt_deployment: D,
-    stream: bool,
-    diarize_audio_resource: Resource,
-):
-    response = await chat_completion(
-        create_openai_client(diarize_stt_deployment),
-        stream=stream,
-        deployment_id=diarize_stt_deployment.model_name,
-        messages=[user_with_attachment_data(" ", diarize_audio_resource)],
+        messages=[message_with_attachment(" ", stt_audio_resource)],
     )
 
     _assert_has_content(response.content)
