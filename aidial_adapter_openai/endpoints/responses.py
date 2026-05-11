@@ -1,8 +1,10 @@
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from typing import Self, overload
 
 from fastapi import Request
 from fastapi.responses import Response as FastAPIResponse
-from openai import AsyncStream
+from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
 from openai.types.responses.response_stream_event import ResponseStreamEvent
@@ -32,9 +34,97 @@ from aidial_adapter_openai.utils.upstream_headers import (
 )
 
 
+@dataclass
+class _ResponsesContext:
+    client: AsyncAzureOpenAI | AsyncOpenAI
+    query_params: dict[str, str]
+
+    @classmethod
+    async def from_request(cls, request: Request) -> Self:
+        headers = request.headers
+        upstream_endpoint = get_upstream_endpoint(headers)
+        creds = await get_credentials(headers, azure=True)
+        upstream_extra_headers = get_upstream_extra_headers(headers)
+
+        query_params = dict(request.query_params)
+        api_version = query_params.pop("api-version", None)
+
+        endpoint = responses_parser.parse(upstream_endpoint)
+        client = endpoint.get_client(
+            {
+                **creds,
+                "api_version": api_version,
+                "headers": upstream_extra_headers,
+            }
+        )
+
+        return cls(client=client, query_params=query_params)
+
+
 async def post_responses(request: Request) -> FastAPIResponse:
+    context = await _ResponsesContext.from_request(request)
+
+    request_body = await parse_body(request)
+    file_storage = create_file_storage(request.headers)
+    request_body = await download_dial_urls_in_request(
+        file_storage, request_body
+    )
+
+    response: LegacyAPIResponse[
+        Response | AsyncStream[ResponseStreamEvent]
+    ] = await call_with_extra_body(
+        context.client.responses.with_raw_response.create, request_body
+    )
+
+    response_with_headers = _to_response_with_headers(response)
+    return await _to_fast_api_response(request, response_with_headers)
+
+
+async def get_responses(responses_id: str, request: Request) -> FastAPIResponse:
+    context = await _ResponsesContext.from_request(request)
+    stream: bool = context.query_params.get("stream") == "true"
+    response: LegacyAPIResponse[
+        Response | AsyncStream[ResponseStreamEvent]
+    ] = await context.client.responses.with_raw_response.retrieve(
+        responses_id,
+        stream=stream,
+        extra_query=context.query_params,
+    )
+    response_with_headers = _to_response_with_headers(response)
+    return await _to_fast_api_response(request, response_with_headers)
+
+
+async def post_responses_cancel(
+    responses_id: str, request: Request
+) -> FastAPIResponse:
+    context = await _ResponsesContext.from_request(request)
+    response = await context.client.responses.with_raw_response.cancel(
+        responses_id,
+        extra_query=context.query_params,
+    )
+    response_with_headers = _to_response_with_headers(response)
+    return await _to_fast_api_response(request, response_with_headers)
+
+
+async def delete_responses(
+    responses_id: str, request: Request
+) -> FastAPIResponse:
+    context = await _ResponsesContext.from_request(request)
+    response = await context.client.responses.with_raw_response.delete(
+        responses_id,
+        extra_query=context.query_params,
+    )
+    return FastAPIResponse(
+        content=response.http_response.content,
+        headers=response.http_response.headers,
+        status_code=response.http_response.status_code,
+    )
+
+
+async def _to_fast_api_response(
+    request: Request, response: ResponseWithHeaders[dict | AsyncIterator[dict]]
+) -> FastAPIResponse:
     app_config = get_request_app_config(request)
-    response = await _responses(request)
     return await create_server_response(
         response,
         emulate_streaming=False,
@@ -43,34 +133,21 @@ async def post_responses(request: Request) -> FastAPIResponse:
     )
 
 
-async def _responses(
-    request: Request,
+@overload
+def _to_response_with_headers(
+    response: LegacyAPIResponse[Response],
+) -> ResponseWithHeaders[dict]: ...
+
+
+@overload
+def _to_response_with_headers(
+    response: LegacyAPIResponse[AsyncStream[ResponseStreamEvent]],
+) -> ResponseWithHeaders[AsyncIterator[dict]]: ...
+
+
+def _to_response_with_headers(
+    response: LegacyAPIResponse[Response | AsyncStream[ResponseStreamEvent]],
 ) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
-    request_body = await parse_body(request)
-
-    headers = request.headers
-    file_storage = create_file_storage(headers)
-    upstream_endpoint = get_upstream_endpoint(headers)
-    creds = await get_credentials(headers, azure=True)
-    upstream_extra_headers = get_upstream_extra_headers(headers)
-
-    api_version = request.query_params.get("api-version")
-
-    endpoint = responses_parser.parse(upstream_endpoint)
-    client = endpoint.get_client(
-        {**creds, "api_version": api_version, "headers": upstream_extra_headers}
-    )
-
-    request_body = await download_dial_urls_in_request(
-        file_storage, request_body
-    )
-
-    response: LegacyAPIResponse[
-        Response | AsyncStream[ResponseStreamEvent]
-    ] = await call_with_extra_body(
-        client.responses.with_raw_response.create, request_body
-    )
-
     response_headers = response.http_response.headers
 
     # Reformatting of the chunks may invalidate content length.

@@ -34,6 +34,7 @@ class TestResponsesEndpoint:
     UPSTREAM_KEY = "test-upstream-key"
     UPSTREAM_ENDPOINT = "http://test-upstream-hostname/openai/v1/responses"
     UPSTREAM_MODEL = "test-upstream-model-name"
+    RESPONSE_ID = "resp_test_123"
 
     MOCK_RESPONSE = MockServer.mock_responses_api_response("text.txt")
 
@@ -242,6 +243,80 @@ class TestResponsesEndpoint:
             return self.MOCK_RESPONSE
 
         await client.responses.create(**self.test_request)
+
+    @respx.mock
+    async def test_retrieve_response(self, client: AsyncOpenAI, stream: bool):
+        expected = self.MOCK_RESPONSE.parse(stream)
+
+        @respx.get(f"{self.UPSTREAM_ENDPOINT}/{self.RESPONSE_ID}")
+        def _handler(request: httpx.Request):
+            assert request.headers.get("authorization") == (
+                f"Bearer {self.UPSTREAM_KEY}"
+            )
+            assert request.url.params.get("include_obfuscation") == "true"
+            assert request.url.params.get("starting_after") == "7"
+            assert request.url.params.get("stream") == str(stream).lower()
+            return httpx.Response(
+                status_code=200,
+                headers={
+                    "content-type": (
+                        "text/event-stream" if stream else "application/json"
+                    )
+                },
+                content=expected.text,
+            )
+
+        response = await client.responses.with_raw_response.retrieve(
+            self.RESPONSE_ID,
+            include_obfuscation=True,
+            starting_after=7,
+            stream=stream,
+        )
+
+        actual_content = await response.http_response.aread()
+        actual = ResponsesAPIMockResponse(actual_content).parse(stream)
+        assert actual.json == expected.json
+
+    @respx.mock
+    async def test_delete_response(self, client: AsyncOpenAI):
+        @respx.delete(f"{self.UPSTREAM_ENDPOINT}/{self.RESPONSE_ID}")
+        def _handler(request: httpx.Request):
+            assert request.headers.get("authorization") == (
+                f"Bearer {self.UPSTREAM_KEY}"
+            )
+            assert request.content == b""
+            return httpx.Response(
+                status_code=204,
+                headers={"foo": "bar"},
+            )
+
+        response = await client.responses.with_raw_response.delete(
+            self.RESPONSE_ID
+        )
+
+        assert response.status_code == 204
+        assert response.headers.get("foo") == "bar"
+        assert await response.http_response.aread() == b""
+
+    @respx.mock
+    async def test_cancel_response(self, client: AsyncOpenAI):
+        expected = self.MOCK_RESPONSE.parse(False)
+
+        @respx.post(f"{self.UPSTREAM_ENDPOINT}/{self.RESPONSE_ID}/cancel")
+        def _handler(request: httpx.Request):
+            assert request.headers.get("authorization") == (
+                f"Bearer {self.UPSTREAM_KEY}"
+            )
+            assert request.content == b""
+            return httpx.Response(
+                status_code=200,
+                headers={"content-type": "application/json"},
+                content=expected.text,
+            )
+
+        response = await client.responses.cancel(self.RESPONSE_ID)
+
+        assert response.to_dict() == expected.json
 
 
 def _chunk_lines(text: str, *, n: int) -> Generator[str, None, None]:
