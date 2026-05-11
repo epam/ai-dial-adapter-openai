@@ -118,6 +118,17 @@ def text_query() -> str:
     return "Call me Ishmael. Some years ago, never mind how long precisely, having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world."
 
 
+@pytest.fixture()
+def stt_expected_transcription(stt_audio_resource: Resource) -> str:
+    if stt_audio_resource is AUDIO_11s_RESOURCE:
+        return "Call me Ishmael. Some years ago, never mind how long precisely, having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world."
+
+    if stt_audio_resource is AUDIO_39s_RESOURCE:
+        return "Call me Ishmael. Some years ago ... never mind how long precisely ... having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world. It is a way I have of driving off the spleen and regulating the circulation.\nWhenever I find myself growing grim about the mouth; whenever it is a damp, drizzly November in my soul; whenever I find myself involuntarily pausing before coffin warehouses, and bringing up the rear of every funeral I meet."
+
+    pytest.fail(f"Unknown STT audio resource: {stt_audio_resource}")
+
+
 @pytest.fixture(
     params=[AUDIO_11s_RESOURCE, AUDIO_39s_RESOURCE],
     ids=["audio-11s", "audio-39s"],
@@ -165,6 +176,7 @@ async def test_text_to_speech_and_back(
 async def test_speech_to_text(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     stt_deployment: DeploymentConfig,
+    stt_expected_transcription: str,
     stream: bool,
     stt_audio_resource: Resource,
     message_with_attachment: Callable[
@@ -177,8 +189,7 @@ async def test_speech_to_text(
         deployment_id=stt_deployment.model_name,
         messages=[message_with_attachment(" ", stt_audio_resource)],
     )
-
-    _assert_has_content(response.content)
+    assert is_close_enough(stt_expected_transcription, response.content)
 
 
 async def test_diarize_long_audio_without_chunking_fails(
