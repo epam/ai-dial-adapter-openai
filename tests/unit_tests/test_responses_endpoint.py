@@ -256,13 +256,11 @@ class TestResponsesEndpoint:
             assert request.url.params.get("include_obfuscation") == "true"
             assert request.url.params.get("starting_after") == "7"
             assert request.url.params.get("stream") == str(stream).lower()
+
+            content_type = "text/event-stream" if stream else "application/json"
             return httpx.Response(
                 status_code=200,
-                headers={
-                    "content-type": (
-                        "text/event-stream" if stream else "application/json"
-                    )
-                },
+                headers={"content-type": content_type},
                 content=expected.text,
             )
 
