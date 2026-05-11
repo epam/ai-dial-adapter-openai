@@ -137,10 +137,6 @@ def stt_audio_resource(request) -> Resource:
     return request.param
 
 
-def _assert_has_content(content: str) -> None:
-    assert content.strip()
-
-
 async def test_text_to_speech_and_back(
     create_openai_client: Callable[..., openai.AsyncAzureOpenAI],
     tts_deployment: DeploymentConfig,
