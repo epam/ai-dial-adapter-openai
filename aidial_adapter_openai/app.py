@@ -45,7 +45,18 @@ def create_app(
     set_app_config(app, app_config or ApplicationConfig.from_env())
 
     app.get("/health")(endpoints.health)
-    app.post("/openai/v1/responses")(endpoints.responses)
+
+    app.post("/openai/v1/responses")(endpoints.responses_create)
+    app.get("/openai/v1/responses/{responses_id:str}")(
+        endpoints.responses_retrieve
+    )
+    app.delete("/openai/v1/responses/{responses_id:str}")(
+        endpoints.responses_delete
+    )
+    app.post("/openai/v1/responses/{responses_id:str}/cancel")(
+        endpoints.responses_cancel
+    )
+
     app.post("/openai/deployments/{deployment_id:path}/embeddings")(
         endpoints.embedding
     )
