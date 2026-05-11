@@ -43,6 +43,11 @@ from tests.conftest import create_test_client
             {"instructions", "voice", "speed", "response_format"},
         ),
         (
+            ChatCompletionDeploymentType.AUDIO_TRANSCRIPTIONS_API,
+            "audio/transcriptions",
+            {"chunking_strategy"},
+        ),
+        (
             ChatCompletionDeploymentType.RESPONSES_API,
             "responses",
             {"reasoning"},
@@ -90,10 +95,6 @@ async def test_configuration_endpoint_supported_types(
         (ChatCompletionDeploymentType.MISTRAL, "chat/completions"),
         (ChatCompletionDeploymentType.DATABRICKS, "chat/completions"),
         (ChatCompletionDeploymentType.COMPLETIONS_API, "completions"),
-        (
-            ChatCompletionDeploymentType.AUDIO_TRANSCRIPTIONS_API,
-            "audio/transcriptions",
-        ),
     ],
 )
 async def test_configuration_endpoint_unsupported_types(
