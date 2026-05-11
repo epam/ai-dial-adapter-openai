@@ -61,7 +61,7 @@ class _ResponsesContext:
         return cls(client=client, query_params=query_params)
 
 
-async def post_responses(request: Request) -> FastAPIResponse:
+async def responses_create(request: Request) -> FastAPIResponse:
     context = await _ResponsesContext.from_request(request)
 
     request_body = await parse_body(request)
@@ -80,7 +80,9 @@ async def post_responses(request: Request) -> FastAPIResponse:
     return await _to_fast_api_response(request, response_with_headers)
 
 
-async def get_responses(responses_id: str, request: Request) -> FastAPIResponse:
+async def responses_retrieve(
+    responses_id: str, request: Request
+) -> FastAPIResponse:
     context = await _ResponsesContext.from_request(request)
     stream: bool = context.query_params.get("stream") == "true"
     response: LegacyAPIResponse[
@@ -94,7 +96,7 @@ async def get_responses(responses_id: str, request: Request) -> FastAPIResponse:
     return await _to_fast_api_response(request, response_with_headers)
 
 
-async def post_responses_cancel(
+async def responses_cancel(
     responses_id: str, request: Request
 ) -> FastAPIResponse:
     context = await _ResponsesContext.from_request(request)
@@ -106,7 +108,7 @@ async def post_responses_cancel(
     return await _to_fast_api_response(request, response_with_headers)
 
 
-async def delete_responses(
+async def responses_delete(
     responses_id: str, request: Request
 ) -> FastAPIResponse:
     context = await _ResponsesContext.from_request(request)
