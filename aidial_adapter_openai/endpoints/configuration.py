@@ -10,6 +10,9 @@ from pydantic import BaseModel
 from aidial_adapter_openai.audio_api.speech.configuration import (
     Configuration as SpeechConfiguration,
 )
+from aidial_adapter_openai.audio_api.transcribe.configuration import (
+    Configuration as TranscribeConfiguration,
+)
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
@@ -51,9 +54,11 @@ def _get_deployment_configuration(deployment_type: D) -> type[BaseModel] | None:
         case D.ANTHROPIC_MESSAGES_API:
             return ClaudeConfigurationWithThinking
 
+        case D.AUDIO_TRANSCRIPTIONS_API:
+            return TranscribeConfiguration
+
         case (
             D.COMPLETIONS_API
-            | D.AUDIO_TRANSCRIPTIONS_API
             | D.GPT4O
             | D.GPT4O_MINI
             | D.MISTRAL
