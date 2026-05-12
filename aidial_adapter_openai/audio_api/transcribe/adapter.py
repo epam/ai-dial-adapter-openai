@@ -1,10 +1,12 @@
 import logging
+import re
 from typing import Any, assert_never
 
 import fastapi
 import openai
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
+from aidial_sdk.exceptions import InvalidRequestError
 from fastapi.responses import StreamingResponse
 from openai import AsyncAzureOpenAI, AsyncOpenAI, omit
 from openai.types.audio import (
@@ -19,7 +21,7 @@ from openai.types.audio.transcription_create_response import (
 from openai.types.audio.transcription_stream_event import (
     TranscriptionStreamEvent,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from aidial_adapter_openai.audio_api.transcribe.configuration import (
     Configuration,
@@ -30,6 +32,13 @@ from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import generate_created, generate_id
+
+_UNABLE_TO_DETECT_LANGUAGE = "Unable to detect audio language. This typically occurs when the audio contains only silence, background noise, or music."
+_HTTP_STATUS_REQUEST_ENTITY_TOO_LARGE = 413
+_AUDIO_FILE_SIZE_LIMIT_EXCEEDED = "Audio file size exceeds the allowed limit."
+_PROVIDER_AUDIO_SIZE_LIMIT_PATTERN = re.compile(
+    r"Maximum content size limit \((\d+)\) exceeded \((\d+) bytes read\)"
+)
 
 
 class TokenUsage(BaseModel):
@@ -85,9 +94,46 @@ async def normalize_audio_response(response: AudioResponse) -> AudioResponse:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"raw response: {response_bytes!r}")
 
-        return TranscriptionVerbose.model_validate_json(response_bytes)
-
+        try:
+            return TranscriptionVerbose.model_validate_json(response_bytes)
+        except ValidationError as e:
+            # Response contain language=None when audio has no words,
+            # but pydantic model expects field value as a string.
+            errors = e.errors(include_url=False)
+            language_is_null = any(
+                err.get("loc") == ("language",)
+                and err.get("type") == "string_type"
+                and err.get("input") is None
+                for err in errors
+            )
+            if language_is_null:
+                raise InvalidRequestError(_UNABLE_TO_DETECT_LANGUAGE)
+            else:
+                raise e
     return response
+
+
+def _format_size_mb(size_bytes: int) -> str:
+    return f"{(size_bytes / (1024 * 1024)):.1f}".rstrip("0").rstrip(".")
+
+
+def _format_error_msg(e: openai.APIStatusError) -> str:
+    try:
+        provider_message = (
+            e.response.json().get("error", {}).get("message", "") or ""
+        )
+    except Exception:
+        provider_message = ""
+
+    if match := _PROVIDER_AUDIO_SIZE_LIMIT_PATTERN.search(provider_message):
+        limit_bytes = int(match.group(1))
+        actual_bytes = int(match.group(2))
+        return (
+            f"Audio file size ({_format_size_mb(actual_bytes)}MB) exceeds "
+            f"the {_format_size_mb(limit_bytes)}MB limit."
+        )
+
+    return _AUDIO_FILE_SIZE_LIMIT_EXCEEDED
 
 
 async def chat_completion(
@@ -109,15 +155,20 @@ async def chat_completion(
     config = parse_configuration(Configuration, request_body) or Configuration()
     extra_body = config.model_dump(exclude_none=True)
 
-    audio_response = await client.audio.transcriptions.create(
-        file=file,
-        prompt=prompt.system_message or omit,
-        model=model_name,
-        stream=is_stream,
-        response_format=response_format,
-        temperature=request_body.get("temperature") or omit,
-        **extra_body,
-    )
+    try:
+        audio_response = await client.audio.transcriptions.create(
+            file=file,
+            prompt=prompt.system_message or omit,
+            model=model_name,
+            stream=is_stream,
+            response_format=response_format,
+            temperature=request_body.get("temperature") or omit,
+            **extra_body,
+        )
+    except openai.APIStatusError as e:
+        if e.response.status_code == _HTTP_STATUS_REQUEST_ENTITY_TOO_LARGE:
+            raise InvalidRequestError(_format_error_msg(e)) from e
+        raise e
 
     audio_response = await normalize_audio_response(audio_response)
 
