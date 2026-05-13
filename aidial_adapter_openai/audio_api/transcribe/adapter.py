@@ -1,3 +1,5 @@
+import http
+import json
 import logging
 import re
 from typing import Any, assert_never
@@ -21,7 +23,7 @@ from openai.types.audio.transcription_create_response import (
 from openai.types.audio.transcription_stream_event import (
     TranscriptionStreamEvent,
 )
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from aidial_adapter_openai.audio_api.transcribe.configuration import (
     Configuration,
@@ -34,7 +36,6 @@ from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import generate_created, generate_id
 
 _UNABLE_TO_DETECT_LANGUAGE = "Unable to detect audio language. This typically occurs when the audio contains only silence, background noise, or music."
-_HTTP_STATUS_REQUEST_ENTITY_TOO_LARGE = 413
 _AUDIO_FILE_SIZE_LIMIT_EXCEEDED = "Audio file size exceeds the allowed limit."
 _PROVIDER_AUDIO_SIZE_LIMIT_PATTERN = re.compile(
     r"Maximum content size limit \((\d+)\) exceeded \((\d+) bytes read\)"
@@ -90,26 +91,19 @@ async def normalize_audio_response(response: AudioResponse) -> AudioResponse:
         isinstance(response, openai.AsyncStream)
         and "application/json" in response.response.headers["content-type"]
     ):
-        response_bytes = await response.response.aread()
+        resp_bytes = await response.response.aread()
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"raw response: {response_bytes!r}")
+            logger.debug(f"raw response: {resp_bytes!r}")
 
-        try:
-            return TranscriptionVerbose.model_validate_json(response_bytes)
-        except ValidationError as e:
-            # Response contain language=None when audio has no words,
-            # but pydantic model expects field value as a string.
-            errors = e.errors(include_url=False)
-            language_is_null = any(
-                err.get("loc") == ("language",)
-                and err.get("type") == "string_type"
-                and err.get("input") is None
-                for err in errors
+        resp_json = json.loads(resp_bytes)
+        if isinstance(resp_json, dict) and resp_json.get("language") is None:
+            raise InvalidRequestError(
+                _UNABLE_TO_DETECT_LANGUAGE,
+                display_message=_UNABLE_TO_DETECT_LANGUAGE,
             )
-            if language_is_null:
-                raise InvalidRequestError(_UNABLE_TO_DETECT_LANGUAGE)
-            else:
-                raise e
+
+        return TranscriptionVerbose.model_validate(resp_json)
+
     return response
 
 
@@ -166,8 +160,9 @@ async def chat_completion(
             **extra_body,
         )
     except openai.APIStatusError as e:
-        if e.response.status_code == _HTTP_STATUS_REQUEST_ENTITY_TOO_LARGE:
-            raise InvalidRequestError(_format_error_msg(e)) from e
+        if e.response.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE:
+            msg = _format_error_msg(e)
+            raise InvalidRequestError(msg, display_message=msg) from e
         raise e
 
     audio_response = await normalize_audio_response(audio_response)
