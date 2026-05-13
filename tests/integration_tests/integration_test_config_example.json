@@ -326,6 +326,15 @@
                 }
             ]
         },
+        "gpt-4o-transcribe-diarize": {
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/deployments/gpt-4o-transcribe-diarize/audio/transcriptions",
+                    "key": "optional-api-key"
+                }
+            ]
+        },
         "o3-pro-2025-06-10": {
             "overrideName": "o3-pro-2025-06-10",
             "type": "chat",
