@@ -100,7 +100,6 @@ def _parse_dial_exception(
             "contentFilter",
         ]:
             code = "content_filter"
-        print("PARSED DIAL EXCEPTION")
         return DialException(
             status_code=status_code,
             message=message,
