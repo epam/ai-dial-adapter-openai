@@ -1,7 +1,13 @@
 import contextlib
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError
+from openai import (
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    APITimeoutError,
+    BadRequestError,
+)
 
 from aidial_adapter_openai.utils.adapter_exception import (
     AdapterException,
@@ -14,6 +20,13 @@ def convert_openai_exception(e: Exception) -> AdapterException | None:
     match e:
         case ResponseWrapper():
             return e
+
+        case BadRequestError(response=response):
+            return parse_adapter_exception(
+                status_code=response.status_code,
+                headers=response.headers,
+                content=response.text,
+            )
 
         case APIStatusError():
             # Non-streaming errors are reported by `openai` library via this exception

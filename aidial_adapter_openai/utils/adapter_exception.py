@@ -58,9 +58,19 @@ def _parse_dial_exception(
     *, status_code: int, headers: MutableMapping[str, str], content: Any
 ) -> DialException | None:
     if isinstance(content, str):
-        try:
-            obj = json.loads(content)
-        except Exception:
+        stripped_content = content.strip()
+        parsers = (
+            lambda: json.loads(content),
+            lambda: json.JSONDecoder().raw_decode(stripped_content)[0],
+        )
+
+        for parser in parsers:
+            try:
+                obj = parser()
+                break
+            except json.JSONDecodeError:
+                continue
+        else:
             return None
     else:
         obj = content
@@ -90,7 +100,7 @@ def _parse_dial_exception(
             "contentFilter",
         ]:
             code = "content_filter"
-
+        print("PARSED DIAL EXCEPTION")
         return DialException(
             status_code=status_code,
             message=message,

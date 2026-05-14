@@ -1,4 +1,3 @@
-import http
 import json
 import logging
 from typing import Any, assert_never
@@ -26,10 +25,6 @@ from pydantic import BaseModel
 
 from aidial_adapter_openai.audio_api.transcribe.configuration import (
     Configuration,
-)
-from aidial_adapter_openai.audio_api.transcribe.display_message import (
-    file_too_large_msg,
-    invalid_file_format_msg,
 )
 from aidial_adapter_openai.audio_api.transcribe.prompt import TranscribePrompt
 from aidial_adapter_openai.dial_api.request import parse_configuration
@@ -125,32 +120,15 @@ async def chat_completion(
     config = parse_configuration(Configuration, request_body) or Configuration()
     extra_body = config.model_dump(exclude_none=True)
 
-    try:
-        audio_response = await client.audio.transcriptions.create(
-            file=file,
-            prompt=prompt.system_message or omit,
-            model=model_name,
-            stream=is_stream,
-            response_format=response_format,
-            temperature=request_body.get("temperature") or omit,
-            **extra_body,
-        )
-    except openai.APIStatusError as e:
-        status_code = e.response.status_code
-        match status_code:
-            case http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE:
-                raise InvalidRequestError(
-                    str(e), display_message=file_too_large_msg(e.response.text)
-                ) from e
-
-            case http.HTTPStatus.BAD_REQUEST:
-                msg = e.response.text
-                if "invalid file format" in msg.lower():
-                    raise InvalidRequestError(
-                        str(e), display_message=invalid_file_format_msg(msg)
-                    ) from e
-
-        raise e
+    audio_response = await client.audio.transcriptions.create(
+        file=file,
+        prompt=prompt.system_message or omit,
+        model=model_name,
+        stream=is_stream,
+        response_format=response_format,
+        temperature=request_body.get("temperature") or omit,
+        **extra_body,
+    )
 
     audio_response = await normalize_audio_response(audio_response)
 
