@@ -1,7 +1,6 @@
 import http
 import json
 import logging
-import re
 from typing import Any, assert_never
 
 import fastapi
@@ -28,6 +27,10 @@ from pydantic import BaseModel
 from aidial_adapter_openai.audio_api.transcribe.configuration import (
     Configuration,
 )
+from aidial_adapter_openai.audio_api.transcribe.display_message import (
+    file_too_large_msg,
+    invalid_file_format_msg,
+)
 from aidial_adapter_openai.audio_api.transcribe.prompt import TranscribePrompt
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
@@ -36,10 +39,6 @@ from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import generate_created, generate_id
 
 _UNABLE_TO_DETECT_LANGUAGE = "Unable to detect audio language. This typically occurs when the audio contains only silence, background noise, or music."
-_AUDIO_FILE_SIZE_LIMIT_EXCEEDED = "Audio file size exceeds the allowed limit."
-_PROVIDER_AUDIO_SIZE_LIMIT_PATTERN = re.compile(
-    r"Maximum content size limit \((\d+)\) exceeded \((\d+) bytes read\)"
-)
 
 
 class TokenUsage(BaseModel):
@@ -107,29 +106,6 @@ async def normalize_audio_response(response: AudioResponse) -> AudioResponse:
     return response
 
 
-def _format_size_mb(size_bytes: int) -> str:
-    return f"{(size_bytes / (1024 * 1024)):.1f}".rstrip("0").rstrip(".")
-
-
-def _format_error_msg(e: openai.APIStatusError) -> str:
-    try:
-        provider_message = (
-            e.response.json().get("error", {}).get("message", "") or ""
-        )
-    except Exception:
-        provider_message = ""
-
-    if match := _PROVIDER_AUDIO_SIZE_LIMIT_PATTERN.search(provider_message):
-        limit_bytes = int(match.group(1))
-        actual_bytes = int(match.group(2))
-        return (
-            f"Audio file size ({_format_size_mb(actual_bytes)}MB) exceeds "
-            f"the {_format_size_mb(limit_bytes)}MB limit."
-        )
-
-    return _AUDIO_FILE_SIZE_LIMIT_EXCEEDED
-
-
 async def chat_completion(
     *,
     request: fastapi.Request,
@@ -160,9 +136,20 @@ async def chat_completion(
             **extra_body,
         )
     except openai.APIStatusError as e:
-        if e.response.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE:
-            msg = _format_error_msg(e)
-            raise InvalidRequestError(msg, display_message=msg) from e
+        status_code = e.response.status_code
+        match status_code:
+            case http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE:
+                raise InvalidRequestError(
+                    str(e), display_message=file_too_large_msg(e.response.text)
+                ) from e
+
+            case http.HTTPStatus.BAD_REQUEST:
+                msg = e.response.text
+                if "invalid file format" in msg.lower():
+                    raise InvalidRequestError(
+                        str(e), display_message=invalid_file_format_msg(msg)
+                    ) from e
+
         raise e
 
     audio_response = await normalize_audio_response(audio_response)
