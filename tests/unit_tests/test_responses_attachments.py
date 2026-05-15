@@ -14,7 +14,6 @@ from openai.types.responses import (
     ResponseInputFileParam,
     ResponseInputImageContentParam,
     ResponseInputImageParam,
-    ResponseInputItemParam,
 )
 from openai.types.responses.response_create_params import (
     ResponseCreateParamsBase,
@@ -67,18 +66,12 @@ def _file_content(url: str) -> ResponseInputFileContentParam:
 
 
 def _message(
-    content: ResponseInputMessageContentListParam | str, with_type: bool
+    content: ResponseInputMessageContentListParam, with_type: bool
 ) -> ResponseCreateParamsBase:
-    def _to_input() -> list[ResponseInputItemParam] | str:
-        if isinstance(content, str):
-            return content
-        else:
-            message = Message(role="user", content=content)
-            if with_type:
-                message["type"] = "message"
-            return [message]
-
-    return ResponseCreateParamsBase(model="test-model", input=_to_input())
+    message = Message(role="user", content=content)
+    if with_type:
+        message["type"] = "message"
+    return ResponseCreateParamsBase(model="test-model", input=[message])
 
 
 def _function_call(
@@ -198,9 +191,10 @@ class TestDownloadDialUrlsInRequestSuccess:
     async def test_download_dial_urls_noop(
         self, file_storage, req: ResponseCreateParamsBase
     ):
-        request = copy.deepcopy(req)
-        result = await download_dial_urls_in_request(file_storage, req)
-        assert request == result
+        result = await download_dial_urls_in_request(
+            file_storage, copy.deepcopy(req)
+        )
+        assert req == result
 
     async def test_download_dial_urls_in_request_message_image(
         self, file_storage, with_type: bool, url_case: UrlCase
