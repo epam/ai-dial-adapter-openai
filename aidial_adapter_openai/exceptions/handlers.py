@@ -13,7 +13,9 @@ from aidial_adapter_openai.exceptions.anthropic import convert_anthropic_errors
 from aidial_adapter_openai.exceptions.application import (
     convert_application_errors,
 )
-from aidial_adapter_openai.exceptions.openai import convert_openai_exception
+from aidial_adapter_openai.exceptions.openai_exceptions import (
+    convert_openai_exception,
+)
 from aidial_adapter_openai.utils.adapter_exception import (
     AdapterException,
     ResponseWrapper,
@@ -100,10 +102,12 @@ def _expose_error_message_to_user(e: AdapterException) -> AdapterException:
                 e.message = "The prompt is too long."
                 e.display_message = e.display_message or e.message
 
+            # Whisper specific
             if "invalid file format" in message.lower():
-                e.display_message = message
+                e.display_message = e.display_message or message
 
         case http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE:
+            # Whisper specific
             if match := _PROVIDER_AUDIO_SIZE_LIMIT_PATTERN.search(message):
                 limit_bytes = int(match.group(1))
                 actual_bytes = int(match.group(2))
