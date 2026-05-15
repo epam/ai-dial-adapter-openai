@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, assert_never
 
@@ -5,6 +6,7 @@ import fastapi
 import openai
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
+from aidial_sdk.exceptions import InvalidRequestError
 from fastapi.responses import StreamingResponse
 from openai import AsyncAzureOpenAI, AsyncOpenAI, omit
 from openai.types.audio import (
@@ -30,6 +32,8 @@ from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import generate_created, generate_id
+
+_UNABLE_TO_DETECT_LANGUAGE = "Unable to detect audio language. This typically occurs when the audio contains only silence, background noise, or music."
 
 
 class TokenUsage(BaseModel):
@@ -81,11 +85,18 @@ async def normalize_audio_response(response: AudioResponse) -> AudioResponse:
         isinstance(response, openai.AsyncStream)
         and "application/json" in response.response.headers["content-type"]
     ):
-        response_bytes = await response.response.aread()
+        resp_bytes = await response.response.aread()
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"raw response: {response_bytes!r}")
+            logger.debug(f"raw response: {resp_bytes!r}")
 
-        return TranscriptionVerbose.model_validate_json(response_bytes)
+        resp_json = json.loads(resp_bytes)
+        if isinstance(resp_json, dict) and resp_json.get("language") is None:
+            raise InvalidRequestError(
+                _UNABLE_TO_DETECT_LANGUAGE,
+                display_message=_UNABLE_TO_DETECT_LANGUAGE,
+            )
+
+        return TranscriptionVerbose.model_validate(resp_json)
 
     return response
 
