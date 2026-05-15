@@ -1,12 +1,7 @@
 import contextlib
 
 from aidial_sdk.exceptions import HTTPException as DialException
-from openai import (
-    APIConnectionError,
-    APIError,
-    APIStatusError,
-    APITimeoutError,
-)
+from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError
 
 from aidial_adapter_openai.utils.adapter_exception import (
     AdapterException,
