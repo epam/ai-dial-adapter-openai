@@ -1,3 +1,4 @@
+import http
 import re
 from functools import wraps
 
@@ -12,12 +13,23 @@ from aidial_adapter_openai.exceptions.anthropic import convert_anthropic_errors
 from aidial_adapter_openai.exceptions.application import (
     convert_application_errors,
 )
-from aidial_adapter_openai.exceptions.openai import convert_openai_exception
+from aidial_adapter_openai.exceptions.openai import (
+    convert_openai_exception,
+)
 from aidial_adapter_openai.utils.adapter_exception import (
     AdapterException,
     ResponseWrapper,
 )
 from aidial_adapter_openai.utils.log_config import logger
+
+_AUDIO_FILE_SIZE_LIMIT_EXCEEDED = "Audio file size exceeds the allowed limit."
+_PROVIDER_AUDIO_SIZE_LIMIT_PATTERN = re.compile(
+    r"Maximum content size limit \((\d+)\) exceeded \((\d+) bytes read\)"
+)
+
+
+def _format_size_mb(size_bytes: int) -> str:
+    return f"{(size_bytes / (1024 * 1024)):.1f}".rstrip("0").rstrip(".")
 
 
 def to_adapter_exception(e: Exception) -> AdapterException:
@@ -39,51 +51,73 @@ def _truncate_long_string(s: str, *, limit: int) -> str:
 
 
 def _expose_error_message_to_user(e: AdapterException) -> AdapterException:
-    if isinstance(e, DialException) and e.status_code == 400:
-        message = e.message
-        if (
-            "this model does not support file content types" in message.lower()
-            or "the file type you uploaded is not supported" in message.lower()
-        ):
-            e.display_message = (
-                e.display_message
-                or "The provided file attachments aren't supported."
+    if not isinstance(e, DialException):
+        return e
+
+    status_code = e.status_code
+    message = e.message
+    match status_code:
+        case http.HTTPStatus.BAD_REQUEST:
+            if (
+                "this model does not support file content types"
+                in message.lower()
+                or "the file type you uploaded is not supported"
+                in message.lower()
+            ):
+                e.display_message = (
+                    e.display_message
+                    or "The provided file attachments aren't supported."
+                )
+
+            match = re.search(
+                r"unsupported MIME type\s+(['\"])([^'\"]+)\1", message
             )
+            if match:
+                mime_type = match[2]
+                e.display_message = (
+                    e.display_message
+                    or f"The file attachments of the MIME type {mime_type!r} aren't supported."
+                )
 
-        match = re.search(
-            r"unsupported MIME type\s+(['\"])([^'\"]+)\1", message
-        )
-        if match:
-            mime_type = match[2]
-            e.display_message = (
-                e.display_message
-                or f"The file attachments of the MIME type {mime_type!r} aren't supported."
-            )
+            if (
+                "invalid image data" in message.lower()
+                or "the image data you provided does not represent a valid image"
+                in message.lower()
+            ):
+                e.display_message = (
+                    e.display_message
+                    or "The provided image attachment is either corrupt or of unsupported MIME type."
+                )
 
-        if (
-            "invalid image data" in message.lower()
-            or "the image data you provided does not represent a valid image"
-            in message.lower()
-        ):
-            e.display_message = (
-                e.display_message
-                or "The provided image attachment is either corrupt or of unsupported MIME type."
-            )
+            # Special handling of GPT Image 1 exception when the prompt is too long
+            if "Invalid 'prompt': string too long" in message:
+                e.display_message = (
+                    e.display_message or "The prompt is too long."
+                )
 
-        # Special handling of GPT Image 1 exception when the prompt is too long
-        if "Invalid 'prompt': string too long" in message:
-            e.display_message = e.display_message or "The prompt is too long."
+            # Special handling of DALL·E 3 exception when the prompt is too long
+            if "is too long - 'prompt'" in message:
+                # DALL·E 3 is notorious for including the whole prompt in the error message,
+                # therefore, we override it with a short one.
+                e.message = "The prompt is too long."
+                e.display_message = e.display_message or e.message
 
-        # Special handling of DALL·E 3 exception when the prompt is too long
-        if "is too long - 'prompt'" in message:
-            # DALL·E 3 is notorious for including the whole prompt in the error message,
-            # therefore, we override it with a short one.
-            e.message = "The prompt is too long."
-            e.display_message = e.display_message or e.message
+            # Whisper specific
+            if "invalid file format" in message.lower():
+                e.display_message = e.display_message or message
 
-        # Just in case any other sensitive information leaked to the error message, we truncate it
-        e.message = _truncate_long_string(e.message, limit=1024)
+        case http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE:
+            # Whisper specific
+            if match := _PROVIDER_AUDIO_SIZE_LIMIT_PATTERN.search(message):
+                limit_bytes = int(match.group(1))
+                actual_bytes = int(match.group(2))
+                e.display_message = (
+                    f"Audio file size ({_format_size_mb(actual_bytes)}MB) exceeds "
+                    f"the {_format_size_mb(limit_bytes)}MB limit."
+                )
 
+    # Just in case any other sensitive information leaked to the error message, we truncate it
+    e.message = _truncate_long_string(e.message, limit=1024)
     return e
 
 
