@@ -66,7 +66,7 @@ class AttachmentRule:
     dst_field: str | None = None
 
     async def apply(self, file_storage: FileStorage, request: Any) -> None:
-        for obj in _compile_jmespath(self.path).search(request):
+        for obj in _compile_jmespath(self.path).search(request) or []:
             if not isinstance(obj, dict):
                 continue
 

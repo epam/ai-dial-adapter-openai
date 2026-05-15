@@ -1,4 +1,5 @@
 import base64
+import copy
 import re
 from dataclasses import dataclass
 from unittest.mock import patch
@@ -160,6 +161,40 @@ class TestDownloadDialUrlsInRequestSuccess:
             assert_all_mocked=True,
         ) as router:
             yield router.get(pattern).respond(text="file-content")
+
+    @pytest.mark.parametrize(
+        "req",
+        [
+            ResponseCreateParamsBase(
+                model="test-model",
+                input="input string",
+            ),
+            ResponseCreateParamsBase(
+                model="test-model",
+                input=[{"role": "user", "content": "user message"}],
+            ),
+            ResponseCreateParamsBase(
+                model="test-model",
+                input=[
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": "user message"}
+                        ],
+                    }
+                ],
+            ),
+        ],
+        ids=["string input", "easy input message", "input_text content part"],
+    )
+    async def test_download_dial_urls_noop(
+        self, file_storage, req: ResponseCreateParamsBase
+    ):
+        result = await download_dial_urls_in_request(
+            file_storage, copy.deepcopy(req)
+        )
+        assert req == result
 
     async def test_download_dial_urls_in_request_message_image(
         self, file_storage, with_type: bool, url_case: UrlCase
