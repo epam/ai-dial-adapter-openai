@@ -13,6 +13,7 @@ from openai.types.responses import (
     ResponseInputFileParam,
     ResponseInputImageContentParam,
     ResponseInputImageParam,
+    ResponseInputItemParam,
 )
 from openai.types.responses.response_create_params import (
     ResponseCreateParamsBase,
@@ -65,12 +66,18 @@ def _file_content(url: str) -> ResponseInputFileContentParam:
 
 
 def _message(
-    content: ResponseInputMessageContentListParam, with_type: bool
+    content: ResponseInputMessageContentListParam | str, with_type: bool
 ) -> ResponseCreateParamsBase:
-    message = Message(role="user", content=content)
-    if with_type:
-        message["type"] = "message"
-    return ResponseCreateParamsBase(model="test-model", input=[message])
+    def _to_input() -> list[ResponseInputItemParam] | str:
+        if isinstance(content, str):
+            return content
+        else:
+            message = Message(role="user", content=content)
+            if with_type:
+                message["type"] = "message"
+            return [message]
+
+    return ResponseCreateParamsBase(model="test-model", input=_to_input())
 
 
 def _function_call(
@@ -160,6 +167,14 @@ class TestDownloadDialUrlsInRequestSuccess:
             assert_all_mocked=True,
         ) as router:
             yield router.get(pattern).respond(text="file-content")
+
+    async def test_download_dial_urls_string_input(self, file_storage):
+        request = _message("input string", with_type=False)
+
+        result = await download_dial_urls_in_request(file_storage, request)
+        content = result["input"][0]["content"]  # type: ignore
+
+        assert content == "input string"
 
     async def test_download_dial_urls_in_request_message_image(
         self, file_storage, with_type: bool, url_case: UrlCase
