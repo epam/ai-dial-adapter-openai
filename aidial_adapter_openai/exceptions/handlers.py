@@ -13,7 +13,7 @@ from aidial_adapter_openai.exceptions.anthropic import convert_anthropic_errors
 from aidial_adapter_openai.exceptions.application import (
     convert_application_errors,
 )
-from aidial_adapter_openai.exceptions.openai_exceptions import (
+from aidial_adapter_openai.exceptions.openai import (
     convert_openai_exception,
 )
 from aidial_adapter_openai.utils.adapter_exception import (
