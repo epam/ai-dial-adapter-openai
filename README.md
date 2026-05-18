@@ -773,6 +773,8 @@ The adapter supports Claude models deployed in Azure Foundry and exposing Anthro
 }
 ```
 
+</details>
+
 ##### Default `max_tokens` for Claude models
 
 Unlike OpenAI GPT models, Claude models require the `max_tokens` parameter in the chat completion request.
