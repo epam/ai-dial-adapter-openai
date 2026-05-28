@@ -22,9 +22,8 @@ from aidial_adapter_openai.utils.adapter_exception import (
 )
 from aidial_adapter_openai.utils.log_config import logger
 
-_AUDIO_FILE_SIZE_LIMIT_EXCEEDED = "Audio file size exceeds the allowed limit."
 _PROVIDER_AUDIO_SIZE_LIMIT_PATTERN = re.compile(
-    r"Maximum content size limit \((\d+)\) exceeded \((\d+) bytes read\)"
+    r"Maximum content size limit \((\d+)\) exceeded \(\d+ bytes read\)"
 )
 
 
@@ -110,11 +109,7 @@ def _expose_error_message_to_user(e: AdapterException) -> AdapterException:
             # Whisper specific
             if match := _PROVIDER_AUDIO_SIZE_LIMIT_PATTERN.search(message):
                 limit_bytes = int(match.group(1))
-                actual_bytes = int(match.group(2))
-                e.display_message = (
-                    f"Audio file size ({_format_size_mb(actual_bytes)}MB) exceeds "
-                    f"the {_format_size_mb(limit_bytes)}MB limit."
-                )
+                e.display_message = f"Audio file size exceeds the {_format_size_mb(limit_bytes)}MB limit."
 
     # Just in case any other sensitive information leaked to the error message, we truncate it
     e.message = _truncate_long_string(e.message, limit=1024)
