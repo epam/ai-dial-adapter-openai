@@ -63,6 +63,9 @@ def create_app(
     app.post("/openai/deployments/{deployment_id:path}/chat/completions")(
         endpoints.chat_completion
     )
+    app.post("/openai/deployments/{deployment_id:path}/tokenize")(
+        endpoints.tokenize
+    )
     app.get("/openai/deployments/{deployment_id:path}/configuration")(
         endpoints.configuration
     )

@@ -48,6 +48,26 @@ def _extract_max_prompt_tokens(request: dict) -> int | None:
     return max_prompt_tokens
 
 
+async def _transform_messages(
+    messages: list[dict],
+    file_storage: FileStorage | None,
+) -> list[MultiModalMessage]:
+    multi_modal_messages = await ResourceProcessor(
+        file_storage=file_storage
+    ).transform_messages(messages)
+    return transform_audio(multi_modal_messages)
+
+
+async def transform_vllm_messages(
+    messages: list[dict],
+    file_storage: FileStorage | None,
+) -> list[dict]:
+    """Apply the DIAL-to-OpenAI multimodal transformation expected by vLLM."""
+    return [
+        m.raw_message for m in await _transform_messages(messages, file_storage)
+    ]
+
+
 async def _truncate_messages(
     request: dict, messages: list[MultiModalMessage], tokenizer: VllmTokenizer
 ) -> tuple[list[MultiModalMessage], DiscardedMessages | None]:
@@ -84,11 +104,7 @@ async def chat_completion(
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
     messages: list[dict] = request["messages"]
 
-    multi_modal_messages = await ResourceProcessor(
-        file_storage=file_storage
-    ).transform_messages(messages)
-
-    multi_modal_messages = transform_audio(multi_modal_messages)
+    multi_modal_messages = await _transform_messages(messages, file_storage)
 
     (
         multi_modal_messages,

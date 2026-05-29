@@ -958,6 +958,32 @@ Token counting is performed by vLLM for the entire request payload as-is (includ
 
 When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the vLLM-reported token count fits.
 
+#### Tokenize endpoint
+
+The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize` using the [DIAL tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
+
+```json
+// request
+{
+  "inputs": [
+    {"type": "request", "value": {"messages": [{"role": "user", "content": "hello"}]}},
+    {"type": "string", "value": "hello"}
+  ]
+}
+
+// response
+{
+  "outputs": [
+    {"status": "success", "token_count": 42},
+    {"status": "success", "token_count": 1}
+  ]
+}
+```
+
+For deployments in `VLLM_DEPLOYMENTS` or `QWEN3_ASR_VLLM_DEPLOYMENTS`, each input is tokenized by proxying to the upstream vLLM `/tokenize` endpoint (after the same DIAL attachment → OpenAI multimodal transformation used for chat completions). The vLLM tokenize endpoint does not require authorization; only headers listed in `X-UPSTREAM-EXTRA-DATA.headers_to_proxy` are forwarded.
+
+For all other deployments, tokenization uses the adapter-side [tiktoken](#text-tokenization) logic with `TIKTOKEN_MODEL_MAPPING` and the corresponding image tokenization algorithm when applicable.
+
 ---
 
 ## Responses API deployments
