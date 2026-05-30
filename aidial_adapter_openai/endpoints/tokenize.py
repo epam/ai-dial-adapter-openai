@@ -1,8 +1,9 @@
 from collections.abc import Mapping
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 
 from aidial_sdk.exceptions import InvalidRequestError
 from fastapi import Request
+from typing_extensions import TypedDict
 
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
@@ -17,7 +18,10 @@ from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    get_upstream_endpoint,
+    get_upstream_model_name,
+)
 from aidial_adapter_openai.dial_api.storage import (
     FileStorage,
     create_file_storage,
@@ -81,8 +85,8 @@ def _validate_input_item(item: Any, index: int) -> tuple[str, Any]:
     return input_type, value
 
 
-def _prepare_chat_request(value: dict, deployment_id: str) -> dict:
-    request = {**value, "model": value.get("model") or deployment_id}
+def _prepare_chat_request(value: dict, model_name: str) -> dict:
+    request = {**value, "model": value.get("model") or model_name}
     if "messages" not in request:
         raise ValueError("'messages' field is required for request input")
     return request
@@ -93,6 +97,7 @@ async def _tokenize_input(
     input_type: str,
     value: Any,
     deployment_id: str,
+    model_name: str,
     deployment_type: D,
     app_config: ApplicationConfig,
     upstream_endpoint: str,
@@ -110,13 +115,13 @@ async def _tokenize_input(
             if input_type == "string":
                 return await tokenizer.tokenize(
                     {
-                        "model": deployment_id,
+                        "model": model_name,
                         "prompt": value,
                         "add_special_tokens": False,
                     }
                 )
 
-            request = _prepare_chat_request(value, deployment_id)
+            request = _prepare_chat_request(value, model_name)
             request["messages"] = await transform_vllm_messages(
                 request["messages"], file_storage
             )
@@ -133,7 +138,7 @@ async def _tokenize_input(
             if input_type == "string":
                 return await tokenizer.tokenize_text(value)
 
-            request = _prepare_chat_request(value, deployment_id)
+            request = _prepare_chat_request(value, model_name)
             messages = await ResourceProcessor(
                 file_storage=file_storage
             ).transform_messages(request["messages"])
@@ -158,10 +163,19 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
     for index, item in enumerate(inputs):
         try:
             input_type, value = _validate_input_item(item, index)
+            request_model = (
+                value.get("model") if input_type == "request" else None
+            )
+            model_name = get_upstream_model_name(
+                request.headers,
+                deployment_id,
+                model=request_model,
+            )
             token_count = await _tokenize_input(
                 input_type=input_type,
                 value=value,
                 deployment_id=deployment_id,
+                model_name=model_name,
                 deployment_type=deployment_type,
                 app_config=app_config,
                 upstream_endpoint=upstream_endpoint,

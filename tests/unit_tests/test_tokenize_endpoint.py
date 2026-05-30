@@ -79,6 +79,50 @@ async def test_tokenize_vllm_request_input(vllm_client: httpx.AsyncClient):
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_tokenize_vllm_uses_override_name_header(
+    vllm_client: httpx.AsyncClient,
+):
+    captured: dict = {}
+
+    def tokenize_handler(request: httpx.Request):
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            status_code=200, json={"count": 2, "tokens": [1, 2]}
+        )
+
+    respx.post(_TOKENIZE_URL).mock(side_effect=tokenize_handler)
+
+    response = await vllm_client.post(
+        "tokenize",
+        json={
+            "inputs": [
+                {"type": "string", "value": "abc"},
+                {
+                    "type": "request",
+                    "value": {
+                        "messages": [{"role": "user", "content": "hello"}],
+                    },
+                },
+            ]
+        },
+        headers={
+            "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
+            "X-DIAL-OVERRIDE-NAME": "upstream-model-name",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "outputs": [
+            {"status": "success", "token_count": 2},
+            {"status": "success", "token_count": 2},
+        ],
+    }
+    assert captured["body"]["model"] == "upstream-model-name"
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_tokenize_vllm_string_input(vllm_client: httpx.AsyncClient):
     captured: dict = {}
 
