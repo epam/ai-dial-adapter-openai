@@ -960,7 +960,7 @@ When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter tr
 
 #### Tokenize endpoint
 
-The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize` using the [DIAL tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
+The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize` using the [DIAL SDK tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
 
 ```json
 // request
