@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Any, Protocol, TypeVar, cast
+from typing import Any
 
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.deployment.tokenize import (
@@ -43,24 +43,6 @@ from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
 
-_T = TypeVar("_T")
-
-
-class _HasModelValidate(Protocol[_T]):
-    @classmethod
-    def model_validate(cls, data: dict) -> _T: ...
-
-
-class _HasParseObj(Protocol[_T]):
-    @classmethod
-    def parse_obj(cls, data: dict) -> _T: ...
-
-
-def _parse_sdk_model(model_cls: type[_T], data: dict) -> _T:
-    if hasattr(model_cls, "model_validate"):
-        return cast(_HasModelValidate[_T], model_cls).model_validate(data)
-    return cast(_HasParseObj[_T], model_cls).parse_obj(data)
-
 
 def _parse_inputs(body: dict) -> list[Any]:
     inputs = body.get("inputs")
@@ -78,9 +60,9 @@ def _parse_input_item(item: Any, index: int) -> TokenizeInput:
 
     input_type = item.get("type")
     if input_type == "string":
-        return _parse_sdk_model(TokenizeInputString, item)
+        return TokenizeInputString.model_validate(item)
     if input_type == "request":
-        return _parse_sdk_model(TokenizeInputRequest, item)
+        return TokenizeInputRequest.model_validate(item)
 
     raise ValueError(
         f"inputs[{index}].type must be 'request' or 'string', got {input_type!r}"
