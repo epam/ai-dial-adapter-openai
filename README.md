@@ -980,7 +980,7 @@ The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYM
 }
 ```
 
-For deployments in `VLLM_DEPLOYMENTS` or `QWEN3_ASR_VLLM_DEPLOYMENTS`, each input is tokenized by proxying to the upstream vLLM `/tokenize` endpoint (after the same DIAL attachment → OpenAI multimodal transformation used for chat completions). The vLLM tokenize endpoint does not require authorization; only headers listed in `X-UPSTREAM-EXTRA-DATA.headers_to_proxy` are forwarded.
+For deployments in `VLLM_DEPLOYMENTS` or `QWEN3_ASR_VLLM_DEPLOYMENTS`, each input is tokenized by proxying to the upstream vLLM `/tokenize` endpoint (after the same DIAL attachment → OpenAI multimodal transformation used for chat completions). Headers listed in `X-UPSTREAM-EXTRA-DATA.headers_to_proxy` are forwarded.
 
 For all other deployments, tokenization uses the adapter-side [tiktoken](#text-tokenization) logic with `TIKTOKEN_MODEL_MAPPING` and the corresponding image tokenization algorithm when applicable.
 
@@ -1020,29 +1020,6 @@ When proxying tokenize requests, DIAL Core forwards the deployment `overrideName
 > `${DIAL_DEPLOYMENT_ID}` and `${ADAPTER_DEPLOYMENT_ID}` may differ when the adapter deployment id in the URL path is not identical to the DIAL deployment id visible to clients. In that case, set `overrideName` to the model name expected by the upstream (for example, `qwen3.6-27b-awq`), while `${ADAPTER_DEPLOYMENT_ID}` in the adapter URLs may be a different string (for example, `qwen36-27b-awq`).
 
 Add `${ADAPTER_DEPLOYMENT_ID}` to `VLLM_DEPLOYMENTS` (or `QWEN3_ASR_VLLM_DEPLOYMENTS`) on the adapter side.
-
-##### Verifying tokenize via DIAL Core
-
-```sh
-# check that tokenize is enabled for the deployment
-curl -s "${DIAL_CORE_ORIGIN}/openai/deployments/${DIAL_DEPLOYMENT_ID}" \
-  -H "Api-Key: ${DIAL_API_KEY}" | jq '.features.tokenize'
-
-# tokenize a plain string
-curl -sS -X POST "${DIAL_CORE_ORIGIN}/v1/deployments/${DIAL_DEPLOYMENT_ID}/tokenize" \
-  -H "Api-Key: ${DIAL_API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d '{"inputs":[{"type":"string","value":"hello"}]}'
-
-# tokenize a chat completion request (model field in value is optional)
-curl -sS -X POST "${DIAL_CORE_ORIGIN}/v1/deployments/${DIAL_DEPLOYMENT_ID}/tokenize" \
-  -H "Api-Key: ${DIAL_API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d '{"inputs":[{"type":"request","value":{"messages":[{"role":"user","content":"hello world"}]}}]}'
-```
-
-> [!IMPORTANT]
-> Use `POST /v1/deployments/${DIAL_DEPLOYMENT_ID}/tokenize` on DIAL Core. The path `/openai/deployments/${DIAL_DEPLOYMENT_ID}/tokenize` is not supported and returns HTTP 404.
 
 ---
 
