@@ -1,5 +1,6 @@
 from collections.abc import Mapping
-from typing import assert_never
+from dataclasses import dataclass
+from typing import Protocol, assert_never
 
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.deployment.tokenize import (
@@ -44,6 +45,48 @@ from aidial_adapter_openai.utils.upstream_headers import (
 )
 
 
+class _Tokenizer(Protocol):
+    async def tokenize_text(self, model_name: str, text: str) -> int: ...
+
+    async def tokenize_request(self, request: dict) -> int: ...
+
+
+@dataclass
+class _VllmTokenizer:
+    file_storage: FileStorage | None
+    tokenizer: VllmTokenizer
+
+    async def tokenize_text(self, model_name: str, text: str) -> int:
+        return await self.tokenizer.tokenize(
+            {
+                "model": model_name,
+                "prompt": text,
+                "add_special_tokens": False,
+            }
+        )
+
+    async def tokenize_request(self, request: dict) -> int:
+        request["messages"] = await transform_vllm_messages(
+            request["messages"], self.file_storage
+        )
+        return await self.tokenizer.tokenize(request)
+
+
+@dataclass
+class _TiktokenTokenizer:
+    file_storage: FileStorage | None
+    tokenizer: Tokenizer
+
+    async def tokenize_text(self, model_name: str, text: str) -> int:
+        return await self.tokenizer.tokenize_text(text)
+
+    async def tokenize_request(self, request: dict) -> int:
+        messages = await ResourceProcessor(
+            file_storage=self.file_storage
+        ).transform_messages(request["messages"])
+        return await self.tokenizer.tokenize_request(request, messages)
+
+
 def _prepare_chat_request(
     value: ChatCompletionRequest, model_name: str
 ) -> dict:
@@ -52,68 +95,24 @@ def _prepare_chat_request(
     return request
 
 
-async def _tokenize_string(
+def _get_tokenizer(
     *,
-    text: str,
-    model_name: str,
-    deployment_id: str,
-    deployment_type: D,
-    app_config: ApplicationConfig,
-    upstream_endpoint: str,
-    extra_headers: Mapping[str, str],
-) -> int:
-    match deployment_type:
-        case (
-            D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
-        ):
-            tokenizer = VllmTokenizer(
-                upstream_endpoint=upstream_endpoint,
-                extra_headers=extra_headers,
-            )
-            return await tokenizer.tokenize(
-                {
-                    "model": model_name,
-                    "prompt": text,
-                    "add_special_tokens": False,
-                }
-            )
-        case _:
-            tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
-                deployment_id, deployment_id
-            )
-            tokenizer = Tokenizer(
-                model=tiktoken_model,
-                image_tokenizer=get_image_tokenizer(deployment_type),
-            )
-            return await tokenizer.tokenize_text(text)
-
-
-async def _tokenize_chat_request(
-    *,
-    chat_request: ChatCompletionRequest,
-    model_name: str,
     deployment_id: str,
     deployment_type: D,
     app_config: ApplicationConfig,
     upstream_endpoint: str,
     extra_headers: Mapping[str, str],
     file_storage: FileStorage | None,
-) -> int:
-    request = _prepare_chat_request(chat_request, model_name)
-
+) -> _Tokenizer:
     match deployment_type:
         case (
             D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
         ):
-            tokenizer = VllmTokenizer(
+            vllm_tokenizer = VllmTokenizer(
                 upstream_endpoint=upstream_endpoint,
                 extra_headers=extra_headers,
             )
-            request["messages"] = await transform_vllm_messages(
-                request["messages"], file_storage
-            )
-            return await tokenizer.tokenize(request)
-
+            return _VllmTokenizer(file_storage, vllm_tokenizer)
         case _:
             tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
                 deployment_id, deployment_id
@@ -122,45 +121,23 @@ async def _tokenize_chat_request(
                 model=tiktoken_model,
                 image_tokenizer=get_image_tokenizer(deployment_type),
             )
-            messages = await ResourceProcessor(
-                file_storage=file_storage
-            ).transform_messages(request["messages"])
-            return await tokenizer.tokenize_request(request, messages)
+            return _TiktokenTokenizer(file_storage, tokenizer)
 
 
 async def _tokenize_input(
     *,
     tokenize_input: TokenizeInput,
-    deployment_id: str,
+    tokenizer: _Tokenizer,
     model_name: str,
-    deployment_type: D,
-    app_config: ApplicationConfig,
-    upstream_endpoint: str,
-    extra_headers: Mapping[str, str],
-    file_storage: FileStorage | None,
 ) -> int:
     match tokenize_input.type:
         case "string":
-            return await _tokenize_string(
-                text=tokenize_input.value,
-                model_name=model_name,
-                deployment_id=deployment_id,
-                deployment_type=deployment_type,
-                app_config=app_config,
-                upstream_endpoint=upstream_endpoint,
-                extra_headers=extra_headers,
+            return await tokenizer.tokenize_text(
+                model_name, tokenize_input.value
             )
         case "request":
-            return await _tokenize_chat_request(
-                chat_request=tokenize_input.value,
-                model_name=model_name,
-                deployment_id=deployment_id,
-                deployment_type=deployment_type,
-                app_config=app_config,
-                upstream_endpoint=upstream_endpoint,
-                extra_headers=extra_headers,
-                file_storage=file_storage,
-            )
+            request = _prepare_chat_request(tokenize_input.value, model_name)
+            return await tokenizer.tokenize_request(request)
         case unreachable:
             assert_never(unreachable)
 
@@ -191,6 +168,14 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
 
     extra_headers = get_upstream_extra_headers(request.headers)
     file_storage = create_file_storage(request.headers)
+    tokenizer = _get_tokenizer(
+        deployment_id=deployment_id,
+        deployment_type=deployment_type,
+        app_config=app_config,
+        upstream_endpoint=upstream_endpoint,
+        extra_headers=extra_headers,
+        file_storage=file_storage,
+    )
 
     outputs: list[TokenizeOutput] = []
     for tokenize_input in tokenize_request.inputs:
@@ -207,13 +192,8 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
             )
             token_count = await _tokenize_input(
                 tokenize_input=tokenize_input,
-                deployment_id=deployment_id,
+                tokenizer=tokenizer,
                 model_name=model_name,
-                deployment_type=deployment_type,
-                app_config=app_config,
-                upstream_endpoint=upstream_endpoint,
-                extra_headers=extra_headers,
-                file_storage=file_storage,
             )
             outputs.append(TokenizeSuccess(token_count=token_count))
         except Exception as exc:
