@@ -1,11 +1,11 @@
 from collections.abc import Mapping
+from typing import assert_never
 
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.deployment.tokenize import (
     TokenizeError,
     TokenizeInput,
     TokenizeInputRequest,
-    TokenizeInputString,
     TokenizeOutput,
     TokenizeRequest,
     TokenizeResponse,
@@ -139,28 +139,30 @@ async def _tokenize_input(
     extra_headers: Mapping[str, str],
     file_storage: FileStorage | None,
 ) -> int:
-    if isinstance(tokenize_input, TokenizeInputString):
-        return await _tokenize_string(
-            text=tokenize_input.value,
-            model_name=model_name,
-            deployment_id=deployment_id,
-            deployment_type=deployment_type,
-            app_config=app_config,
-            upstream_endpoint=upstream_endpoint,
-            extra_headers=extra_headers,
-        )
-    if isinstance(tokenize_input, TokenizeInputRequest):
-        return await _tokenize_chat_request(
-            chat_request=tokenize_input.value,
-            model_name=model_name,
-            deployment_id=deployment_id,
-            deployment_type=deployment_type,
-            app_config=app_config,
-            upstream_endpoint=upstream_endpoint,
-            extra_headers=extra_headers,
-            file_storage=file_storage,
-        )
-    raise AssertionError(f"Unexpected tokenize input: {tokenize_input!r}")
+    match tokenize_input.type:
+        case "string":
+            return await _tokenize_string(
+                text=tokenize_input.value,
+                model_name=model_name,
+                deployment_id=deployment_id,
+                deployment_type=deployment_type,
+                app_config=app_config,
+                upstream_endpoint=upstream_endpoint,
+                extra_headers=extra_headers,
+            )
+        case "request":
+            return await _tokenize_chat_request(
+                chat_request=tokenize_input.value,
+                model_name=model_name,
+                deployment_id=deployment_id,
+                deployment_type=deployment_type,
+                app_config=app_config,
+                upstream_endpoint=upstream_endpoint,
+                extra_headers=extra_headers,
+                file_storage=file_storage,
+            )
+        case unreachable:
+            assert_never(unreachable)
 
 
 async def _load_tokenize_request(

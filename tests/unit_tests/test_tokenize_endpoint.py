@@ -278,7 +278,9 @@ async def test_tokenize_forwards_proxied_headers(
 
 
 @pytest.mark.asyncio
-async def test_tokenize_invalid_inputs_raises_422(vllm_client: httpx.AsyncClient):
+async def test_tokenize_invalid_inputs_raises_422(
+    vllm_client: httpx.AsyncClient,
+):
     response = await vllm_client.post(
         "tokenize",
         json={"inputs": "not-a-list"},
