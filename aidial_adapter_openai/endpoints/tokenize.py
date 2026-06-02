@@ -212,8 +212,8 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
                 else None
             )
             model_name = get_upstream_model_name(
-                request.headers,
-                deployment_id,
+                request_headers=request.headers,
+                deployment_id=deployment_id,
                 model=request_model,
             )
             token_count = await _tokenize_input(

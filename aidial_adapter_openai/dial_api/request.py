@@ -42,10 +42,10 @@ _DIAL_OVERRIDE_NAME = "X-DIAL-OVERRIDE-NAME"
 
 
 def get_upstream_model_name(
+    *,
     request_headers: Mapping[str, str],
     deployment_id: str,
-    *,
-    model: str | None = None,
+    model: str | None,
 ) -> str:
     return model or request_headers.get(_DIAL_OVERRIDE_NAME) or deployment_id
 
