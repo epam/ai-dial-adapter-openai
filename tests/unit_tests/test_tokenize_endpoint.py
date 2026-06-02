@@ -12,6 +12,11 @@ from tests.conftest import create_test_client
 
 _UPSTREAM_ENDPOINT = "http://localhost:5001/v1/chat/completions"
 _TOKENIZE_URL = "http://localhost:5001/tokenize"
+_API_KEY = "test-adapter-api-key"
+
+
+def _tokenize_headers(**extra: str) -> dict[str, str]:
+    return {"Api-Key": _API_KEY, **extra}
 
 
 @pytest.fixture
@@ -64,7 +69,9 @@ async def test_tokenize_vllm_request_input(vllm_client: httpx.AsyncClient):
                 }
             ]
         },
-        headers={"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT},
+        headers=_tokenize_headers(
+            **{"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT}
+        ),
     )
 
     assert response.status_code == 200
@@ -106,10 +113,12 @@ async def test_tokenize_vllm_uses_override_name_header(
                 },
             ]
         },
-        headers={
-            "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
-            "X-DIAL-OVERRIDE-NAME": "upstream-model-name",
-        },
+        headers=_tokenize_headers(
+            **{
+                "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
+                "X-DIAL-OVERRIDE-NAME": "upstream-model-name",
+            }
+        ),
     )
 
     assert response.status_code == 200
@@ -138,7 +147,9 @@ async def test_tokenize_vllm_string_input(vllm_client: httpx.AsyncClient):
     response = await vllm_client.post(
         "tokenize",
         json={"inputs": [{"type": "string", "value": "abc"}]},
-        headers={"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT},
+        headers=_tokenize_headers(
+            **{"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT}
+        ),
     )
 
     assert response.status_code == 200
@@ -166,9 +177,11 @@ async def test_tokenize_tiktoken_request_input(gpt_client: httpx.AsyncClient):
                 }
             ]
         },
-        headers={
-            "X-UPSTREAM-ENDPOINT": "https://example.com/openai/deployments/gpt-test/chat/completions"
-        },
+        headers=_tokenize_headers(
+            **{
+                "X-UPSTREAM-ENDPOINT": "https://example.com/openai/deployments/gpt-test/chat/completions"
+            }
+        ),
     )
 
     assert response.status_code == 200
@@ -182,9 +195,11 @@ async def test_tokenize_tiktoken_string_input(gpt_client: httpx.AsyncClient):
     response = await gpt_client.post(
         "tokenize",
         json={"inputs": [{"type": "string", "value": "hello"}]},
-        headers={
-            "X-UPSTREAM-ENDPOINT": "https://example.com/openai/deployments/gpt-test/chat/completions"
-        },
+        headers=_tokenize_headers(
+            **{
+                "X-UPSTREAM-ENDPOINT": "https://example.com/openai/deployments/gpt-test/chat/completions"
+            }
+        ),
     )
 
     assert response.status_code == 200
@@ -198,29 +213,38 @@ async def test_tokenize_tiktoken_string_input(gpt_client: httpx.AsyncClient):
 async def test_tokenize_per_input_error_isolation(
     vllm_client: httpx.AsyncClient,
 ):
-    respx.post(_TOKENIZE_URL).mock(
-        return_value=httpx.Response(
-            status_code=200, json={"count": 5, "tokens": [1] * 5}
+    call_count = 0
+
+    def tokenize_handler(_request: httpx.Request):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return httpx.Response(
+                status_code=200, json={"count": 5, "tokens": [1] * 5}
+            )
+        return httpx.Response(
+            status_code=500, json={"error": "upstream failed"}
         )
-    )
+
+    respx.post(_TOKENIZE_URL).mock(side_effect=tokenize_handler)
 
     response = await vllm_client.post(
         "tokenize",
         json={
             "inputs": [
                 {"type": "string", "value": "ok"},
-                {"type": "request", "value": {}},
-                {"type": "unknown", "value": "bad"},
+                {"type": "string", "value": "fail"},
             ]
         },
-        headers={"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT},
+        headers=_tokenize_headers(
+            **{"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT}
+        ),
     )
 
     assert response.status_code == 200
     outputs = response.json()["outputs"]
     assert outputs[0] == {"status": "success", "token_count": 5}
     assert outputs[1]["status"] == "error"
-    assert outputs[2]["status"] == "error"
 
 
 @respx.mock
@@ -239,11 +263,13 @@ async def test_tokenize_forwards_proxied_headers(
     response = await vllm_client.post(
         "tokenize",
         json={"inputs": [{"type": "string", "value": "x"}]},
-        headers={
-            "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
-            "X-UPSTREAM-EXTRA-DATA": '{"headers_to_proxy": ["x-user-id"]}',
-            "x-user-id": "user-42",
-        },
+        headers=_tokenize_headers(
+            **{
+                "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
+                "X-UPSTREAM-EXTRA-DATA": '{"headers_to_proxy": ["x-user-id"]}',
+                "x-user-id": "user-42",
+            }
+        ),
     )
 
     assert response.status_code == 200
@@ -252,11 +278,28 @@ async def test_tokenize_forwards_proxied_headers(
 
 
 @pytest.mark.asyncio
-async def test_tokenize_invalid_inputs_raises(vllm_client: httpx.AsyncClient):
+async def test_tokenize_invalid_inputs_raises_422(vllm_client: httpx.AsyncClient):
     response = await vllm_client.post(
         "tokenize",
         json={"inputs": "not-a-list"},
-        headers={"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT},
+        headers=_tokenize_headers(
+            **{"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT}
+        ),
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_tokenize_invalid_input_type_returns_422(
+    vllm_client: httpx.AsyncClient,
+):
+    response = await vllm_client.post(
+        "tokenize",
+        json={"inputs": [{"type": "unknown", "value": "bad"}]},
+        headers=_tokenize_headers(
+            **{"X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT}
+        ),
+    )
+
+    assert response.status_code == 422

@@ -1,5 +1,4 @@
 from collections.abc import Mapping
-from typing import Any
 
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.deployment.tokenize import (
@@ -8,11 +7,13 @@ from aidial_sdk.deployment.tokenize import (
     TokenizeInputRequest,
     TokenizeInputString,
     TokenizeOutput,
+    TokenizeRequest,
     TokenizeResponse,
     TokenizeSuccess,
 )
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import RequestValidationError
 from fastapi import Request
+from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
@@ -36,37 +37,11 @@ from aidial_adapter_openai.dial_api.storage import (
     create_file_storage,
 )
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
-from aidial_adapter_openai.utils.parsers import parse_body
 from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
-
-
-def _parse_inputs(body: dict) -> list[Any]:
-    inputs = body.get("inputs")
-    if not isinstance(inputs, list):
-        raise InvalidRequestError(
-            "'inputs' must be a list",
-            param="inputs",
-        )
-    return inputs
-
-
-def _parse_input_item(item: Any, index: int) -> TokenizeInput:
-    if not isinstance(item, dict):
-        raise ValueError(f"inputs[{index}] must be an object")
-
-    input_type = item.get("type")
-    if input_type == "string":
-        return TokenizeInputString.model_validate(item)
-    if input_type == "request":
-        return TokenizeInputRequest.model_validate(item)
-
-    raise ValueError(
-        f"inputs[{index}].type must be 'request' or 'string', got {input_type!r}"
-    )
 
 
 def _prepare_chat_request(
@@ -188,11 +163,24 @@ async def _tokenize_input(
     raise AssertionError(f"Unexpected tokenize input: {tokenize_input!r}")
 
 
-async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
-    app_config = get_request_app_config(request)
-    body = await parse_body(request)
-    inputs = _parse_inputs(body)
+async def _load_tokenize_request(
+    request: Request, deployment_id: str
+) -> TokenizeRequest:
+    try:
+        return await TokenizeRequest.from_request(
+            request, deployment_id, base_url=None
+        )
+    except ValidationError as e:
+        error = e.errors()[0]
+        path = ".".join(map(str, error["loc"]))
+        msg = f"Invalid request. Path: '{path}', error: {error['msg']}"
+        raise RequestValidationError(msg) from e
 
+
+async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
+    tokenize_request = await _load_tokenize_request(request, deployment_id)
+
+    app_config = get_request_app_config(request)
     upstream_endpoint = get_upstream_endpoint(request.headers)
     deployment = app_config.get_chat_completion_deployment_type(
         deployment_id, upstream_endpoint
@@ -203,9 +191,8 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
     file_storage = create_file_storage(request.headers)
 
     outputs: list[TokenizeOutput] = []
-    for index, item in enumerate(inputs):
+    for tokenize_input in tokenize_request.inputs:
         try:
-            tokenize_input = _parse_input_item(item, index)
             request_model = (
                 tokenize_input.value.model
                 if isinstance(tokenize_input, TokenizeInputRequest)
