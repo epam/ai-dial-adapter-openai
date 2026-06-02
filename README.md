@@ -42,6 +42,8 @@
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
       - [vLLM tokenization](#vllm-tokenization)
+    - [Tokenize endpoint](#tokenize-endpoint)
+      - [DIAL Core configuration](#dial-core-configuration)
 - [Responses API deployments](#responses-api-deployments)
   - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
     - [Azure OpenAI Responses API](#azure-openai-responses-api)
@@ -962,16 +964,20 @@ When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter tr
 
 The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize` using the [DIAL SDK tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
 
+Request:
+
 ```json
-// request
 {
   "inputs": [
     {"type": "request", "value": {"messages": [{"role": "user", "content": "hello"}]}},
     {"type": "string", "value": "hello"}
   ]
 }
+```
 
-// response
+Response:
+
+```json
 {
   "outputs": [
     {"status": "success", "token_count": 42},
@@ -980,34 +986,31 @@ The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYM
 }
 ```
 
-For deployments in `VLLM_DEPLOYMENTS` or `QWEN3_ASR_VLLM_DEPLOYMENTS`, each input is tokenized by proxying to the upstream vLLM `/tokenize` endpoint (after the same DIAL attachment → OpenAI multimodal transformation used for chat completions). Headers listed in `X-UPSTREAM-EXTRA-DATA.headers_to_proxy` are forwarded.
+Each input is tokenized following the corresponding [tokenization algorithm](#tokenization-algorithm).
 
-For all other deployments, tokenization uses the adapter-side [tiktoken](#text-tokenization) logic with `TIKTOKEN_MODEL_MAPPING` and the corresponding image tokenization algorithm when applicable.
+Tokenize endpoints support [upstream header proxying](#upstream-header-proxying).
 
 ##### DIAL Core configuration
 
 To expose the tokenize endpoint to DIAL clients, add `features.tokenizeEndpoint` pointing to the adapter URL. DIAL Core proxies client requests from `POST ${DIAL_CORE_ORIGIN}/v1/deployments/${DIAL_DEPLOYMENT_ID}/tokenize` to this URL.
 
-When proxying tokenize requests, DIAL Core forwards the deployment `overrideName` in the `X-DIAL-OVERRIDE-NAME` header. The adapter uses it as the upstream model name for vLLM when the `model` field is missing from a tokenize input (unlike chat completions, where DIAL Core injects `overrideName` into the request body).
-
-<details><summary>DIAL Core Config (vLLM deployment with tokenize)</summary>
+<details><summary>DIAL Core Config (deployment with tokenize)</summary>
 
 ```json
 {
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${VLLM_MODEL_NAME}",
+      "overrideName": "${UPSTREAM_MODEL_NAME}",
       "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
-          "endpoint": "${VLLM_ORIGIN}/v1/chat/completions",
+          "endpoint": "${UPSTREAM_ORIGIN}/v1/chat/completions",
           "key": "${OPTIONAL_API_KEY}"
         }
       ],
       "features": {
-        "tokenizeEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize",
-        "contentPartsSupported": true
+        "tokenizeEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize"
       }
     }
   }
@@ -1015,11 +1018,6 @@ When proxying tokenize requests, DIAL Core forwards the deployment `overrideName
 ```
 
 </details>
-
-> [!NOTE]
-> `${DIAL_DEPLOYMENT_ID}` and `${ADAPTER_DEPLOYMENT_ID}` may differ when the adapter deployment id in the URL path is not identical to the DIAL deployment id visible to clients. In that case, set `overrideName` to the model name expected by the upstream (for example, `qwen3.6-27b-awq`), while `${ADAPTER_DEPLOYMENT_ID}` in the adapter URLs may be a different string (for example, `qwen36-27b-awq`).
-
-Add `${ADAPTER_DEPLOYMENT_ID}` to `VLLM_DEPLOYMENTS` (or `QWEN3_ASR_VLLM_DEPLOYMENTS`) on the adapter side.
 
 ---
 
