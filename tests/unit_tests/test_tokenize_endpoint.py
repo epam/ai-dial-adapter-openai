@@ -100,6 +100,7 @@ async def test_tokenize_vllm_uses_override_name_header(
                 {
                     "type": "request",
                     "value": {
+                        "model": "user-model-in-body",
                         "messages": [{"role": "user", "content": "hello"}],
                     },
                 },

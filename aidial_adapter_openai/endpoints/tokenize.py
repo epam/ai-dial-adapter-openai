@@ -73,7 +73,7 @@ def _prepare_chat_request(
     value: ChatCompletionRequest, model_name: str
 ) -> dict:
     request = value.model_dump(exclude_none=True)
-    request["model"] = value.model or model_name
+    request["model"] = model_name
     return request
 
 
