@@ -13,6 +13,8 @@ chat-completions URL by replacing the ``v1/chat/completions`` path suffix
 with ``/tokenize``.
 """
 
+from collections.abc import Mapping
+
 import httpx
 from aidial_sdk.exceptions import InternalServerError
 
@@ -42,17 +44,23 @@ class VllmTokenizer:
 
     _tokenize_url: str
     _http_client: httpx.AsyncClient
+    _extra_headers: Mapping[str, str]
 
     def __init__(
         self,
         *,
         upstream_endpoint: str,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> None:
         self._tokenize_url = derive_tokenize_url(upstream_endpoint)
         self._http_client = get_http_client()
+        self._extra_headers = extra_headers or {}
 
     async def tokenize(self, request: dict) -> int:
-        headers: dict[str, str] = {"Content-Type": "application/json"}
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            **self._extra_headers,
+        }
 
         logger.debug(
             f"vLLM tokenize request to {self._tokenize_url}, "

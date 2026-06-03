@@ -231,6 +231,7 @@ async def call_chat_completion(
         ):
             vllm_tokenizer = VllmTokenizer(
                 upstream_endpoint=upstream_endpoint,
+                extra_headers=upstream_extra_headers,
             )
             response = await vllm_chat_completion(
                 request=request_body,

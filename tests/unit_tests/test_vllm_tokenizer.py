@@ -162,3 +162,20 @@ class TestVllmTokenizerForwardingAndHeaders:
         assert headers["Content-Type"] == "application/json"
         assert "Authorization" not in headers
         assert "x-user-id" not in headers
+
+    @pytest.mark.asyncio
+    async def test_tokenize_forwards_extra_headers(self):
+        tokenizer = VllmTokenizer(
+            upstream_endpoint=_UPSTREAM,
+            extra_headers={"x-user-id": "user-1"},
+        )
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = _mock_response(7)
+        tokenizer._http_client = mock_client
+
+        await tokenizer.tokenize({"model": "m", "messages": []})
+
+        call_args = mock_client.post.call_args
+        headers = call_args.kwargs.get("headers") or call_args[1].get("headers")
+        assert headers["x-user-id"] == "user-1"

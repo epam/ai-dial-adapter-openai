@@ -42,6 +42,8 @@
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
       - [vLLM tokenization](#vllm-tokenization)
+    - [Tokenize endpoint](#tokenize-endpoint)
+      - [DIAL Core configuration](#dial-core-configuration)
 - [Responses API deployments](#responses-api-deployments)
   - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
     - [Azure OpenAI Responses API](#azure-openai-responses-api)
@@ -957,6 +959,65 @@ The adapter first performs the standard Unified → OpenAI-compatible transforma
 Token counting is performed by vLLM for the entire request payload as-is (including tools and multimodal message parts). The adapter does not do any modality-specific token counting for vLLM.
 
 When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the vLLM-reported token count fits.
+
+#### Tokenize endpoint
+
+The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize` using the [DIAL SDK tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
+
+Request:
+
+```json
+{
+  "inputs": [
+    {"type": "request", "value": {"messages": [{"role": "user", "content": "hello"}]}},
+    {"type": "string", "value": "hello"}
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "outputs": [
+    {"status": "success", "token_count": 42},
+    {"status": "success", "token_count": 1}
+  ]
+}
+```
+
+Each input is tokenized following the corresponding [tokenization algorithm](#tokenization-algorithm).
+
+Tokenize endpoints support [upstream header proxying](#upstream-header-proxying).
+
+##### DIAL Core configuration
+
+To expose the tokenize endpoint to DIAL clients, add `features.tokenizeEndpoint` pointing to the adapter URL. DIAL Core proxies client requests from `POST ${DIAL_CORE_ORIGIN}/v1/deployments/${DIAL_DEPLOYMENT_ID}/tokenize` to this URL.
+
+<details><summary>DIAL Core Config (deployment with tokenize)</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${UPSTREAM_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "${UPSTREAM_ORIGIN}/v1/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ],
+      "features": {
+        "tokenizeEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize"
+      }
+    }
+  }
+}
+```
+
+</details>
 
 ---
 
