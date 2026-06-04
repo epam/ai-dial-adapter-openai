@@ -39,7 +39,7 @@ numpy = "2.3.3"
 pillow = "12.2.0"
 azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
-aiohttp = "3.13.4"
+aiohttp = "3.14.0"
 aidial-sdk = { version = "0.37.0", extras = ["telemetry"] }
 aidial-adapter-anthropic = { version = "0.10.0" }
 anthropic = "0.95.0"
