@@ -1227,6 +1227,99 @@ The response will contain three embedding vectors, each corresponding to one of 
 
 </details>
 
+#### vLLM Embeddings API
+
+The adapter supports vLLM pooling models served with `--runner pooling`. Add `${ADAPTER_DEPLOYMENT_ID}` to `VLLM_EMBEDDINGS_DEPLOYMENTS`.
+
+Multimodal inputs use the same `custom_input` field as [Azure multimodal embeddings](#azure-multimodal-embeddings): text goes to `input`, images go to `custom_input` as `{type, url}` or `{type, data}` objects.
+
+The adapter selects the upstream API from the upstream endpoint URL:
+
+- `.../v1/embeddings` — sequence embedding models (`google/embeddinggemma-300m`, `Qwen/Qwen3-Embedding-*`, `Qwen/Qwen3-VL-Embedding-*`)
+- `.../pooling` — late-interaction ColEmbed models (`nvidia/nemotron-colembed-vl-*`, `nvidia/llama-nemotron-colembed-vl-*`)
+
+<details><summary>DIAL Core Config: google/embeddinggemma-300m</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "overrideName": "google/embeddinggemma-300m",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "upstreams": [
+        {
+          "endpoint": "${VLLM_ORIGIN}/v1/embeddings"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+<details><summary>DIAL Core Config: Qwen3-VL-Embedding (multimodal)</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "overrideName": "Qwen3-VL-Embedding-2B",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "inputAttachmentTypes": ["image/png", "image/jpeg", "image/webp"],
+      "upstreams": [
+        {
+          "endpoint": "${VLLM_ORIGIN}/v1/embeddings"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+<details><summary>DIAL Core Config: Nemotron ColEmbed (late interaction)</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "overrideName": "nvidia/nemotron-colembed-vl-4b-v2",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "inputAttachmentTypes": ["image/png", "image/jpeg"],
+      "upstreams": [
+        {
+          "endpoint": "${VLLM_ORIGIN}/pooling"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!NOTE]
+> Nemotron ColEmbed models expose the vLLM `/pooling` API with `task: token_embed`. The adapter mean-pools token vectors into a single `float[]` so the response stays compatible with the DIAL Embeddings API. For full late-interaction retrieval, call the vLLM score API directly.
+
+Example vLLM serve commands:
+
+```bash
+# Text-only sequence embedding
+vllm serve google/embeddinggemma-300m --runner pooling --dtype bfloat16
+vllm serve Qwen/Qwen3-Embedding-8B --runner pooling
+
+# Multimodal sequence embedding
+vllm serve Qwen/Qwen3-VL-Embedding-2B --runner pooling --max-model-len 8192
+
+# Late-interaction ColEmbed
+vllm serve nvidia/nemotron-colembed-vl-4b-v2 --runner pooling --pooler-config.task token_embed
+```
+
 ---
 
 ## Environment Variables
@@ -1250,6 +1343,7 @@ The following variables cluster all deployments into the groups of deployments w
 |VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`|
 |QWEN3_ASR_VLLM_DEPLOYMENTS|``| Comma-separated list of [Qwen3-ASR deployments](#qwen3-asr) served via vLLM. Example: `qwen3-asr`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
+|VLLM_EMBEDDINGS_DEPLOYMENTS|``|Comma-separated list of [vLLM embedding deployments](#vllm-embeddings-api). Example: `embeddinggemma,qwen3-vl-embed,nemotron-colembed-4b`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
 
 Deployments that do not fall into any of the categories are considered to support text-to-text chat completion OpenAI API or text embeddings OpenAI API.

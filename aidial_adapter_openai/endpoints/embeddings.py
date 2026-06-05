@@ -7,6 +7,7 @@ from aidial_adapter_openai.embeddings.azure_ai_vision import (
 from aidial_adapter_openai.embeddings.openai import (
     embeddings as openai_embeddings,
 )
+from aidial_adapter_openai.embeddings.vllm import embeddings as vllm_embeddings
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.parsers import parse_body
 from aidial_adapter_openai.utils.request import (
@@ -32,6 +33,16 @@ async def embedding(deployment_id: str, request: Request):
     upstream_extra_headers = get_upstream_extra_headers(request.headers)
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
+
+    if deployment_id in app_config.VLLM_EMBEDDINGS_DEPLOYMENTS:
+        file_storage = create_file_storage(request.headers)
+        return await vllm_embeddings(
+            request=request_body,
+            creds=creds,
+            endpoint=upstream_endpoint,
+            file_storage=file_storage,
+            headers=upstream_extra_headers,
+        )
 
     if deployment_id in app_config.AZURE_AI_VISION_DEPLOYMENTS:
         file_storage = create_file_storage(request.headers)

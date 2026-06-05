@@ -31,20 +31,14 @@ the "text" field is ignored.
 """
 
 import asyncio
-from collections.abc import AsyncIterator
 from typing import assert_never
 
 import httpx
-from aidial_sdk.chat_completion.request import Attachment
-from aidial_sdk.embeddings.request import EmbeddingsRequest
 from aidial_sdk.embeddings.response import Embedding, EmbeddingResponse, Usage
 from aidial_sdk.exceptions import HTTPException as DialException
 
-from aidial_adapter_openai.dial_api.embedding_inputs import (
-    collect_embedding_inputs,
-)
-from aidial_adapter_openai.dial_api.resource import AttachmentResource
 from aidial_adapter_openai.dial_api.storage import FileStorage
+from aidial_adapter_openai.embeddings.inputs import resolve_embedding_inputs
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
@@ -80,23 +74,7 @@ async def embeddings(
     endpoint: str,
     file_storage: FileStorage | None,
 ) -> EmbeddingResponse:
-    input = EmbeddingsRequest.model_validate(request)
-
-    async def on_text(text: str) -> str:
-        return text
-
-    async def on_attachment(attachment: Attachment) -> Resource:
-        return await AttachmentResource(attachment=attachment).download(
-            file_storage
-        )
-
-    inputs_iter: AsyncIterator[str | Resource] = collect_embedding_inputs(
-        input,
-        on_text=on_text,
-        on_attachment=on_attachment,
-    )
-
-    inputs: list[str | Resource] = [input async for input in inputs_iter]
+    inputs = await resolve_embedding_inputs(request, file_storage)
 
     headers = _get_auth_headers(creds)
 

@@ -58,6 +58,7 @@ class ApplicationConfig(ExtraForbidModel):
     VLLM_DEPLOYMENTS: list[str] = []
     QWEN3_ASR_VLLM_DEPLOYMENTS: list[str] = []
     AZURE_AI_VISION_DEPLOYMENTS: list[str] = []
+    VLLM_EMBEDDINGS_DEPLOYMENTS: list[str] = []
 
     API_VERSIONS_MAPPING: dict[str, str] = {}
     COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: dict[str, str] = {}
@@ -71,6 +72,7 @@ class ApplicationConfig(ExtraForbidModel):
         for deployments in [
             self.VLLM_DEPLOYMENTS,
             self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+            self.VLLM_EMBEDDINGS_DEPLOYMENTS,
         ]:
             if deployment_id in deployments:
                 return False
@@ -247,6 +249,7 @@ class ApplicationConfig(ExtraForbidModel):
                 "VLLM_DEPLOYMENTS",
                 "QWEN3_ASR_VLLM_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
+                "VLLM_EMBEDDINGS_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
             )
         }
