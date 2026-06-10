@@ -24,7 +24,7 @@ FROM python:3.11-alpine AS server
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
 
 # Updating the system CA bundle at /etc/ssl/certs/ca-certificates.crt
-RUN apk add --no-cache ca-certificates && update-ca-certificates
+RUN apk add --no-cache ca-certificates mailcap && update-ca-certificates
 
 # fix CVE-2023-52425
 RUN apk upgrade --no-cache libexpat
