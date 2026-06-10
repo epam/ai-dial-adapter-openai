@@ -37,15 +37,16 @@ async def embeddings(
     model = request["model"]
     builder = select_builder(model, mode)
 
+    texts = [item for item in inputs if isinstance(item, str)]
     if (
         mode == VllmEmbeddingMode.SEQUENCE
         and builder == BuilderKind.TEXT_INPUT
-        and inputs
-        and all(isinstance(item, str) for item in inputs)
-        and len(inputs) > 1
+        and texts
+        and len(texts) == len(inputs)
+        and len(texts) > 1
     ):
         body = await build_text_batch_body(
-            request=request, model=model, texts=inputs
+            request=request, model=model, texts=texts
         )
         response = await post_upstream(
             endpoint=endpoint, body=body, creds=creds, headers=headers

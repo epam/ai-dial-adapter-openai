@@ -44,7 +44,7 @@ def _extract_usage(responses: list[dict], mode: VllmEmbeddingMode) -> Usage:
         prompt_tokens += int(usage.get("prompt_tokens") or 0)
         total_tokens += int(usage.get("total_tokens") or 0)
 
-    if total_tokens == 0 and mode == VllmEmbeddingMode.TOKEN_EMBED:
+    if total_tokens == 0 and mode == VllmEmbeddingMode.POOLING:
         total_tokens = len(responses)
     if prompt_tokens == 0 and total_tokens:
         prompt_tokens = total_tokens
@@ -60,10 +60,12 @@ def to_embedding_response(
 ) -> EmbeddingResponse:
     extract = (
         _extract_token_embed_embedding
-        if mode == VllmEmbeddingMode.TOKEN_EMBED
+        if mode == VllmEmbeddingMode.POOLING
         else _extract_sequence_embedding
     )
-    vectors = [extract(response, index=idx) for idx, response in enumerate(responses)]
+    vectors = [
+        extract(response, index=idx) for idx, response in enumerate(responses)
+    ]
     return EmbeddingResponse(
         model=model,
         data=vectors,

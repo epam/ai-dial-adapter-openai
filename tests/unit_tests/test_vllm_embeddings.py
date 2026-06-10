@@ -11,7 +11,10 @@ from aidial_adapter_openai.embeddings.vllm.builders import (
     build_upstream_body,
     select_builder,
 )
-from aidial_adapter_openai.embeddings.vllm.mode import VllmEmbeddingMode, detect_mode
+from aidial_adapter_openai.embeddings.vllm.mode import (
+    VllmEmbeddingMode,
+    detect_mode,
+)
 from aidial_adapter_openai.embeddings.vllm.response import to_embedding_response
 from tests.conftest import create_test_client
 from tests.integration_tests.constants import IMAGE_RESOURCE
@@ -37,7 +40,7 @@ def test_detect_mode_sequence():
 
 
 def test_detect_mode_token_embed():
-    assert detect_mode(_UPSTREAM_POOLING) == VllmEmbeddingMode.TOKEN_EMBED
+    assert detect_mode(_UPSTREAM_POOLING) == VllmEmbeddingMode.POOLING
 
 
 def test_select_builder_embeddinggemma():
@@ -63,7 +66,7 @@ def test_select_builder_qwen3_embedding_text():
 
 def test_select_builder_colembed_from_mode():
     assert (
-        select_builder("any-model", VllmEmbeddingMode.TOKEN_EMBED)
+        select_builder("any-model", VllmEmbeddingMode.POOLING)
         == BuilderKind.COLEMBED
     )
 
@@ -121,13 +124,15 @@ def test_token_embed_response_mean_pool():
                 ]
             }
         ],
-        mode=VllmEmbeddingMode.TOKEN_EMBED,
+        mode=VllmEmbeddingMode.POOLING,
     )
     assert response.data[0].embedding == [2.0, 1.0]
 
 
 @respx.mock
-async def test_vllm_embeddinggemma_text_batch(vllm_app_config: ApplicationConfig):
+async def test_vllm_embeddinggemma_text_batch(
+    vllm_app_config: ApplicationConfig,
+):
     def handler(request: httpx.Request):
         assert request.url == _UPSTREAM_EMBEDDINGS
         payload = json.loads(request.content)
@@ -150,7 +155,10 @@ async def test_vllm_embeddinggemma_text_batch(vllm_app_config: ApplicationConfig
     async with create_test_client(vllm_app_config) as client:
         response = await client.post(
             f"/openai/deployments/embeddinggemma/embeddings?api-version={_API_VERSION}",
-            json={"model": "google/embeddinggemma-300m", "input": ["cat", "fish"]},
+            json={
+                "model": "google/embeddinggemma-300m",
+                "input": ["cat", "fish"],
+            },
             headers={
                 "X-UPSTREAM-KEY": "TEST_API_KEY",
                 "X-UPSTREAM-ENDPOINT": _UPSTREAM_EMBEDDINGS,
@@ -165,7 +173,9 @@ async def test_vllm_embeddinggemma_text_batch(vllm_app_config: ApplicationConfig
 
 
 @respx.mock
-async def test_vllm_qwen3_vl_custom_input_image(vllm_app_config: ApplicationConfig):
+async def test_vllm_qwen3_vl_custom_input_image(
+    vllm_app_config: ApplicationConfig,
+):
     captured: dict = {}
 
     def handler(request: httpx.Request):
@@ -256,7 +266,9 @@ async def test_vllm_colembed_pooling_text(vllm_app_config: ApplicationConfig):
 
 
 @respx.mock
-async def test_vllm_embeddinggemma_single_text(vllm_app_config: ApplicationConfig):
+async def test_vllm_embeddinggemma_single_text(
+    vllm_app_config: ApplicationConfig,
+):
     respx.post(_UPSTREAM_EMBEDDINGS).mock(
         return_value=httpx.Response(
             status_code=200,

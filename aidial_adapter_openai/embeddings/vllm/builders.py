@@ -1,6 +1,7 @@
 from enum import Enum
 
 from aidial_sdk.exceptions import InvalidRequestError
+from openai.types.chat import ChatCompletionContentPartImageParam
 
 from aidial_adapter_openai.embeddings.vllm.mode import VllmEmbeddingMode
 from aidial_adapter_openai.utils.resource.base import Resource
@@ -16,7 +17,7 @@ class BuilderKind(str, Enum):
 
 
 def select_builder(model_name: str, mode: VllmEmbeddingMode) -> BuilderKind:
-    if mode == VllmEmbeddingMode.TOKEN_EMBED:
+    if mode == VllmEmbeddingMode.POOLING:
         return BuilderKind.COLEMBED
 
     lower = model_name.lower()
@@ -39,7 +40,9 @@ def _qwen3_vl_messages(content: list[dict]) -> list[dict]:
     ]
 
 
-async def _image_content_part(resource: Resource) -> dict:
+async def _image_content_part(
+    resource: Resource,
+) -> ChatCompletionContentPartImageParam:
     image = await ImageResource.from_resource(resource, detail=None)
     return image.to_content_part()
 
