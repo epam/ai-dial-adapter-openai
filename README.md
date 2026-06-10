@@ -1229,49 +1229,19 @@ The response will contain three embedding vectors, each corresponding to one of 
 
 #### vLLM Embeddings API
 
-The adapter supports vLLM pooling models served with `--runner pooling`. Add `${ADAPTER_DEPLOYMENT_ID}` to `VLLM_EMBEDDINGS_DEPLOYMENTS`.
-
-Multimodal inputs use the same `custom_input` field as [Azure multimodal embeddings](#azure-multimodal-embeddings): text goes to `input`, images go to `custom_input` as `{type, url}` or `{type, data}` objects.
-
-The adapter selects the upstream API from the upstream endpoint URL:
-
-- `.../v1/embeddings` — sequence embedding models (`google/embeddinggemma-300m`, `Qwen/Qwen3-Embedding-*`, `Qwen/Qwen3-VL-Embedding-*`)
-- `.../pooling` — late-interaction ColEmbed models (`nvidia/nemotron-colembed-vl-*`, `nvidia/llama-nemotron-colembed-vl-*`)
-
-<details><summary>DIAL Core Config: google/embeddinggemma-300m</summary>
+<details><summary>DIAL Core Config</summary>
 
 ```json
 {
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
-      "overrideName": "google/embeddinggemma-300m",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
-      "upstreams": [
-        {
-          "endpoint": "${VLLM_ORIGIN}/v1/embeddings"
-        }
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-<details><summary>DIAL Core Config: Qwen3-VL-Embedding (multimodal)</summary>
-
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "embedding",
-      "overrideName": "Qwen3-VL-Embedding-2B",
+      "overrideName": "${UPSTREAM_MODEL_NAME}",
       "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
       "inputAttachmentTypes": ["image/png", "image/jpeg", "image/webp"],
       "upstreams": [
         {
-          "endpoint": "${VLLM_ORIGIN}/v1/embeddings"
+          "endpoint": "${UPSTREAM_EMBEDDINGS_ENDPOINT}"
         }
       ]
     }
@@ -1281,44 +1251,12 @@ The adapter selects the upstream API from the upstream endpoint URL:
 
 </details>
 
-<details><summary>DIAL Core Config: Nemotron ColEmbed (late interaction)</summary>
+> [!IMPORTANT]
+> `${ADAPTER_DEPLOYMENT_ID}` must be added to the env variable `VLLM_EMBEDDINGS_DEPLOYMENTS` to enable the embeddings deployment.
 
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "embedding",
-      "overrideName": "nvidia/nemotron-colembed-vl-4b-v2",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
-      "inputAttachmentTypes": ["image/png", "image/jpeg"],
-      "upstreams": [
-        {
-          "endpoint": "${VLLM_ORIGIN}/pooling"
-        }
-      ]
-    }
-  }
-}
-```
+The adapter proxies [DIAL Embeddings API](#embedding-deployments) requests to the upstream. Configure the upstream endpoint in DIAL Core as `.../v1/embeddings` or `.../pooling` depending on which API the model exposes.
 
-</details>
-
-> [!NOTE]
-> Nemotron ColEmbed models expose the vLLM `/pooling` API with `task: token_embed`. The adapter mean-pools token vectors into a single `float[]` so the response stays compatible with the DIAL Embeddings API. For full late-interaction retrieval, call the vLLM score API directly.
-
-Example vLLM serve commands:
-
-```bash
-# Text-only sequence embedding
-vllm serve google/embeddinggemma-300m --runner pooling --dtype bfloat16
-vllm serve Qwen/Qwen3-Embedding-8B --runner pooling
-
-# Multimodal sequence embedding
-vllm serve Qwen/Qwen3-VL-Embedding-2B --runner pooling --max-model-len 8192
-
-# Late-interaction ColEmbed
-vllm serve nvidia/nemotron-colembed-vl-4b-v2 --runner pooling --pooler-config.task token_embed
-```
+Multimodal inputs use the same `custom_input` field as [Azure multimodal embeddings](#azure-multimodal-embeddings): text goes to `input`, images go to `custom_input` as `{type, url}` or `{type, data}` objects.
 
 ---
 
