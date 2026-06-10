@@ -1,7 +1,7 @@
 import pytest
 
 from aidial_adapter_openai.audio_api.transcribe.prompt import (
-    _normalize_audio_type,
+    normalize_audio_type,
 )
 
 
@@ -16,4 +16,4 @@ from aidial_adapter_openai.audio_api.transcribe.prompt import (
 def test_normalize_audio_type(
     audio_type: str, expected_audio_type: str
 ) -> None:
-    assert _normalize_audio_type(audio_type) == expected_audio_type
+    assert normalize_audio_type(audio_type) == expected_audio_type

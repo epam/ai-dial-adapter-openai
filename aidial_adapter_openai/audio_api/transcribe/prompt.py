@@ -11,14 +11,7 @@ from aidial_adapter_openai.chat_completions.transformation import (
 )
 from aidial_adapter_openai.dial_api.request import collect_message_text_content
 from aidial_adapter_openai.dial_api.storage import FileStorage
-
-
-def _normalize_audio_type(audio_type: str) -> str:
-    match audio_type.lower().strip():
-        case "audio/x-m4a" | "audio/m4a":
-            return "audio/mp4"
-        case _:
-            return audio_type
+from aidial_adapter_openai.utils.audio import normalize_audio_type
 
 
 def _collect_system_messages(messages: list[dict]) -> str | None:
@@ -68,7 +61,10 @@ class TranscribePrompt(BaseModel):
             raise RequestValidationError(message=msg, display_message=msg)
 
         audio = audios[0]
-        audio_data, audio_type = (audio.audio.data, _normalize_audio_type(audio.audio.type))
+        audio_data, audio_type = (
+            audio.audio.data,
+            normalize_audio_type(audio.audio.type),
+        )
         fileext = mimetypes.guess_extension(audio_type) or ".mp3"
         audio_filename = f"file{fileext}"
 
