@@ -13,6 +13,14 @@ from aidial_adapter_openai.dial_api.request import collect_message_text_content
 from aidial_adapter_openai.dial_api.storage import FileStorage
 
 
+def _normalize_audio_type(audio_type: str) -> str:
+    match audio_type.lower().strip():
+        case "audio/x-m4a" | "audio/m4a":
+            return "audio/mp4"
+        case _:
+            return audio_type
+
+
 def _collect_system_messages(messages: list[dict]) -> str | None:
     ret = ""
     for message in messages:
@@ -61,6 +69,7 @@ class TranscribePrompt(BaseModel):
 
         audio = audios[0]
         audio_data, audio_type = (audio.audio.data, audio.audio.type)
+        audio_type = _normalize_audio_type(audio_type)
         fileext = mimetypes.guess_extension(audio_type) or ".mp3"
         audio_filename = f"file{fileext}"
 
