@@ -68,8 +68,7 @@ class TranscribePrompt(BaseModel):
             raise RequestValidationError(message=msg, display_message=msg)
 
         audio = audios[0]
-        audio_data, audio_type = (audio.audio.data, audio.audio.type)
-        audio_type = _normalize_audio_type(audio_type)
+        audio_data, audio_type = (audio.audio.data, _normalize_audio_type(audio.audio.type))
         fileext = mimetypes.guess_extension(audio_type) or ".mp3"
         audio_filename = f"file{fileext}"
 
