@@ -38,60 +38,58 @@ class VllmOpenAIEmbeddingsResponse(ExtraAllowedModel):
     data: list[VllmOpenAIEmbeddingItem] = []
     usage: VllmOpenAIEmbeddingsUsage | None = None
 
-
-def to_embedding_response(
-    *, model: str, raw: dict, index_offset: int = 0
-) -> EmbeddingResponse:
-    parsed = VllmOpenAIEmbeddingsResponse.model_validate(raw)
-    usage = parsed.usage or VllmOpenAIEmbeddingsUsage()
-    vectors = [
-        Embedding(
-            embedding=item.embedding,
-            index=item.index
-            if item.index is not None
-            else index_offset + idx,
+    def to_embeddings_response(
+        self, model: str, *, index_offset: int = 0
+    ) -> EmbeddingResponse:
+        usage = self.usage or VllmOpenAIEmbeddingsUsage()
+        vectors = [
+            Embedding(
+                embedding=item.embedding,
+                index=item.index
+                if item.index is not None
+                else index_offset + idx,
+            )
+            for idx, item in enumerate(self.data)
+        ]
+        prompt_tokens = usage.prompt_tokens or len(vectors)
+        total_tokens = usage.total_tokens or len(vectors)
+        return EmbeddingResponse(
+            model=model,
+            data=vectors,
+            usage=Usage(
+                prompt_tokens=prompt_tokens,
+                total_tokens=total_tokens,
+            ),
         )
-        for idx, item in enumerate(parsed.data)
-    ]
-    prompt_tokens = usage.prompt_tokens or len(vectors)
-    total_tokens = usage.total_tokens or len(vectors)
-    return EmbeddingResponse(
-        model=model,
-        data=vectors,
-        usage=Usage(
-            prompt_tokens=prompt_tokens,
-            total_tokens=total_tokens,
-        ),
-    )
 
+    @classmethod
+    def merge_fanout(
+        cls, model: str, responses: list[dict]
+    ) -> EmbeddingResponse:
+        vectors: list[Embedding] = []
+        prompt_tokens = 0
+        total_tokens = 0
+        for idx, raw in enumerate(responses):
+            parsed = cls.model_validate(raw)
+            item = parsed.data[0] if parsed.data else VllmOpenAIEmbeddingItem()
+            vectors.append(Embedding(embedding=item.embedding, index=idx))
+            if parsed.usage:
+                prompt_tokens += parsed.usage.prompt_tokens
+                total_tokens += parsed.usage.total_tokens
 
-def merge_fanout_embedding_responses(
-    *, model: str, responses: list[dict]
-) -> EmbeddingResponse:
-    vectors: list[Embedding] = []
-    prompt_tokens = 0
-    total_tokens = 0
-    for idx, raw in enumerate(responses):
-        parsed = VllmOpenAIEmbeddingsResponse.model_validate(raw)
-        item = parsed.data[0] if parsed.data else VllmOpenAIEmbeddingItem()
-        vectors.append(Embedding(embedding=item.embedding, index=idx))
-        if parsed.usage:
-            prompt_tokens += parsed.usage.prompt_tokens
-            total_tokens += parsed.usage.total_tokens
+        if not total_tokens:
+            total_tokens = len(vectors)
+        if not prompt_tokens:
+            prompt_tokens = total_tokens
 
-    if not total_tokens:
-        total_tokens = len(vectors)
-    if not prompt_tokens:
-        prompt_tokens = total_tokens
-
-    return EmbeddingResponse(
-        model=model,
-        data=vectors,
-        usage=Usage(
-            prompt_tokens=prompt_tokens,
-            total_tokens=total_tokens,
-        ),
-    )
+        return EmbeddingResponse(
+            model=model,
+            data=vectors,
+            usage=Usage(
+                prompt_tokens=prompt_tokens,
+                total_tokens=total_tokens,
+            ),
+        )
 
 
 class OpenAIEmbeddingsAdapter:
@@ -146,10 +144,9 @@ class OpenAIEmbeddingsAdapter:
     ) -> EmbeddingResponse:
         texts = [item for item in inputs if isinstance(item, str)]
         if texts and len(texts) == len(inputs) and len(texts) > 1:
-            return to_embedding_response(
-                model=self._model,
-                raw=await self._post(self.build_batch_body(texts)),
-            )
+            return VllmOpenAIEmbeddingsResponse.model_validate(
+                await self._post(self.build_batch_body(texts))
+            ).to_embeddings_response(self._model)
 
         async def _embed(input_item: str | Resource) -> dict:
             if not isinstance(input_item, str):
@@ -159,7 +156,6 @@ class OpenAIEmbeddingsAdapter:
             return await self._post(self.build_body(input_item))
 
         responses = await asyncio.gather(*[_embed(item) for item in inputs])
-        return merge_fanout_embedding_responses(
-            model=self._model,
-            responses=list(responses),
+        return VllmOpenAIEmbeddingsResponse.merge_fanout(
+            self._model, list(responses)
         )

@@ -133,19 +133,10 @@ async def test_pooling_adapter_image_body():
 
 
 def test_pooling_adapter_response_mean_pool():
-    adapter = PoolingEmbeddingsAdapter(
-        model="nemotron-colembed-vl-4b-v2",
-        endpoint=_UPSTREAM_POOLING,
-        creds={},
-        headers=None,
-    )
-    response = adapter._to_embedding(
-        VllmPoolingResponse(
-            data=[VllmPoolingDataItem(data=[[1.0, 0.0], [3.0, 2.0]])]
-        ).model_dump(),
-        index=0,
-    )
-    assert response.embedding == [2.0, 1.0]
+    embedding = VllmPoolingResponse(
+        data=[VllmPoolingDataItem(data=[[1.0, 0.0], [3.0, 2.0]])]
+    ).to_embedding(index=0)
+    assert embedding.embedding == [2.0, 1.0]
 
 
 @respx.mock

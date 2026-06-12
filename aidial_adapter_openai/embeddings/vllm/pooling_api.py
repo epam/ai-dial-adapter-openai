@@ -25,23 +25,43 @@ class VllmPoolingRequest(ExtraAllowedModel):
 class VllmPoolingDataItem(ExtraAllowedModel):
     data: list[list[float]] = []
 
+    def mean_pooled_embedding(self) -> list[float]:
+        if not self.data:
+            return []
+
+        dim = len(self.data[0])
+        sums = [0.0] * dim
+        for vector in self.data:
+            for idx, value in enumerate(vector):
+                sums[idx] += value
+
+        count = len(self.data)
+        return [value / count for value in sums]
+
 
 class VllmPoolingResponse(ExtraAllowedModel):
     data: list[VllmPoolingDataItem] = []
 
+    def to_embedding(self, *, index: int) -> Embedding:
+        item = self.data[0] if self.data else VllmPoolingDataItem()
+        return Embedding(embedding=item.mean_pooled_embedding(), index=index)
 
-def _mean_pool(token_vectors: list[list[float]]) -> list[float]:
-    if not token_vectors:
-        return []
-
-    dim = len(token_vectors[0])
-    sums = [0.0] * dim
-    for vector in token_vectors:
-        for idx, value in enumerate(vector):
-            sums[idx] += value
-
-    count = len(token_vectors)
-    return [value / count for value in sums]
+    @classmethod
+    def merge_fanout(
+        cls, model: str, responses: list[dict]
+    ) -> EmbeddingResponse:
+        vectors = [
+            cls.model_validate(raw).to_embedding(index=idx)
+            for idx, raw in enumerate(responses)
+        ]
+        return EmbeddingResponse(
+            model=model,
+            data=vectors,
+            usage=Usage(
+                prompt_tokens=len(vectors),
+                total_tokens=len(vectors),
+            ),
+        )
 
 
 class PoolingEmbeddingsAdapter:
@@ -75,14 +95,6 @@ class PoolingEmbeddingsAdapter:
             ],
         )
 
-    def _to_embedding(self, raw: dict, *, index: int) -> Embedding:
-        parsed = VllmPoolingResponse.model_validate(raw)
-        item = parsed.data[0] if parsed.data else VllmPoolingDataItem()
-        return Embedding(
-            embedding=_mean_pool(item.data),
-            index=index,
-        )
-
     async def embeddings(
         self, inputs: list[str | Resource]
     ) -> EmbeddingResponse:
@@ -96,15 +108,4 @@ class PoolingEmbeddingsAdapter:
             )
 
         responses = await asyncio.gather(*[_embed(item) for item in inputs])
-        vectors = [
-            self._to_embedding(raw, index=idx)
-            for idx, raw in enumerate(responses)
-        ]
-        return EmbeddingResponse(
-            model=self._model,
-            data=vectors,
-            usage=Usage(
-                prompt_tokens=len(vectors),
-                total_tokens=len(vectors),
-            ),
-        )
+        return VllmPoolingResponse.merge_fanout(self._model, list(responses))

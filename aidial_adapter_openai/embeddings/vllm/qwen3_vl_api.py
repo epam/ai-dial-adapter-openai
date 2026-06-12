@@ -12,7 +12,7 @@ from aidial_sdk.embeddings.response import EmbeddingResponse
 from aidial_adapter_openai.embeddings.vllm.client import post_upstream
 from aidial_adapter_openai.embeddings.vllm.media import image_content_part
 from aidial_adapter_openai.embeddings.vllm.openai_api import (
-    merge_fanout_embedding_responses,
+    VllmOpenAIEmbeddingsResponse,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
@@ -96,7 +96,6 @@ class Qwen3VLEmbeddingsAdapter:
             )
 
         responses = await asyncio.gather(*[_embed(item) for item in inputs])
-        return merge_fanout_embedding_responses(
-            model=self._model,
-            responses=list(responses),
+        return VllmOpenAIEmbeddingsResponse.merge_fanout(
+            self._model, list(responses)
         )
