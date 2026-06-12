@@ -34,7 +34,7 @@ async def embedding(deployment_id: str, request: Request):
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
 
-    if deployment_id in app_config.VLLM_EMBEDDINGS_DEPLOYMENTS:
+    if deployment_id in app_config.VLLM_DEPLOYMENTS:
         file_storage = create_file_storage(request.headers)
         return await vllm_embeddings(
             request=request_body,

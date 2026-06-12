@@ -34,11 +34,12 @@ import asyncio
 from typing import assert_never
 
 import httpx
+from aidial_sdk.embeddings.request import EmbeddingsRequest
 from aidial_sdk.embeddings.response import Embedding, EmbeddingResponse, Usage
 from aidial_sdk.exceptions import HTTPException as DialException
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.embeddings.inputs import resolve_embedding_inputs
+from aidial_adapter_openai.embeddings.inputs import download_embedding_inputs
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
@@ -74,7 +75,8 @@ async def embeddings(
     endpoint: str,
     file_storage: FileStorage | None,
 ) -> EmbeddingResponse:
-    inputs = await resolve_embedding_inputs(request, file_storage)
+    body = EmbeddingsRequest.model_validate(request)
+    inputs = await download_embedding_inputs(body, file_storage)
 
     headers = _get_auth_headers(creds)
 

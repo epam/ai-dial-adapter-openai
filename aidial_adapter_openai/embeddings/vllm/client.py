@@ -41,7 +41,7 @@ async def post_upstream(
     endpoint: str,
     body: dict,
     creds: OpenAICreds,
-    headers: dict[str, str] | None = None,
+    headers: dict[str, str] | None,
 ) -> dict:
     response = await get_http_client().post(
         url=endpoint,

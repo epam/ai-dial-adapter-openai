@@ -9,12 +9,10 @@ from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.resource.base import Resource
 
 
-async def resolve_embedding_inputs(
-    request: dict,
+async def download_embedding_inputs(
+    request: EmbeddingsRequest,
     file_storage: FileStorage | None,
 ) -> list[str | Resource]:
-    body = EmbeddingsRequest.model_validate(request)
-
     async def on_text(text: str) -> str:
         return text
 
@@ -26,7 +24,7 @@ async def resolve_embedding_inputs(
     return [
         item
         async for item in collect_embedding_inputs(
-            body,
+            request,
             on_text=on_text,
             on_attachment=on_attachment,
         )

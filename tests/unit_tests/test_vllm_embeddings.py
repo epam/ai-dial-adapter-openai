@@ -4,18 +4,24 @@ import json
 import httpx
 import pytest
 import respx
+from aidial_sdk.embeddings.request import EmbeddingsRequest
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
-from aidial_adapter_openai.embeddings.vllm.builders import (
-    BuilderKind,
-    build_upstream_body,
-    select_builder,
+from aidial_adapter_openai.embeddings.vllm.api_type import (
+    EmbeddingAPIType,
+    select_api_type,
 )
-from aidial_adapter_openai.embeddings.vllm.mode import (
-    VllmEmbeddingMode,
-    detect_mode,
+from aidial_adapter_openai.embeddings.vllm.openai_api import (
+    OpenAIEmbeddingsAdapter,
 )
-from aidial_adapter_openai.embeddings.vllm.response import to_embedding_response
+from aidial_adapter_openai.embeddings.vllm.pooling_api import (
+    PoolingEmbeddingsAdapter,
+    VllmPoolingDataItem,
+    VllmPoolingResponse,
+)
+from aidial_adapter_openai.embeddings.vllm.qwen3_vl_api import (
+    Qwen3VLEmbeddingsAdapter,
+)
 from tests.conftest import create_test_client
 from tests.integration_tests.constants import IMAGE_RESOURCE
 
@@ -27,7 +33,7 @@ _API_VERSION = "2023-03-15-preview"
 @pytest.fixture
 def vllm_app_config() -> ApplicationConfig:
     return ApplicationConfig(
-        VLLM_EMBEDDINGS_DEPLOYMENTS=[
+        VLLM_DEPLOYMENTS=[
             "embeddinggemma",
             "qwen3-vl-embed",
             "nemotron-colembed-4b",
@@ -35,98 +41,111 @@ def vllm_app_config() -> ApplicationConfig:
     )
 
 
-def test_detect_mode_sequence():
-    assert detect_mode(_UPSTREAM_EMBEDDINGS) == VllmEmbeddingMode.SEQUENCE
-
-
-def test_detect_mode_token_embed():
-    assert detect_mode(_UPSTREAM_POOLING) == VllmEmbeddingMode.POOLING
-
-
-def test_select_builder_embeddinggemma():
+def test_select_api_type_openai_embeddings():
     assert (
-        select_builder("google/embeddinggemma-300m", VllmEmbeddingMode.SEQUENCE)
-        == BuilderKind.TEXT_INPUT
+        select_api_type("google/embeddinggemma-300m", _UPSTREAM_EMBEDDINGS)
+        == EmbeddingAPIType.OPENAI_EMBEDDINGS
     )
 
 
-def test_select_builder_qwen3_vl():
+def test_select_api_type_pooling():
     assert (
-        select_builder("Qwen3-VL-Embedding-2B", VllmEmbeddingMode.SEQUENCE)
-        == BuilderKind.QWEN3_VL
+        select_api_type("any-model", _UPSTREAM_POOLING)
+        == EmbeddingAPIType.POOLING
     )
 
 
-def test_select_builder_qwen3_embedding_text():
+def test_select_api_type_qwen3_vl():
     assert (
-        select_builder("Qwen/Qwen3-Embedding-8B", VllmEmbeddingMode.SEQUENCE)
-        == BuilderKind.TEXT_INPUT
+        select_api_type("Qwen3-VL-Embedding-2B", _UPSTREAM_EMBEDDINGS)
+        == EmbeddingAPIType.QWEN3_VL_EMBEDDINGS
     )
 
 
-def test_select_builder_colembed_from_mode():
+def test_select_api_type_qwen3_embedding_text():
     assert (
-        select_builder("any-model", VllmEmbeddingMode.POOLING)
-        == BuilderKind.COLEMBED
+        select_api_type("Qwen/Qwen3-Embedding-8B", _UPSTREAM_EMBEDDINGS)
+        == EmbeddingAPIType.OPENAI_EMBEDDINGS
     )
 
 
-async def test_build_qwen3_embedding_text_body():
-    body = await build_upstream_body(
-        request={"encoding_format": "float", "dimensions": 1024},
+async def test_openai_adapter_text_body():
+    request = EmbeddingsRequest.model_validate(
+        {
+            "model": "Qwen/Qwen3-Embedding-8B",
+            "input": "hello",
+            "encoding_format": "float",
+            "dimensions": 1024,
+        }
+    )
+    adapter = OpenAIEmbeddingsAdapter(
+        request=request,
         model="Qwen/Qwen3-Embedding-8B",
-        input_item="hello",
-        builder=BuilderKind.TEXT_INPUT,
+        endpoint=_UPSTREAM_EMBEDDINGS,
+        creds={},
+        headers=None,
     )
-    assert body["input"] == "hello"
-    assert body["dimensions"] == 1024
-    assert "messages" not in body
+    body = adapter.build_body("hello")
+    dumped = body.model_dump(exclude_none=True)
+    assert dumped["input"] == "hello"
+    assert dumped["dimensions"] == 1024
+    assert "messages" not in dumped
 
 
-async def test_build_qwen3_vl_text_body():
-    body = await build_upstream_body(
-        request={"encoding_format": "float"},
+async def test_qwen3_vl_adapter_text_body():
+    request = EmbeddingsRequest.model_validate(
+        {
+            "model": "Qwen3-VL-Embedding-2B",
+            "input": "hello",
+            "encoding_format": "float",
+        }
+    )
+    adapter = Qwen3VLEmbeddingsAdapter(
+        request=request,
         model="Qwen3-VL-Embedding-2B",
-        input_item="hello",
-        builder=BuilderKind.QWEN3_VL,
+        endpoint=_UPSTREAM_EMBEDDINGS,
+        creds={},
+        headers=None,
     )
-    assert body["continue_final_message"] is True
-    assert body["add_special_tokens"] is True
-    assert body["messages"][1]["content"] == [{"type": "text", "text": "hello"}]
+    body = await adapter.build_body("hello")
+    dumped = body.model_dump(exclude_none=True)
+    assert dumped["continue_final_message"] is True
+    assert dumped["add_special_tokens"] is True
+    assert dumped["messages"][1]["content"] == [
+        {"type": "text", "text": "hello"}
+    ]
 
 
-async def test_build_colembed_image_body():
-    body = await build_upstream_body(
-        request={},
+async def test_pooling_adapter_image_body():
+    adapter = PoolingEmbeddingsAdapter(
         model="nvidia/nemotron-colembed-vl-4b-v2",
-        input_item=IMAGE_RESOURCE,
-        builder=BuilderKind.COLEMBED,
+        endpoint=_UPSTREAM_POOLING,
+        creds={},
+        headers=None,
     )
-    assert body["task"] == "token_embed"
-    assert body["messages"][0]["content"][0]["type"] == "image_url"
-    assert body["messages"][0]["content"][0]["image_url"]["url"].startswith(
+    body = await adapter.build_body(IMAGE_RESOURCE)
+    dumped = body.model_dump(exclude_none=True)
+    assert dumped["task"] == "token_embed"
+    assert dumped["messages"][0]["content"][0]["type"] == "image_url"
+    assert dumped["messages"][0]["content"][0]["image_url"]["url"].startswith(
         "data:image/png;base64,"
     )
 
 
-def test_token_embed_response_mean_pool():
-    response = to_embedding_response(
+def test_pooling_adapter_response_mean_pool():
+    adapter = PoolingEmbeddingsAdapter(
         model="nemotron-colembed-vl-4b-v2",
-        responses=[
-            {
-                "data": [
-                    {
-                        "data": [
-                            [1.0, 0.0],
-                            [3.0, 2.0],
-                        ]
-                    }
-                ]
-            }
-        ],
-        mode=VllmEmbeddingMode.POOLING,
+        endpoint=_UPSTREAM_POOLING,
+        creds={},
+        headers=None,
     )
-    assert response.data[0].embedding == [2.0, 1.0]
+    response = adapter._to_embedding(
+        VllmPoolingResponse(
+            data=[VllmPoolingDataItem(data=[[1.0, 0.0], [3.0, 2.0]])]
+        ).model_dump(),
+        index=0,
+    )
+    assert response.embedding == [2.0, 1.0]
 
 
 @respx.mock
@@ -225,7 +244,7 @@ async def test_vllm_qwen3_vl_custom_input_image(
 
 
 @respx.mock
-async def test_vllm_colembed_pooling_text(vllm_app_config: ApplicationConfig):
+async def test_vllm_pooling_text(vllm_app_config: ApplicationConfig):
     captured: dict = {}
 
     def handler(request: httpx.Request):
@@ -329,3 +348,4 @@ async def test_vllm_proxy_headers(vllm_app_config: ApplicationConfig):
         )
 
     assert response.status_code == 200
+    assert captured["x-user-id"] == "user-1"
