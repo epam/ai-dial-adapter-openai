@@ -1,4 +1,4 @@
-from typing import assert_never
+from typing import Literal, assert_never
 
 from aidial_sdk.embeddings.request import EmbeddingsRequest
 from aidial_sdk.embeddings.response import EmbeddingResponse
@@ -18,9 +18,14 @@ from aidial_adapter_openai.embeddings.vllm.qwen3_vl_api import (
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds
 
+_VllmSpecificEmbeddingAPIType = Literal[
+    EmbeddingAPIType.QWEN3_VL_EMBEDDINGS,
+    EmbeddingAPIType.POOLING,
+]
+
 
 def _create_adapter(
-    api_type: EmbeddingAPIType,
+    api_type: _VllmSpecificEmbeddingAPIType,
     *,
     request: EmbeddingsRequest,
     model: str,
@@ -44,7 +49,7 @@ def _create_adapter(
                 creds=creds,
                 headers=headers,
             )
-        case EmbeddingAPIType.OPENAI_EMBEDDINGS:
+        case _:
             assert_never(api_type)
 
 
@@ -60,6 +65,10 @@ async def embeddings(
     model = body.model or request["model"]
     inputs = await download_embedding_inputs(body, file_storage)
     api_type = select_api_type(model, endpoint)
+    if api_type == EmbeddingAPIType.OPENAI_EMBEDDINGS:
+        raise RuntimeError(
+            "OpenAI-compatible vLLM embeddings are handled by embeddings.openai"
+        )
     adapter = _create_adapter(
         api_type,
         request=body,
