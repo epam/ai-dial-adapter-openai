@@ -1,3 +1,5 @@
+from typing import assert_never
+
 from aidial_sdk.embeddings.request import EmbeddingsRequest
 from aidial_sdk.embeddings.response import EmbeddingResponse
 
@@ -6,9 +8,6 @@ from aidial_adapter_openai.embeddings.inputs import download_embedding_inputs
 from aidial_adapter_openai.embeddings.vllm.api_type import (
     EmbeddingAPIType,
     select_api_type,
-)
-from aidial_adapter_openai.embeddings.vllm.openai_api import (
-    OpenAIEmbeddingsAdapter,
 )
 from aidial_adapter_openai.embeddings.vllm.pooling_api import (
     PoolingEmbeddingsAdapter,
@@ -30,14 +29,6 @@ def _create_adapter(
     headers: dict[str, str] | None,
 ) -> VllmEmbeddingsAdapter:
     match api_type:
-        case EmbeddingAPIType.OPENAI_EMBEDDINGS:
-            return OpenAIEmbeddingsAdapter(
-                request=request,
-                model=model,
-                endpoint=endpoint,
-                creds=creds,
-                headers=headers,
-            )
         case EmbeddingAPIType.QWEN3_VL_EMBEDDINGS:
             return Qwen3VLEmbeddingsAdapter(
                 request=request,
@@ -53,6 +44,8 @@ def _create_adapter(
                 creds=creds,
                 headers=headers,
             )
+        case EmbeddingAPIType.OPENAI_EMBEDDINGS:
+            assert_never(api_type)
 
 
 async def embeddings(

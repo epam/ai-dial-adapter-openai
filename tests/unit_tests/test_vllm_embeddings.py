@@ -9,11 +9,8 @@ from aidial_sdk.embeddings.request import EmbeddingsRequest
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.embeddings.vllm.api_type import (
     EmbeddingAPIType,
+    needs_vllm_embeddings_adapter,
     select_api_type,
-)
-from aidial_adapter_openai.embeddings.vllm.openai_api import (
-    OpenAIEmbeddingsAdapter,
-    merge_fanout,
 )
 from aidial_adapter_openai.embeddings.vllm.pooling_api import (
     PoolingEmbeddingsAdapter,
@@ -22,6 +19,7 @@ from aidial_adapter_openai.embeddings.vllm.pooling_api import (
 )
 from aidial_adapter_openai.embeddings.vllm.qwen3_vl_api import (
     Qwen3VLEmbeddingsAdapter,
+    merge_fanout,
 )
 from tests.conftest import create_test_client
 from tests.integration_tests.constants import IMAGE_RESOURCE
@@ -70,27 +68,14 @@ def test_select_api_type_qwen3_embedding_text():
     )
 
 
-async def test_openai_adapter_text_body():
-    request = EmbeddingsRequest.model_validate(
-        {
-            "model": "Qwen/Qwen3-Embedding-8B",
-            "input": "hello",
-            "encoding_format": "float",
-            "dimensions": 1024,
-        }
+def test_needs_vllm_embeddings_adapter():
+    assert not needs_vllm_embeddings_adapter(
+        "google/embeddinggemma-300m", _UPSTREAM_EMBEDDINGS
     )
-    adapter = OpenAIEmbeddingsAdapter(
-        request=request,
-        model="Qwen/Qwen3-Embedding-8B",
-        endpoint=_UPSTREAM_EMBEDDINGS,
-        creds={},
-        headers=None,
+    assert needs_vllm_embeddings_adapter(
+        "Qwen3-VL-Embedding-2B", _UPSTREAM_EMBEDDINGS
     )
-    body = adapter._build_request(["hello"])
-    dumped = body.model_dump(exclude_none=True)
-    assert dumped["input"] == ["hello"]
-    assert dumped["dimensions"] == 1024
-    assert "messages" not in dumped
+    assert needs_vllm_embeddings_adapter("any-model", _UPSTREAM_POOLING)
 
 
 async def test_qwen3_vl_adapter_text_body():
@@ -338,7 +323,7 @@ async def test_vllm_embeddinggemma_single_text(
 ):
     def handler(request: httpx.Request):
         payload = json.loads(request.content)
-        assert payload["input"] == ["hello"]
+        assert payload["input"] == "hello"
         return httpx.Response(
             status_code=200,
             json={
