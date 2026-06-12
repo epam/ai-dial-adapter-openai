@@ -308,10 +308,8 @@ async def test_vllm_embeddinggemma_single_text(
 
 @respx.mock
 async def test_vllm_proxy_headers(vllm_app_config: ApplicationConfig):
-    captured: dict = {}
-
     def handler(request: httpx.Request):
-        captured["x-user-id"] = request.headers.get("x-user-id")
+        assert request.headers.get("x-user-id") == "user-1"
         return httpx.Response(
             status_code=200,
             json={
@@ -339,4 +337,3 @@ async def test_vllm_proxy_headers(vllm_app_config: ApplicationConfig):
         )
 
     assert response.status_code == 200
-    assert captured["x-user-id"] == "user-1"
