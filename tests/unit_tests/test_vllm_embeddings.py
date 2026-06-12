@@ -13,6 +13,7 @@ from aidial_adapter_openai.embeddings.vllm.api_type import (
 )
 from aidial_adapter_openai.embeddings.vllm.openai_api import (
     OpenAIEmbeddingsAdapter,
+    merge_fanout,
 )
 from aidial_adapter_openai.embeddings.vllm.pooling_api import (
     PoolingEmbeddingsAdapter,
@@ -85,9 +86,9 @@ async def test_openai_adapter_text_body():
         creds={},
         headers=None,
     )
-    body = adapter.build_body("hello")
+    body = adapter._build_request(["hello"])
     dumped = body.model_dump(exclude_none=True)
-    assert dumped["input"] == "hello"
+    assert dumped["input"] == ["hello"]
     assert dumped["dimensions"] == 1024
     assert "messages" not in dumped
 
@@ -114,6 +115,31 @@ async def test_qwen3_vl_adapter_text_body():
     assert dumped["messages"][1]["content"] == [
         {"type": "text", "text": "hello"}
     ]
+    assert dumped["messages"][0]["content"] == [
+        {"type": "text", "text": "Represent the user's input."}
+    ]
+
+
+async def test_qwen3_vl_adapter_custom_instruction():
+    request = EmbeddingsRequest.model_validate(
+        {
+            "model": "Qwen3-VL-Embedding-2B",
+            "input": "hello",
+            "custom_fields": {"instruction": "Find similar products."},
+        }
+    )
+    adapter = Qwen3VLEmbeddingsAdapter(
+        request=request,
+        model="Qwen3-VL-Embedding-2B",
+        endpoint=_UPSTREAM_EMBEDDINGS,
+        creds={},
+        headers=None,
+    )
+    body = await adapter.build_body("hello")
+    dumped = body.model_dump(exclude_none=True)
+    assert dumped["messages"][0]["content"] == [
+        {"type": "text", "text": "Find similar products."}
+    ]
 
 
 async def test_pooling_adapter_image_body():
@@ -130,6 +156,37 @@ async def test_pooling_adapter_image_body():
     assert dumped["messages"][0]["content"][0]["image_url"]["url"].startswith(
         "data:image/png;base64,"
     )
+
+
+def test_merge_fanout():
+    result = merge_fanout(
+        "test-model",
+        [
+            {
+                "object": "list",
+                "data": [
+                    {"object": "embedding", "embedding": [0.1], "index": 0}
+                ],
+                "model": "test-model",
+                "usage": {"prompt_tokens": 1, "total_tokens": 1},
+            },
+            {
+                "object": "list",
+                "data": [
+                    {"object": "embedding", "embedding": [0.2], "index": 0}
+                ],
+                "model": "test-model",
+                "usage": {"prompt_tokens": 1, "total_tokens": 1},
+            },
+        ],
+    )
+    assert len(result.data) == 2
+    assert result.data[0].embedding == [0.1]
+    assert result.data[1].embedding == [0.2]
+    assert result.data[0].index == 0
+    assert result.data[1].index == 1
+    assert result.usage.prompt_tokens == 2
+    assert result.usage.total_tokens == 2
 
 
 def test_pooling_adapter_response_mean_pool():
@@ -279,8 +336,10 @@ async def test_vllm_pooling_text(vllm_app_config: ApplicationConfig):
 async def test_vllm_embeddinggemma_single_text(
     vllm_app_config: ApplicationConfig,
 ):
-    respx.post(_UPSTREAM_EMBEDDINGS).mock(
-        return_value=httpx.Response(
+    def handler(request: httpx.Request):
+        payload = json.loads(request.content)
+        assert payload["input"] == ["hello"]
+        return httpx.Response(
             status_code=200,
             json={
                 "object": "list",
@@ -291,7 +350,8 @@ async def test_vllm_embeddinggemma_single_text(
                 "usage": {"prompt_tokens": 1, "total_tokens": 1},
             },
         )
-    )
+
+    respx.post(_UPSTREAM_EMBEDDINGS).mock(side_effect=handler)
 
     async with create_test_client(vllm_app_config) as client:
         response = await client.post(
