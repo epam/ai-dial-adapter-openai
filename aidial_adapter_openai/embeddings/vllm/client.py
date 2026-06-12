@@ -9,9 +9,7 @@ def _auth_headers(
     creds: OpenAICreds, headers: dict[str, str] | None
 ) -> dict[str, str]:
     result = dict(headers or {})
-    if api_key := creds.get("api_key"):
-        result["Authorization"] = f"Bearer {api_key}"
-    elif token := creds.get("azure_ad_token"):
+    if token := creds.get("api_key") or creds.get("azure_ad_token"):
         result["Authorization"] = f"Bearer {token}"
     return result
 
