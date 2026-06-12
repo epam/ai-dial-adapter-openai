@@ -1227,6 +1227,37 @@ The response will contain three embedding vectors, each corresponding to one of 
 
 </details>
 
+#### vLLM Embeddings API
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "overrideName": "${UPSTREAM_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "inputAttachmentTypes": ["image/png", "image/jpeg", "image/webp"],
+      "upstreams": [
+        {
+          "endpoint": "${UPSTREAM_EMBEDDINGS_ENDPOINT}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!IMPORTANT]
+> `${ADAPTER_DEPLOYMENT_ID}` must be added to the env variable `VLLM_DEPLOYMENTS` to enable the embeddings deployment.
+
+The adapter proxies [DIAL Embeddings API](#embedding-deployments) requests to the upstream. Configure the upstream endpoint in DIAL Core as `.../v1/embeddings` or `.../pooling` depending on which API the model exposes.
+
+Multimodal inputs use the same `custom_input` field as [Azure multimodal embeddings](#azure-multimodal-embeddings): text goes to `input`, images go to `custom_input` as `{type, url}` or `{type, data}` objects.
+
 ---
 
 ## Environment Variables
@@ -1247,7 +1278,7 @@ The following variables cluster all deployments into the groups of deployments w
 |DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
-|VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream. Example: `vllm-llama3,vllm-qwen2`|
+|VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream, including [vLLM embedding deployments](#vllm-embeddings-api). Example: `vllm-llama3,embeddinggemma`|
 |QWEN3_ASR_VLLM_DEPLOYMENTS|``| Comma-separated list of [Qwen3-ASR deployments](#qwen3-asr) served via vLLM. Example: `qwen3-asr`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|

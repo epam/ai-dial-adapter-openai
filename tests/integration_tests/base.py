@@ -55,6 +55,7 @@ class Env(ExtraAllowedModel):
     GPT_IMAGE_1_DEPLOYMENTS: bool = False
     MISTRAL_DEPLOYMENTS: bool = False
     AZURE_AI_VISION_DEPLOYMENTS: bool = False
+    VLLM_DEPLOYMENTS: bool = False
 
     def save_to_application_config(
         self, deployment_id: str, conf: ApplicationConfig
@@ -65,6 +66,8 @@ class Env(ExtraAllowedModel):
             conf.MISTRAL_DEPLOYMENTS.append(deployment_id)
         if self.AZURE_AI_VISION_DEPLOYMENTS:
             conf.AZURE_AI_VISION_DEPLOYMENTS.append(deployment_id)
+        if self.VLLM_DEPLOYMENTS:
+            conf.VLLM_DEPLOYMENTS.append(deployment_id)
 
 
 class ModelConfig(ExtraAllowedModel):
