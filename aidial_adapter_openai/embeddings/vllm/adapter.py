@@ -5,10 +5,7 @@ from aidial_sdk.embeddings.response import EmbeddingResponse
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.embeddings.inputs import download_embedding_inputs
-from aidial_adapter_openai.embeddings.vllm.api_type import (
-    EmbeddingAPIType,
-    select_api_type,
-)
+from aidial_adapter_openai.embeddings.vllm.api_type import EmbeddingAPIType
 from aidial_adapter_openai.embeddings.vllm.pooling_api import (
     PoolingEmbeddingsAdapter,
 )
@@ -60,17 +57,13 @@ async def embeddings(
     endpoint: str,
     file_storage: FileStorage | None,
     headers: dict[str, str] | None,
+    vllm_api_type: _VllmSpecificEmbeddingAPIType,
+    model: str,
 ) -> EmbeddingResponse:
     body = EmbeddingsRequest.model_validate(request)
-    model = body.model or request["model"]
     inputs = await download_embedding_inputs(body, file_storage)
-    api_type = select_api_type(model, endpoint)
-    if api_type == EmbeddingAPIType.OPENAI_EMBEDDINGS:
-        raise RuntimeError(
-            "OpenAI-compatible vLLM embeddings are handled by embeddings.openai"
-        )
     adapter = _create_adapter(
-        api_type,
+        vllm_api_type,
         request=body,
         model=model,
         endpoint=endpoint,

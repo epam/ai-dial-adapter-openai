@@ -20,12 +20,3 @@ def select_api_type(
         return EmbeddingAPIType.QWEN3_VL_EMBEDDINGS
 
     return EmbeddingAPIType.OPENAI_EMBEDDINGS
-
-
-def needs_vllm_embeddings_adapter(
-    model_name: str, upstream_endpoint: str
-) -> bool:
-    return (
-        select_api_type(model_name, upstream_endpoint)
-        != EmbeddingAPIType.OPENAI_EMBEDDINGS
-    )
