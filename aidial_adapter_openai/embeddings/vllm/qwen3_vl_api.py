@@ -55,8 +55,8 @@ class VllmQwen3VLEmbeddingsRequest(BaseModel):
     continue_final_message: bool
     add_special_tokens: bool
     encoding_format: str
-    dimensions: int | None = None
-    user: str | None = None
+    dimensions: int | None
+    user: str | None
 
 
 def _instruction(request: EmbeddingsRequest) -> str:

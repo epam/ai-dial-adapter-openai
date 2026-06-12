@@ -19,8 +19,8 @@ from aidial_adapter_openai.utils.resource.base import Resource
 class VllmPoolingRequest(BaseModel):
     model: str
     task: str
-    input: str | None = None
-    messages: list[dict] | None = None
+    input: str | None
+    messages: list[dict] | None
 
 
 class VllmPoolingDataItem(BaseModel):
@@ -80,12 +80,14 @@ class PoolingEmbeddingsAdapter:
                 model=self.model,
                 task="token_embed",
                 input=input_item,
+                messages=None,
             )
 
         image_part = await image_content_part(input_item)
         return VllmPoolingRequest(
             model=self.model,
             task="token_embed",
+            input=None,
             messages=[
                 {
                     "role": "user",
