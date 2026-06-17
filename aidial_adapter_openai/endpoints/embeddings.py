@@ -13,12 +13,7 @@ from aidial_adapter_openai.embeddings.vllm.api_type import (
     select_api_type,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    BedrockOpenAIEndpoint,
-    embeddings_parser,
-    parse_body,
-)
+from aidial_adapter_openai.utils.parsers import parse_body
 from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
@@ -35,15 +30,13 @@ async def embedding(deployment_id: str, request: Request):
     # See note for /chat/completions endpoint
     model = request_body["model"] = request_body.get("model") or deployment_id
 
-    upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
-    openai_endpoint = embeddings_parser.try_parse(upstream_endpoint)
     creds = await get_credentials(
         request.headers,
-        azure=isinstance(openai_endpoint, AzureOpenAIEndpoint),
-        allow_empty=isinstance(openai_endpoint, BedrockOpenAIEndpoint),
+        azure=app_config.is_azure(deployment_id),
     )
     upstream_extra_headers = get_upstream_extra_headers(request.headers)
     api_version = get_api_version(request)
+    upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
     vllm_api_type = select_api_type(model, upstream_endpoint)
 
     if (
