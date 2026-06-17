@@ -112,12 +112,10 @@ async def call_chat_completion(
     logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
 
-    azure_auth = isinstance(endpoint, (AzureOpenAIEndpoint | AnthropicEndpoint))
-    allow_empty_auth = isinstance(endpoint, BedrockOpenAIEndpoint)
     creds = await get_credentials(
         request_headers,
-        azure=azure_auth,
-        allow_empty=allow_empty_auth,
+        azure=isinstance(endpoint, (AzureOpenAIEndpoint | AnthropicEndpoint)),
+        allow_empty=isinstance(endpoint, BedrockOpenAIEndpoint),
     )
 
     upstream_extra_headers = get_upstream_extra_headers(request_headers)
