@@ -123,9 +123,7 @@ def _parse_endpoint(
         r"https?://bedrock-mantle\.([a-z0-9-]+)\.api\.aws(?:/.*)?",
         endpoint,
     ):
-        return BedrockOpenAIEndpoint(
-            bedrock_region=match[1],
-        )
+        return BedrockOpenAIEndpoint(bedrock_region=match[1])
 
     # Last generation API
     if match := re.fullmatch("(.+?)/openai/deployments/(.+)", endpoint):
