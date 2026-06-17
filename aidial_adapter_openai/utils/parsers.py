@@ -1,12 +1,14 @@
 import re
+from collections.abc import Callable
 from http import HTTPStatus
 from json import JSONDecodeError
 from typing import Any
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
 from anthropic import AsyncAnthropicFoundry
+from aws_bedrock_token_generator import provide_token
 from fastapi import Request
-from openai import AsyncAzureOpenAI, AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 from typing_extensions import TypedDict
 
 from aidial_adapter_openai.utils.http_client import (
@@ -84,14 +86,46 @@ class AnthropicEndpoint(ExtraForbidModel):
         )
 
 
+class BedrockOpenAIEndpoint(ExtraForbidModel):
+    bedrock_region: str
+
+    def get_client(self, params: OpenAIParams) -> AsyncBedrockOpenAI:
+        api_key = params.get("api_key")
+        token_provider: Callable | None = None
+
+        if not api_key:
+
+            def _token_provider() -> str:
+                return provide_token(self.bedrock_region)
+
+            token_provider = _token_provider
+
+        return AsyncBedrockOpenAI(
+            bedrock_token_provider=token_provider,
+            aws_region=self.bedrock_region,
+            api_key=api_key,
+            max_retries=_MAX_RETRIES,
+            default_headers=params.get("headers"),
+            http_client=get_http_client(),
+        )
+
+
 def _parse_endpoint(
     name: str | None, endpoint: str
-) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
+) -> AzureOpenAIEndpoint | OpenAIEndpoint | BedrockOpenAIEndpoint | None:
     if name is not None:
         suffix = f"/{name}"
         if not endpoint.endswith(suffix):
             return None
         endpoint = endpoint.removesuffix(suffix)
+
+    if match := re.fullmatch(
+        r"https?://bedrock-mantle\.([a-z0-9-]+)\.api\.aws(?:/.*)?",
+        endpoint,
+    ):
+        return BedrockOpenAIEndpoint(
+            bedrock_region=match[1],
+        )
 
     # Last generation API
     if match := re.fullmatch("(.+?)/openai/deployments/(.+)", endpoint):
@@ -114,10 +148,12 @@ class EndpointParser(ExtraForbidModel):
 
     def try_parse(
         self, endpoint: str
-    ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
+    ) -> AzureOpenAIEndpoint | OpenAIEndpoint | BedrockOpenAIEndpoint | None:
         return _parse_endpoint(self.name, endpoint)
 
-    def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
+    def parse(
+        self, endpoint: str
+    ) -> AzureOpenAIEndpoint | OpenAIEndpoint | BedrockOpenAIEndpoint:
         if result := self.try_parse(endpoint):
             return result
         raise bad_upstream_endpoint()
@@ -126,7 +162,9 @@ class EndpointParser(ExtraForbidModel):
 class OptionalEndpointParser(ExtraForbidModel):
     name: str | None
 
-    def parse(self, endpoint: str) -> AzureOpenAIEndpoint | OpenAIEndpoint:
+    def parse(
+        self, endpoint: str
+    ) -> AzureOpenAIEndpoint | OpenAIEndpoint | BedrockOpenAIEndpoint:
         result = _parse_endpoint(self.name, endpoint)
         result = result or _parse_endpoint(None, endpoint)
         if result:
@@ -137,7 +175,7 @@ class OptionalEndpointParser(ExtraForbidModel):
 class CompletionsParser(ExtraForbidModel):
     def try_parse(
         self, endpoint: str
-    ) -> AzureOpenAIEndpoint | OpenAIEndpoint | None:
+    ) -> AzureOpenAIEndpoint | OpenAIEndpoint | BedrockOpenAIEndpoint | None:
         if "/chat/completions" in endpoint:
             return None
 

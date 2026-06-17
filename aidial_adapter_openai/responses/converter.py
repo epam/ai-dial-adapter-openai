@@ -62,15 +62,27 @@ from openai.types.responses import (
     ToolParam,
     WebSearchToolParam,
 )
+from openai.types.responses.response_computer_tool_call_output_item import (
+    ResponseComputerToolCallOutputItem,
+)
 from openai.types.responses.response_create_params import ToolChoice
+from openai.types.responses.response_custom_tool_call_output_item import (
+    ResponseCustomToolCallOutputItem,
+)
+from openai.types.responses.response_function_tool_call_output_item import (
+    ResponseFunctionToolCallOutputItem,
+)
 from openai.types.responses.response_input_item_param import (
     FunctionCallOutput,
     ResponseInputItemParam,
 )
 from openai.types.responses.response_output_item import (
+    AdditionalTools,
     ImageGenerationCall,
     LocalShellCall,
+    LocalShellCallOutput,
     McpApprovalRequest,
+    McpApprovalResponse,
     McpCall,
     McpListTools,
 )
@@ -84,6 +96,12 @@ from openai.types.responses.response_output_text import (
 )
 from openai.types.responses.response_output_text import (
     AnnotationURLCitation as ResponsesAnnotationURLCitation,
+)
+from openai.types.responses.response_tool_search_call import (
+    ResponseToolSearchCall,
+)
+from openai.types.responses.response_tool_search_output_item import (
+    ResponseToolSearchOutputItem,
 )
 
 from aidial_adapter_openai.responses.response import (
@@ -439,18 +457,26 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
             case (
                 ResponseFileSearchToolCall()
                 | ResponseComputerToolCall()
+                | ResponseFunctionToolCallOutputItem()
+                | ResponseComputerToolCallOutputItem()
+                | ResponseToolSearchCall()
+                | ResponseToolSearchOutputItem()
+                | AdditionalTools()
                 | ImageGenerationCall()
                 | ResponseCodeInterpreterToolCall()
                 | LocalShellCall()
+                | LocalShellCallOutput()
                 | McpCall()
                 | McpListTools()
                 | McpApprovalRequest()
+                | McpApprovalResponse()
                 | ResponseCompactionItem()
                 | ResponseFunctionShellToolCall()
                 | ResponseFunctionShellToolCallOutput()
                 | ResponseApplyPatchToolCall()
                 | ResponseApplyPatchToolCallOutput()
                 | ResponseCustomToolCall()
+                | ResponseCustomToolCallOutputItem()
             ):
                 raise RequestValidationError(
                     f"The response output contains an unsupported item type: {item.type}"

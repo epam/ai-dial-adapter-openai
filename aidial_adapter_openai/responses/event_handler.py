@@ -87,8 +87,14 @@ from openai.types.responses.response_compaction_item import (
 from openai.types.responses.response_computer_tool_call import (
     ResponseComputerToolCall,
 )
+from openai.types.responses.response_computer_tool_call_output_item import (
+    ResponseComputerToolCallOutputItem,
+)
 from openai.types.responses.response_custom_tool_call import (
     ResponseCustomToolCall,
+)
+from openai.types.responses.response_custom_tool_call_output_item import (
+    ResponseCustomToolCallOutputItem,
 )
 from openai.types.responses.response_file_search_tool_call import (
     ResponseFileSearchToolCall,
@@ -102,18 +108,30 @@ from openai.types.responses.response_function_shell_tool_call_output import (
 from openai.types.responses.response_function_tool_call import (
     ResponseFunctionToolCall,
 )
+from openai.types.responses.response_function_tool_call_output_item import (
+    ResponseFunctionToolCallOutputItem,
+)
 from openai.types.responses.response_function_web_search import (
     ResponseFunctionWebSearch,
 )
 from openai.types.responses.response_output_item import (
+    AdditionalTools,
     ImageGenerationCall,
     LocalShellCall,
+    LocalShellCallOutput,
     McpApprovalRequest,
+    McpApprovalResponse,
     McpCall,
     McpListTools,
 )
 from openai.types.responses.response_output_message import ResponseOutputMessage
 from openai.types.responses.response_reasoning_item import ResponseReasoningItem
+from openai.types.responses.response_tool_search_call import (
+    ResponseToolSearchCall,
+)
+from openai.types.responses.response_tool_search_output_item import (
+    ResponseToolSearchOutputItem,
+)
 
 from aidial_adapter_openai.responses.converter import (
     convert_annotation,
@@ -415,21 +433,29 @@ class EventHandler(pydantic.BaseModel):
                         ResponseOutputMessage()
                         | ResponseFileSearchToolCall()
                         | ResponseFunctionToolCall()
+                        | ResponseFunctionToolCallOutputItem()
                         | ResponseFunctionWebSearch()
                         | ResponseComputerToolCall()
+                        | ResponseComputerToolCallOutputItem()
+                        | ResponseToolSearchCall()
+                        | ResponseToolSearchOutputItem()
+                        | AdditionalTools()
                         | ResponseReasoningItem()
                         | ResponseCodeInterpreterToolCall()
                         | ImageGenerationCall()
                         | LocalShellCall()
+                        | LocalShellCallOutput()
                         | McpCall()
                         | McpListTools()
                         | McpApprovalRequest()
+                        | McpApprovalResponse()
                         | ResponseCompactionItem()
                         | ResponseFunctionShellToolCall()
                         | ResponseFunctionShellToolCallOutput()
                         | ResponseApplyPatchToolCall()
                         | ResponseApplyPatchToolCallOutput()
                         | ResponseCustomToolCall()
+                        | ResponseCustomToolCallOutputItem()
                     ):
                         pass
                     case _:

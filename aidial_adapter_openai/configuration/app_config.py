@@ -22,6 +22,7 @@ from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.parsers import (
     AnthropicEndpoint,
     AzureOpenAIEndpoint,
+    BedrockOpenAIEndpoint,
     OpenAIEndpoint,
     anthropic_messages_parser,
     azure_video_api_parser,
@@ -39,7 +40,12 @@ from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 class DeploymentAPIType(ExtraForbidModel):
     deployment_type: D
-    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint | AnthropicEndpoint
+    endpoint: (
+        AzureOpenAIEndpoint
+        | OpenAIEndpoint
+        | AnthropicEndpoint
+        | BedrockOpenAIEndpoint
+    )
 
 
 class ApplicationConfig(ExtraForbidModel):

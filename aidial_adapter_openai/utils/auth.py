@@ -70,7 +70,10 @@ class OpenAICreds(TypedDict, total=False):
 
 
 async def get_credentials(
-    request_headers: Mapping[str, str], *, azure: bool
+    request_headers: Mapping[str, str],
+    *,
+    azure: bool,
+    allow_empty: bool = False,
 ) -> OpenAICreds:
     api_key = request_headers.get("X-UPSTREAM-KEY")
     if api_key is not None:
@@ -78,5 +81,8 @@ async def get_credentials(
 
     if azure:
         return {"azure_ad_token": await get_azure_token_provider().get_token()}
+
+    if allow_empty:
+        return {}
 
     raise DialException("X-UPSTREAM-KEY header is missing", 401, "Unauthorized")

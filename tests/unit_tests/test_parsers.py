@@ -4,6 +4,7 @@ from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
+    BedrockOpenAIEndpoint,
     OpenAIEndpoint,
     chat_completions_optional_parser,
     chat_completions_parser,
@@ -22,6 +23,12 @@ RESPONSE_CASES = [
         "https://test.com/openai/responses",
         AzureOpenAIEndpoint(
             azure_endpoint="https://test.com", azure_deployment=None
+        ),
+    ),
+    (
+        "https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses",
+        BedrockOpenAIEndpoint(
+            bedrock_region="us-east-2",
         ),
     ),
 ]
@@ -120,6 +127,12 @@ NORMAL_CHAT_CASES = [
         "https://test.com/my/endpoint/chat/completions",
         OpenAIEndpoint(
             openai_base_url="https://test.com/my/endpoint",
+        ),
+    ),
+    (
+        "https://bedrock-mantle.eu-west-1.api.aws/openai/v1/chat/completions",
+        BedrockOpenAIEndpoint(
+            bedrock_region="eu-west-1",
         ),
     ),
 ]

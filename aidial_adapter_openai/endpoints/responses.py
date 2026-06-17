@@ -4,7 +4,12 @@ from typing import Self
 
 from fastapi import Request
 from fastapi.responses import Response as FastAPIResponse
-from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
+from openai import (
+    AsyncAzureOpenAI,
+    AsyncBedrockOpenAI,
+    AsyncOpenAI,
+    AsyncStream,
+)
 from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
 from openai.types.responses.response_stream_event import ResponseStreamEvent
@@ -18,6 +23,8 @@ from aidial_adapter_openai.responses.request import (
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.parsers import (
+    AzureOpenAIEndpoint,
+    BedrockOpenAIEndpoint,
     parse_body,
     responses_parser,
 )
@@ -36,20 +43,24 @@ from aidial_adapter_openai.utils.upstream_headers import (
 
 @dataclass
 class _ResponsesContext:
-    client: AsyncAzureOpenAI | AsyncOpenAI
+    client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI
     query_params: dict[str, str]
 
     @classmethod
     async def from_request(cls, request: Request) -> Self:
         headers = request.headers
         upstream_endpoint = get_upstream_endpoint(headers)
-        creds = await get_credentials(headers, azure=True)
         upstream_extra_headers = get_upstream_extra_headers(headers)
 
         query_params = dict(request.query_params)
         api_version = query_params.pop("api-version", None)
 
         endpoint = responses_parser.parse(upstream_endpoint)
+        creds = await get_credentials(
+            headers,
+            azure=isinstance(endpoint, AzureOpenAIEndpoint),
+            allow_empty=isinstance(endpoint, BedrockOpenAIEndpoint),
+        )
         client = endpoint.get_client(
             {
                 **creds,

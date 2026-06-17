@@ -7,6 +7,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
 )
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
+    BedrockOpenAIEndpoint,
     OpenAIEndpoint,
 )
 
@@ -92,6 +93,30 @@ def test_app_config_chat_responses_openai_platform(
     assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == OpenAIEndpoint(
         openai_base_url=f"{origin}/whatever1/whatever2"
+    )
+
+
+def test_app_config_chat_responses_bedrock(deployment: str):
+    ty = ApplicationConfig().get_chat_completion_deployment_type(
+        deployment,
+        "https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses",
+    )
+
+    assert ty.deployment_type == D.RESPONSES_API
+    assert ty.endpoint == BedrockOpenAIEndpoint(
+        bedrock_region="us-east-2",
+    )
+
+
+def test_app_config_chat_bedrock_chat_completions(deployment: str):
+    ty = ApplicationConfig().get_chat_completion_deployment_type(
+        deployment,
+        "https://bedrock-mantle.eu-west-1.api.aws/openai/v1/chat/completions",
+    )
+
+    assert ty.deployment_type == D.GPT_GENERIC
+    assert ty.endpoint == BedrockOpenAIEndpoint(
+        bedrock_region="eu-west-1",
     )
 
 

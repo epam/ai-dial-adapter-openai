@@ -46,3 +46,9 @@ async def test_get_credentials_raises_without_key_for_non_azure():
     error = exc_info.value
     assert error.status_code == 401
     assert error.message == "X-UPSTREAM-KEY header is missing"
+
+
+@pytest.mark.asyncio
+async def test_get_credentials_allows_empty_for_non_azure_when_requested():
+    creds = await auth.get_credentials({}, azure=False, allow_empty=True)
+    assert creds == {}
