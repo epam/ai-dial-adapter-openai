@@ -3,11 +3,14 @@ import hashlib
 import mimetypes
 import os
 from collections.abc import Mapping
+from pathlib import PurePosixPath
 from urllib.parse import unquote, urljoin
 
 import httpx
+from aidial_client import AsyncDial, DialException
+from aidial_client.types.metadata import FileMetadata as SDKFileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, PrivateAttr, SecretStr
 from typing_extensions import TypedDict
 
 from aidial_adapter_openai.utils.http_client import get_http_client
@@ -32,20 +35,48 @@ class FileStorage(BaseModel):
 
     bucket: Bucket | None = None
 
+    _dial_client: AsyncDial | None = PrivateAttr(default=None)
+    _my_files_home: PurePosixPath | None = PrivateAttr(default=None)
+
     @property
     def headers(self) -> Mapping[str, str]:
         return {"api-key": self.api_key.get_secret_value()}
+
+    def _get_dial_client(self) -> AsyncDial:
+        if self._dial_client is not None:
+            return self._dial_client
+
+        self._dial_client = AsyncDial(
+            base_url=self.dial_url,
+            api_key=self.api_key.get_secret_value(),
+        )
+        return self._dial_client
+
+    async def _get_my_files_home(self) -> PurePosixPath:
+        if self._my_files_home is not None:
+            return self._my_files_home
+
+        self._my_files_home = await self._get_dial_client().my_files_home()
+        return self._my_files_home
 
     async def _get_bucket(self) -> Bucket:
         if self.bucket is not None:
             return self.bucket
 
-        response = await get_http_client().get(
-            f"{self.dial_url}/v1/bucket",
-            headers=self.headers,
-        )
-        response.raise_for_status()
-        bucket = self.bucket = response.json()
+        home = str(await self._get_my_files_home())
+        home = home.removeprefix("/").removeprefix("v1/")
+
+        if home.startswith("files/"):
+            home = home.removeprefix("files/")
+
+        user_bucket, _, bucket_path = home.partition("/")
+        if not user_bucket or not bucket_path:
+            raise ValueError("Can't parse DIAL files home URL")
+
+        bucket = self.bucket = {
+            "bucket": user_bucket,
+            "appdata": f"{user_bucket}/{bucket_path}",
+        }
         log.debug(f"bucket: {bucket}")
         return bucket
 
@@ -58,24 +89,31 @@ class FileStorage(BaseModel):
             )
         return appdata.split("/", 1)[0]
 
+    @staticmethod
+    def _to_file_metadata(meta: SDKFileMetadata) -> FileMetadata:
+        metadata = meta.model_dump()
+        return {
+            "name": metadata["name"],
+            "parentPath": metadata["parent_path"],
+            "bucket": metadata["bucket"],
+            "url": metadata["url"],
+        }
+
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
-        bucket = await self._get_bucket()
-
-        appdata = bucket["appdata"]
         ext = mimetypes.guess_extension(content_type) or ""
-        url = f"{self.dial_url}/v1/files/{appdata}/{upload_dir}/{filename}{ext}"
+        stored_filename = f"{filename}{ext}"
+        files_home = await self._get_my_files_home()
+        upload_path = files_home / upload_dir / stored_filename
 
-        response = await get_http_client().put(
-            url=url,
-            files={"file": (filename, content, content_type)},
-            headers=self.headers,
+        metadata = await self._get_dial_client().files.upload(
+            url=upload_path,
+            file=(stored_filename, content, content_type),
         )
-        response.raise_for_status()
-        meta = response.json()
-        log.debug(f"Uploaded file: url={url}, metadata={meta}")
-        return meta
+        metadata_ = self._to_file_metadata(metadata)
+        log.debug(f"Uploaded file: url={upload_path}, metadata={metadata_}")
+        return metadata_
 
     async def upload_file(
         self, upload_dir: str, data: str | bytes, content_type: str
@@ -98,14 +136,25 @@ class FileStorage(BaseModel):
         url = self.attachment_link_to_url(link)
         return url.lower().startswith(self.dial_url.lower())
 
+    def _is_dial_file_url(self, url: str) -> bool:
+        return self._url_to_attachment_link(url).startswith("files/")
+
     async def download_file(self, link: str) -> bytes:
         url = self.attachment_link_to_url(link)
         headers: Mapping[str, str] = {}
-        if url.lower().startswith(self.dial_url.lower()):
+        if self.is_dial_url(link):
             headers = self.headers
 
         try:
+            if self._is_dial_file_url(url):
+                result = await self._get_dial_client().files.download(url=url)
+                return await result.aget_content()
+
             return await download_file(url, headers)
+        except DialException as e:
+            raise InvalidRequestError(
+                f"Failed to download file {link!r} (status code {e.status_code})"
+            ) from e
         except httpx.HTTPStatusError as e:
             code = e.response.status_code
             raise InvalidRequestError(
@@ -128,7 +177,9 @@ class FileStorage(BaseModel):
         return link if link == decoded_link else repr(decoded_link)
 
 
-async def download_file(url: str, headers: Mapping[str, str] = {}) -> bytes:
+async def download_file(
+    url: str, headers: Mapping[str, str] | None = None
+) -> bytes:
     response = await get_http_client().get(url, headers=headers)
     response.raise_for_status()
     return response.read()
