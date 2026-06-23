@@ -24,16 +24,9 @@ class FileMetadata(TypedDict):
     url: str
 
 
-class Bucket(TypedDict):
-    bucket: str
-    appdata: str | None
-
-
 class FileStorage(BaseModel):
     dial_url: str
     api_key: SecretStr
-
-    bucket: Bucket | None = None
 
     _dial_client: AsyncDial | None = PrivateAttr(default=None)
     _my_files_home: PurePosixPath | None = PrivateAttr(default=None)
@@ -59,44 +52,13 @@ class FileStorage(BaseModel):
         self._my_files_home = await self._get_dial_client().my_files_home()
         return self._my_files_home
 
-    async def _get_bucket(self) -> Bucket:
-        if self.bucket is not None:
-            return self.bucket
-
-        home = str(await self._get_my_files_home())
-        home = home.removeprefix("/").removeprefix("v1/")
-
-        if home.startswith("files/"):
-            home = home.removeprefix("files/")
-
-        user_bucket, _, bucket_path = home.partition("/")
-        if not user_bucket or not bucket_path:
-            raise ValueError("Can't parse DIAL files home URL")
-
-        bucket = self.bucket = {
-            "bucket": user_bucket,
-            "appdata": f"{user_bucket}/{bucket_path}",
-        }
-        log.debug(f"bucket: {bucket}")
-        return bucket
-
-    async def _get_user_bucket(self) -> str:
-        bucket = await self._get_bucket()
-        appdata = bucket.get("appdata")
-        if appdata is None:
-            raise ValueError(
-                "Can't retrieve user bucket because appdata isn't available"
-            )
-        return appdata.split("/", 1)[0]
-
     @staticmethod
     def _to_file_metadata(meta: SDKFileMetadata) -> FileMetadata:
-        metadata = meta.model_dump()
         return {
-            "name": metadata["name"],
-            "parentPath": metadata["parent_path"],
-            "bucket": metadata["bucket"],
-            "url": metadata["url"],
+            "name": meta.name or "",
+            "parentPath": meta.parent_path or "",
+            "bucket": meta.bucket or "",
+            "url": meta.url or "",
         }
 
     async def upload(
@@ -139,6 +101,11 @@ class FileStorage(BaseModel):
     def _is_dial_file_url(self, url: str) -> bool:
         return self._url_to_attachment_link(url).startswith("files/")
 
+    @staticmethod
+    def _to_human_readable_name(name: str) -> str:
+        decoded_name = unquote(name)
+        return name if name == decoded_name else repr(decoded_name)
+
     async def download_file(self, link: str) -> bytes:
         url = self.attachment_link_to_url(link)
         headers: Mapping[str, str] = {}
@@ -163,18 +130,15 @@ class FileStorage(BaseModel):
 
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
-        link = self._url_to_attachment_link(url)
+        if self._is_dial_file_url(url):
+            try:
+                name = self._get_dial_client().files.get_display_name(url)
+                return self._to_human_readable_name(name)
+            except DialException:
+                pass
 
-        link = link.removeprefix("files/")
-
-        if link.startswith("public/"):
-            bucket = "public"
-        else:
-            bucket = await self._get_user_bucket()
-
-        link = link.removeprefix(f"{bucket}/")
-        decoded_link = unquote(link)
-        return link if link == decoded_link else repr(decoded_link)
+        name = self._url_to_attachment_link(url)
+        return self._to_human_readable_name(name)
 
 
 async def download_file(

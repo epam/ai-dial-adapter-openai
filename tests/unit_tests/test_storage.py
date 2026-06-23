@@ -10,13 +10,10 @@ from aidial_adapter_openai.dial_api.storage import FileStorage
 
 
 class _FakeMetadata:
-    def model_dump(self) -> dict[str, Any]:
-        return {
-            "name": "sha256.png",
-            "parent_path": "images",
-            "bucket": "user-bucket",
-            "url": "files/user-bucket/images/sha256.png",
-        }
+    name = "sha256.png"
+    parent_path = "images"
+    bucket = "user-bucket"
+    url = "files/user-bucket/images/sha256.png"
 
 
 class _FakeDownloadResult:

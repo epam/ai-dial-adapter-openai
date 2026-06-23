@@ -8,7 +8,6 @@ from typing_extensions import override
 
 from aidial_adapter_openai.dial_api.resource import ValidationError
 from aidial_adapter_openai.dial_api.storage import (
-    Bucket,
     FileMetadata,
     FileStorage,
 )
@@ -21,13 +20,6 @@ class DummyFileStorage(FileStorage):
             dial_url="http://dial-core",
             api_key=SecretStr("dummy-api-key"),
         )
-
-    @override
-    async def _get_bucket(self) -> Bucket:
-        return {
-            "bucket": "APP_BUCKET",
-            "appdata": "USER_BUCKET/appdata/test-application",
-        }
 
     @override
     async def download_file(self, link: str) -> bytes:
