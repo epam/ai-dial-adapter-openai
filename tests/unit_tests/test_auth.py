@@ -1,13 +1,14 @@
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
 
+from aidial_adapter_openai.configuration.app_config import Vendor
 from aidial_adapter_openai.utils import auth
 
 
 @pytest.mark.asyncio
 async def test_get_credentials_returns_api_key_when_present_for_azure_true():
     creds = await auth.get_credentials(
-        {"X-UPSTREAM-KEY": "test-key"}, azure=True
+        {"X-UPSTREAM-KEY": "test-key"}, vendor=Vendor.AZURE
     )
 
     assert creds == {"api_key": "test-key"}
@@ -16,7 +17,7 @@ async def test_get_credentials_returns_api_key_when_present_for_azure_true():
 @pytest.mark.asyncio
 async def test_get_credentials_returns_api_key_when_present_for_azure_false():
     creds = await auth.get_credentials(
-        {"X-UPSTREAM-KEY": "test-key"}, azure=False
+        {"X-UPSTREAM-KEY": "test-key"}, vendor=Vendor.VLLM
     )
 
     assert creds == {"api_key": "test-key"}
@@ -33,7 +34,7 @@ async def test_get_credentials_falls_back_to_azure_ad_token(monkeypatch):
 
     monkeypatch.setattr(auth, "_AzureTokenProvider", _mock_token_provider)
 
-    creds = await auth.get_credentials({}, azure=True)
+    creds = await auth.get_credentials({}, vendor=Vendor.AZURE)
 
     assert creds == {"azure_ad_token": "token-123"}
 
@@ -41,7 +42,7 @@ async def test_get_credentials_falls_back_to_azure_ad_token(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_credentials_raises_without_key_for_non_azure():
     with pytest.raises(DialException) as exc_info:
-        await auth.get_credentials({}, azure=False)
+        await auth.get_credentials({}, vendor=Vendor.VLLM)
 
     error = exc_info.value
     assert error.status_code == 401
@@ -49,6 +50,6 @@ async def test_get_credentials_raises_without_key_for_non_azure():
 
 
 @pytest.mark.asyncio
-async def test_get_credentials_allows_empty_for_non_azure_when_requested():
-    creds = await auth.get_credentials({}, azure=False, allow_empty=True)
+async def test_get_credentials_allows_empty_for_aws_vendor():
+    creds = await auth.get_credentials({}, vendor=Vendor.AWS)
     assert creds == {}

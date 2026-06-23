@@ -1,6 +1,7 @@
 import os
 import time
 from collections.abc import Mapping
+from typing import assert_never
 
 from aidial_sdk.exceptions import HTTPException as DialException
 from azure.core.credentials import AccessToken
@@ -8,6 +9,7 @@ from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
 from typing_extensions import TypedDict
 
+from aidial_adapter_openai.configuration.app_config import Vendor
 from aidial_adapter_openai.utils.cache import cache
 from aidial_adapter_openai.utils.log_config import logger
 
@@ -72,17 +74,22 @@ class OpenAICreds(TypedDict, total=False):
 async def get_credentials(
     request_headers: Mapping[str, str],
     *,
-    azure: bool,
-    allow_empty: bool = False,
+    vendor: Vendor,
 ) -> OpenAICreds:
     api_key = request_headers.get("X-UPSTREAM-KEY")
     if api_key is not None:
         return {"api_key": api_key}
 
-    if azure:
-        return {"azure_ad_token": await get_azure_token_provider().get_token()}
-
-    if allow_empty:
-        return {}
-
-    raise DialException("X-UPSTREAM-KEY header is missing", 401, "Unauthorized")
+    match vendor:
+        case Vendor.AZURE:
+            return {
+                "azure_ad_token": await get_azure_token_provider().get_token()
+            }
+        case Vendor.AWS:
+            return {}
+        case Vendor.VLLM:
+            raise DialException(
+                "X-UPSTREAM-KEY header is missing", 401, "Unauthorized"
+            )
+        case _:
+            assert_never(vendor)

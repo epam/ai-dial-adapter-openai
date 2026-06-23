@@ -58,9 +58,6 @@ from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import (
-    AnthropicEndpoint,
-    AzureOpenAIEndpoint,
-    BedrockOpenAIEndpoint,
     bad_upstream_endpoint,
     parse_body,
 )
@@ -111,12 +108,8 @@ async def call_chat_completion(
     )
     logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
-
-    creds = await get_credentials(
-        request_headers,
-        azure=isinstance(endpoint, (AzureOpenAIEndpoint | AnthropicEndpoint)),
-        allow_empty=isinstance(endpoint, BedrockOpenAIEndpoint),
-    )
+    vendor = app_config.get_vendor(deployment_id, endpoint)
+    creds = await get_credentials(request_headers, vendor=vendor)
 
     upstream_extra_headers = get_upstream_extra_headers(request_headers)
     client = endpoint.get_client(

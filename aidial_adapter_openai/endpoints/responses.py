@@ -23,8 +23,6 @@ from aidial_adapter_openai.responses.request import (
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.parsers import (
-    AzureOpenAIEndpoint,
-    BedrockOpenAIEndpoint,
     parse_body,
     responses_parser,
 )
@@ -55,12 +53,10 @@ class _ResponsesContext:
         query_params = dict(request.query_params)
         api_version = query_params.pop("api-version", None)
 
+        app_config = get_request_app_config(request)
         endpoint = responses_parser.parse(upstream_endpoint)
-        creds = await get_credentials(
-            headers,
-            azure=isinstance(endpoint, AzureOpenAIEndpoint),
-            allow_empty=isinstance(endpoint, BedrockOpenAIEndpoint),
-        )
+        vendor = app_config.get_vendor(deployment_id=None, endpoint=endpoint)
+        creds = await get_credentials(headers, vendor=vendor)
         client = endpoint.get_client(
             {
                 **creds,

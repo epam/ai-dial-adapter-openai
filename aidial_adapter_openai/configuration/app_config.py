@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from enum import StrEnum
 from typing import assert_never
 
 from aidial_sdk.exceptions import InternalServerError
@@ -48,6 +49,12 @@ class DeploymentAPIType(ExtraForbidModel):
     )
 
 
+class Vendor(StrEnum):
+    AWS = "aws"
+    VLLM = "vllm"
+    AZURE = "azure"
+
+
 class ApplicationConfig(ExtraForbidModel):
     TIKTOKEN_MODEL_MAPPING: dict[str, str] = {}
 
@@ -81,6 +88,39 @@ class ApplicationConfig(ExtraForbidModel):
             if deployment_id in deployments:
                 return False
         return True
+
+    def get_vendor(
+        self,
+        deployment_id: str | None,
+        endpoint: (
+            AzureOpenAIEndpoint
+            | OpenAIEndpoint
+            | AnthropicEndpoint
+            | BedrockOpenAIEndpoint
+            | None
+        ),
+    ) -> Vendor:
+        if isinstance(endpoint, BedrockOpenAIEndpoint):
+            return Vendor.AWS
+
+        if deployment_id is not None:
+            for deployments in [
+                self.VLLM_DEPLOYMENTS,
+                self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+            ]:
+                if deployment_id in deployments:
+                    return Vendor.VLLM
+
+        if isinstance(endpoint, (AzureOpenAIEndpoint | AnthropicEndpoint)):
+            return Vendor.AZURE
+
+        if isinstance(endpoint, OpenAIEndpoint) and (
+            ".openai.azure.com" in endpoint.openai_base_url
+            or ".services.ai.azure.com" in endpoint.openai_base_url
+        ):
+            return Vendor.AZURE
+
+        return Vendor.VLLM
 
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str
