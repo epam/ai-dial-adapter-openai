@@ -3,7 +3,6 @@ import hashlib
 import mimetypes
 import os
 from collections.abc import Mapping
-from typing import NoReturn
 from urllib.parse import unquote, urljoin
 
 import httpx
@@ -40,12 +39,6 @@ class FileStorage(BaseModel):
     def _decode_link(link: str) -> str:
         decoded_link = unquote(link)
         return link if link == decoded_link else repr(decoded_link)
-
-    @staticmethod
-    def _raise_download_error(link: str, status_code: int) -> NoReturn:
-        raise InvalidRequestError(
-            f"Failed to download file {link!r} (status code {status_code})"
-        )
 
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes
@@ -101,9 +94,13 @@ class FileStorage(BaseModel):
             headers = self.headers if is_dial_link else None
             return await download_file(url, headers)
         except DialException as e:
-            self._raise_download_error(link, e.status_code)
+            raise InvalidRequestError(
+                f"Failed to download file {link!r} (status code {e.status_code})"
+            )
         except httpx.HTTPStatusError as e:
-            self._raise_download_error(link, e.response.status_code)
+            raise InvalidRequestError(
+                f"Failed to download file {link!r} (status code {e.response.status_code})"
+            )
 
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
