@@ -3,11 +3,12 @@ import hashlib
 import mimetypes
 import os
 from collections.abc import Mapping
-from pathlib import PurePosixPath
 from urllib.parse import unquote, urljoin
 
 import httpx
-from aidial_client import AsyncDial, DialException
+from aidial_client import AsyncDial, DialException, InvalidDialURLError
+from aidial_client._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
+from aidial_client._http_client._async import AsyncHTTPClient
 from aidial_client.types.metadata import FileMetadata as SDKFileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel, PrivateAttr, SecretStr
@@ -29,7 +30,6 @@ class FileStorage(BaseModel):
     api_key: SecretStr
 
     _dial_client: AsyncDial | None = PrivateAttr(default=None)
-    _my_files_home: PurePosixPath | None = PrivateAttr(default=None)
 
     @property
     def headers(self) -> Mapping[str, str]:
@@ -39,26 +39,30 @@ class FileStorage(BaseModel):
         if self._dial_client is not None:
             return self._dial_client
 
+        sdk_http_client = AsyncHTTPClient(
+            base_url=self.dial_url,
+            api_key=self.api_key.get_secret_value(),
+            bearer_token=None,
+            max_retries=DEFAULT_MAX_RETRIES,
+            timeout=DEFAULT_TIMEOUT,
+            internal_http_client=get_http_client(),
+        )
+
         self._dial_client = AsyncDial(
             base_url=self.dial_url,
             api_key=self.api_key.get_secret_value(),
+            http_client=sdk_http_client,
         )
         return self._dial_client
 
-    async def _get_my_files_home(self) -> PurePosixPath:
-        if self._my_files_home is not None:
-            return self._my_files_home
-
-        self._my_files_home = await self._get_dial_client().my_files_home()
-        return self._my_files_home
-
     @staticmethod
     def _to_file_metadata(meta: SDKFileMetadata) -> FileMetadata:
+        metadata = meta.model_dump()
         return {
-            "name": meta.name or "",
-            "parentPath": meta.parent_path or "",
-            "bucket": meta.bucket or "",
-            "url": meta.url or "",
+            "name": metadata["name"],
+            "parentPath": metadata["parent_path"],
+            "bucket": metadata["bucket"],
+            "url": metadata["url"],
         }
 
     async def upload(
@@ -66,7 +70,7 @@ class FileStorage(BaseModel):
     ) -> FileMetadata:
         ext = mimetypes.guess_extension(content_type) or ""
         stored_filename = f"{filename}{ext}"
-        files_home = await self._get_my_files_home()
+        files_home = await self._get_dial_client().my_files_home()
         upload_path = files_home / upload_dir / stored_filename
 
         metadata = await self._get_dial_client().files.upload(
@@ -98,24 +102,19 @@ class FileStorage(BaseModel):
         url = self.attachment_link_to_url(link)
         return url.lower().startswith(self.dial_url.lower())
 
-    def _is_dial_file_url(self, url: str) -> bool:
-        return self._url_to_attachment_link(url).startswith("files/")
-
-    @staticmethod
-    def _to_human_readable_name(name: str) -> str:
-        decoded_name = unquote(name)
-        return name if name == decoded_name else repr(decoded_name)
-
     async def download_file(self, link: str) -> bytes:
         url = self.attachment_link_to_url(link)
-        headers: Mapping[str, str] = {}
-        if self.is_dial_url(link):
-            headers = self.headers
+        headers = self.headers if self.is_dial_url(link) else None
 
         try:
-            if self._is_dial_file_url(url):
-                result = await self._get_dial_client().files.download(url=url)
-                return await result.aget_content()
+            if self.is_dial_url(link):
+                try:
+                    result = await self._get_dial_client().files.download(
+                        url=url
+                    )
+                    return await result.aget_content()
+                except InvalidDialURLError:
+                    pass
 
             return await download_file(url, headers)
         except DialException as e:
@@ -130,15 +129,16 @@ class FileStorage(BaseModel):
 
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
-        if self._is_dial_file_url(url):
+        if self.is_dial_url(link):
             try:
-                name = self._get_dial_client().files.get_display_name(url)
-                return self._to_human_readable_name(name)
-            except DialException:
-                pass
+                link = self._get_dial_client().files.get_display_name(url)
+            except InvalidDialURLError:
+                link = self._url_to_attachment_link(url)
+        else:
+            link = self._url_to_attachment_link(url)
 
-        name = self._url_to_attachment_link(url)
-        return self._to_human_readable_name(name)
+        decoded_link = unquote(link)
+        return link if link == decoded_link else repr(decoded_link)
 
 
 async def download_file(
