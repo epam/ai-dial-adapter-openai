@@ -6,13 +6,20 @@ from collections.abc import Mapping
 from urllib.parse import unquote, urljoin
 
 import httpx
-from aidial_client import AsyncDial, DialException, InvalidDialURLError
+from aidial_client import (
+    AsyncDial,
+    AsyncDialClientPool,
+    DialException,
+    InvalidDialURLError,
+)
 from aidial_client.types.metadata import FileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel, PrivateAttr, SecretStr
 
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
+
+_DIAL_CLIENT_POOL = AsyncDialClientPool()
 
 
 class FileStorage(BaseModel):
@@ -29,7 +36,7 @@ class FileStorage(BaseModel):
         if self._dial_client is not None:
             return self._dial_client
 
-        self._dial_client = AsyncDial(
+        self._dial_client = _DIAL_CLIENT_POOL.create_client(
             base_url=self.dial_url,
             api_key=self.api_key.get_secret_value(),
         )
