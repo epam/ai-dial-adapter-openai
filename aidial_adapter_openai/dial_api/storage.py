@@ -3,12 +3,11 @@ import hashlib
 import mimetypes
 import os
 from collections.abc import Mapping
+from typing import NoReturn
 from urllib.parse import unquote, urljoin
 
 import httpx
 from aidial_client import AsyncDial, DialException, InvalidDialURLError
-from aidial_client._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
-from aidial_client._http_client._async import AsyncHTTPClient
 from aidial_client.types.metadata import FileMetadata as SDKFileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel, PrivateAttr, SecretStr
@@ -39,19 +38,9 @@ class FileStorage(BaseModel):
         if self._dial_client is not None:
             return self._dial_client
 
-        sdk_http_client = AsyncHTTPClient(
-            base_url=self.dial_url,
-            api_key=self.api_key.get_secret_value(),
-            bearer_token=None,
-            max_retries=DEFAULT_MAX_RETRIES,
-            timeout=DEFAULT_TIMEOUT,
-            internal_http_client=get_http_client(),
-        )
-
         self._dial_client = AsyncDial(
             base_url=self.dial_url,
             api_key=self.api_key.get_secret_value(),
-            http_client=sdk_http_client,
         )
         return self._dial_client
 
@@ -65,15 +54,27 @@ class FileStorage(BaseModel):
             "url": metadata["url"],
         }
 
+    @staticmethod
+    def _decode_link(link: str) -> str:
+        decoded_link = unquote(link)
+        return link if link == decoded_link else repr(decoded_link)
+
+    @staticmethod
+    def _raise_download_error(link: str, status_code: int) -> NoReturn:
+        raise InvalidRequestError(
+            f"Failed to download file {link!r} (status code {status_code})"
+        )
+
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
+        dial_client = self._get_dial_client()
         ext = mimetypes.guess_extension(content_type) or ""
         stored_filename = f"{filename}{ext}"
-        files_home = await self._get_dial_client().my_files_home()
+        files_home = await dial_client.my_files_home()
         upload_path = files_home / upload_dir / stored_filename
 
-        metadata = await self._get_dial_client().files.upload(
+        metadata = await dial_client.files.upload(
             url=upload_path,
             file=(stored_filename, content, content_type),
         )
@@ -104,10 +105,10 @@ class FileStorage(BaseModel):
 
     async def download_file(self, link: str) -> bytes:
         url = self.attachment_link_to_url(link)
-        headers = self.headers if self.is_dial_url(link) else None
+        is_dial_link = self.is_dial_url(link)
 
         try:
-            if self.is_dial_url(link):
+            if is_dial_link:
                 try:
                     result = await self._get_dial_client().files.download(
                         url=url
@@ -116,29 +117,26 @@ class FileStorage(BaseModel):
                 except InvalidDialURLError:
                     pass
 
+            headers = self.headers if is_dial_link else None
             return await download_file(url, headers)
         except DialException as e:
-            raise InvalidRequestError(
-                f"Failed to download file {link!r} (status code {e.status_code})"
-            ) from e
+            self._raise_download_error(link, e.status_code)
         except httpx.HTTPStatusError as e:
-            code = e.response.status_code
-            raise InvalidRequestError(
-                f"Failed to download file {link!r} (status code {code})"
-            ) from e
+            self._raise_download_error(link, e.response.status_code)
 
     async def get_human_readable_name(self, link: str) -> str:
         url = self.attachment_link_to_url(link)
-        if self.is_dial_url(link):
-            try:
-                link = self._get_dial_client().files.get_display_name(url)
-            except InvalidDialURLError:
-                link = self._url_to_attachment_link(url)
-        else:
-            link = self._url_to_attachment_link(url)
+        attachment_link = self._url_to_attachment_link(url)
 
-        decoded_link = unquote(link)
-        return link if link == decoded_link else repr(decoded_link)
+        if not self.is_dial_url(link):
+            return self._decode_link(attachment_link)
+
+        try:
+            link = self._get_dial_client().files.get_display_name(url)
+        except InvalidDialURLError:
+            link = attachment_link
+
+        return self._decode_link(link)
 
 
 async def download_file(
