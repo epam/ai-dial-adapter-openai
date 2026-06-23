@@ -77,9 +77,11 @@ class MockFileStorage(FileStorage):
 
         return FileMetadata(
             name=name,
-            parentPath=os.path.dirname(name),
+            parent_path=os.path.dirname(name),
             bucket="mock-bucket",
             url=f"files/mock-bucket/{name}",
+            node_type="ITEM",
+            resource_type="FILE",
         )
 
     async def download_file(self, link: str) -> bytes:

@@ -8,20 +8,12 @@ from urllib.parse import unquote, urljoin
 
 import httpx
 from aidial_client import AsyncDial, DialException, InvalidDialURLError
-from aidial_client.types.metadata import FileMetadata as SDKFileMetadata
+from aidial_client.types.metadata import FileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import BaseModel, PrivateAttr, SecretStr
-from typing_extensions import TypedDict
 
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
-
-
-class FileMetadata(TypedDict):
-    name: str
-    parentPath: str
-    bucket: str
-    url: str
 
 
 class FileStorage(BaseModel):
@@ -43,16 +35,6 @@ class FileStorage(BaseModel):
             api_key=self.api_key.get_secret_value(),
         )
         return self._dial_client
-
-    @staticmethod
-    def _to_file_metadata(meta: SDKFileMetadata) -> FileMetadata:
-        metadata = meta.model_dump()
-        return {
-            "name": metadata["name"],
-            "parentPath": metadata["parent_path"],
-            "bucket": metadata["bucket"],
-            "url": metadata["url"],
-        }
 
     @staticmethod
     def _decode_link(link: str) -> str:
@@ -78,9 +60,8 @@ class FileStorage(BaseModel):
             url=upload_path,
             file=(stored_filename, content, content_type),
         )
-        metadata_ = self._to_file_metadata(metadata)
-        log.debug(f"Uploaded file: url={upload_path}, metadata={metadata_}")
-        return metadata_
+        log.debug(f"Uploaded file: url={upload_path}, metadata={metadata}")
+        return metadata
 
     async def upload_file(
         self, upload_dir: str, data: str | bytes, content_type: str
