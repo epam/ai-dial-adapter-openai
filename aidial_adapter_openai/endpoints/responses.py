@@ -45,17 +45,18 @@ class _ResponsesContext:
     query_params: dict[str, str]
 
     @classmethod
-    async def from_request(cls, request: Request) -> Self:
+    async def from_request(
+        cls, request: Request, *, deployment_id: str | None = None
+    ) -> Self:
         headers = request.headers
         upstream_endpoint = get_upstream_endpoint(headers)
         upstream_extra_headers = get_upstream_extra_headers(headers)
 
         query_params = dict(request.query_params)
         api_version = query_params.pop("api-version", None)
-
         app_config = get_request_app_config(request)
         endpoint = responses_parser.parse(upstream_endpoint)
-        vendor = app_config.get_vendor(deployment_id=None, endpoint=endpoint)
+        vendor = app_config.get_vendor(deployment_id, endpoint)
         creds = await get_credentials(headers, vendor=vendor)
         client = endpoint.get_client(
             {
@@ -69,9 +70,11 @@ class _ResponsesContext:
 
 
 async def responses_create(request: Request) -> FastAPIResponse:
-    context = await _ResponsesContext.from_request(request)
-
     request_body = await parse_body(request)
+    context = await _ResponsesContext.from_request(
+        request, deployment_id=request_body.get("model")
+    )
+
     file_storage = create_file_storage(request.headers)
     request_body = await download_dial_urls_in_request(
         file_storage, request_body

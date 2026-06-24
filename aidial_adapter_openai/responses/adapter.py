@@ -6,6 +6,7 @@ from typing import Any
 from aidial_sdk.exceptions import RequestValidationError
 from openai import (
     AsyncAzureOpenAI,
+    AsyncBedrockOpenAI,
     AsyncOpenAI,
     AsyncStream,
     BaseModel,
@@ -106,7 +107,7 @@ def _get_configuration(request: dict[str, Any]) -> ResponsesConfig:
 async def chat_completion(
     *,
     request: dict[str, Any],
-    client: AsyncAzureOpenAI | AsyncOpenAI,
+    client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
 ) -> AsyncIterator[dict] | dict:
     _validate_request(request)

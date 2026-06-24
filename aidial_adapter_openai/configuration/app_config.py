@@ -103,24 +103,14 @@ class ApplicationConfig(ExtraForbidModel):
         if isinstance(endpoint, BedrockOpenAIEndpoint):
             return Vendor.AWS
 
-        if deployment_id is not None:
-            for deployments in [
-                self.VLLM_DEPLOYMENTS,
-                self.QWEN3_ASR_VLLM_DEPLOYMENTS,
-            ]:
-                if deployment_id in deployments:
-                    return Vendor.VLLM
+        for deployments in [
+            self.VLLM_DEPLOYMENTS,
+            self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+        ]:
+            if deployment_id in deployments:
+                return Vendor.VLLM
 
-        if isinstance(endpoint, (AzureOpenAIEndpoint | AnthropicEndpoint)):
-            return Vendor.AZURE
-
-        if isinstance(endpoint, OpenAIEndpoint) and (
-            ".openai.azure.com" in endpoint.openai_base_url
-            or ".services.ai.azure.com" in endpoint.openai_base_url
-        ):
-            return Vendor.AZURE
-
-        return Vendor.VLLM
+        return Vendor.AZURE
 
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str

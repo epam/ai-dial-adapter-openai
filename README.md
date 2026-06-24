@@ -1145,13 +1145,8 @@ Whereas, `endpoint` URL is required and enables Chat Completions API in DIAL.
 
 #### Amazon Bedrock OpenAI Responses API
 
-Use `overrideName` with a Bedrock model id in `openai.*` format (for example `openai.gpt-5.4`).
-
 > [!IMPORTANT]
-> Supported client/model API combinations for Bedrock are:
-> 1. `Chat Completions API (client)` -> `Chat Completions API (model)`
-> 2. `Responses API (client)` -> `Responses API (model)`
-> 3. `Chat Completions API (client)` -> `Responses API (model)` is not supported.
+> Use `overrideName` with a Bedrock model id in `openai.*` format (for example `openai.gpt-5.4`).
 
 <details><summary>DIAL Core Config</summary>
 
