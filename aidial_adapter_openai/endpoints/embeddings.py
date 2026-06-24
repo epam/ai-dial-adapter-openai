@@ -9,8 +9,7 @@ from aidial_adapter_openai.embeddings.openai import (
 )
 from aidial_adapter_openai.embeddings.vllm import embeddings as vllm_embeddings
 from aidial_adapter_openai.embeddings.vllm.api_type import (
-    EmbeddingAPIType,
-    select_api_type,
+    select_vllm_api_type,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.parsers import parse_body
@@ -37,11 +36,11 @@ async def embedding(deployment_id: str, request: Request):
     upstream_extra_headers = get_upstream_extra_headers(request.headers)
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]
-    vllm_api_type = select_api_type(model, upstream_endpoint)
+    vllm_api_type = select_vllm_api_type(model, upstream_endpoint)
 
     if (
         deployment_id in app_config.VLLM_DEPLOYMENTS
-        and vllm_api_type != EmbeddingAPIType.OPENAI_EMBEDDINGS
+        and vllm_api_type is not None
     ):
         file_storage = create_file_storage(request.headers)
         return await vllm_embeddings(
