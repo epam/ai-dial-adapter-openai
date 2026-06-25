@@ -9,7 +9,7 @@ from aidial_sdk.embeddings.request import EmbeddingsRequest
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.embeddings.vllm.api_type import (
     EmbeddingAPIType,
-    select_api_type,
+    select_vllm_api_type,
 )
 from aidial_adapter_openai.embeddings.vllm.pooling_api import (
     PoolingEmbeddingsAdapter,
@@ -41,29 +41,29 @@ def vllm_app_config() -> ApplicationConfig:
 
 def test_select_api_type_openai_embeddings():
     assert (
-        select_api_type("google/embeddinggemma-300m", _UPSTREAM_EMBEDDINGS)
-        == EmbeddingAPIType.OPENAI_EMBEDDINGS
+        select_vllm_api_type("google/embeddinggemma-300m", _UPSTREAM_EMBEDDINGS)
+        is None
     )
 
 
 def test_select_api_type_pooling():
     assert (
-        select_api_type("any-model", _UPSTREAM_POOLING)
+        select_vllm_api_type("any-model", _UPSTREAM_POOLING)
         == EmbeddingAPIType.POOLING
     )
 
 
 def test_select_api_type_qwen3_vl():
     assert (
-        select_api_type("Qwen3-VL-Embedding-2B", _UPSTREAM_EMBEDDINGS)
+        select_vllm_api_type("Qwen3-VL-Embedding-2B", _UPSTREAM_EMBEDDINGS)
         == EmbeddingAPIType.QWEN3_VL_EMBEDDINGS
     )
 
 
 def test_select_api_type_qwen3_embedding_text():
     assert (
-        select_api_type("Qwen/Qwen3-Embedding-8B", _UPSTREAM_EMBEDDINGS)
-        == EmbeddingAPIType.OPENAI_EMBEDDINGS
+        select_vllm_api_type("Qwen/Qwen3-Embedding-8B", _UPSTREAM_EMBEDDINGS)
+        is None
     )
 
 
