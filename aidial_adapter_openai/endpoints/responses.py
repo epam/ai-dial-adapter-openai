@@ -14,7 +14,10 @@ from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
 from openai.types.responses.response_stream_event import ResponseStreamEvent
 
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    DIAL_OVERRIDE_NAME,
+    get_upstream_endpoint,
+)
 from aidial_adapter_openai.dial_api.storage import (
     create_file_storage,
 )
@@ -46,9 +49,10 @@ class _ResponsesContext:
 
     @classmethod
     async def from_request(
-        cls, request: Request, *, deployment_id: str | None = None
+        cls, request: Request, *, model: str | None = None
     ) -> Self:
         headers = request.headers
+        deployment_id = headers.get(DIAL_OVERRIDE_NAME) or model
         upstream_endpoint = get_upstream_endpoint(headers)
         upstream_extra_headers = get_upstream_extra_headers(headers)
 
@@ -72,7 +76,7 @@ class _ResponsesContext:
 async def responses_create(request: Request) -> FastAPIResponse:
     request_body = await parse_body(request)
     context = await _ResponsesContext.from_request(
-        request, deployment_id=request_body.get("model")
+        request, model=request_body.get("model")
     )
 
     file_storage = create_file_storage(request.headers)

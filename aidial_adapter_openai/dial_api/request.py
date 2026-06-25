@@ -38,7 +38,7 @@ def collect_message_text_content(message: dict) -> str:
     return text
 
 
-_DIAL_OVERRIDE_NAME = "X-DIAL-OVERRIDE-NAME"
+DIAL_OVERRIDE_NAME = "X-DIAL-OVERRIDE-NAME"
 
 
 def get_upstream_model_name(
@@ -47,7 +47,7 @@ def get_upstream_model_name(
     deployment_id: str,
     model: str | None,
 ) -> str:
-    return request_headers.get(_DIAL_OVERRIDE_NAME) or model or deployment_id
+    return request_headers.get(DIAL_OVERRIDE_NAME) or model or deployment_id
 
 
 def get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:
