@@ -31,7 +31,6 @@ from openai.types.responses.response_input_param import (
     FunctionCallOutput,
     Message,
 )
-from pydantic import SecretStr
 
 from aidial_adapter_openai.dial_api.storage import (
     FileStorage,
@@ -104,7 +103,7 @@ def _custom_tool_call(
 
 @pytest.fixture
 def file_storage():
-    return FileStorage(dial_url=_DIAL_URL, api_key=SecretStr("test-api-key"))
+    return FileStorage.create(dial_url=_DIAL_URL, api_key="test-api-key")
 
 
 @pytest.fixture(params=[True, False], ids=["with_type", "without_type"])

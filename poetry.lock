@@ -21,14 +21,14 @@ pydantic = ">=2.8.2,<3"
 
 [[package]]
 name = "aidial-client"
-version = "0.10.0"
+version = "0.11.0"
 description = "A Python client library for the AI DIAL API"
 optional = false
 python-versions = "<3.14,>=3.10"
 groups = ["main"]
 files = [
-    {file = "aidial_client-0.10.0-py3-none-any.whl", hash = "sha256:eaa13b1a18059969f958d1dace4dd9c6d09d38e3b903644696f5d3a3f71a7c2c"},
-    {file = "aidial_client-0.10.0.tar.gz", hash = "sha256:748f5cdbe7fa1747ed2db629280ba88d20a1619208b1f4eb8d31de216d36fb8a"},
+    {file = "aidial_client-0.11.0-py3-none-any.whl", hash = "sha256:c2b97c0e381b78811c72cbf820d1abceec7af302f3e113d6c2dc98df135b3691"},
+    {file = "aidial_client-0.11.0.tar.gz", hash = "sha256:aace045806a57343bd9600c6287cade8807a56ea31fa8bf6aaeb3b5abcb8d9a9"},
 ]
 
 [package.dependencies]
@@ -3377,4 +3377,4 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "f44cadf7b97112847a653b021583911530fbdcca73e57a2de372aeb947bfe25c"
+content-hash = "e7bb69ad6faedee5d65f383e23d2d58ed9f8263c0dc12ebbb36456d4cdaf5b3d"

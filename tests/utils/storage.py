@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import SecretStr
 from typing_extensions import override
 
 from aidial_adapter_openai.dial_api.resource import ValidationError
@@ -17,8 +16,10 @@ from aidial_adapter_openai.utils.env import get_env_bool
 class DummyFileStorage(FileStorage):
     def __init__(self):
         super().__init__(
-            dial_url="http://dial-core",
-            api_key=SecretStr("dummy-api-key"),
+            client=FileStorage.create(
+                dial_url="http://dial-core",
+                api_key="dummy-api-key",
+            ).client,
         )
 
     @override
@@ -36,11 +37,13 @@ class MockFileStorage(FileStorage):
     files: list[Path]
 
     @classmethod
-    def create(cls, root_dir: Path) -> "MockFileStorage":
+    def create_for_root(cls, root_dir: Path) -> "MockFileStorage":
         root_dir.mkdir(parents=True, exist_ok=True)
         return cls(
-            dial_url="http://test-dial-url",
-            api_key=SecretStr("test-dial-api-key"),
+            client=FileStorage.create(
+                dial_url="http://test-dial-url",
+                api_key="test-dial-api-key",
+            ).client,
             root_dir=root_dir,
             files=[],
         )

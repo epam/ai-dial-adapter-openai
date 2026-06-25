@@ -1,22 +1,17 @@
 from pathlib import PurePosixPath
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from aidial_client import DialException
 from aidial_client.types.metadata import FileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
-from pydantic import SecretStr
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
 
 
 def _make_storage() -> FileStorage:
-    return FileStorage(
-        dial_url="http://dial-core",
-        api_key=SecretStr("test-key"),
-    )
+    return FileStorage.create(dial_url="http://dial-core", api_key="test-key")
 
 
 def _make_dial_client(
@@ -40,6 +35,9 @@ def _make_dial_client(
         ]
     )
     return SimpleNamespace(
+        base_url="http://dial-core/",
+        is_dial_url=lambda _: True,
+        auth_headers=AsyncMock(return_value={"api-key": "test-key"}),
         my_files_home=AsyncMock(return_value=files_home),
         files=files,
     )
@@ -57,7 +55,7 @@ async def test_upload_uses_dial_client_sdk(monkeypatch):
     )
     storage = _make_storage()
     dial_client = _make_dial_client(upload_result=metadata)
-    monkeypatch.setattr(storage, "_get_dial_client", lambda: dial_client)
+    monkeypatch.setattr(storage, "client", dial_client)
 
     result = await storage.upload(
         upload_dir="images",
@@ -79,7 +77,7 @@ async def test_upload_uses_dial_client_sdk(monkeypatch):
 async def test_download_dial_files_url_uses_sdk(monkeypatch):
     storage = _make_storage()
     dial_client = _make_dial_client()
-    monkeypatch.setattr(storage, "_get_dial_client", lambda: dial_client)
+    monkeypatch.setattr(storage, "client", dial_client)
 
     async def _unexpected_raw_download(*args, **kwargs):
         raise AssertionError("raw download should not be called")
@@ -98,11 +96,10 @@ async def test_download_dial_files_url_uses_sdk(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_download_non_file_dial_url_uses_raw_http(monkeypatch):
-    captured: dict[str, Any] = {}
+    captured: dict[str, str] = {}
 
-    async def _fake_download_file(url: str, headers):
+    async def _fake_download_file(url: str):
         captured["url"] = url
-        captured["headers"] = headers
         return b"from-raw-http"
 
     monkeypatch.setattr(
@@ -113,14 +110,13 @@ async def test_download_non_file_dial_url_uses_raw_http(monkeypatch):
     result = await _make_storage().download_file("images/sample.png")
     assert result == b"from-raw-http"
     assert captured["url"] == "http://dial-core/v1/images/sample.png"
-    assert captured["headers"] == {"api-key": "test-key"}
 
 
 @pytest.mark.asyncio
 async def test_download_sdk_errors_are_mapped_to_invalid_request(monkeypatch):
     storage = _make_storage()
     dial_client = _make_dial_client(download_error=DialException("denied", 403))
-    monkeypatch.setattr(storage, "_get_dial_client", lambda: dial_client)
+    monkeypatch.setattr(storage, "client", dial_client)
 
     with pytest.raises(InvalidRequestError) as exc:
         await storage.download_file("files/user-bucket/images/sample.png")
