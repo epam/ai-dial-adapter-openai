@@ -1,5 +1,6 @@
 import mimetypes
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -32,6 +33,7 @@ class DummyFileStorage(FileStorage):
         return b"test-content"
 
 
+@dataclass
 class MockFileStorage(FileStorage):
     root_dir: Path
     files: list[Path]

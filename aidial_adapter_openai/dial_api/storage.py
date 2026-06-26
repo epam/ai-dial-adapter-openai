@@ -4,6 +4,7 @@ import hashlib
 import mimetypes
 import os
 from collections.abc import Mapping
+from dataclasses import dataclass
 from urllib.parse import unquote, urljoin
 
 import httpx
@@ -14,15 +15,13 @@ from aidial_client import (
 )
 from aidial_client.types.metadata import FileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
-from pydantic import BaseModel, ConfigDict
 
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
 
 
-class FileStorage(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+@dataclass
+class FileStorage:
     client: AsyncDial
 
     @classmethod
