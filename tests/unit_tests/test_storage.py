@@ -89,13 +89,13 @@ async def test_download_dial_files_url_uses_sdk(monkeypatch):
 
     result = await storage.download_file("files/user-bucket/images/sample.png")
     dial_client.files.download.assert_awaited_once_with(
-        url="http://dial-core/v1/files/user-bucket/images/sample.png"
+        url="files/user-bucket/images/sample.png"
     )
     assert result == b"from-sdk"
 
 
 @pytest.mark.asyncio
-async def test_download_non_file_dial_url_uses_raw_http(monkeypatch):
+async def test_download_non_dial_file_url_uses_raw_http(monkeypatch):
     captured: dict[str, str] = {}
 
     async def _fake_download_file(url: str):
@@ -109,7 +109,7 @@ async def test_download_non_file_dial_url_uses_raw_http(monkeypatch):
 
     result = await _make_storage().download_file("images/sample.png")
     assert result == b"from-raw-http"
-    assert captured["url"] == "http://dial-core/v1/images/sample.png"
+    assert captured["url"] == "images/sample.png"
 
 
 @pytest.mark.asyncio

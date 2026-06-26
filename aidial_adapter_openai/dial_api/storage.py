@@ -5,7 +5,7 @@ import mimetypes
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
-from urllib.parse import unquote, urljoin
+from urllib.parse import unquote
 
 import httpx
 from aidial_client import (
@@ -13,6 +13,7 @@ from aidial_client import (
     DialException,
     InvalidDialURLError,
 )
+from aidial_client._exception import NotDialURLError
 from aidial_client.types.metadata import FileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
 
@@ -34,19 +35,12 @@ class FileStorage:
         )
         return cls(client=client)
 
-    @property
-    def dial_url(self) -> str:
-        return self.client.base_url.removesuffix("/")
-
-    def attachment_link_to_url(self, link: str) -> str:
-        base_url = f"{self.client.base_url}v1/"
-        return urljoin(base_url, link)
-
-    def _url_to_attachment_link(self, url: str) -> str:
-        return url.removeprefix(f"{self.client.base_url}v1/")
-
     def is_dial_url(self, link: str) -> bool:
-        return self.client.is_dial_url(self.attachment_link_to_url(link))
+        try:
+            self.client.files.get_storage_resource(link)
+            return True
+        except NotDialURLError:
+            return False
 
     @staticmethod
     def _decode_link(link: str) -> str:
@@ -79,14 +73,12 @@ class FileStorage:
         return await self.upload(upload_dir, filename, content_type, content)
 
     async def download_file(self, link: str) -> bytes:
-        url = self.attachment_link_to_url(link)
-
         try:
             try:
-                result = await self.client.files.download(url=url)
+                result = await self.client.files.download(url=link)
                 return await result.aget_content()
             except InvalidDialURLError:
-                return await download_file(url)
+                return await download_file(link)
         except DialException as e:
             raise InvalidRequestError(
                 f"Failed to download file {link!r} (status code {e.status_code})"

@@ -42,8 +42,8 @@ from tests.conftest import OpenAIClientFactory
 from tests.utils.mock_server import MockServer
 
 _DIAL_URL = "http://test-dial-url"
-_IMAGE_URL = "images/img.jpg"
-_FILE_URL = "documents/doc.pdf"
+_IMAGE_URL = "files/images/img.jpg"
+_FILE_URL = "files/documents/doc.pdf"
 
 
 def _image(url: str) -> ResponseInputImageParam:
@@ -198,6 +198,7 @@ class TestDownloadDialUrlsInRequestSuccess:
     async def test_download_dial_urls_in_request_message_image(
         self, file_storage, with_type: bool, url_case: UrlCase
     ):
+        print(url_case.url)
         request = _message([_image(url_case.url)], with_type)
 
         result = await download_dial_urls_in_request(file_storage, request)
