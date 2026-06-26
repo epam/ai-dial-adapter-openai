@@ -1,12 +1,16 @@
 import pytest
 from aidial_sdk.exceptions import HTTPException
 
-from aidial_adapter_openai.configuration.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import (
+    ApplicationConfig,
+    Vendor,
+)
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
+    BedrockOpenAIEndpoint,
     OpenAIEndpoint,
 )
 
@@ -95,6 +99,30 @@ def test_app_config_chat_responses_openai_platform(
     )
 
 
+def test_app_config_chat_responses_bedrock(deployment: str):
+    ty = ApplicationConfig().get_chat_completion_deployment_type(
+        deployment,
+        "https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses",
+    )
+
+    assert ty.deployment_type == D.RESPONSES_API
+    assert ty.endpoint == BedrockOpenAIEndpoint(
+        bedrock_region="us-east-2",
+    )
+
+
+def test_app_config_chat_bedrock_chat_completions(deployment: str):
+    ty = ApplicationConfig().get_chat_completion_deployment_type(
+        deployment,
+        "https://bedrock-mantle.eu-west-1.api.aws/openai/v1/chat/completions",
+    )
+
+    assert ty.deployment_type == D.GPT_GENERIC
+    assert ty.endpoint == BedrockOpenAIEndpoint(
+        bedrock_region="eu-west-1",
+    )
+
+
 def test_app_config_chat_completions_azure_next_gen(
     origin: str, deployment: str
 ):
@@ -158,6 +186,50 @@ def test_app_config_qwen3_asr_vllm_deployments(origin: str, deployment: str):
     )
 
     assert ty.deployment_type == D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+
+
+def test_get_vendor_for_generic_deployment(deployment: str):
+    cfg = ApplicationConfig()
+    assert (
+        cfg.get_vendor(
+            deployment,
+            OpenAIEndpoint(openai_base_url="https://api.openai.com/v1"),
+        )
+        == Vendor.AZURE
+    )
+
+
+@pytest.mark.parametrize(
+    "cfg",
+    [
+        ApplicationConfig(VLLM_DEPLOYMENTS=["vllm-deployment"]),
+        ApplicationConfig(
+            QWEN3_ASR_VLLM_DEPLOYMENTS=["qwen3-asr-vllm-deployment"]
+        ),
+    ],
+)
+def test_get_vendor_for_vllm_families(cfg: ApplicationConfig):
+    deployment_id = next(
+        iter(cfg.VLLM_DEPLOYMENTS or cfg.QWEN3_ASR_VLLM_DEPLOYMENTS)
+    )
+    assert (
+        cfg.get_vendor(
+            deployment_id,
+            OpenAIEndpoint(openai_base_url="https://api.openai.com/v1"),
+        )
+        == Vendor.VLLM
+    )
+
+
+def test_get_vendor_for_bedrock_endpoint(deployment: str):
+    cfg = ApplicationConfig()
+    assert (
+        cfg.get_vendor(
+            deployment,
+            BedrockOpenAIEndpoint(bedrock_region="us-east-2"),
+        )
+        == Vendor.AWS
+    )
 
 
 def test_is_azure_for_generic_deployment(deployment: str):

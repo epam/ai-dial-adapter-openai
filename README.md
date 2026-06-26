@@ -28,6 +28,7 @@
       - [Text-to-speech models (TTS)](#text-to-speech-models-tts)
       - [Speech-to-text models (STT)](#speech-to-text-models-stt)
     - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
+    - [Amazon Bedrock OpenAI Chat Completions API](#amazon-bedrock-openai-chat-completions-api)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
     - [vLLM Chat Completion API](#vllm-chat-completion-api)
@@ -48,6 +49,7 @@
   - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
     - [Azure OpenAI Responses API](#azure-openai-responses-api)
     - [OpenAI Platform Responses API](#openai-platform-responses-api)
+    - [Amazon Bedrock OpenAI Responses API](#amazon-bedrock-openai-responses-api)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
     - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
@@ -656,6 +658,46 @@ Note the difference from the Azure OpenAI configuration:
 - The API key is required.
 - Added `overrideName` to specify the upstream OpenAI model name. The upstream URL does not include the model name *(unlike Azure)*, so we pass it via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
 
+#### Amazon Bedrock OpenAI Chat Completions API
+
+The adapter supports OpenAI models deployed through Amazon Bedrock Mantle.
+Use a Bedrock model id with the `openai.` prefix in `overrideName` (for example `openai.gpt-5.4`):
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "openai.gpt-5.4",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://bedrock-mantle.${AWS_REGION}.api.aws/openai/v1/chat/completions",
+          "key": "${OPTIONAL_BEDROCK_BEARER_TOKEN}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Authentication options:
+
+- Provide `key` in the DIAL Core upstream config (Bedrock bearer token).
+- Omit `key` and use AWS credentials from the environment (for example `AWS_PROFILE`).
+
+As in other v1-style upstreams, set `overrideName` to the Bedrock model id (for example `openai.gpt-5.4`).
+
+> [!NOTE]
+> Bedrock support and feature parity can differ from direct OpenAI API support. Validate your model, region, and required capabilities before rollout:
+> - [OpenAI models in Amazon Bedrock](https://developers.openai.com/api/docs/guides/amazon-bedrock)
+> - [AWS OpenAI model cards](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.html)
+> - [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html)
+
 #### OpenAI Completions API
 
 The adapter also supports **legacy** [Completions API](https://platform.openai.com/docs/api-reference/completions/create) both for Azure-style upstream endpoints and OpenAI Platform-style endpoints:
@@ -1101,6 +1143,40 @@ Whereas, `endpoint` URL is required and enables Chat Completions API in DIAL.
 
 </details>
 
+#### Amazon Bedrock OpenAI Responses API
+
+> [!IMPORTANT]
+> Use `overrideName` with a Bedrock model id in `openai.*` format (for example `openai.gpt-5.4`).
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "openai.gpt-5.4",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "upstreams": [
+        {
+          "responsesEndpoint": "https://bedrock-mantle.${AWS_REGION}.api.aws/openai/v1/responses",
+          "key": "${OPTIONAL_BEDROCK_BEARER_TOKEN}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Authentication follows the same rules as for Bedrock Chat Completions API:
+
+- static Bedrock bearer token via `key`, or
+- AWS credential provider chain from environment variables.
+
+For long-running workloads, prefer provider-based credentials (short-term token refresh via AWS credential chain) over static long-lived keys. See [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html).
+
 ---
 
 ## Embedding deployments
@@ -1295,6 +1371,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 |NON_STREAMING_DEPLOYMENTS|``|Comma-separated list of deployments that do not support streaming. The adapter will emulate streaming by calling the model and converting its response into a single-chunk stream. Example: `"o1-mini,o1-preview"`|
 |ACCESS_TOKEN_EXPIRATION_WINDOW|10|The Azure access token is renewed this many seconds before its actual expiration time. The buffer ensures that the token does not expire in the middle of an operation due to processing time and potential network delays.|
 |AZURE_OPEN_AI_SCOPE||Provided scope of access token to Azure OpenAI services. Default: `https://cognitiveservices.azure.com/.default`|
+|AWS_PROFILE||AWS profile name used by the Bedrock token provider when Bedrock upstream `key` is not configured.|
 |API_VERSIONS_MAPPING|`{}`|Mapping of API versions for requests to the Azure OpenAI Chat Completions API. Example: `{"2023-03-15-preview": "2023-05-15", "": "2024-02-15-preview"}`. An empty key sets the default API version when the user does not pass one in the request. Find the details in the section about [API versioning](#api-versioning).|
 |ELIMINATE_EMPTY_CHOICES|False|When enabled, the response stream is guaranteed to exclude chunks with an empty list of choices. This is useful when a DIAL client doesn't support such chunks. An empty list of choices can be generated by Azure OpenAI in at least two cases: (1) when the **Content filter** is not disabled, Azure includes [prompt filter results](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter?tabs=warning%2Cuser-prompt%2Cpython-new#prompt-annotation-message) in the first chunk with an empty list of choices; (2) when `stream_options.include_usage` is enabled, the last chunk contains usage data and an empty list of choices.|
 |WEB_CONCURRENCY|1|Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).|
