@@ -107,9 +107,9 @@ async def test_download_non_dial_file_url_uses_raw_http(monkeypatch):
         _fake_download_file,
     )
 
-    result = await _make_storage().download_file("images/sample.png")
+    result = await _make_storage().download_file("http://test/image.png")
     assert result == b"from-raw-http"
-    assert captured["url"] == "images/sample.png"
+    assert captured["url"] == "http://test/image.png"
 
 
 @pytest.mark.asyncio

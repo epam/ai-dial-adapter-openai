@@ -8,11 +8,7 @@ from dataclasses import dataclass
 from urllib.parse import unquote
 
 import httpx
-from aidial_client import (
-    AsyncDial,
-    DialException,
-    InvalidDialURLError,
-)
+from aidial_client import AsyncDial, DialException
 from aidial_client._exception import NotDialURLError
 from aidial_client.types.metadata import FileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
@@ -77,7 +73,7 @@ class FileStorage:
             try:
                 result = await self.client.files.download(url=link)
                 return await result.aget_content()
-            except InvalidDialURLError:
+            except NotDialURLError:
                 return await download_file(link)
         except DialException as e:
             raise InvalidRequestError(
