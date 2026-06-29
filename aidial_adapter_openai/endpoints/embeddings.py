@@ -1,5 +1,6 @@
 from fastapi import Request
 
+from aidial_adapter_openai.configuration.app_config import Vendor
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.embeddings.azure_ai_vision import (
     embeddings as azure_ai_vision_embeddings,
@@ -29,9 +30,10 @@ async def embedding(deployment_id: str, request: Request):
     # See note for /chat/completions endpoint
     model = request_body["model"] = request_body.get("model") or deployment_id
 
+    vendor = Vendor.AZURE if app_config.is_azure(deployment_id) else Vendor.VLLM
     creds = await get_credentials(
         request.headers,
-        azure=app_config.is_azure(deployment_id),
+        vendor=vendor,
     )
     upstream_extra_headers = get_upstream_extra_headers(request.headers)
     api_version = get_api_version(request)

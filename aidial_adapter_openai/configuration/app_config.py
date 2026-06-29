@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from enum import StrEnum
 from typing import assert_never
 
 from aidial_sdk.exceptions import InternalServerError
@@ -22,6 +23,7 @@ from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.parsers import (
     AnthropicEndpoint,
     AzureOpenAIEndpoint,
+    BedrockOpenAIEndpoint,
     OpenAIEndpoint,
     anthropic_messages_parser,
     azure_video_api_parser,
@@ -39,7 +41,18 @@ from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 class DeploymentAPIType(ExtraForbidModel):
     deployment_type: D
-    endpoint: AzureOpenAIEndpoint | OpenAIEndpoint | AnthropicEndpoint
+    endpoint: (
+        AzureOpenAIEndpoint
+        | OpenAIEndpoint
+        | AnthropicEndpoint
+        | BedrockOpenAIEndpoint
+    )
+
+
+class Vendor(StrEnum):
+    AWS = "aws"
+    VLLM = "vllm"
+    AZURE = "azure"
 
 
 class ApplicationConfig(ExtraForbidModel):
@@ -75,6 +88,29 @@ class ApplicationConfig(ExtraForbidModel):
             if deployment_id in deployments:
                 return False
         return True
+
+    def get_vendor(
+        self,
+        deployment_id: str | None,
+        endpoint: (
+            AzureOpenAIEndpoint
+            | OpenAIEndpoint
+            | AnthropicEndpoint
+            | BedrockOpenAIEndpoint
+            | None
+        ),
+    ) -> Vendor:
+        if isinstance(endpoint, BedrockOpenAIEndpoint):
+            return Vendor.AWS
+
+        for deployments in [
+            self.VLLM_DEPLOYMENTS,
+            self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+        ]:
+            if deployment_id in deployments:
+                return Vendor.VLLM
+
+        return Vendor.AZURE
 
     def get_chat_completion_deployment_type(
         self, deployment_id: str, upstream_endpoint: str

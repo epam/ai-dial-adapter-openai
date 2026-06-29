@@ -4,12 +4,20 @@ from typing import Self
 
 from fastapi import Request
 from fastapi.responses import Response as FastAPIResponse
-from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
+from openai import (
+    AsyncAzureOpenAI,
+    AsyncBedrockOpenAI,
+    AsyncOpenAI,
+    AsyncStream,
+)
 from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
 from openai.types.responses.response_stream_event import ResponseStreamEvent
 
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    DIAL_OVERRIDE_NAME,
+    get_upstream_endpoint,
+)
 from aidial_adapter_openai.dial_api.storage import (
     create_file_storage,
 )
@@ -36,20 +44,24 @@ from aidial_adapter_openai.utils.upstream_headers import (
 
 @dataclass
 class _ResponsesContext:
-    client: AsyncAzureOpenAI | AsyncOpenAI
+    client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI
     query_params: dict[str, str]
 
     @classmethod
-    async def from_request(cls, request: Request) -> Self:
+    async def from_request(
+        cls, request: Request, *, model: str | None = None
+    ) -> Self:
         headers = request.headers
+        deployment_id = headers.get(DIAL_OVERRIDE_NAME) or model
         upstream_endpoint = get_upstream_endpoint(headers)
-        creds = await get_credentials(headers, azure=True)
         upstream_extra_headers = get_upstream_extra_headers(headers)
 
         query_params = dict(request.query_params)
         api_version = query_params.pop("api-version", None)
-
+        app_config = get_request_app_config(request)
         endpoint = responses_parser.parse(upstream_endpoint)
+        vendor = app_config.get_vendor(deployment_id, endpoint)
+        creds = await get_credentials(headers, vendor=vendor)
         client = endpoint.get_client(
             {
                 **creds,
@@ -62,9 +74,11 @@ class _ResponsesContext:
 
 
 async def responses_create(request: Request) -> FastAPIResponse:
-    context = await _ResponsesContext.from_request(request)
-
     request_body = await parse_body(request)
+    context = await _ResponsesContext.from_request(
+        request, model=request_body.get("model")
+    )
+
     file_storage = create_file_storage(request.headers)
     request_body = await download_dial_urls_in_request(
         file_storage, request_body
