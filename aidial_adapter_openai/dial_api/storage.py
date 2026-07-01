@@ -5,6 +5,7 @@ import mimetypes
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from urllib.parse import unquote
 
 import httpx
@@ -43,13 +44,19 @@ class FileStorage:
         decoded_link = unquote(link)
         return link if link == decoded_link else repr(decoded_link)
 
+    async def _upload_base_dir(self) -> PurePosixPath:
+        appdata = await self.client.my_appdata_home()
+        if appdata is None:
+            raise ValueError("Unable to retrieve user appdata directory.")
+        return appdata
+
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes
     ) -> FileMetadata:
         ext = mimetypes.guess_extension(content_type) or ""
         stored_filename = f"{filename}{ext}"
-        files_home = await self.client.my_files_home()
-        upload_path = files_home / upload_dir / stored_filename
+        base_dir = await self._upload_base_dir()
+        upload_path = base_dir / upload_dir / stored_filename
 
         metadata = await self.client.files.upload(
             url=upload_path,

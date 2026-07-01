@@ -16,13 +16,16 @@ def _make_storage() -> FileStorage:
 
 def _make_dial_client(
     *,
+    appdata_home: PurePosixPath | None = None,
     files_home: PurePosixPath | None = None,
     upload_result: FileMetadata | None = None,
     download_result: bytes = b"from-sdk",
     download_error: Exception | None = None,
 ):
+    if appdata_home is None:
+        appdata_home = PurePosixPath("user-bucket/appdata/test-app")
     if files_home is None:
-        files_home = PurePosixPath("files/user-bucket/appdata/test-app")
+        files_home = PurePosixPath("files/user-bucket")
     files = SimpleNamespace()
     files.upload = AsyncMock(return_value=upload_result)
     files.download = AsyncMock(
@@ -38,6 +41,7 @@ def _make_dial_client(
         base_url="http://dial-core/",
         is_dial_url=lambda _: True,
         auth_headers=AsyncMock(return_value={"api-key": "test-key"}),
+        my_appdata_home=AsyncMock(return_value=appdata_home),
         my_files_home=AsyncMock(return_value=files_home),
         files=files,
     )
@@ -65,12 +69,30 @@ async def test_upload_uses_dial_client_sdk(monkeypatch):
     )
 
     dial_client.files.upload.assert_awaited_once_with(
-        url=PurePosixPath(
-            "files/user-bucket/appdata/test-app/images/sha256.png"
-        ),
+        url=PurePosixPath("user-bucket/appdata/test-app/images/sha256.png"),
         file=("sha256.png", b"binary-content", "image/png"),
     )
     assert result == metadata
+
+
+@pytest.mark.asyncio
+async def test_upload_raises_when_appdata_unavailable(monkeypatch):
+    storage = _make_storage()
+    dial_client = _make_dial_client()
+    dial_client.my_appdata_home = AsyncMock(return_value=None)
+    monkeypatch.setattr(storage, "client", dial_client)
+
+    with pytest.raises(
+        ValueError, match="Unable to retrieve user appdata directory"
+    ):
+        await storage.upload(
+            upload_dir="images",
+            filename="sha256",
+            content_type="image/png",
+            content=b"binary-content",
+        )
+
+    dial_client.files.upload.assert_not_awaited()
 
 
 @pytest.mark.asyncio

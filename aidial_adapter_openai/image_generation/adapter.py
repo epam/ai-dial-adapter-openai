@@ -90,7 +90,7 @@ async def chat_completion(
                         content_type=image_content_type,
                         data=data_b64,
                         file_storage=file_storage,
-                        upload_dir=f"appdata/{model_name}/images",
+                        upload_dir="images",
                     )
                 )
 
