@@ -69,7 +69,9 @@ async def test_upload_uses_dial_client_sdk(monkeypatch):
     )
 
     dial_client.files.upload.assert_awaited_once_with(
-        url=PurePosixPath("user-bucket/appdata/test-app/images/sha256.png"),
+        url=PurePosixPath(
+            "files/user-bucket/appdata/test-app/images/sha256.png"
+        ),
         file=("sha256.png", b"binary-content", "image/png"),
     )
     assert result == metadata

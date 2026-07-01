@@ -56,7 +56,9 @@ class FileStorage:
         ext = mimetypes.guess_extension(content_type) or ""
         stored_filename = f"{filename}{ext}"
         base_dir = await self._upload_base_dir()
-        upload_path = base_dir / upload_dir / stored_filename
+        upload_path = (
+            PurePosixPath("files") / base_dir / upload_dir / stored_filename
+        )
 
         metadata = await self.client.files.upload(
             url=upload_path,
