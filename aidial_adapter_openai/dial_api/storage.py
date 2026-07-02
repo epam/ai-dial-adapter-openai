@@ -48,7 +48,7 @@ class FileStorage:
         appdata = await self.client.my_appdata_home()
         if appdata is None:
             raise ValueError("Unable to retrieve user appdata directory.")
-        return PurePosixPath("files") / appdata
+        return "files" / appdata
 
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes

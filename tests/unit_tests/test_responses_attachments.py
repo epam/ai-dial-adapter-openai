@@ -198,7 +198,6 @@ class TestDownloadDialUrlsInRequestSuccess:
     async def test_download_dial_urls_in_request_message_image(
         self, file_storage, with_type: bool, url_case: UrlCase
     ):
-        print(url_case.url)
         request = _message([_image(url_case.url)], with_type)
 
         result = await download_dial_urls_in_request(file_storage, request)
