@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import assert_never
 
@@ -20,6 +21,7 @@ from aidial_adapter_openai.dial_api.resource import (
     ValidationError,
     parse_attachment,
 )
+from aidial_adapter_openai.dial_api.state import MessageState
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import (
@@ -193,7 +195,9 @@ class MessageTransformer:
                 ret.append(result)
         return ret
 
-    async def transform_message(self, message: dict) -> MultiModalMessage:
+    async def transform_message(
+        self, message: dict
+    ) -> AsyncIterator[MultiModalMessage]:
         message = ensure_dict("message", message).copy()
 
         content = ensure_list_or_str("content", message.get("content") or "")
@@ -204,13 +208,20 @@ class MessageTransformer:
             "attachments", custom_content.get("attachments") or []
         )
 
+        if state := custom_content.get("state"):
+            message_state = MessageState.model_validate(state)
+            raw_message = message_state.web_search_content.to_dict()
+            raw_message["role"] = "tool"
+            yield MultiModalMessage(raw_message=raw_message)
+
         if isinstance(content, str) and not attachments:
-            return MultiModalMessage(raw_message=message)
+            yield MultiModalMessage(raw_message=message)
+            return
 
         content_parts = await self.download_content(content)
         attachment_parts = await self.download_attachments(attachments)
 
-        return MultiModalMessage(
+        yield MultiModalMessage(
             images=self.images,
             files=self.files,
             audios=self.audios,
@@ -228,12 +239,13 @@ class ResourceProcessor(BaseModel):
         self, messages: list[dict]
     ) -> list[MultiModalMessage]:
         errors: set[Error] = set()
-        transformations = [
-            await MessageTransformer(
+        transformations: list[MultiModalMessage] = []
+        for message in messages:
+            transformer = MessageTransformer(
                 file_storage=self.file_storage, errors=errors
-            ).transform_message(message)
-            for message in messages
-        ]
+            )
+            async for transformed in transformer.transform_message(message):
+                transformations.append(transformed)
 
         if errors:
             fails = sorted(errors)

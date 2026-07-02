@@ -19,6 +19,14 @@ _file_2 = Resource(type="application/pdf", data=b"document content 2")
 _audio_wav = Resource(type="audio/wav", data=b"RIFF\x00\x00\x00\x00WAVEfmt ")
 
 
+async def transform_single_message(
+    transformer: MessageTransformer, message: dict
+) -> MultiModalMessage:
+    results = [m async for m in transformer.transform_message(message)]
+    assert len(results) == 1
+    return results[0]
+
+
 def attachment(resource: Resource) -> dict:
     return {"type": resource.type, "data": resource.data_base64}
 
@@ -122,7 +130,7 @@ async def test_transform_to_content_parts(
     message,
     expected_content,
 ):
-    result = await mock_message_transformer.transform_message(message)
+    result = await transform_single_message(mock_message_transformer, message)
 
     assert isinstance(result, MultiModalMessage)
     assert result.raw_message.get("custom_content") is None
@@ -166,7 +174,7 @@ async def test_transform_message_not_found(
         "content": "",
         "custom_content": {"attachments": [{"url": "not_found.jpg"}]},
     }
-    await mock_message_transformer.transform_message(message)
+    await transform_single_message(mock_message_transformer, message)
     assert mock_message_transformer.errors is not None
     assert len(mock_message_transformer.errors) == 1
     image_fail = list(mock_message_transformer.errors)[0]
@@ -407,7 +415,7 @@ async def test_audio_in_attachments(
             "attachments": [attachment(_audio_wav)],
         },
     }
-    result = await mock_message_transformer.transform_message(message)
+    result = await transform_single_message(mock_message_transformer, message)
 
     assert isinstance(result, MultiModalMessage)
     assert len(result.audios) == 1

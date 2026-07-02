@@ -104,6 +104,7 @@ from openai.types.responses.response_tool_search_output_item import (
     ResponseToolSearchOutputItem,
 )
 
+from aidial_adapter_openai.dial_api.state import MessageState
 from aidial_adapter_openai.responses.response import (
     get_finish_reason,
     get_usage,
@@ -353,6 +354,11 @@ def _convert_message(
             yield EasyInputMessageParam(role=role, content=res_content)
 
         case "tool":
+            if message["type"] == "web_search_call":
+                message.pop("role")
+                yield message
+                return
+
             content = message["content"]
             if isinstance(content, str):
                 output = content
@@ -387,6 +393,7 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
     annotations: list[Annotation] = []
     attachments: list[Attachment] = []
     stages: list[Stage] = []
+    state: dict = {}
     tool_calls: list[ChatCompletionMessageToolCallUnion] = []
 
     for item in output:
@@ -435,7 +442,7 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                             )
                         )
 
-            case ResponseFunctionWebSearch(id=item_id, action=action):
+            case ResponseFunctionWebSearch(id=item_id, action=action) as ws:
                 logger.info(
                     f"[web_search] tool call: id={item_id}, action={action}"
                 )
@@ -453,6 +460,8 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                         content=content,
                     )
                 )
+                message_state = MessageState(web_search_content=ws)
+                state.update(message_state.model_dump())
 
             case (
                 ResponseFileSearchToolCall()
@@ -485,10 +494,11 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                 assert_never(item)
 
     extra_fields = {}
-    if attachments or stages:
+    if attachments or stages or state:
         extra_fields["custom_content"] = CustomContent(
             attachments=attachments or None,
             stages=stages or None,
+            state=state or None,
         ).model_dump(mode="json", exclude_none=True)
 
     return ChatCompletionMessage(
