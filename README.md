@@ -961,7 +961,7 @@ Azure OpenAI and OpenAI Platform return token usage for streaming requests when 
 
 How does the adapter know which deployment requires which tokenization algorithm?
 
-For chat completion request/response processing, the adapter does not perform tokenization for:
+The adapter does not perform tokenization for:
 
 1. deployments registered in `DATABRICKS_DEPLOYMENTS` and `MISTRAL_DEPLOYMENTS` env vars. It's expected upstream for these deployments are going to return the token usage.
 2. deployments supported by the following APIs:
@@ -1030,16 +1030,9 @@ Response:
 
 Each input is tokenized following the corresponding [tokenization algorithm](#tokenization-algorithm).
 
-For deployments backed by Responses API **and** legacy Completions API, `/tokenize` delegates token counting to OpenAI Responses input-token endpoint:
+For deployments backed by Responses API, `/tokenize` delegates token counting to OpenAI Responses input-token endpoint:
 
 `.../openai/v1/responses` → `.../openai/v1/responses/input_tokens`
-
-The adapter accepts both DIAL tokenize input types:
-
-- `{"type":"string","value":"..."}`
-- `{"type":"request","value":{...}}`
-
-For `type=request`, the payload may already be in Responses format (`input`, `instructions`, `truncation`, etc.) or in Chat Completions format (`messages`, `tools`, `tool_choice`, etc.).
 
 Tokenize endpoints support [upstream header proxying](#upstream-header-proxying).
 

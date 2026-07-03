@@ -12,8 +12,8 @@ from aidial_sdk.deployment.tokenize import (
     TokenizeSuccess,
 )
 from aidial_sdk.exceptions import RequestValidationError
-from anthropic import AsyncAnthropicFoundry
 from fastapi import Request
+from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.transformation import (
@@ -24,6 +24,10 @@ from aidial_adapter_openai.chat_completions.vllm.chat_completion import (
 )
 from aidial_adapter_openai.chat_completions.vllm.tokenizer import (
     VllmTokenizer,
+)
+from aidial_adapter_openai.configuration.app_config import (
+    ApplicationConfig,
+    DeploymentAPIType,
 )
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
@@ -114,6 +118,57 @@ def _prepare_chat_request(
     return request
 
 
+async def _get_tokenizer(
+    *,
+    request: Request,
+    deployment_id: str,
+    deployment: DeploymentAPIType,
+    app_config: ApplicationConfig,
+    upstream_endpoint: str,
+    extra_headers: dict[str, str],
+    file_storage: FileStorage | None,
+) -> _Tokenizer:
+    deployment_type = deployment.deployment_type
+    match deployment_type:
+        case (
+            D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+        ):
+            vllm_tokenizer = VllmTokenizer(
+                upstream_endpoint=upstream_endpoint,
+                extra_headers=extra_headers,
+            )
+            return _VllmTokenizer(file_storage, vllm_tokenizer)
+
+        case D.RESPONSES_API:
+            deployment_endpoint = deployment.endpoint
+            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
+            creds = await get_credentials(request.headers, vendor=vendor)
+            api_version = get_api_version(request)
+            client = deployment_endpoint.get_client(
+                {**creds, "api_version": api_version, "headers": extra_headers}
+            )
+
+            if not isinstance(
+                client, AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI
+            ):
+                raise ValueError(
+                    f"Unexpected client for the deployment backed by Responses API - {type(client)}"
+                )
+
+            responses_tokenizer = ResponsesTokenizer(client=client)
+            return _ResponsesTokenizer(file_storage, responses_tokenizer)
+
+        case _:
+            tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
+                deployment_id, deployment_id
+            )
+            tiktoken_tokenizer = Tokenizer(
+                model=tiktoken_model,
+                image_tokenizer=get_image_tokenizer(deployment_type),
+            )
+            return _TiktokenTokenizer(file_storage, tiktoken_tokenizer)
+
+
 async def _tokenize_input(
     *,
     tokenize_input: TokenizeInput,
@@ -154,47 +209,19 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
     deployment = app_config.get_chat_completion_deployment_type(
         deployment_id, upstream_endpoint
     )
-    deployment_type = deployment.deployment_type
 
     extra_headers = get_upstream_extra_headers(request.headers)
     file_storage = create_file_storage(request.headers)
 
-    match deployment_type:
-        case (
-            D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
-        ):
-            vllm_tokenizer = VllmTokenizer(
-                upstream_endpoint=upstream_endpoint,
-                extra_headers=extra_headers,
-            )
-            tokenizer = _VllmTokenizer(file_storage, vllm_tokenizer)
-
-        case D.RESPONSES_API | D.COMPLETIONS_API:
-            deployment_endpoint = deployment.endpoint
-            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
-            creds = await get_credentials(request.headers, vendor=vendor)
-            api_version = get_api_version(request)
-            client = deployment_endpoint.get_client(
-                {**creds, "api_version": api_version, "headers": extra_headers}
-            )
-
-            if isinstance(client, AsyncAnthropicFoundry):
-                raise ValueError(
-                    "AsyncAnthropicFoundry client is not supported for /responses tokenization."
-                )
-
-            responses_tokenizer = ResponsesTokenizer(client=client)
-            tokenizer = _ResponsesTokenizer(file_storage, responses_tokenizer)
-
-        case _:
-            tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
-                deployment_id, deployment_id
-            )
-            tiktoken_tokenizer = Tokenizer(
-                model=tiktoken_model,
-                image_tokenizer=get_image_tokenizer(deployment_type),
-            )
-            tokenizer = _TiktokenTokenizer(file_storage, tiktoken_tokenizer)
+    tokenizer = await _get_tokenizer(
+        request=request,
+        deployment_id=deployment_id,
+        deployment=deployment,
+        app_config=app_config,
+        upstream_endpoint=upstream_endpoint,
+        extra_headers=extra_headers,
+        file_storage=file_storage,
+    )
 
     outputs: list[TokenizeOutput] = []
     for tokenize_input in tokenize_request.inputs:

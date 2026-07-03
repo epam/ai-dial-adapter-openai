@@ -23,41 +23,7 @@ _RESPONSES_TOKENIZE_HEADERS = {
 }
 _RESPONSES_TOKENIZE_PARAMS = {"api-version": "2025-01-01"}
 
-_RESPONSES_REQUEST = {
-    "type": "request",
-    "value": {
-        "messages": [
-            {
-                "role": "user",
-                "content": "placeholder",
-            },
-        ],
-        "input": [
-            {
-                "role": "developer",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": "Only JSON response",
-                    }
-                ],
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": "Return ping",
-                    }
-                ],
-            },
-        ],
-        "instructions": "responses-protocol-request",
-        "truncation": "auto",
-    },
-}
-
-_COMPLETIONS_REQUEST = {
+_CHAT_COMPLETIONS_REQUEST = {
     "type": "request",
     "value": {
         "messages": [
@@ -458,30 +424,28 @@ async def test_tokenize_to_responses_string_input(
 
 @respx.mock
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("tokenize_input", "input_tokens"),
-    [
-        (_RESPONSES_REQUEST, 123),
-        (_COMPLETIONS_REQUEST, 456),
-    ],
-)
 async def test_tokenize_to_responses_request_input(
     responses_client: httpx.AsyncClient,
-    tokenize_input: dict,
-    input_tokens: int,
 ):
-    respx.post(_RESPONSES_INPUT_TOKENS_URL).mock(
-        return_value=httpx.Response(
+    input_tokens = 123
+    captured: dict = {}
+
+    def input_tokens_handler(request: httpx.Request):
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
             status_code=200,
             json={
                 "object": "response.input_tokens",
                 "input_tokens": input_tokens,
             },
         )
+
+    respx.post(_RESPONSES_INPUT_TOKENS_URL).mock(
+        side_effect=input_tokens_handler
     )
 
     response = await _post_tokenize_to_responses(
-        responses_client, tokenize_input
+        responses_client, _CHAT_COMPLETIONS_REQUEST
     )
 
     assert response.status_code == 200

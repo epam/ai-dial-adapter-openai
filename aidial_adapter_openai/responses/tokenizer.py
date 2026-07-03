@@ -27,11 +27,9 @@ class ResponsesTokenizer:
     async def tokenize_request(
         self, request: dict, messages: list[MultiModalMessage]
     ) -> int:
-        is_completions = request.get("input") is None
-        if is_completions:
-            payload = self._parse_completions(request, messages)
-        else:
-            payload = self._parse_responses(request)
+        # `request` is always a Chat Completions request by the definition of
+        # the `GET /tokenize` endpoint (TokenizeInputRequest.value).
+        payload = self._parse_completions(request, messages)
 
         response = await self._client.responses.input_tokens.count(
             **{
@@ -41,13 +39,6 @@ class ResponsesTokenizer:
             }
         )
         return response.input_tokens
-
-    def _parse_responses(self, request: dict) -> dict:
-        payload = self._build_base_payload(request)
-        payload["input"] = request["input"]
-        payload["tools"] = request.get("tools")
-        payload["tool_choice"] = request.get("tool_choice")
-        return payload
 
     def _parse_completions(
         self, request: dict, messages: list[MultiModalMessage]
