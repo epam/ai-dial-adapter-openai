@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+import asyncio
 from dataclasses import dataclass
 from typing import assert_never
 
@@ -21,7 +21,6 @@ from aidial_adapter_openai.dial_api.resource import (
     ValidationError,
     parse_attachment,
 )
-from aidial_adapter_openai.dial_api.state import MessageState
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import (
@@ -195,33 +194,37 @@ class MessageTransformer:
                 ret.append(result)
         return ret
 
-    async def transform_message(
-        self, message: dict
-    ) -> AsyncIterator[MultiModalMessage]:
+    async def transform_message(self, message: dict) -> MultiModalMessage:
         message = ensure_dict("message", message).copy()
 
-        content = ensure_list_or_str("content", message.get("content") or "")
+        raw_content = message.get("content")
+        content = ensure_list_or_str(
+            "content", "" if raw_content is None else raw_content
+        )
+        raw_custom_content = message.get("custom_content")
         custom_content = ensure_dict(
-            "custom_content", message.pop("custom_content", None) or {}
+            "custom_content",
+            {} if raw_custom_content is None else raw_custom_content,
         )
         attachments = ensure_list(
-            "attachments", custom_content.get("attachments") or []
+            "attachments", custom_content.pop("attachments", None) or []
         )
 
-        if state := custom_content.get("state"):
-            message_state = MessageState.model_validate(state)
-            raw_message = message_state.web_search_content.to_dict()
-            raw_message["role"] = "tool"
-            yield MultiModalMessage(raw_message=raw_message)
+        if "custom_content" in message:
+            if custom_content:
+                message["custom_content"] = custom_content
+            else:
+                message.pop("custom_content")
 
         if isinstance(content, str) and not attachments:
-            yield MultiModalMessage(raw_message=message)
-            return
+            return MultiModalMessage(raw_message=message)
 
-        content_parts = await self.download_content(content)
-        attachment_parts = await self.download_attachments(attachments)
+        content_parts, attachment_parts = await asyncio.gather(
+            self.download_content(content),
+            self.download_attachments(attachments),
+        )
 
-        yield MultiModalMessage(
+        return MultiModalMessage(
             images=self.images,
             files=self.files,
             audios=self.audios,
@@ -239,13 +242,12 @@ class ResourceProcessor(BaseModel):
         self, messages: list[dict]
     ) -> list[MultiModalMessage]:
         errors: set[Error] = set()
-        transformations: list[MultiModalMessage] = []
-        for message in messages:
-            transformer = MessageTransformer(
+        transformations = [
+            await MessageTransformer(
                 file_storage=self.file_storage, errors=errors
-            )
-            async for transformed in transformer.transform_message(message):
-                transformations.append(transformed)
+            ).transform_message(message)
+            for message in messages
+        ]
 
         if errors:
             fails = sorted(errors)

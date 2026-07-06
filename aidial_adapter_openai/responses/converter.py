@@ -43,6 +43,7 @@ from openai.types.responses import (
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
     ResponseFunctionWebSearch,
+    ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputFileContentParam,
     ResponseInputFileParam,
@@ -335,6 +336,14 @@ def _convert_message(
 ) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
         case "user" | "assistant" | "system" | "developer":
+            if (custom_content := message.get("custom_content")) and (
+                state := custom_content.get("state")
+            ):
+                message_state = MessageState.model_validate(state)
+                yield ResponseFunctionWebSearchParam(
+                    **message_state.web_search_content.model_dump()
+                )
+
             if message.get("function_call"):
                 raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
@@ -354,11 +363,6 @@ def _convert_message(
             yield EasyInputMessageParam(role=role, content=res_content)
 
         case "tool":
-            if message["type"] == "web_search_call":
-                message.pop("role")
-                yield message
-                return
-
             content = message["content"]
             if isinstance(content, str):
                 output = content
@@ -442,7 +446,7 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                             )
                         )
 
-            case ResponseFunctionWebSearch(id=item_id, action=action) as ws:
+            case ResponseFunctionWebSearch(id=item_id, action=action):
                 logger.info(
                     f"[web_search] tool call: id={item_id}, action={action}"
                 )
@@ -460,8 +464,7 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                         content=content,
                     )
                 )
-                message_state = MessageState(web_search_content=ws)
-                state.update(message_state.model_dump())
+                state.update(MessageState(web_search_content=item).model_dump())
 
             case (
                 ResponseFileSearchToolCall()
