@@ -18,7 +18,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
-from aidial_adapter_openai.responses.adapter import ResponsesConfig
+from aidial_adapter_openai.responses.configuration import ResponsesConfig
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.video_generation.azure.configuration import (

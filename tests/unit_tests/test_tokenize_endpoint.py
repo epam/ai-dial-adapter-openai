@@ -23,53 +23,13 @@ _RESPONSES_TOKENIZE_HEADERS = {
 }
 _RESPONSES_TOKENIZE_PARAMS = {"api-version": "2025-01-01"}
 
-_CHAT_COMPLETIONS_REQUEST = {
-    "type": "request",
-    "value": {
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "How is weather in LA?",
-                    }
-                ],
-            },
-            {
-                "role": "assistant",
-                "tool_calls": [
-                    {
-                        "id": "call_weather",
-                        "type": "function",
-                        "function": {
-                            "name": "get_weather",
-                            "arguments": '{"city":"Los Angeles"}',
-                        },
-                    }
-                ],
-            },
-            {
-                "role": "tool",
-                "tool_call_id": "call_weather",
-                "content": '{"temperature":24}',
-            },
-        ],
-        "tools": [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_weather",
-                    "description": "Get current weather",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"city": {"type": "string"}},
-                        "required": ["city"],
-                    },
-                },
-            }
-        ],
-    },
+_REQUEST_INPUT_VALUE = {
+    "messages": [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "How is weather in LA?"}],
+        }
+    ]
 }
 
 
@@ -114,11 +74,8 @@ async def gpt_client():
 
 @pytest.fixture
 async def responses_client():
-    config = ApplicationConfig().add_deployment(
-        "responses-test", ChatCompletionDeploymentType.GPT_GENERIC
-    )
     async with create_test_client(
-        app_config=config,
+        app_config=ApplicationConfig(),
         base_url="http://test-app.com/openai/deployments/responses-test",
     ) as client:
         yield client
@@ -428,10 +385,8 @@ async def test_tokenize_to_responses_request_input(
     responses_client: httpx.AsyncClient,
 ):
     input_tokens = 123
-    captured: dict = {}
 
     def input_tokens_handler(request: httpx.Request):
-        captured["body"] = json.loads(request.content)
         return httpx.Response(
             status_code=200,
             json={
@@ -445,7 +400,8 @@ async def test_tokenize_to_responses_request_input(
     )
 
     response = await _post_tokenize_to_responses(
-        responses_client, _CHAT_COMPLETIONS_REQUEST
+        responses_client,
+        {"type": "request", "value": _REQUEST_INPUT_VALUE},
     )
 
     assert response.status_code == 200

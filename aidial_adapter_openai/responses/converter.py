@@ -1,10 +1,11 @@
 from collections.abc import Generator
-from typing import assert_never
+from typing import Any, TypedDict, assert_never
 
 import pydantic
 from aidial_sdk.chat_completion.enums import Status
 from aidial_sdk.chat_completion.request import Attachment, CustomContent, Stage
 from aidial_sdk.exceptions import RequestValidationError
+from openai import Omit, omit
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionContentPartParam,
@@ -56,6 +57,7 @@ from openai.types.responses import (
     ResponseOutputRefusal,
     ResponseOutputText,
     ResponseReasoningItem,
+    ResponseTextConfigParam,
     ToolChoiceAllowedParam,
     ToolChoiceCustomParam,
     ToolChoiceFunctionParam,
@@ -103,7 +105,14 @@ from openai.types.responses.response_tool_search_call import (
 from openai.types.responses.response_tool_search_output_item import (
     ResponseToolSearchOutputItem,
 )
+from openai.types.shared_params import Reasoning
 
+from aidial_adapter_openai.chat_completions.transformation import (
+    ResourceProcessor,
+)
+from aidial_adapter_openai.dial_api.storage import FileStorage
+from aidial_adapter_openai.responses.configuration import get_configuration
+from aidial_adapter_openai.responses.request import convert_response_format
 from aidial_adapter_openai.responses.response import (
     get_finish_reason,
     get_usage,
@@ -114,6 +123,29 @@ from aidial_adapter_openai.utils.log_config import logger
 _NO_REFUSAL = "Refusal messages aren't yet supported."
 
 _DEPRECATED_FUNCTION_API = "The deployment doesn't support the deprecated API for functions. Please use tools instead."
+
+
+class _TokenizeResponsesRequest(TypedDict, total=False):
+    model: str
+    input: ResponseInputParam
+    tools: list[Any] | Omit
+    tool_choice: ToolChoice | Omit
+    parallel_tool_calls: bool | Omit
+    text: ResponseTextConfigParam | Omit
+
+
+class _CreateResponsesRequest(TypedDict, total=False):
+    model: str
+    stream: bool
+    input: ResponseInputParam
+    tools: list[Any] | Omit
+    tool_choice: ToolChoice | Omit
+    parallel_tool_calls: bool | Omit
+    text: ResponseTextConfigParam | Omit
+    top_p: float | Omit
+    temperature: float | Omit
+    max_output_tokens: int | Omit
+    reasoning: Reasoning | Omit
 
 
 def convert_annotation(annotation: ResponsesAnnotation) -> Annotation | None:
@@ -378,6 +410,73 @@ def convert_messages(
     return [
         param for message in messages for param in _convert_message(message)
     ]
+
+
+async def chat_completions_to_responses_request(
+    request: dict[str, Any], file_storage: FileStorage | None
+) -> tuple[_TokenizeResponsesRequest, _CreateResponsesRequest]:
+    is_stream = bool(request.get("stream"))
+    model_name = request["model"]
+    messages = request["messages"]
+
+    transformed_messages = await ResourceProcessor(
+        file_storage=file_storage,
+    ).transform_messages(messages)
+
+    input_messages = convert_messages(
+        [m.raw_message for m in transformed_messages]  # type: ignore
+    )
+
+    res_tools = []
+    if tools := request.get("tools"):
+        res_tools.extend(convert_tools(tools))
+
+    if "web_search_options" in request:
+        res_tools.append(
+            {"type": "web_search", **request["web_search_options"]}
+        )
+
+    res_tool_choice: ToolChoice | Omit = omit
+    if tool_choice := request.get("tool_choice"):
+        res_tool_choice = convert_tool_choice(tool_choice)
+
+    max_output_tokens = (
+        request.get("max_tokens")
+        or request.get("max_completion_tokens")
+        or omit
+    )
+
+    configuration = get_configuration(request)
+    parallel_tool_calls = (
+        request["parallel_tool_calls"]
+        if request.get("parallel_tool_calls") is not None
+        else omit
+    )
+
+    text: ResponseTextConfigParam | Omit = omit
+    if response_format := request.get("response_format"):
+        text = ResponseTextConfigParam(
+            format=convert_response_format(response_format)
+        )
+
+    tokenize_request: _TokenizeResponsesRequest = {
+        "model": model_name,
+        "input": input_messages,
+        "tools": res_tools or omit,
+        "tool_choice": res_tool_choice,
+        "parallel_tool_calls": parallel_tool_calls,
+        "text": text,
+    }
+    create_request: _CreateResponsesRequest = {
+        **tokenize_request,
+        "stream": is_stream,
+        "top_p": request.get("top_p") or omit,
+        "temperature": request.get("temperature") or omit,
+        "max_output_tokens": max_output_tokens,
+        "reasoning": configuration.reasoning or omit,
+    }
+
+    return tokenize_request, create_request
 
 
 def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
