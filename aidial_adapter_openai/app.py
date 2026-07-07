@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 import fastapi
+from aidial_adapter_anthropic.passthrough import mount_anthropic_api
 from aidial_client import AsyncDialClientPool
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry as sdk_init_telemetry
@@ -9,6 +10,9 @@ from fastapi import FastAPI
 from openai import OpenAIError
 
 import aidial_adapter_openai.endpoints as endpoints
+from aidial_adapter_openai.chat_completions.anthropic import (
+    create_passthrough_client_factory,
+)
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.exceptions.handlers import (
     adapter_exception_handler,
@@ -54,7 +58,8 @@ def create_app(
 
     configure_loggers()
 
-    set_app_config(app, app_config or ApplicationConfig.from_env())
+    app_config = app_config or ApplicationConfig.from_env()
+    set_app_config(app, app_config)
 
     app.get("/health")(endpoints.health)
 
@@ -80,6 +85,13 @@ def create_app(
     )
     app.get("/openai/deployments/{deployment_id:path}/configuration")(
         endpoints.configuration
+    )
+
+    mount_anthropic_api(
+        app,
+        create_passthrough_client_factory,
+        path="/anthropic",
+        name="Claude API passthrough",
     )
 
     app.add_exception_handler(fastapi.HTTPException, fastapi_exception_handler)
