@@ -58,8 +58,7 @@ def create_app(
 
     configure_loggers()
 
-    app_config = app_config or ApplicationConfig.from_env()
-    set_app_config(app, app_config)
+    set_app_config(app, app_config or ApplicationConfig.from_env())
 
     app.get("/health")(endpoints.health)
 
