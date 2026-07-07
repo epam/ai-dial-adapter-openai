@@ -12,18 +12,9 @@ from aidial_sdk.chat_completion import Response as DIALResponse
 from anthropic import AsyncAnthropicFoundry
 from fastapi.responses import StreamingResponse
 
-from aidial_adapter_openai.configuration.app_config import (
-    Vendor,
-)
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import DIAL_URL
-from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.env import get_env_int
-from aidial_adapter_openai.utils.parsers import (
-    anthropic_messages_parser,
-    bad_upstream_endpoint,
-)
 
 _CLAUDE_DEFAULT_MAX_TOKENS = get_env_int("CLAUDE_DEFAULT_MAX_TOKENS", 1536)
 
@@ -74,19 +65,3 @@ async def chat_completion(
         deployment_id=deployment_id,
         chat_completion=_handler,
     )
-
-
-async def create_passthrough_client_factory(
-    request: fastapi.Request,
-) -> AsyncAnthropicFoundry:
-    headers = request.headers
-    upstream_endpoint = get_upstream_endpoint(headers)
-
-    endpoint = anthropic_messages_parser.try_parse(upstream_endpoint)
-    if endpoint is None:
-        raise bad_upstream_endpoint(
-            "Expected Anthropic API /v1/messages endpoint."
-        )
-
-    creds = await get_credentials(headers, vendor=Vendor.AZURE)
-    return endpoint.get_client({**creds})
