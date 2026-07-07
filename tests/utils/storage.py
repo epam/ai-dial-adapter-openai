@@ -1,14 +1,13 @@
 import mimetypes
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import SecretStr
 from typing_extensions import override
 
 from aidial_adapter_openai.dial_api.resource import ValidationError
 from aidial_adapter_openai.dial_api.storage import (
-    Bucket,
     FileMetadata,
     FileStorage,
 )
@@ -18,16 +17,11 @@ from aidial_adapter_openai.utils.env import get_env_bool
 class DummyFileStorage(FileStorage):
     def __init__(self):
         super().__init__(
-            dial_url="http://dial-core",
-            api_key=SecretStr("dummy-api-key"),
+            client=FileStorage.create(
+                dial_url="http://dial-core",
+                api_key="dummy-api-key",
+            ).client,
         )
-
-    @override
-    async def _get_bucket(self) -> Bucket:
-        return {
-            "bucket": "APP_BUCKET",
-            "appdata": "USER_BUCKET/appdata/test-application",
-        }
 
     @override
     async def download_file(self, link: str) -> bytes:
@@ -39,16 +33,19 @@ class DummyFileStorage(FileStorage):
         return b"test-content"
 
 
+@dataclass
 class MockFileStorage(FileStorage):
     root_dir: Path
     files: list[Path]
 
     @classmethod
-    def create(cls, root_dir: Path) -> "MockFileStorage":
+    def create_for_root(cls, root_dir: Path) -> "MockFileStorage":
         root_dir.mkdir(parents=True, exist_ok=True)
         return cls(
-            dial_url="http://test-dial-url",
-            api_key=SecretStr("test-dial-api-key"),
+            client=FileStorage.create(
+                dial_url="http://test-dial-url",
+                api_key="test-dial-api-key",
+            ).client,
             root_dir=root_dir,
             files=[],
         )
@@ -85,9 +82,11 @@ class MockFileStorage(FileStorage):
 
         return FileMetadata(
             name=name,
-            parentPath=os.path.dirname(name),
+            parent_path=os.path.dirname(name),
             bucket="mock-bucket",
             url=f"files/mock-bucket/{name}",
+            node_type="ITEM",
+            resource_type="FILE",
         )
 
     async def download_file(self, link: str) -> bytes:
