@@ -46,6 +46,6 @@ resolutions:
     - message: ".*PyPI::anyio:4\\.12\\.0.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "MIT License: https://github.com/agronholm/anyio/blob/4.12.0/LICENSE"
-    - message: ".*PyPI::(opentelemetry|typing-extensions|typing-inspection|pillow|cffi|cryptography|pyjwt|aidial-adapter-anthropic|aidial-sdk|idna).*"
+    - message: ".*PyPI::(opentelemetry|typing-extensions|typing-inspection|pillow|cffi|cryptography|pyjwt|aidial-adapter-anthropic|aidial-sdk|aidial-client|idna|aiofiles).*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "ORT cannot pick up license information"
