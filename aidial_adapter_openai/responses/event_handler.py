@@ -478,6 +478,12 @@ class EventHandler(pydantic.BaseModel):
                 item_id=stage_id, summary_index=summary_index, delta=content
             ):
                 stage_key = f"reasoning:{stage_id}:{summary_index}"
+                if stage_key not in self.stage_key_to_index:
+                    chunk = self._open_stage(
+                        name="Reasoning", stage_key=stage_key
+                    )
+                    if chunk is not None:
+                        yield chunk
                 yield self._append_to_stage(
                     stage_key=stage_key, content=content
                 )
