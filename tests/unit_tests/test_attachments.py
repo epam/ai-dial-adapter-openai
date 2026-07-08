@@ -76,7 +76,10 @@ async def test_guess_attachment_type(attachment, expected_type):
         ({"url": "relative/url.gif"}, "relative/url.gif"),
         ({"data": "abcd"}, "data attachment"),
         ({"url": "http://dial-core/image.png"}, "http://dial-core/image.png"),
-        ({"url": "http://dial-core/v1/image.png"}, "image.png"),
+        (
+            {"url": "http://dial-core/v1/image.png"},
+            "http://dial-core/v1/image.png",
+        ),
         (
             {
                 "url": "http://dial-core/v1/files/USER_BUCKET/dir1/dir2/image.png"
