@@ -17,7 +17,7 @@ async def create_dial_attachment(
         metadata = await file_storage.upload_file(
             upload_dir, data, content_type
         )
-        url = metadata["url"]
+        url = metadata.url
         data_b64 = None
     else:
         url = None

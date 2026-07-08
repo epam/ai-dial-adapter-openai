@@ -12,7 +12,6 @@ from openai.types.chat.chat_completion_assistant_message_param import (
     ContentArrayOfContentPart,
 )
 from openai.types.chat.chat_completion_content_part_param import File
-from pydantic import BaseModel
 
 from aidial_adapter_openai.dial_api.resource import (
     AttachmentResource,
@@ -235,7 +234,8 @@ class MessageTransformer:
         )
 
 
-class ResourceProcessor(BaseModel):
+@dataclass
+class ResourceProcessor:
     file_storage: FileStorage | None
 
     async def transform_messages(
