@@ -9,6 +9,9 @@ from fastapi import FastAPI
 from openai import OpenAIError
 
 import aidial_adapter_openai.endpoints as endpoints
+from aidial_adapter_openai.chat_completions.anthropic_passthrough import (
+    mount_anthropic_passthrough,
+)
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.exceptions.handlers import (
     adapter_exception_handler,
@@ -81,6 +84,8 @@ def create_app(
     app.get("/openai/deployments/{deployment_id:path}/configuration")(
         endpoints.configuration
     )
+
+    mount_anthropic_passthrough(app, path="/anthropic")
 
     app.add_exception_handler(fastapi.HTTPException, fastapi_exception_handler)
 
