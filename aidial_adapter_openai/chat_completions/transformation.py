@@ -196,10 +196,7 @@ class MessageTransformer:
     async def transform_message(self, message: dict) -> MultiModalMessage:
         message = ensure_dict("message", message).copy()
 
-        raw_content = message.get("content")
-        content = ensure_list_or_str(
-            "content", "" if raw_content is None else raw_content
-        )
+        content = ensure_list_or_str("content", message.get("content") or "")
         custom_content = ensure_dict(
             "custom_content", message.pop("custom_content", None) or {}
         ).copy()
