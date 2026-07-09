@@ -47,10 +47,7 @@ from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
-from aidial_adapter_openai.dial_api.request import (
-    get_upstream_endpoint,
-    get_upstream_model_name,
-)
+from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.image_generation.adapter import (
     chat_completion as image_generation,
@@ -101,11 +98,7 @@ async def call_chat_completion(
     # Azure and non-Azure deployments.
     # Therefore, we provide the "model" field for all deployments here.
     # The same goes for /embeddings endpoint.
-    model_name = request_body["model"] = get_upstream_model_name(
-        request_headers=request_headers,
-        deployment_id=deployment_id,
-        model=request_body.get("model"),
-    )
+    model_name = request_body["model"] = request_body.get("model") or deployment_id
 
     upstream_endpoint = get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
@@ -134,8 +127,7 @@ async def call_chat_completion(
         return await anthropic_chat_completions(
             request=request,
             client=client,
-            deployment_id=deployment_id,
-            model_name=model_name,
+            deployment_id=model_name,
         )
 
     match deployment_type:
