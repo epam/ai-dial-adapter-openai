@@ -31,6 +31,7 @@
     - [Amazon Bedrock OpenAI Chat Completions API](#amazon-bedrock-openai-chat-completions-api)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
+    - [Alibaba Cloud Model Studio Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api)
     - [vLLM Chat Completion API](#vllm-chat-completion-api)
       - [Qwen3-ASR](#qwen3-asr)
     - [Anthropic Messages API](#anthropic-messages-api)
@@ -52,6 +53,7 @@
     - [Azure OpenAI Responses API](#azure-openai-responses-api)
     - [OpenAI Platform Responses API](#openai-platform-responses-api)
     - [Amazon Bedrock OpenAI Responses API](#amazon-bedrock-openai-responses-api)
+    - [Alibaba Cloud Model Studio Responses API](#alibaba-cloud-model-studio-responses-api)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
     - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
@@ -759,6 +761,39 @@ The deployment should be added to the environment variable `MISTRAL_DEPLOYMENTS`
 
 The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#reasoning-with-chat-completions) for Magistral models. The reasoning tokens are displayed in a dedicated stage titled `Reasoning`.
 
+#### Alibaba Cloud Model Studio Chat Completions API
+
+[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/what-is-model-studio) provides access to the Qwen series and mainstream third-party models *(such as DeepSeek, Kimi, and GLM)* through an [OpenAI-compatible Chat Completions API](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope), therefore, it could be connected to via the adapter:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${MODEL_STUDIO_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
+          "key": "${DASHSCOPE_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Where `MODEL_STUDIO_MODEL_NAME` is one of the available [models](https://www.alibabacloud.com/help/en/model-studio/models) on the platform *(for example `qwen3.7-max`, `qwen-plus`, or `qwen-flash`)*.
+
+The upstream URL doesn't include the model name, so it is passed via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
+
+> [!NOTE]
+> The upstream `base_url` differs by region *(Singapore, US (Virginia), China (Beijing), China (Hong Kong), Japan (Tokyo), and Germany (Frankfurt))*. Replace `${MODEL_STUDIO_WORKSPACE_ID}` with your workspace id and adjust the host to match your region. For the US (Virginia) region the host is `dashscope-us.aliyuncs.com` and doesn't include a workspace id. See the [endpoint list](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope) for details.
+
 #### vLLM Chat Completion API
 
 vLLM provides an OpenAI-compatible Chat Completions API and can be connected to the adapter.
@@ -1239,6 +1274,35 @@ Authentication follows the same rules as for Bedrock Chat Completions API:
 - AWS credential provider chain from environment variables.
 
 For long-running workloads, prefer provider-based credentials (short-term token refresh via AWS credential chain) over static long-lived keys. See [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html).
+
+#### Alibaba Cloud Model Studio Responses API
+
+[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/what-is-model-studio) also exposes an [OpenAI-compatible Responses API](https://www.alibabacloud.com/help/en/model-studio/compatibility-with-openai-responses-api) for the Qwen series and third-party models.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${MODEL_STUDIO_MODEL_NAME}",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "upstreams": [
+        {
+          "responsesEndpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/responses",
+          "key": "${DASHSCOPE_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!NOTE]
+> As with the Chat Completions API, the upstream `base_url` differs by region. Replace `${MODEL_STUDIO_WORKSPACE_ID}` with your workspace id and adjust the host to match your region *(the US (Virginia) host `dashscope-us.aliyuncs.com` doesn't include a workspace id)*. Use the current `/compatible-mode/v1/responses` path — the legacy `/api/v2/apps/protocols/compatible-mode/v1/responses` path is deprecated. See the [endpoint list](https://www.alibabacloud.com/help/en/model-studio/compatibility-with-openai-responses-api) for details.
 
 ---
 
