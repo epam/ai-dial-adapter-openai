@@ -200,20 +200,15 @@ class MessageTransformer:
         content = ensure_list_or_str(
             "content", "" if raw_content is None else raw_content
         )
-        raw_custom_content = message.get("custom_content")
         custom_content = ensure_dict(
-            "custom_content",
-            {} if raw_custom_content is None else raw_custom_content,
-        )
+            "custom_content", message.pop("custom_content", None) or {}
+        ).copy()
         attachments = ensure_list(
             "attachments", custom_content.pop("attachments", None) or []
         )
 
-        if "custom_content" in message:
-            if custom_content:
-                message["custom_content"] = custom_content
-            else:
-                message.pop("custom_content")
+        if custom_content:
+            message["custom_content"] = custom_content
 
         if isinstance(content, str) and not attachments:
             return MultiModalMessage(raw_message=message)
