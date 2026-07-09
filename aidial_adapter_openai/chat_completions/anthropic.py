@@ -27,10 +27,10 @@ def _create_file_storage(api_key: str | None) -> FileStorage | None:
 
 
 async def _create_adapter(
-    deployment: str, api_key: str, client: AsyncAnthropicFoundry
+    model_name: str, api_key: str, client: AsyncAnthropicFoundry
 ) -> ChatCompletionAdapter:
     return await create_anthropic_adapter(
-        deployment=deployment,
+        deployment=model_name,
         storage=_create_file_storage(api_key),
         client=client,
         custom_tokenizer=ApproximateTokenizer(),
@@ -44,11 +44,12 @@ async def chat_completion(
     *,
     request: fastapi.Request,
     deployment_id: str,
+    model_name: str,
     client: AsyncAnthropicFoundry,
 ) -> StreamingResponse | dict:
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
-        model = await _create_adapter(deployment_id, request.api_key, client)
-        response.set_model(deployment_id)
+        model = await _create_adapter(model_name, request.api_key, client)
+        response.set_model(model_name)
 
         params = ModelParameters.create(request)
 
