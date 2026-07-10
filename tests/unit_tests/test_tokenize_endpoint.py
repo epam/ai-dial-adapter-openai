@@ -23,7 +23,7 @@ _RESPONSES_TOKENIZE_HEADERS = {
 }
 _RESPONSES_TOKENIZE_PARAMS = {"api-version": "2025-01-01"}
 
-_REQUEST_INPUT_VALUE = {
+_CHAT_COMPLETIONS_REQUEST = {
     "messages": [
         {
             "role": "user",
@@ -401,7 +401,7 @@ async def test_tokenize_to_responses_request_input(
 
     response = await _post_tokenize_to_responses(
         responses_client,
-        {"type": "request", "value": _REQUEST_INPUT_VALUE},
+        {"type": "request", "value": _CHAT_COMPLETIONS_REQUEST},
     )
 
     assert response.status_code == 200

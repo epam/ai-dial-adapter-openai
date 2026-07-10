@@ -95,17 +95,6 @@ class _TiktokenTokenizer:
         return await self.tokenizer.tokenize_request(request, messages)
 
 
-@dataclass
-class _ResponsesTokenizer:
-    tokenizer: ResponsesTokenizer
-
-    async def tokenize_text(self, model_name: str, text: str) -> int:
-        return await self.tokenizer.tokenize_text(model_name, text)
-
-    async def tokenize_request(self, request: dict) -> int:
-        return await self.tokenizer.tokenize_request(request)
-
-
 def _prepare_chat_request(
     value: ChatCompletionRequest, model_name: str
 ) -> dict:
@@ -151,10 +140,7 @@ async def _get_tokenizer(
                     f"Unexpected client for the deployment backed by Responses API - {type(client)}"
                 )
 
-            responses_tokenizer = ResponsesTokenizer(
-                client=client, file_storage=file_storage
-            )
-            return _ResponsesTokenizer(responses_tokenizer)
+            return ResponsesTokenizer(client=client, file_storage=file_storage)
 
         case _:
             tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(

@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from typing import Any, TypedDict, assert_never
+from typing import Any, TypedDict, assert_never, cast
 
 import pydantic
 from aidial_sdk.chat_completion.enums import Status
@@ -475,6 +475,10 @@ async def chat_completions_to_responses_request(
         "max_output_tokens": max_output_tokens,
         "reasoning": configuration.reasoning or omit,
     }
+    if extra := configuration.model_extra:
+        # model_extra is dict[str, Any] pass-through fields;
+        # cast lets them merge into the TypedDict, which is forwarded as-is to the API.
+        create_request.update(cast(_CreateResponsesRequest, extra))
 
     return tokenize_request, create_request
 
