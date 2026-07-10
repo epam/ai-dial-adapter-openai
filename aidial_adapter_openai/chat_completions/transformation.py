@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from typing import assert_never
 
@@ -198,16 +199,21 @@ class MessageTransformer:
         content = ensure_list_or_str("content", message.get("content") or "")
         custom_content = ensure_dict(
             "custom_content", message.pop("custom_content", None) or {}
-        )
+        ).copy()
         attachments = ensure_list(
-            "attachments", custom_content.get("attachments") or []
+            "attachments", custom_content.pop("attachments", None) or []
         )
+
+        if custom_content:
+            message["custom_content"] = custom_content
 
         if isinstance(content, str) and not attachments:
             return MultiModalMessage(raw_message=message)
 
-        content_parts = await self.download_content(content)
-        attachment_parts = await self.download_attachments(attachments)
+        content_parts, attachment_parts = await asyncio.gather(
+            self.download_content(content),
+            self.download_attachments(attachments),
+        )
 
         return MultiModalMessage(
             images=self.images,
