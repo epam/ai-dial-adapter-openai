@@ -12,10 +12,15 @@ import httpx
 from aidial_client import AsyncDial, DialException
 from aidial_client._exception import NotDialURLError
 from aidial_client.types.metadata import FileMetadata
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
 
+from aidial_adapter_openai.dial_api._ssrf import validate_public_url
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
+
+# Redirects have to be followed manually so that every hop can be validated
+# against SSRF, otherwise a public URL could redirect to an internal address.
+_MAX_REDIRECTS = 5
 
 
 @dataclass
@@ -99,9 +104,25 @@ class FileStorage:
 
 
 async def download_file(url: str) -> bytes:
-    response = await get_http_client().get(url)
-    response.raise_for_status()
-    return response.read()
+    client = get_http_client()
+
+    for _ in range(_MAX_REDIRECTS + 1):
+        # Every hop (including redirect targets) must be validated so a
+        # public URL cannot bounce into an internal address. This path never
+        # receives the DIAL api-key: trusted DIAL URLs are downloaded via the
+        # DIAL client, which matches the storage origin before sending auth.
+        await validate_public_url(url)
+
+        response = await client.get(url, follow_redirects=False)
+
+        if (next_request := response.next_request) is not None:
+            url = str(next_request.url)
+            continue
+
+        response.raise_for_status()
+        return response.read()
+
+    raise RequestValidationError("The file URL has too many redirects")
 
 
 def _compute_hash_digest(file_content: str | bytes) -> str:

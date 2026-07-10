@@ -2,12 +2,14 @@ from pathlib import PurePosixPath
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
+import respx
 from aidial_client import DialException
 from aidial_client.types.metadata import FileMetadata
-from aidial_sdk.exceptions import InvalidRequestError
+from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
 
-from aidial_adapter_openai.dial_api.storage import FileStorage
+from aidial_adapter_openai.dial_api.storage import FileStorage, download_file
 
 
 def _make_storage() -> FileStorage:
@@ -149,3 +151,59 @@ async def test_download_sdk_errors_are_mapped_to_invalid_request(monkeypatch):
         "Failed to download file 'files/user-bucket/images/sample.png' "
         "(status code 403)"
     )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_raw_download_allows_public_url():
+    respx.get("http://8.8.8.8/image.png").mock(
+        return_value=httpx.Response(200, content=b"public-bytes")
+    )
+    assert await download_file("http://8.8.8.8/image.png") == b"public-bytes"
+
+
+@pytest.mark.asyncio
+async def test_raw_download_blocks_internal_url():
+    # Validation happens before any request is issued.
+    with pytest.raises(RequestValidationError):
+        await download_file("http://169.254.169.254/latest/meta-data/")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_raw_download_follows_public_redirect():
+    respx.get("http://8.8.8.8/a").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "http://1.1.1.1/b"}
+        )
+    )
+    respx.get("http://1.1.1.1/b").mock(
+        return_value=httpx.Response(200, content=b"redirected-bytes")
+    )
+    assert await download_file("http://8.8.8.8/a") == b"redirected-bytes"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_raw_download_blocks_redirect_into_internal():
+    # A public URL that redirects to an internal address must be rejected
+    # when the redirect target is re-validated.
+    respx.get("http://8.8.8.8/a").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "http://169.254.169.254/secret"}
+        )
+    )
+    with pytest.raises(RequestValidationError):
+        await download_file("http://8.8.8.8/a")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_raw_download_rejects_redirect_loop():
+    respx.get("http://8.8.8.8/loop").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "http://8.8.8.8/loop"}
+        )
+    )
+    with pytest.raises(RequestValidationError, match="too many redirects"):
+        await download_file("http://8.8.8.8/loop")
