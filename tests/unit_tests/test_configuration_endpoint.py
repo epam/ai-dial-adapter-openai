@@ -55,7 +55,7 @@ from tests.conftest import create_test_client
         (
             ChatCompletionDeploymentType.ANTHROPIC_MESSAGES_API,
             "anthropic/v1/messages",
-            {"betas", "thinking", "enable_citations"},
+            {"betas", "thinking", "enable_citations", "effort"},
         ),
     ],
 )

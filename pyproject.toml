@@ -41,7 +41,7 @@ azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
 aiohttp = "3.14.1"
 aidial-sdk = { version = "0.37.0", extras = ["telemetry"] }
-aidial-adapter-anthropic = { version = "0.10.0" }
+aidial-adapter-anthropic = "0.14.0"
 anthropic = "0.95.0"
 jmespath = "1.1.0"
 aidial-client = "0.11.0"

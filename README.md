@@ -31,12 +31,15 @@
     - [Amazon Bedrock OpenAI Chat Completions API](#amazon-bedrock-openai-chat-completions-api)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
+    - [Alibaba Cloud Model Studio Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api)
     - [vLLM Chat Completion API](#vllm-chat-completion-api)
       - [Qwen3-ASR](#qwen3-asr)
     - [Anthropic Messages API](#anthropic-messages-api)
       - [Default `max_tokens` for Claude models](#default-max_tokens-for-claude-models)
       - [Automatic prompt caching](#automatic-prompt-caching)
       - [Explicit prompt caching](#explicit-prompt-caching)
+  - [Anthropic API Passthrough](#anthropic-api-passthrough)
+    - [Using Claude Code with the adapter](#using-claude-code-with-the-adapter)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
@@ -50,12 +53,14 @@
     - [Azure OpenAI Responses API](#azure-openai-responses-api)
     - [OpenAI Platform Responses API](#openai-platform-responses-api)
     - [Amazon Bedrock OpenAI Responses API](#amazon-bedrock-openai-responses-api)
+    - [Alibaba Cloud Model Studio Responses API](#alibaba-cloud-model-studio-responses-api)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
     - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
     - [Azure OpenAI Embeddings API (Next generation API)](#azure-openai-embeddings-api-next-generation-api)
     - [Azure multimodal embeddings](#azure-multimodal-embeddings)
     - [OpenAI Platform Embeddings API](#openai-platform-embeddings-api)
+    - [vLLM Embeddings API](#vllm-embeddings-api)
 - [Environment Variables](#environment-variables)
   - [Categories of deployments](#categories-of-deployments)
   - [Other variables](#other-variables)
@@ -756,6 +761,39 @@ The deployment should be added to the environment variable `MISTRAL_DEPLOYMENTS`
 
 The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#reasoning-with-chat-completions) for Magistral models. The reasoning tokens are displayed in a dedicated stage titled `Reasoning`.
 
+#### Alibaba Cloud Model Studio Chat Completions API
+
+[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/what-is-model-studio) provides access to the Qwen series and mainstream third-party models *(such as DeepSeek, Kimi, and GLM)* through an [OpenAI-compatible Chat Completions API](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope), therefore, it could be connected to via the adapter:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${MODEL_STUDIO_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
+          "key": "${DASHSCOPE_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Where `MODEL_STUDIO_MODEL_NAME` is one of the available [models](https://www.alibabacloud.com/help/en/model-studio/models) on the platform *(for example `qwen3.7-max`, `qwen-plus`, or `qwen-flash`)*.
+
+The upstream URL doesn't include the model name, so it is passed via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
+
+> [!NOTE]
+> The upstream `base_url` differs by region *(Singapore, US (Virginia), China (Beijing), China (Hong Kong), Japan (Tokyo), and Germany (Frankfurt))*. Replace `${MODEL_STUDIO_WORKSPACE_ID}` with your workspace id and adjust the host to match your region. For the US (Virginia) region the host is `dashscope-us.aliyuncs.com` and doesn't include a workspace id. See the [endpoint list](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope) for details.
+
 #### vLLM Chat Completion API
 
 vLLM provides an OpenAI-compatible Chat Completions API and can be connected to the adapter.
@@ -925,6 +963,66 @@ Set the feature flag `cacheSupported: true` in the DIAL Core configuration, when
 ```
 
 </details>
+
+### Anthropic API Passthrough
+
+In addition to the DIAL chat completions protocol, the adapter exposes the native [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages) as a transparent passthrough mounted at `/anthropic`. Requests are forwarded to the upstream Anthropic (Azure AI Foundry) endpoint through the Anthropic SDK, so responses — including streaming — are relayed as-is.
+
+The following endpoints are proxied:
+
+|Method|Path|
+|------|----|
+|`POST`|[/anthropic/v1/messages](https://platform.claude.com/docs/en/api/messages)|
+|`POST`|[/anthropic/v1/messages/batches](https://platform.claude.com/docs/en/api/creating-message-batches)|
+|`POST`|[/anthropic/v1/messages/count_tokens](https://platform.claude.com/docs/en/api/messages-count-tokens)|
+
+The adapter is a pure proxy: it takes the upstream endpoint and key from the `X-UPSTREAM-ENDPOINT` and `X-UPSTREAM-KEY` request headers, which DIAL Core injects when routing to the adapter. When calling the adapter directly, these headers must be supplied by the caller.
+
+#### Using Claude Code with the adapter
+
+Because the passthrough exposes the native `/v1/messages` endpoint, [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) can talk to Claude models served through the adapter by pointing it at the `/anthropic` base path.
+
+Copy [`.env.claude.example`](./.env.claude.example) to `.env.claude` and adjust it for your setup:
+
+```ini
+# Point Claude Code at the adapter's Anthropic passthrough.
+# Claude Code appends /v1/messages, so this must be the /anthropic base path.
+ANTHROPIC_BASE_URL="http://localhost:5001/anthropic"
+
+# Claude Code sends this as the X-Api-Key header. The adapter does not use it
+# for upstream authentication, so any placeholder works when calling the adapter
+# directly. When routing through DIAL Core, set this to your DIAL API key.
+ANTHROPIC_API_KEY="dummy-api-key"
+
+# The adapter is a pure proxy and does not know the upstream Anthropic endpoint
+# on its own. When calling the adapter directly, supply the upstream Azure AI
+# Foundry endpoint and key through Claude Code custom headers.
+ANTHROPIC_CUSTOM_HEADERS="X-UPSTREAM-ENDPOINT: https://my-foundry.services.ai.azure.com/anthropic/v1/messages
+X-UPSTREAM-KEY: optional-azure-api-key"
+
+# Add a ready-to-pick entry to the Claude Code `/model` selector. The value is
+# the upstream Claude model name served by the Foundry deployment.
+ANTHROPIC_CUSTOM_MODEL_OPTION="claude-opus-4-5"
+ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="Opus via DIAL adapter"
+ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="Custom deployment routed through the DIAL OpenAI adapter"
+
+# The "small/fast" model Claude Code uses for lightweight background tasks.
+ANTHROPIC_DEFAULT_HAIKU_MODEL="claude-haiku-4-5"
+```
+
+Notes:
+
+- `ANTHROPIC_BASE_URL` must match the host and port the adapter is served on (the `make serve` default is `5001`; adjust the port accordingly).
+- The model passed to the adapter is the **upstream Claude model name** served by the Azure AI Foundry deployment, _not_ a Claude API alias.
+- The adapter authenticates to the upstream with `X-UPSTREAM-KEY`; when routing through DIAL Core these headers are set automatically, so `ANTHROPIC_CUSTOM_HEADERS` is not needed.
+- `ANTHROPIC_DEFAULT_HAIKU_MODEL` sets a lightweight model Claude Code uses for background tasks. Point it at a fast model the upstream serves.
+
+Export the variables into your shell and start Claude Code:
+
+```sh
+set -a && source .env.claude && set +a
+claude --model claude-opus-4-5
+```
 
 ### Tokenization of chat completion requests/responses
 
@@ -1180,6 +1278,35 @@ Authentication follows the same rules as for Bedrock Chat Completions API:
 - AWS credential provider chain from environment variables.
 
 For long-running workloads, prefer provider-based credentials (short-term token refresh via AWS credential chain) over static long-lived keys. See [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html).
+
+#### Alibaba Cloud Model Studio Responses API
+
+[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/what-is-model-studio) also exposes an [OpenAI-compatible Responses API](https://www.alibabacloud.com/help/en/model-studio/compatibility-with-openai-responses-api) for the Qwen series and third-party models.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${MODEL_STUDIO_MODEL_NAME}",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses",
+      "upstreams": [
+        {
+          "responsesEndpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/responses",
+          "key": "${DASHSCOPE_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!NOTE]
+> As with the Chat Completions API, the upstream `base_url` differs by region. Replace `${MODEL_STUDIO_WORKSPACE_ID}` with your workspace id and adjust the host to match your region *(the US (Virginia) host `dashscope-us.aliyuncs.com` doesn't include a workspace id)*. Use the current `/compatible-mode/v1/responses` path — the legacy `/api/v2/apps/protocols/compatible-mode/v1/responses` path is deprecated. See the [endpoint list](https://www.alibabacloud.com/help/en/model-studio/compatibility-with-openai-responses-api) for details.
 
 ---
 
