@@ -385,7 +385,22 @@ def test_convert_response_with_web_search_call():
                 "status": "completed",
                 "content": "Search\n\nQueries:\n- weather Kyiv",
             }
-        ]
+        ],
+        "state": {
+            "responses_output": [
+                {
+                    "id": "ws_id",
+                    "type": "web_search_call",
+                    "status": "completed",
+                    "action": {
+                        "type": "search",
+                        "queries": ["weather Kyiv"],
+                        "query": "weather Kyiv",
+                        "sources": None,
+                    },
+                }
+            ]
+        },
     }
     assert chat_completion.choices[0].finish_reason == "stop"
 
@@ -425,7 +440,33 @@ def test_convert_response_with_multiple_web_search_calls():
                 "status": "completed",
                 "content": "Search\n\nQueries:\n- news Kyiv",
             },
-        ]
+        ],
+        "state": {
+            "responses_output": [
+                {
+                    "id": "ws_id_1",
+                    "type": "web_search_call",
+                    "status": "completed",
+                    "action": {
+                        "type": "search",
+                        "queries": ["weather Kyiv"],
+                        "query": "weather Kyiv",
+                        "sources": None,
+                    },
+                },
+                {
+                    "id": "ws_id_2",
+                    "type": "web_search_call",
+                    "status": "completed",
+                    "action": {
+                        "type": "search",
+                        "queries": ["news Kyiv"],
+                        "query": "news Kyiv",
+                        "sources": None,
+                    },
+                },
+            ]
+        },
     }
 
 
@@ -477,7 +518,31 @@ def test_convert_response_with_web_search_multiple_queries():
                     "- https://example.com/news-kyiv"
                 ),
             }
-        ]
+        ],
+        "state": {
+            "responses_output": [
+                {
+                    "id": "ws_id",
+                    "type": "web_search_call",
+                    "status": "completed",
+                    "action": {
+                        "type": "search",
+                        "queries": ["weather Kyiv", "news Kyiv"],
+                        "query": "legacy query",
+                        "sources": [
+                            {
+                                "type": "url",
+                                "url": "https://example.com/weather-kyiv",
+                            },
+                            {
+                                "type": "url",
+                                "url": "https://example.com/news-kyiv",
+                            },
+                        ],
+                    },
+                }
+            ]
+        },
     }
 
 
@@ -528,5 +593,29 @@ def test_convert_response_with_web_search_sources_only():
                     "- https://example.com/weather-2"
                 ),
             }
-        ]
+        ],
+        "state": {
+            "responses_output": [
+                {
+                    "id": "ws_id",
+                    "type": "web_search_call",
+                    "status": "completed",
+                    "action": {
+                        "type": "search",
+                        "queries": [],
+                        "query": "legacy query",
+                        "sources": [
+                            {
+                                "type": "url",
+                                "url": "https://example.com/weather-1",
+                            },
+                            {
+                                "type": "url",
+                                "url": "https://example.com/weather-2",
+                            },
+                        ],
+                    },
+                }
+            ]
+        },
     }

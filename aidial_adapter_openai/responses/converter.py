@@ -110,6 +110,10 @@ from openai.types.shared_params import Reasoning
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.dial_api.state import (
+    MessageState,
+    get_message_content_from_state,
+)
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.configuration import get_configuration
 from aidial_adapter_openai.responses.request import convert_response_format
@@ -362,10 +366,14 @@ def _convert_tool_call(
 
 
 def _convert_message(
+    idx: int,
     message: ChatCompletionMessageParam,
 ) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
         case "user" | "assistant" | "system" | "developer":
+            if state_content := get_message_content_from_state(idx, message):
+                yield from state_content
+
             if message.get("function_call"):
                 raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
@@ -408,7 +416,9 @@ def convert_messages(
     messages: list[ChatCompletionMessageParam],
 ) -> ResponseInputParam:
     return [
-        param for message in messages for param in _convert_message(message)
+        param
+        for idx, message in enumerate(messages)
+        for param in _convert_message(idx, message)
     ]
 
 
@@ -490,6 +500,7 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
     annotations: list[Annotation] = []
     attachments: list[Attachment] = []
     stages: list[Stage] = []
+    state: MessageState = MessageState(responses_output=[])
     tool_calls: list[ChatCompletionMessageToolCallUnion] = []
 
     for item in output:
@@ -556,6 +567,7 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                         content=content,
                     )
                 )
+                state.responses_output.append(item)
 
             case (
                 ResponseFileSearchToolCall()
@@ -588,10 +600,11 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                 assert_never(item)
 
     extra_fields = {}
-    if attachments or stages:
+    if attachments or stages or state:
         extra_fields["custom_content"] = CustomContent(
             attachments=attachments or None,
             stages=stages or None,
+            state=state.model_dump() or None,
         ).model_dump(mode="json", exclude_none=True)
 
     return ChatCompletionMessage(
