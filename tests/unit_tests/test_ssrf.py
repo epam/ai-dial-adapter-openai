@@ -1,7 +1,7 @@
 import pytest
 from aidial_sdk.exceptions import RequestValidationError
 
-from aidial_adapter_openai.dial_api._ssrf import validate_public_url
+from aidial_adapter_openai.dial_api.ssrf import validate_public_url
 from aidial_adapter_openai.dial_api.storage import FileStorage
 
 

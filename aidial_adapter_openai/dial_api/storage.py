@@ -14,7 +14,7 @@ from aidial_client._exception import NotDialURLError
 from aidial_client.types.metadata import FileMetadata
 from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
 
-from aidial_adapter_openai.dial_api._ssrf import validate_public_url
+from aidial_adapter_openai.dial_api.ssrf import validate_public_url
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
 
