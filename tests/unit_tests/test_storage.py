@@ -107,7 +107,7 @@ async def test_download_dial_files_url_uses_sdk(monkeypatch):
         raise AssertionError("raw download should not be called")
 
     monkeypatch.setattr(
-        "aidial_adapter_openai.dial_api.storage.download_file",
+        "aidial_adapter_openai.dial_api.storage.download_public_file",
         _unexpected_raw_download,
     )
 
@@ -127,7 +127,7 @@ async def test_download_non_dial_file_url_uses_raw_http(monkeypatch):
         return b"from-raw-http"
 
     monkeypatch.setattr(
-        "aidial_adapter_openai.dial_api.storage.download_file",
+        "aidial_adapter_openai.dial_api.storage.download_public_file",
         _fake_download_file,
     )
 
