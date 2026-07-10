@@ -98,7 +98,9 @@ async def call_chat_completion(
     # Azure and non-Azure deployments.
     # Therefore, we provide the "model" field for all deployments here.
     # The same goes for /embeddings endpoint.
-    request_body["model"] = request_body.get("model") or deployment_id
+    model_name = request_body["model"] = (
+        request_body.get("model") or deployment_id
+    )
 
     upstream_endpoint = get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
@@ -127,7 +129,7 @@ async def call_chat_completion(
         return await anthropic_chat_completions(
             request=request,
             client=client,
-            deployment_id=deployment_id,
+            deployment_id=model_name,
         )
 
     match deployment_type:
