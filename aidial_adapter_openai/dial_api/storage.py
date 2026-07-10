@@ -6,7 +6,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from urllib.parse import unquote
+from urllib.parse import unquote, urljoin
 
 import httpx
 from aidial_client import AsyncDial, DialException
@@ -14,8 +14,11 @@ from aidial_client._exception import NotDialURLError
 from aidial_client.types.metadata import FileMetadata
 from aidial_sdk.exceptions import InvalidRequestError
 
-from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.log_config import logger as log
+from aidial_adapter_openai.utils.url import (
+    download_public_file,
+    has_same_origin,
+)
 
 
 @dataclass
@@ -76,32 +79,32 @@ class FileStorage:
         return await self.upload(upload_dir, filename, content_type, content)
 
     async def download_file(self, link: str) -> bytes:
-        try:
+        # Trust is decided by origin (scheme/host/port), never by string
+        # prefix. Only the DIAL storage origin is fetched directly with the
+        # api-key; any other origin is downloaded without credentials and
+        # validated against SSRF. `link` may be relative, in which case it
+        # resolves against the DIAL URL and stays on the trusted origin.
+        dial_url = self.client.base_url
+        if has_same_origin(urljoin(dial_url, link), dial_url):
             try:
                 result = await self.client.files.download(url=link)
                 return await result.aget_content()
-            except NotDialURLError:
-                return await download_file(link)
-        except DialException as e:
-            raise InvalidRequestError(
-                f"Failed to download file {link!r} (status code {e.status_code})"
-            ) from e
-        except httpx.HTTPStatusError as e:
-            raise InvalidRequestError(
-                f"Failed to download file {link!r} (status code {e.response.status_code})"
-            ) from e
+            except DialException as e:
+                raise InvalidRequestError(
+                    f"Failed to download file {link!r} (status code {e.status_code})"
+                ) from e
+            except httpx.HTTPStatusError as e:
+                raise InvalidRequestError(
+                    f"Failed to download file {link!r} (status code {e.response.status_code})"
+                ) from e
+
+        return await download_public_file(link)
 
     async def get_human_readable_name(self, link: str) -> str:
         with contextlib.suppress(Exception):
             link = self.client.files.get_display_name(link)
 
         return self._decode_link(link)
-
-
-async def download_file(url: str) -> bytes:
-    response = await get_http_client().get(url)
-    response.raise_for_status()
-    return response.read()
 
 
 def _compute_hash_digest(file_content: str | bytes) -> str:

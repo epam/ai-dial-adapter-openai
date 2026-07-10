@@ -5,9 +5,10 @@ from abc import ABC, abstractmethod
 from aidial_sdk.chat_completion import Attachment
 from pydantic import BaseModel, model_validator
 
-from aidial_adapter_openai.dial_api.storage import FileStorage, download_file
+from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.resource.base import Resource
 from aidial_adapter_openai.utils.text import truncate_string
+from aidial_adapter_openai.utils.url import download_public_file
 
 
 class ValidationError(Exception):
@@ -181,4 +182,4 @@ async def _download_url(file_storage: FileStorage | None, url: str) -> bytes:
     if file_storage:
         return await file_storage.download_file(url)
     else:
-        return await download_file(url)
+        return await download_public_file(url)
