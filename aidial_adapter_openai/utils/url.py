@@ -5,10 +5,40 @@ from urllib.parse import urlsplit
 
 from aidial_sdk.exceptions import RequestValidationError
 
+from aidial_adapter_openai.utils.http_client import get_http_client
+
 # Only regular web schemes are allowed. Everything else (e.g. `file`,
 # `ftp`, `gopher`) could be abused to reach local files or internal
 # services.
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
+
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+# Redirects have to be followed manually so that every hop can be validated
+# against SSRF, otherwise a public URL could redirect to an internal address.
+_MAX_REDIRECTS = 5
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urlsplit(url)
+    scheme = parsed.scheme.lower()
+    return (
+        scheme,
+        (parsed.hostname or "").lower(),
+        parsed.port or _DEFAULT_PORTS.get(scheme),
+    )
+
+
+def has_same_origin(a: str, b: str) -> bool:
+    """Compare two URLs by origin (scheme/host/port).
+
+    Origin comparison (never a string prefix check) is what makes the trust
+    decision safe: URLs like `http://<dial_url>@169.254.169.254/...` or
+    `http://<dial_url>.attacker.example/...` share the string prefix of the
+    DIAL URL but resolve to a different host, so they must be treated as a
+    foreign origin.
+    """
+    return _origin(a) == _origin(b)
 
 
 def _is_public_ip(ip: str) -> bool:
@@ -64,3 +94,27 @@ async def validate_public_url(url: str) -> None:
                 "Downloading files from a non-public address "
                 f"({ip}) is not allowed"
             )
+
+
+async def download_public_file(url: str) -> bytes:
+    """Download a file from an untrusted, user-supplied URL.
+
+    The URL is validated against SSRF on every hop and no credentials are
+    ever sent. Redirects are followed manually so that a public URL cannot
+    bounce into an internal address.
+    """
+    client = get_http_client()
+
+    for _ in range(_MAX_REDIRECTS + 1):
+        await validate_public_url(url)
+
+        response = await client.get(url, follow_redirects=False)
+
+        if (next_request := response.next_request) is not None:
+            url = str(next_request.url)
+            continue
+
+        response.raise_for_status()
+        return response.read()
+
+    raise RequestValidationError("The file URL has too many redirects")
