@@ -12,11 +12,40 @@ from tests.conftest import create_test_client
 
 _UPSTREAM_ENDPOINT = "http://localhost:5001/v1/chat/completions"
 _TOKENIZE_URL = "http://localhost:5001/tokenize"
+_RESPONSES_UPSTREAM_ENDPOINT = "http://localhost:5001/openai/v1/responses"
+_RESPONSES_INPUT_TOKENS_URL = (
+    "http://localhost:5001/openai/v1/responses/input_tokens"
+)
 _API_KEY = "test-adapter-api-key"
+_RESPONSES_TOKENIZE_HEADERS = {
+    "X-UPSTREAM-ENDPOINT": _RESPONSES_UPSTREAM_ENDPOINT,
+    "X-UPSTREAM-KEY": "dummy",
+}
+_RESPONSES_TOKENIZE_PARAMS = {"api-version": "2025-01-01"}
+
+_CHAT_COMPLETIONS_REQUEST = {
+    "messages": [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "How is weather in LA?"}],
+        }
+    ]
+}
 
 
 def _tokenize_headers(**extra: str) -> dict[str, str]:
     return {"Api-Key": _API_KEY, **extra}
+
+
+async def _post_tokenize_to_responses(
+    client: httpx.AsyncClient, tokenize_input: dict
+) -> httpx.Response:
+    return await client.post(
+        "tokenize",
+        json={"inputs": [tokenize_input]},
+        headers=_tokenize_headers(**_RESPONSES_TOKENIZE_HEADERS),
+        params=_RESPONSES_TOKENIZE_PARAMS,
+    )
 
 
 @pytest.fixture
@@ -39,6 +68,15 @@ async def gpt_client():
     async with create_test_client(
         app_config=config,
         base_url="http://test-app.com/openai/deployments/gpt-test",
+    ) as client:
+        yield client
+
+
+@pytest.fixture
+async def responses_client():
+    async with create_test_client(
+        app_config=ApplicationConfig(),
+        base_url="http://test-app.com/openai/deployments/responses-test",
     ) as client:
         yield client
 
@@ -305,3 +343,68 @@ async def test_tokenize_invalid_input_type_returns_422(
     )
 
     assert response.status_code == 422
+
+
+@respx.mock
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tokenize_input", "input_tokens"),
+    [
+        ({"type": "string", "value": "Hello World!"}, 123),
+        ({"type": "string", "value": "Hello World!"}, 456),
+    ],
+)
+async def test_tokenize_to_responses_string_input(
+    responses_client: httpx.AsyncClient,
+    tokenize_input: dict,
+    input_tokens: int,
+):
+    respx.post(_RESPONSES_INPUT_TOKENS_URL).mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "object": "response.input_tokens",
+                "input_tokens": input_tokens,
+            },
+        )
+    )
+
+    response = await _post_tokenize_to_responses(
+        responses_client, tokenize_input
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "outputs": [{"status": "success", "token_count": input_tokens}],
+    }
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_tokenize_to_responses_request_input(
+    responses_client: httpx.AsyncClient,
+):
+    input_tokens = 123
+
+    def input_tokens_handler(request: httpx.Request):
+        return httpx.Response(
+            status_code=200,
+            json={
+                "object": "response.input_tokens",
+                "input_tokens": input_tokens,
+            },
+        )
+
+    respx.post(_RESPONSES_INPUT_TOKENS_URL).mock(
+        side_effect=input_tokens_handler
+    )
+
+    response = await _post_tokenize_to_responses(
+        responses_client,
+        {"type": "request", "value": _CHAT_COMPLETIONS_REQUEST},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "outputs": [{"status": "success", "token_count": input_tokens}],
+    }

@@ -1,4 +1,3 @@
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol, assert_never
 
@@ -14,6 +13,7 @@ from aidial_sdk.deployment.tokenize import (
 )
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi import Request
+from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.transformation import (
@@ -25,7 +25,10 @@ from aidial_adapter_openai.chat_completions.vllm.chat_completion import (
 from aidial_adapter_openai.chat_completions.vllm.tokenizer import (
     VllmTokenizer,
 )
-from aidial_adapter_openai.configuration.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import (
+    ApplicationConfig,
+    DeploymentAPIType,
+)
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
@@ -37,8 +40,13 @@ from aidial_adapter_openai.dial_api.storage import (
     FileStorage,
     create_file_storage,
 )
+from aidial_adapter_openai.responses.tokenizer import ResponsesTokenizer
+from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
-from aidial_adapter_openai.utils.request import get_request_app_config
+from aidial_adapter_openai.utils.request import (
+    get_api_version,
+    get_request_app_config,
+)
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
@@ -95,15 +103,17 @@ def _prepare_chat_request(
     return request
 
 
-def _get_tokenizer(
+async def _get_tokenizer(
     *,
+    request: Request,
     deployment_id: str,
-    deployment_type: D,
+    deployment: DeploymentAPIType,
     app_config: ApplicationConfig,
     upstream_endpoint: str,
-    extra_headers: Mapping[str, str],
+    extra_headers: dict[str, str],
     file_storage: FileStorage | None,
 ) -> _Tokenizer:
+    deployment_type = deployment.deployment_type
     match deployment_type:
         case (
             D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
@@ -113,15 +123,34 @@ def _get_tokenizer(
                 extra_headers=extra_headers,
             )
             return _VllmTokenizer(file_storage, vllm_tokenizer)
+
+        case D.RESPONSES_API:
+            deployment_endpoint = deployment.endpoint
+            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
+            creds = await get_credentials(request.headers, vendor=vendor)
+            api_version = get_api_version(request)
+            client = deployment_endpoint.get_client(
+                {**creds, "api_version": api_version, "headers": extra_headers}
+            )
+
+            if not isinstance(
+                client, AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI
+            ):
+                raise ValueError(
+                    f"Unexpected client for the deployment backed by Responses API - {type(client)}"
+                )
+
+            return ResponsesTokenizer(client=client, file_storage=file_storage)
+
         case _:
             tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
                 deployment_id, deployment_id
             )
-            tokenizer = Tokenizer(
+            tiktoken_tokenizer = Tokenizer(
                 model=tiktoken_model,
                 image_tokenizer=get_image_tokenizer(deployment_type),
             )
-            return _TiktokenTokenizer(file_storage, tokenizer)
+            return _TiktokenTokenizer(file_storage, tiktoken_tokenizer)
 
 
 async def _tokenize_input(
@@ -164,13 +193,14 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
     deployment = app_config.get_chat_completion_deployment_type(
         deployment_id, upstream_endpoint
     )
-    deployment_type = deployment.deployment_type
 
     extra_headers = get_upstream_extra_headers(request.headers)
     file_storage = create_file_storage(request.headers)
-    tokenizer = _get_tokenizer(
+
+    tokenizer = await _get_tokenizer(
+        request=request,
         deployment_id=deployment_id,
-        deployment_type=deployment_type,
+        deployment=deployment,
         app_config=app_config,
         upstream_endpoint=upstream_endpoint,
         extra_headers=extra_headers,

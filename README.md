@@ -1128,6 +1128,10 @@ Response:
 
 Each input is tokenized following the corresponding [tokenization algorithm](#tokenization-algorithm).
 
+For deployments backed by Responses API, `/tokenize` delegates token counting to OpenAI Responses input-token endpoint:
+
+`.../openai/v1/responses` → `.../openai/v1/responses/input_tokens`
+
 Tokenize endpoints support [upstream header proxying](#upstream-header-proxying).
 
 ##### DIAL Core configuration
