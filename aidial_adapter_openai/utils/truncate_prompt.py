@@ -1,6 +1,5 @@
 """
-Coarse-grained prompt truncation that works at the level of the full chat
-completion request.
+Prompt truncation that works at the level of the full chat completion request.
 
 The entire remaining message list is tokenised in a single call via a
 :class:`Tokenizer` instance on each truncation step.  This is appropriate

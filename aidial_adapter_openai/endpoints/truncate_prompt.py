@@ -39,7 +39,7 @@ from aidial_adapter_openai.dial_api.storage import (
 from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.utils.tokenizer import create_tiktoken_tokenizer
 from aidial_adapter_openai.utils.truncate_prompt import (
-    truncate_prompt as coarse_truncate_prompt,
+    truncate_prompt as truncate_prompt_with_tokenizer,
 )
 from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
 from aidial_adapter_openai.utils.upstream_headers import (
@@ -57,20 +57,21 @@ _VLLM_TYPES = {
 }
 
 # Remaining chat-like deployment types that don't have a dedicated inline
-# truncation path but can be truncated coarsely via their tokenizer.
-_COARSE_TYPES = {
+# truncation path but can be truncated by re-tokenizing the whole request
+# via their request tokenizer.
+_REQUEST_TOKENIZER_TYPES = {
     D.RESPONSES_API,
     D.MISTRAL,
     D.DATABRICKS,
     D.COMPLETIONS_API,
 }
 
-_SUPPORTED_TYPES = _GPT_TYPES | _VLLM_TYPES | _COARSE_TYPES
+_SUPPORTED_TYPES = _GPT_TYPES | _VLLM_TYPES | _REQUEST_TOKENIZER_TYPES
 
 
 @dataclass
-class _CoarseTokenizerAdapter:
-    """Bridges a ``RequestTokenizer`` to the coarse truncation interface."""
+class _RequestTokenizerAdapter:
+    """Adapts a ``RequestTokenizer`` to the ``truncate_prompt`` interface."""
 
     tokenizer: RequestTokenizer
 
@@ -154,8 +155,8 @@ async def _truncate_prompt_input(
         extra_headers=extra_headers,
         file_storage=file_storage,
     )
-    _, discarded, _ = await coarse_truncate_prompt(
-        tokenizer=_CoarseTokenizerAdapter(tokenizer_wrapper),
+    _, discarded, _ = await truncate_prompt_with_tokenizer(
+        tokenizer=_RequestTokenizerAdapter(tokenizer_wrapper),
         original_request=request_dict,
         messages=request_dict["messages"],
         get_raw_message=lambda m: m,
