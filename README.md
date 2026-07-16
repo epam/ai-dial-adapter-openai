@@ -1172,7 +1172,7 @@ The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYM
 It is the dry-run counterpart of the `max_prompt_tokens` truncation that *(optionally)* happens inline during a `chat/completions` call: given a chat completion request and a `max_prompt_tokens` budget, it reports which messages *would* be discarded to make the prompt fit — **without calling the model**. Only token counting is performed *(following the corresponding [tokenization algorithm](#tokenization-algorithm))*.
 
 > [!WARNING]
-> This endpoint is **not fully implemented yet**. Its result only matches the actual inline `chat/completions` truncation for GPT and vLLM deployments. For Responses, Mistral, Databricks, and legacy Completions deployments the reported `discarded_messages` may not reflect what a real `chat/completions` call would discard. See [#502](https://github.com/epam/ai-dial-adapter-openai/issues/502) for details. This note will be removed once the issue is resolved.
+> This endpoint is **not fully implemented yet**. Its result only matches the actual inline `chat/completions` truncation for GPT and vLLM deployments. For Responses, Mistral, Databricks, and legacy Completions deployments the reported `discarded_messages` may not reflect what a real `chat/completions` call would discard. This note will be removed once support for the remaining deployment types is completed.
 
 Request:
 
@@ -1211,7 +1211,7 @@ Each input is truncated independently:
 The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Responses, Mistral, Databricks, and legacy Completions APIs. Deployments backed by Images, Video, Audio, or Anthropic Messages APIs don't support prompt truncation and return `404`.
 
 > [!NOTE]
-> Results are currently reliable only for GPT and vLLM deployments. Support for the other types is not fully implemented — see the warning above and [#502](https://github.com/epam/ai-dial-adapter-openai/issues/502).
+> Results are currently reliable only for GPT and vLLM deployments. Support for the other types is not fully implemented — see the warning above.
 
 Truncate prompt endpoints support [upstream header proxying](#upstream-header-proxying).
 
