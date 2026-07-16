@@ -48,6 +48,8 @@
       - [vLLM tokenization](#vllm-tokenization)
     - [Tokenize endpoint](#tokenize-endpoint)
       - [DIAL Core configuration](#dial-core-configuration)
+    - [Truncate prompt endpoint](#truncate-prompt-endpoint)
+      - [DIAL Core configuration](#dial-core-configuration-1)
 - [Responses API deployments](#responses-api-deployments)
   - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
     - [Azure OpenAI Responses API](#azure-openai-responses-api)
@@ -1155,6 +1157,79 @@ To expose the tokenize endpoint to DIAL clients, add `features.tokenizeEndpoint`
       ],
       "features": {
         "tokenizeEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+#### Truncate prompt endpoint
+
+The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/truncate_prompt` using the [DIAL SDK truncate_prompt schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/truncate_prompt.py).
+
+It is the dry-run counterpart of the `max_prompt_tokens` truncation that *(optionally)* happens inline during a `chat/completions` call: given a chat completion request and a `max_prompt_tokens` budget, it reports which messages *would* be discarded to make the prompt fit — **without calling the model**. Only token counting is performed *(following the corresponding [tokenization algorithm](#tokenization-algorithm))*.
+
+Request:
+
+```json
+{
+  "inputs": [
+    {
+      "max_prompt_tokens": 15,
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi! How can I help?"},
+        {"role": "user", "content": "What is the capital of France?"}
+      ]
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "outputs": [
+    {"status": "success", "discarded_messages": [1, 2]}
+  ]
+}
+```
+
+Each input is truncated independently:
+
+- `discarded_messages` is the sorted list of indices *(into the original `messages` array)* that would be removed to fit `max_prompt_tokens`. An empty list means nothing needs discarding. The system message and the last user message are always retained.
+- `max_prompt_tokens` is required for every input. An input missing it yields an error output, while the rest of the batch still succeeds.
+- If a single input can't be processed, its output is an `{"status": "error", "error": "..."}` object, so a batch may mix successes and failures.
+
+The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Responses, Mistral, Databricks, and legacy Completions APIs. Deployments backed by Images, Video, Audio, or Anthropic Messages APIs don't support prompt truncation and return `404`.
+
+Truncate prompt endpoints support [upstream header proxying](#upstream-header-proxying).
+
+##### DIAL Core configuration
+
+To expose the truncate prompt endpoint to DIAL clients, add `features.truncatePromptEndpoint` pointing to the adapter URL. DIAL Core proxies client requests from `POST ${DIAL_CORE_ORIGIN}/v1/deployments/${DIAL_DEPLOYMENT_ID}/truncate_prompt` to this URL.
+
+<details><summary>DIAL Core Config (deployment with truncate_prompt)</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${UPSTREAM_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "${UPSTREAM_ORIGIN}/v1/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ],
+      "features": {
+        "truncatePromptEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/truncate_prompt"
       }
     }
   }
