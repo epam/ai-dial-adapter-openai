@@ -6,12 +6,15 @@ import json
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from functools import cached_property
-from typing import Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
 from tiktoken.model import MODEL_PREFIX_TO_ENCODING
 
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
 )
@@ -19,9 +22,15 @@ from aidial_adapter_openai.utils.concurrency import run_in_threadpool
 from aidial_adapter_openai.utils.image_tokenizer import (
     IMAGE_SUPPORTING_DEPLOYMENTS,
     ImageTokenizer,
+    get_image_tokenizer,
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+
+if TYPE_CHECKING:
+    from aidial_adapter_openai.configuration.app_config import (
+        ApplicationConfig,
+    )
 
 MessageType = TypeVar("MessageType")
 
@@ -247,3 +256,22 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
         self.warnings.clear()
 
         return tokens
+
+
+def create_tiktoken_tokenizer(
+    app_config: "ApplicationConfig",
+    deployment_id: str,
+    deployment_type: ChatCompletionDeploymentType,
+) -> Tokenizer:
+    """Build the tiktoken-based tokenizer for a chat completion deployment.
+
+    Single source of truth for the model mapping + image tokenizer selection
+    shared by the chat/completions, tokenize and truncate_prompt paths.
+    """
+    tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
+        deployment_id, deployment_id
+    )
+    return Tokenizer(
+        model=tiktoken_model,
+        image_tokenizer=get_image_tokenizer(deployment_type),
+    )

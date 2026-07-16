@@ -12,15 +12,14 @@ from aidial_sdk.exceptions import RequestValidationError, ResourceNotFoundError
 from fastapi import Request
 from pydantic import ValidationError
 
-from aidial_adapter_openai.chat_completions.gpt import (
-    multi_modal_truncate_prompt,
-)
-from aidial_adapter_openai.chat_completions.transformation import (
-    ResourceProcessor,
+from aidial_adapter_openai.chat_completions.gpt import truncate_gpt_prompt
+from aidial_adapter_openai.chat_completions.tokenizer_factory import (
+    RequestTokenizer,
+    create_request_tokenizer,
 )
 from aidial_adapter_openai.chat_completions.vllm import VllmTokenizer
 from aidial_adapter_openai.chat_completions.vllm.chat_completion import (
-    transform_vllm_messages,
+    truncate_vllm_prompt,
 )
 from aidial_adapter_openai.configuration.app_config import (
     ApplicationConfig,
@@ -37,10 +36,8 @@ from aidial_adapter_openai.dial_api.storage import (
     FileStorage,
     create_file_storage,
 )
-from aidial_adapter_openai.endpoints.tokenize import _get_tokenizer, _Tokenizer
-from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.request import get_request_app_config
-from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.tokenizer import create_tiktoken_tokenizer
 from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt as coarse_truncate_prompt,
 )
@@ -73,9 +70,9 @@ _SUPPORTED_TYPES = _GPT_TYPES | _VLLM_TYPES | _COARSE_TYPES
 
 @dataclass
 class _CoarseTokenizerAdapter:
-    """Bridges the ``_Tokenizer`` wrapper to the coarse truncation interface."""
+    """Bridges a ``RequestTokenizer`` to the coarse truncation interface."""
 
-    tokenizer: _Tokenizer
+    tokenizer: RequestTokenizer
 
     async def tokenize(self, request: dict) -> int:
         return await self.tokenizer.tokenize_request(request)
@@ -123,24 +120,15 @@ async def _truncate_prompt_input(
     # must not leak into the request sent to upstream tokenizers.
     request_dict.pop("max_prompt_tokens", None)
 
-    messages: list[dict] = request_dict["messages"]
-
     if deployment_type in _GPT_TYPES:
-        tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
-            deployment_id, deployment_id
+        tokenizer = create_tiktoken_tokenizer(
+            app_config, deployment_id, deployment_type
         )
-        tokenizer = Tokenizer(
-            model=tiktoken_model,
-            image_tokenizer=get_image_tokenizer(deployment_type),
-        )
-        multi_modal_messages = await ResourceProcessor(
-            file_storage=file_storage
-        ).transform_messages(messages)
-        _, discarded, _ = await multi_modal_truncate_prompt(
-            request_dict,
-            multi_modal_messages,
-            max_prompt_tokens,
-            tokenizer,
+        _, discarded, _ = await truncate_gpt_prompt(
+            request=request_dict,
+            file_storage=file_storage,
+            max_prompt_tokens=max_prompt_tokens,
+            tokenizer=tokenizer,
         )
         return discarded
 
@@ -149,17 +137,15 @@ async def _truncate_prompt_input(
             upstream_endpoint=upstream_endpoint,
             extra_headers=extra_headers,
         )
-        transformed = await transform_vllm_messages(messages, file_storage)
-        _, discarded, _ = await coarse_truncate_prompt(
-            tokenizer=vllm_tokenizer,
-            original_request=request_dict,
-            messages=transformed,
-            get_raw_message=lambda m: m,
+        _, discarded, _ = await truncate_vllm_prompt(
+            request=request_dict,
+            file_storage=file_storage,
             max_prompt_tokens=max_prompt_tokens,
+            tokenizer=vllm_tokenizer,
         )
         return discarded
 
-    tokenizer_wrapper = await _get_tokenizer(
+    tokenizer_wrapper = await create_request_tokenizer(
         request=request,
         deployment_id=deployment_id,
         deployment=deployment,
@@ -171,7 +157,7 @@ async def _truncate_prompt_input(
     _, discarded, _ = await coarse_truncate_prompt(
         tokenizer=_CoarseTokenizerAdapter(tokenizer_wrapper),
         original_request=request_dict,
-        messages=messages,
+        messages=request_dict["messages"],
         get_raw_message=lambda m: m,
         max_prompt_tokens=max_prompt_tokens,
     )

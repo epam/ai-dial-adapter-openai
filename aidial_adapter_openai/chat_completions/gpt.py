@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Callable, Coroutine, Mapping
+from collections.abc import AsyncIterator, Mapping
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
@@ -43,6 +43,26 @@ async def multi_modal_truncate_prompt(
     )
 
 
+async def truncate_gpt_prompt(
+    *,
+    request: dict,
+    file_storage: FileStorage | None,
+    max_prompt_tokens: int,
+    tokenizer: Tokenizer,
+) -> tuple[list[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
+    """Transform and truncate a GPT chat request to fit ``max_prompt_tokens``.
+
+    Shared by the inline chat/completions path and the truncate_prompt
+    endpoint so their truncation behavior cannot drift apart.
+    """
+    multi_modal_messages = await ResourceProcessor(
+        file_storage=file_storage
+    ).transform_messages(request["messages"])
+    return await multi_modal_truncate_prompt(
+        request, multi_modal_messages, max_prompt_tokens, tokenizer
+    )
+
+
 def _extract_max_prompt_tokens(request: dict) -> int | None:
     if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
         return None
@@ -61,44 +81,6 @@ def _extract_max_prompt_tokens(request: dict) -> int | None:
     return max_prompt_tokens
 
 
-async def _truncate_messages(
-    request: dict, messages: list[MultiModalMessage], tokenizer: Tokenizer
-) -> tuple[
-    list[MultiModalMessage],
-    DiscardedMessages | None,
-    Callable[[], Coroutine[None, None, int]],
-]:
-    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
-        (
-            messages,
-            discarded_indices,
-            prompt_tokens,
-        ) = await multi_modal_truncate_prompt(
-            request=request,
-            messages=messages,
-            max_prompt_tokens=max_prompt_tokens,
-            tokenizer=tokenizer,
-        )
-
-        logger.debug(
-            f"estimated prompt tokens after truncation: {prompt_tokens}, "
-            f"discarded messages indices: {discarded_indices}"
-        )
-
-        async def get_prompt_tokens() -> int:
-            return prompt_tokens
-
-        return messages, discarded_indices, get_prompt_tokens
-    else:
-
-        async def get_prompt_tokens() -> int:
-            prompt_tokens = await tokenizer.tokenize_request(request, messages)
-            logger.debug(f"estimated prompt tokens: {prompt_tokens}")
-            return prompt_tokens
-
-        return (messages, None, get_prompt_tokens)
-
-
 async def chat_completion(
     *,
     request: dict,
@@ -109,18 +91,43 @@ async def chat_completion(
     eliminate_empty_choices: bool,
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
     n: int = request.get("n") or 1
-    messages: list[dict] = request["messages"]
     model_name = request["model"]
 
-    multi_modal_messages = await ResourceProcessor(
-        file_storage=file_storage
-    ).transform_messages(messages)
+    max_prompt_tokens = _extract_max_prompt_tokens(request)
+    discarded_messages: DiscardedMessages | None
 
-    (
-        multi_modal_messages,
-        discarded_messages,
-        get_prompt_tokens,
-    ) = await _truncate_messages(request, multi_modal_messages, tokenizer)
+    if max_prompt_tokens is not None:
+        (
+            multi_modal_messages,
+            discarded_messages,
+            prompt_tokens,
+        ) = await truncate_gpt_prompt(
+            request=request,
+            file_storage=file_storage,
+            max_prompt_tokens=max_prompt_tokens,
+            tokenizer=tokenizer,
+        )
+
+        logger.debug(
+            f"estimated prompt tokens after truncation: {prompt_tokens}, "
+            f"discarded messages indices: {discarded_messages}"
+        )
+
+        async def get_prompt_tokens() -> int:
+            return prompt_tokens
+
+    else:
+        multi_modal_messages = await ResourceProcessor(
+            file_storage=file_storage
+        ).transform_messages(request["messages"])
+        discarded_messages = None
+
+        async def get_prompt_tokens() -> int:
+            prompt_tokens = await tokenizer.tokenize_request(
+                request, multi_modal_messages
+            )
+            logger.debug(f"estimated prompt tokens: {prompt_tokens}")
+            return prompt_tokens
 
     request["messages"] = [m.raw_message for m in multi_modal_messages]
 

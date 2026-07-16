@@ -26,7 +26,10 @@ from aidial_adapter_openai.utils.streaming import (
 from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt,
 )
-from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
+from aidial_adapter_openai.utils.truncation_types import (
+    DiscardedMessages,
+    TruncatedTokens,
+)
 
 
 def _extract_max_prompt_tokens(request: dict) -> int | None:
@@ -68,31 +71,29 @@ async def transform_vllm_messages(
     ]
 
 
-async def _truncate_messages(
-    request: dict, messages: list[MultiModalMessage], tokenizer: VllmTokenizer
-) -> tuple[list[MultiModalMessage], DiscardedMessages | None]:
-    """vLLM truncation calls tokenize with the full message list each pass."""
-    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is None:
-        return messages, None
+async def truncate_vllm_prompt(
+    *,
+    request: dict,
+    file_storage: FileStorage | None,
+    max_prompt_tokens: int,
+    tokenizer: VllmTokenizer,
+) -> tuple[list[dict], DiscardedMessages, TruncatedTokens]:
+    """Transform and truncate a vLLM chat request to fit ``max_prompt_tokens``.
 
-    (
-        messages,
-        discarded_indices,
-        prompt_tokens,
-    ) = await truncate_prompt(
+    Token counting is done against the full remaining message list on every
+    pass. Shared by the inline chat/completions path and the truncate_prompt
+    endpoint so their truncation behavior cannot drift apart.
+    """
+    transformed = await transform_vllm_messages(
+        request["messages"], file_storage
+    )
+    return await truncate_prompt(
         tokenizer=tokenizer,
         original_request=request,
-        messages=messages,
-        get_raw_message=lambda m: m.raw_message,
+        messages=transformed,
+        get_raw_message=lambda m: m,
         max_prompt_tokens=max_prompt_tokens,
     )
-
-    logger.debug(
-        f"vLLM estimated prompt tokens after truncation: {prompt_tokens}, "
-        f"discarded messages indices: {discarded_indices}"
-    )
-
-    return messages, discarded_indices
 
 
 async def chat_completion(
@@ -102,16 +103,31 @@ async def chat_completion(
     file_storage: FileStorage | None,
     tokenizer: VllmTokenizer,
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
-    messages: list[dict] = request["messages"]
+    max_prompt_tokens = _extract_max_prompt_tokens(request)
+    discarded_messages: DiscardedMessages | None
 
-    multi_modal_messages = await _transform_messages(messages, file_storage)
+    if max_prompt_tokens is not None:
+        (
+            messages,
+            discarded_messages,
+            prompt_tokens,
+        ) = await truncate_vllm_prompt(
+            request=request,
+            file_storage=file_storage,
+            max_prompt_tokens=max_prompt_tokens,
+            tokenizer=tokenizer,
+        )
+        logger.debug(
+            f"vLLM estimated prompt tokens after truncation: {prompt_tokens}, "
+            f"discarded messages indices: {discarded_messages}"
+        )
+    else:
+        messages = await transform_vllm_messages(
+            request["messages"], file_storage
+        )
+        discarded_messages = None
 
-    (
-        multi_modal_messages,
-        discarded_messages,
-    ) = await _truncate_messages(request, multi_modal_messages, tokenizer)
-
-    request["messages"] = [m.raw_message for m in multi_modal_messages]
+    request["messages"] = messages
 
     # vLLM includes usage in stream mode only if stream_options.include_usage=true.
     if request.get("stream"):
