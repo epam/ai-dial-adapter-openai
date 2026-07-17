@@ -3,7 +3,7 @@ import os
 import re
 from logging import Filter, LogRecord
 
-from aidial_sdk import LogConfig, configure_root_logger
+from aidial_sdk import configure_root_logger
 
 
 class HealthCheckFilter(Filter):
@@ -16,11 +16,7 @@ def configure_loggers():
     # because they typically contain prompts.
     app_log_level = os.getenv("LOG_LEVEL", "INFO")
 
-    configure_root_logger(
-        LogConfig(
-            text_format="%(levelprefix)s | %(asctime)s | %(name)s | %(process)d | %(message)s"
-        )
-    )
+    configure_root_logger()
 
     # Filter out health check requests from uvicorn logs
     logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
