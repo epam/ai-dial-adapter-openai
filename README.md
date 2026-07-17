@@ -1537,10 +1537,11 @@ DIAL_SDK_JSON_LOG_FORMAT='{"level": "%(levelname)s", "time": "%(asctime)s", "log
 
 See the [full logging documentation](https://github.com/epam/ai-dial-sdk/blob/0.38.0/docs/logging.md) for details.
 
-To enable logs from the underlying Anthropic SDK, set:
+To enable logs from the underlying Anthropic SDK or OpenAI SDK, set:
 
 ```txt
 ANTHROPIC_LOG=debug
+OPENAI_LOG=debug
 ```
 
 ---
