@@ -64,6 +64,7 @@
 - [Environment Variables](#environment-variables)
   - [Categories of deployments](#categories-of-deployments)
   - [Other variables](#other-variables)
+  - [Logging](#logging)
 - [Configurable models](#configurable-models)
   - [DALL-E / GPT Image 1](#dall-e--gpt-image-1)
     - [Forward compatibility](#forward-compatibility)
@@ -1496,7 +1497,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 
 |Variable|Default|Description|
 |---|---|---|
-|LOG_LEVEL|INFO|Log level. Use DEBUG for dev purposes and INFO in prod|
+|LOG_LEVEL|INFO|Application log level. Use DEBUG for dev purposes and INFO in prod|
 |TIKTOKEN_MODEL_MAPPING|`{}`|A JSON dictionary from the request deployment id to a [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). It's used for [tokenization](#tokenization-of-chat-completion-requestsresponses) of chat completion requests on the adapter side. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. The tokenizer for `gpt-4o` is used as a default.|
 |DIAL_URL||URL of the [DIAL Core](https://github.com/epam/ai-dial-core/) server. When set, it enables uploading and downloading of DIAL Files to and from DIAL Storage.|
 |NON_STREAMING_DEPLOYMENTS|``|Comma-separated list of deployments that do not support streaming. The adapter will emulate streaming by calling the model and converting its response into a single-chunk stream. Example: `"o1-mini,o1-preview"`|
@@ -1509,6 +1510,38 @@ Deployments that do not fall into any of the categories are considered to suppor
 |THREAD_POOL_SIZE||The size of a thread pool for CPU-heavy tasks such as tokenization and image analysis. The [default](https://github.com/python/cpython/blob/3.11/Lib/concurrent/futures/thread.py#L142) is `min(32, #logicalCPUs + 4)`. Find the details in the section about [performance](#server-performance-configuration).|
 |SSE_HEARTBEAT_INTERVAL||If set, the adapter inserts ping comments into streaming chat completion responses after the connection has been idle for the specified number of seconds, helping prevent read timeouts when the upstream is unresponsive.|
 |CLAUDE_DEFAULT_MAX_TOKENS|1536|The default value of `max_tokens` chat completion parameter if it is not provided in the request.<br>**:warning: Using the variable is discouraged**.<br>Consider configuring the default in the DIAL Core Config instead as demonstrated in the [example below](#default-max_tokens-for-claude-models).|
+
+### Logging
+
+Logging is provided by the DIAL SDK. The `LOG_LEVEL` variable sets the severity threshold for the adapter's logs (`INFO` by default; use `DEBUG` for development).
+
+By default logs are emitted as human-readable text.
+Set `DIAL_SDK_LOG_FORMAT=json` for structured JSON logging.
+The format is controlled by `DIAL_SDK_TEXT_LOG_FORMAT` / `DIAL_SDK_JSON_LOG_FORMAT` (both optional),
+which use Python's `%`-style [logging attributes](https://docs.python.org/3/library/logging.html#logrecord-attributes)
+and default to the values shown below.
+
+Text logging (default):
+
+```txt
+DIAL_SDK_LOG_FORMAT=text
+DIAL_SDK_TEXT_LOG_FORMAT='%(levelprefix)s | %(asctime)s | %(name)s | %(process)d | %(message)s'
+```
+
+Structured JSON logging:
+
+```txt
+DIAL_SDK_LOG_FORMAT=json
+DIAL_SDK_JSON_LOG_FORMAT='{"level": "%(levelname)s", "time": "%(asctime)s", "logger": "%(name)s", "process": "%(process)d", "message": "%(message)s"}'
+```
+
+See the [full logging documentation](https://github.com/epam/ai-dial-sdk/blob/0.38.0/docs/logging.md) for details.
+
+To enable logs from the underlying Anthropic SDK, set:
+
+```txt
+ANTHROPIC_LOG=debug
+```
 
 ---
 
