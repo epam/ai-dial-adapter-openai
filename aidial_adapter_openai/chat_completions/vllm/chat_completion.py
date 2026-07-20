@@ -78,12 +78,6 @@ async def truncate_vllm_prompt(
     max_prompt_tokens: int,
     tokenizer: VllmTokenizer,
 ) -> tuple[list[dict], DiscardedMessages, TruncatedTokens]:
-    """Transform and truncate a vLLM chat request to fit ``max_prompt_tokens``.
-
-    Token counting is done against the full remaining message list on every
-    pass. Shared by the inline chat/completions path and the truncate_prompt
-    endpoint so their truncation behavior cannot drift apart.
-    """
     transformed = await transform_vllm_messages(
         request["messages"], file_storage
     )

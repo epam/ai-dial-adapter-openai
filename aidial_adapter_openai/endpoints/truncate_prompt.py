@@ -58,8 +58,7 @@ from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
 
-# Deployment types that reuse the per-message tiktoken truncation used by
-# the inline GPT chat_completion path.
+# Deployment types that reuse the per-message tiktoken truncation used by GPT chat_completion path.
 _GPT_TYPES = {D.GPT4O, D.GPT4O_MINI, D.GPT_GENERIC}
 
 # Deployment types backed by a vLLM upstream tokenize endpoint.
@@ -71,9 +70,8 @@ _VLLM_TYPES = {
 # Deployment types that reuse the Anthropic adapter's discard computation.
 _ANTHROPIC_TYPES = {D.ANTHROPIC_MESSAGES_API}
 
-# Remaining chat-like deployment types that don't have a dedicated inline
-# truncation path but can be truncated by re-tokenizing the whole request
-# via their request tokenizer.
+# Remaining chat-like deployment types that don't have a dedicated truncation path
+# but can be truncated by re-tokenizing the whole request via their request tokenizer.
 _REQUEST_TOKENIZER_TYPES = {
     D.RESPONSES_API,
     D.MISTRAL,

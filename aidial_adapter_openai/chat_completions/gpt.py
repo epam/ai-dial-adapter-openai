@@ -50,11 +50,6 @@ async def truncate_gpt_prompt(
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
 ) -> tuple[list[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
-    """Transform and truncate a GPT chat request to fit ``max_prompt_tokens``.
-
-    Shared by the inline chat/completions path and the truncate_prompt
-    endpoint so their truncation behavior cannot drift apart.
-    """
     multi_modal_messages = await ResourceProcessor(
         file_storage=file_storage
     ).transform_messages(request["messages"])
