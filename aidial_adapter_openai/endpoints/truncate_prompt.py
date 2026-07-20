@@ -17,14 +17,9 @@ from fastapi import Request
 from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.anthropic import create_adapter
-from aidial_adapter_openai.chat_completions.gpt import truncate_gpt_prompt
 from aidial_adapter_openai.chat_completions.tokenizer_factory import (
     RequestTokenizer,
     create_request_tokenizer,
-)
-from aidial_adapter_openai.chat_completions.vllm import VllmTokenizer
-from aidial_adapter_openai.chat_completions.vllm.chat_completion import (
-    truncate_vllm_prompt,
 )
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
@@ -34,17 +29,12 @@ from aidial_adapter_openai.dial_api.request import (
     get_upstream_model_name,
 )
 from aidial_adapter_openai.dial_api.storage import (
-    FileStorage,
     create_file_storage,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
-)
-from aidial_adapter_openai.utils.tokenizer import (
-    Tokenizer,
-    create_tiktoken_tokenizer,
 )
 from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt as truncate_prompt_with_tokenizer,
@@ -53,18 +43,6 @@ from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
-
-
-class Truncator(Protocol):
-    """Truncates a single prepared chat request using pre-built dependencies."""
-
-    async def truncate(
-        self,
-        *,
-        request_dict: dict,
-        max_prompt_tokens: int,
-        input_request: ChatCompletionRequest,
-    ) -> DiscardedMessages: ...
 
 
 @dataclass
@@ -77,10 +55,8 @@ class _RequestTokenizerAdapter:
         return await self.tokenizer.tokenize_request(request)
 
 
-@dataclass
-class _GptTruncator:
-    tokenizer: Tokenizer
-    file_storage: FileStorage | None
+class Truncator(Protocol):
+    """Truncates a single prepared chat request using pre-built dependencies."""
 
     async def truncate(
         self,
@@ -88,35 +64,7 @@ class _GptTruncator:
         request_dict: dict,
         max_prompt_tokens: int,
         input_request: ChatCompletionRequest,
-    ) -> DiscardedMessages:
-        _, discarded, _ = await truncate_gpt_prompt(
-            request=request_dict,
-            file_storage=self.file_storage,
-            max_prompt_tokens=max_prompt_tokens,
-            tokenizer=self.tokenizer,
-        )
-        return discarded
-
-
-@dataclass
-class _VllmTruncator:
-    tokenizer: VllmTokenizer
-    file_storage: FileStorage | None
-
-    async def truncate(
-        self,
-        *,
-        request_dict: dict,
-        max_prompt_tokens: int,
-        input_request: ChatCompletionRequest,
-    ) -> DiscardedMessages:
-        _, discarded, _ = await truncate_vllm_prompt(
-            request=request_dict,
-            file_storage=self.file_storage,
-            max_prompt_tokens=max_prompt_tokens,
-            tokenizer=self.tokenizer,
-        )
-        return discarded
+    ) -> DiscardedMessages: ...
 
 
 @dataclass
@@ -220,23 +168,6 @@ async def truncate_prompt(
 
     truncator: Truncator
     match deployment_type:
-        case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
-            truncator = _GptTruncator(
-                tokenizer=create_tiktoken_tokenizer(
-                    app_config, deployment_id, deployment_type
-                ),
-                file_storage=file_storage,
-            )
-        case (
-            D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
-        ):
-            truncator = _VllmTruncator(
-                tokenizer=VllmTokenizer(
-                    upstream_endpoint=upstream_endpoint,
-                    extra_headers=extra_headers,
-                ),
-                file_storage=file_storage,
-            )
         case D.ANTHROPIC_MESSAGES_API:
             vendor = app_config.get_vendor(deployment_id, deployment.endpoint)
             creds = await get_credentials(request.headers, vendor=vendor)
@@ -257,7 +188,17 @@ async def truncate_prompt(
                 model_name, truncate_prompt_request.api_key, client
             )
             truncator = _AnthropicTruncator(adapter=adapter)
-        case D.RESPONSES_API | D.MISTRAL | D.DATABRICKS | D.COMPLETIONS_API:
+        case (
+            D.GPT4O
+            | D.GPT4O_MINI
+            | D.GPT_GENERIC
+            | D.RESPONSES_API
+            | D.MISTRAL
+            | D.DATABRICKS
+            | D.COMPLETIONS_API
+            | D.VLLM_CHAT_COMPLETIONS_API
+            | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+        ):
             tokenizer_wrapper = await create_request_tokenizer(
                 request=request,
                 deployment_id=deployment_id,
