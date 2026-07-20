@@ -26,10 +26,6 @@ from aidial_adapter_openai.chat_completions.vllm import VllmTokenizer
 from aidial_adapter_openai.chat_completions.vllm.chat_completion import (
     truncate_vllm_prompt,
 )
-from aidial_adapter_openai.configuration.app_config import (
-    ApplicationConfig,
-    DeploymentAPIType,
-)
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
@@ -56,31 +52,6 @@ from aidial_adapter_openai.utils.truncate_prompt import (
 from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
-)
-
-# Deployment types that reuse the per-message tiktoken truncation used by GPT chat_completion path.
-_GPT_TYPES = {D.GPT4O, D.GPT4O_MINI, D.GPT_GENERIC}
-
-# Deployment types backed by a vLLM upstream tokenize endpoint.
-_VLLM_TYPES = {
-    D.VLLM_CHAT_COMPLETIONS_API,
-    D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API,
-}
-
-# Deployment types that reuse the Anthropic adapter's discard computation.
-_ANTHROPIC_TYPES = {D.ANTHROPIC_MESSAGES_API}
-
-# Remaining chat-like deployment types that don't have a dedicated truncation path
-# but can be truncated by re-tokenizing the whole request via their request tokenizer.
-_REQUEST_TOKENIZER_TYPES = {
-    D.RESPONSES_API,
-    D.MISTRAL,
-    D.DATABRICKS,
-    D.COMPLETIONS_API,
-}
-
-_SUPPORTED_TYPES = (
-    _GPT_TYPES | _VLLM_TYPES | _ANTHROPIC_TYPES | _REQUEST_TOKENIZER_TYPES
 )
 
 
@@ -201,68 +172,6 @@ async def _load_truncate_prompt_request(
         raise RequestValidationError(msg) from e
 
 
-async def _create_truncator(
-    *,
-    request: Request,
-    deployment_id: str,
-    deployment: DeploymentAPIType,
-    deployment_type: D,
-    app_config: ApplicationConfig,
-    upstream_endpoint: str,
-    extra_headers: dict[str, str],
-    file_storage: FileStorage | None,
-    api_key: str,
-) -> Truncator:
-    if deployment_type in _GPT_TYPES:
-        return _GptTruncator(
-            tokenizer=create_tiktoken_tokenizer(
-                app_config, deployment_id, deployment_type
-            ),
-            file_storage=file_storage,
-        )
-
-    if deployment_type in _VLLM_TYPES:
-        return _VllmTruncator(
-            tokenizer=VllmTokenizer(
-                upstream_endpoint=upstream_endpoint,
-                extra_headers=extra_headers,
-            ),
-            file_storage=file_storage,
-        )
-
-    if deployment_type in _ANTHROPIC_TYPES:
-        vendor = app_config.get_vendor(deployment_id, deployment.endpoint)
-        creds = await get_credentials(request.headers, vendor=vendor)
-        api_version = get_api_version(request)
-        client = deployment.endpoint.get_client(
-            {**creds, "api_version": api_version, "headers": extra_headers}
-        )
-        if not isinstance(client, AsyncAnthropicFoundry):
-            raise ValueError(
-                f"Unexpected client for Anthropic deployment - {type(client)}"
-            )
-        model_name = get_upstream_model_name(
-            request_headers=request.headers,
-            deployment_id=deployment_id,
-            model=None,
-        )
-        adapter = await create_adapter(model_name, api_key, client)
-        return _AnthropicTruncator(adapter=adapter)
-
-    tokenizer_wrapper = await create_request_tokenizer(
-        request=request,
-        deployment_id=deployment_id,
-        deployment=deployment,
-        app_config=app_config,
-        upstream_endpoint=upstream_endpoint,
-        extra_headers=extra_headers,
-        file_storage=file_storage,
-    )
-    return _RequestTokenizerTruncator(
-        tokenizer=_RequestTokenizerAdapter(tokenizer_wrapper)
-    )
-
-
 async def _truncate_prompt_input(
     *,
     request: Request,
@@ -306,25 +215,65 @@ async def truncate_prompt(
         deployment_id, upstream_endpoint
     )
     deployment_type = deployment.deployment_type
-
-    if deployment_type not in _SUPPORTED_TYPES:
-        raise ResourceNotFoundError(
-            "The truncate_prompt endpoint is not implemented for this deployment"
-        )
-
     extra_headers = get_upstream_extra_headers(request.headers)
     file_storage = create_file_storage(request.headers)
-    truncator = await _create_truncator(
-        request=request,
-        deployment_id=deployment_id,
-        deployment=deployment,
-        deployment_type=deployment_type,
-        app_config=app_config,
-        upstream_endpoint=upstream_endpoint,
-        extra_headers=extra_headers,
-        file_storage=file_storage,
-        api_key=truncate_prompt_request.api_key,
-    )
+
+    truncator: Truncator
+    match deployment_type:
+        case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
+            truncator = _GptTruncator(
+                tokenizer=create_tiktoken_tokenizer(
+                    app_config, deployment_id, deployment_type
+                ),
+                file_storage=file_storage,
+            )
+        case (
+            D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+        ):
+            truncator = _VllmTruncator(
+                tokenizer=VllmTokenizer(
+                    upstream_endpoint=upstream_endpoint,
+                    extra_headers=extra_headers,
+                ),
+                file_storage=file_storage,
+            )
+        case D.ANTHROPIC_MESSAGES_API:
+            vendor = app_config.get_vendor(deployment_id, deployment.endpoint)
+            creds = await get_credentials(request.headers, vendor=vendor)
+            api_version = get_api_version(request)
+            client = deployment.endpoint.get_client(
+                {**creds, "api_version": api_version, "headers": extra_headers}
+            )
+            if not isinstance(client, AsyncAnthropicFoundry):
+                raise ValueError(
+                    f"Unexpected client for Anthropic deployment - {type(client)}"
+                )
+            model_name = get_upstream_model_name(
+                request_headers=request.headers,
+                deployment_id=deployment_id,
+                model=None,
+            )
+            adapter = await create_adapter(
+                model_name, truncate_prompt_request.api_key, client
+            )
+            truncator = _AnthropicTruncator(adapter=adapter)
+        case D.RESPONSES_API | D.MISTRAL | D.DATABRICKS | D.COMPLETIONS_API:
+            tokenizer_wrapper = await create_request_tokenizer(
+                request=request,
+                deployment_id=deployment_id,
+                deployment=deployment,
+                app_config=app_config,
+                upstream_endpoint=upstream_endpoint,
+                extra_headers=extra_headers,
+                file_storage=file_storage,
+            )
+            truncator = _RequestTokenizerTruncator(
+                tokenizer=_RequestTokenizerAdapter(tokenizer_wrapper)
+            )
+        case _ as other:
+            raise ResourceNotFoundError(
+                f"The truncate_prompt endpoint is not implemented for this deployment: {other}"
+            )
 
     outputs: list[TruncatePromptResult] = []
     for inp in truncate_prompt_request.inputs:
