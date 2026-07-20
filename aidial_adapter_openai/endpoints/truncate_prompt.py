@@ -127,11 +127,10 @@ async def _truncate_prompt_input(
     truncator: Truncator,
     input_request: ChatCompletionRequest,
 ) -> DiscardedMessages:
-    if input_request.max_prompt_tokens is None:
+    if (max_prompt_tokens := input_request.max_prompt_tokens) is None:
         raise RequestValidationError(
             "max_prompt_tokens is required for the truncate_prompt endpoint"
         )
-    max_prompt_tokens = input_request.max_prompt_tokens
 
     request_dict = input_request.model_dump(exclude_none=True)
     request_dict["model"] = get_upstream_model_name(
@@ -199,7 +198,7 @@ async def truncate_prompt(
             | D.VLLM_CHAT_COMPLETIONS_API
             | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
         ):
-            tokenizer_wrapper = await create_request_tokenizer(
+            tokenizer = await create_request_tokenizer(
                 request=request,
                 deployment_id=deployment_id,
                 deployment=deployment,
@@ -209,7 +208,7 @@ async def truncate_prompt(
                 file_storage=file_storage,
             )
             truncator = _RequestTokenizerTruncator(
-                tokenizer=_RequestTokenizerAdapter(tokenizer_wrapper)
+                tokenizer=_RequestTokenizerAdapter(tokenizer)
             )
         case _ as other:
             raise ResourceNotFoundError(
