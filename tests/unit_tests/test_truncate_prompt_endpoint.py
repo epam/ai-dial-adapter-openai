@@ -17,10 +17,12 @@ _VLLM_TOKENIZE_URL = "http://localhost:5001/tokenize"
 _DALLE_UPSTREAM_ENDPOINT = (
     "https://example.com/openai/deployments/dalle-test/images/generations"
 )
+_ANTHROPIC_UPSTREAM_ENDPOINT = "https://example.com/anthropic/v1/messages"
 
 # "this is four tokens" -> 4 content tokens + 3 per-message + 1 role = 8 tokens.
 # The empty request base costs 3 tokens (TOKENS_PER_REQUEST).
 _FOUR_TOKENS = "this is four tokens"
+_LONG_CONTENT = "word " * 50
 
 
 def _headers(upstream_endpoint: str) -> dict[str, str]:
@@ -59,6 +61,18 @@ async def dalle_client():
     async with create_test_client(
         app_config=config,
         base_url="http://test-app.com/openai/deployments/dalle-test",
+    ) as client:
+        yield client
+
+
+@pytest.fixture
+async def anthropic_client():
+    config = ApplicationConfig().add_deployment(
+        "claude-test", ChatCompletionDeploymentType.ANTHROPIC_MESSAGES_API
+    )
+    async with create_test_client(
+        app_config=config,
+        base_url="http://test-app.com/openai/deployments/claude-test",
     ) as client:
         yield client
 
@@ -194,6 +208,38 @@ async def test_truncate_prompt_vllm_over_budget(
     assert response.status_code == 200
     assert response.json() == {
         "outputs": [{"status": "success", "discarded_messages": [0, 1]}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_truncate_prompt_anthropic_over_budget(
+    anthropic_client: httpx.AsyncClient,
+):
+    response = await anthropic_client.post(
+        "truncate_prompt",
+        params={"api-version": "2024-02-01"},
+        json={
+            "inputs": [
+                {
+                    "max_prompt_tokens": 100,
+                    "messages": [
+                        {"role": "system", "content": "You are helpful."},
+                        {"role": "user", "content": _LONG_CONTENT},
+                        {"role": "assistant", "content": _LONG_CONTENT},
+                        {"role": "user", "content": "Final question?"},
+                    ],
+                }
+            ]
+        },
+        headers={
+            **_headers(_ANTHROPIC_UPSTREAM_ENDPOINT),
+            "X-UPSTREAM-KEY": "upstream-key",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "outputs": [{"status": "success", "discarded_messages": [1, 2]}],
     }
 
 

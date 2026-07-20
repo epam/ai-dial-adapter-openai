@@ -1,5 +1,8 @@
 from dataclasses import dataclass
+from typing import Protocol
 
+from aidial_adapter_anthropic.adapter import ChatCompletionAdapter
+from aidial_adapter_anthropic.dial.request import ModelParameters
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.deployment.truncate_prompt import (
     TruncatePromptError,
@@ -9,9 +12,11 @@ from aidial_sdk.deployment.truncate_prompt import (
     TruncatePromptSuccess,
 )
 from aidial_sdk.exceptions import RequestValidationError, ResourceNotFoundError
+from anthropic import AsyncAnthropicFoundry
 from fastapi import Request
 from pydantic import ValidationError
 
+from aidial_adapter_openai.chat_completions.anthropic import create_adapter
 from aidial_adapter_openai.chat_completions.gpt import truncate_gpt_prompt
 from aidial_adapter_openai.chat_completions.tokenizer_factory import (
     RequestTokenizer,
@@ -36,8 +41,15 @@ from aidial_adapter_openai.dial_api.storage import (
     FileStorage,
     create_file_storage,
 )
-from aidial_adapter_openai.utils.request import get_request_app_config
-from aidial_adapter_openai.utils.tokenizer import create_tiktoken_tokenizer
+from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.request import (
+    get_api_version,
+    get_request_app_config,
+)
+from aidial_adapter_openai.utils.tokenizer import (
+    Tokenizer,
+    create_tiktoken_tokenizer,
+)
 from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt as truncate_prompt_with_tokenizer,
 )
@@ -56,6 +68,9 @@ _VLLM_TYPES = {
     D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API,
 }
 
+# Deployment types that reuse the Anthropic adapter's discard computation.
+_ANTHROPIC_TYPES = {D.ANTHROPIC_MESSAGES_API}
+
 # Remaining chat-like deployment types that don't have a dedicated inline
 # truncation path but can be truncated by re-tokenizing the whole request
 # via their request tokenizer.
@@ -66,7 +81,21 @@ _REQUEST_TOKENIZER_TYPES = {
     D.COMPLETIONS_API,
 }
 
-_SUPPORTED_TYPES = _GPT_TYPES | _VLLM_TYPES | _REQUEST_TOKENIZER_TYPES
+_SUPPORTED_TYPES = (
+    _GPT_TYPES | _VLLM_TYPES | _ANTHROPIC_TYPES | _REQUEST_TOKENIZER_TYPES
+)
+
+
+class Truncator(Protocol):
+    """Truncates a single prepared chat request using pre-built dependencies."""
+
+    async def truncate(
+        self,
+        *,
+        request_dict: dict,
+        max_prompt_tokens: int,
+        input_request: ChatCompletionRequest,
+    ) -> DiscardedMessages: ...
 
 
 @dataclass
@@ -77,6 +106,87 @@ class _RequestTokenizerAdapter:
 
     async def tokenize(self, request: dict) -> int:
         return await self.tokenizer.tokenize_request(request)
+
+
+@dataclass
+class _GptTruncator:
+    tokenizer: Tokenizer
+    file_storage: FileStorage | None
+
+    async def truncate(
+        self,
+        *,
+        request_dict: dict,
+        max_prompt_tokens: int,
+        input_request: ChatCompletionRequest,
+    ) -> DiscardedMessages:
+        _, discarded, _ = await truncate_gpt_prompt(
+            request=request_dict,
+            file_storage=self.file_storage,
+            max_prompt_tokens=max_prompt_tokens,
+            tokenizer=self.tokenizer,
+        )
+        return discarded
+
+
+@dataclass
+class _VllmTruncator:
+    tokenizer: VllmTokenizer
+    file_storage: FileStorage | None
+
+    async def truncate(
+        self,
+        *,
+        request_dict: dict,
+        max_prompt_tokens: int,
+        input_request: ChatCompletionRequest,
+    ) -> DiscardedMessages:
+        _, discarded, _ = await truncate_vllm_prompt(
+            request=request_dict,
+            file_storage=self.file_storage,
+            max_prompt_tokens=max_prompt_tokens,
+            tokenizer=self.tokenizer,
+        )
+        return discarded
+
+
+@dataclass
+class _AnthropicTruncator:
+    adapter: ChatCompletionAdapter
+
+    async def truncate(
+        self,
+        *,
+        request_dict: dict,
+        max_prompt_tokens: int,
+        input_request: ChatCompletionRequest,
+    ) -> DiscardedMessages:
+        params = ModelParameters.create(input_request)
+        discarded = await self.adapter.compute_discarded_messages(
+            params, input_request.messages
+        )
+        return discarded or []
+
+
+@dataclass
+class _RequestTokenizerTruncator:
+    tokenizer: _RequestTokenizerAdapter
+
+    async def truncate(
+        self,
+        *,
+        request_dict: dict,
+        max_prompt_tokens: int,
+        input_request: ChatCompletionRequest,
+    ) -> DiscardedMessages:
+        _, discarded, _ = await truncate_prompt_with_tokenizer(
+            tokenizer=self.tokenizer,
+            original_request=request_dict,
+            messages=request_dict["messages"],
+            get_raw_message=lambda m: m,
+            max_prompt_tokens=max_prompt_tokens,
+        )
+        return discarded
 
 
 async def _load_truncate_prompt_request(
@@ -93,7 +203,7 @@ async def _load_truncate_prompt_request(
         raise RequestValidationError(msg) from e
 
 
-async def _truncate_prompt_input(
+async def _create_truncator(
     *,
     request: Request,
     deployment_id: str,
@@ -103,6 +213,63 @@ async def _truncate_prompt_input(
     upstream_endpoint: str,
     extra_headers: dict[str, str],
     file_storage: FileStorage | None,
+    api_key: str,
+) -> Truncator:
+    if deployment_type in _GPT_TYPES:
+        return _GptTruncator(
+            tokenizer=create_tiktoken_tokenizer(
+                app_config, deployment_id, deployment_type
+            ),
+            file_storage=file_storage,
+        )
+
+    if deployment_type in _VLLM_TYPES:
+        return _VllmTruncator(
+            tokenizer=VllmTokenizer(
+                upstream_endpoint=upstream_endpoint,
+                extra_headers=extra_headers,
+            ),
+            file_storage=file_storage,
+        )
+
+    if deployment_type in _ANTHROPIC_TYPES:
+        vendor = app_config.get_vendor(deployment_id, deployment.endpoint)
+        creds = await get_credentials(request.headers, vendor=vendor)
+        api_version = get_api_version(request)
+        client = deployment.endpoint.get_client(
+            {**creds, "api_version": api_version, "headers": extra_headers}
+        )
+        if not isinstance(client, AsyncAnthropicFoundry):
+            raise ValueError(
+                f"Unexpected client for Anthropic deployment - {type(client)}"
+            )
+        model_name = get_upstream_model_name(
+            request_headers=request.headers,
+            deployment_id=deployment_id,
+            model=None,
+        )
+        adapter = await create_adapter(model_name, api_key, client)
+        return _AnthropicTruncator(adapter=adapter)
+
+    tokenizer_wrapper = await create_request_tokenizer(
+        request=request,
+        deployment_id=deployment_id,
+        deployment=deployment,
+        app_config=app_config,
+        upstream_endpoint=upstream_endpoint,
+        extra_headers=extra_headers,
+        file_storage=file_storage,
+    )
+    return _RequestTokenizerTruncator(
+        tokenizer=_RequestTokenizerAdapter(tokenizer_wrapper)
+    )
+
+
+async def _truncate_prompt_input(
+    *,
+    request: Request,
+    deployment_id: str,
+    truncator: Truncator,
     input_request: ChatCompletionRequest,
 ) -> DiscardedMessages:
     if input_request.max_prompt_tokens is None:
@@ -121,48 +288,11 @@ async def _truncate_prompt_input(
     # must not leak into the request sent to upstream tokenizers.
     request_dict.pop("max_prompt_tokens", None)
 
-    if deployment_type in _GPT_TYPES:
-        tokenizer = create_tiktoken_tokenizer(
-            app_config, deployment_id, deployment_type
-        )
-        _, discarded, _ = await truncate_gpt_prompt(
-            request=request_dict,
-            file_storage=file_storage,
-            max_prompt_tokens=max_prompt_tokens,
-            tokenizer=tokenizer,
-        )
-        return discarded
-
-    if deployment_type in _VLLM_TYPES:
-        vllm_tokenizer = VllmTokenizer(
-            upstream_endpoint=upstream_endpoint,
-            extra_headers=extra_headers,
-        )
-        _, discarded, _ = await truncate_vllm_prompt(
-            request=request_dict,
-            file_storage=file_storage,
-            max_prompt_tokens=max_prompt_tokens,
-            tokenizer=vllm_tokenizer,
-        )
-        return discarded
-
-    tokenizer_wrapper = await create_request_tokenizer(
-        request=request,
-        deployment_id=deployment_id,
-        deployment=deployment,
-        app_config=app_config,
-        upstream_endpoint=upstream_endpoint,
-        extra_headers=extra_headers,
-        file_storage=file_storage,
-    )
-    _, discarded, _ = await truncate_prompt_with_tokenizer(
-        tokenizer=_RequestTokenizerAdapter(tokenizer_wrapper),
-        original_request=request_dict,
-        messages=request_dict["messages"],
-        get_raw_message=lambda m: m,
+    return await truncator.truncate(
+        request_dict=request_dict,
         max_prompt_tokens=max_prompt_tokens,
+        input_request=input_request,
     )
-    return discarded
 
 
 async def truncate_prompt(
@@ -186,6 +316,17 @@ async def truncate_prompt(
 
     extra_headers = get_upstream_extra_headers(request.headers)
     file_storage = create_file_storage(request.headers)
+    truncator = await _create_truncator(
+        request=request,
+        deployment_id=deployment_id,
+        deployment=deployment,
+        deployment_type=deployment_type,
+        app_config=app_config,
+        upstream_endpoint=upstream_endpoint,
+        extra_headers=extra_headers,
+        file_storage=file_storage,
+        api_key=truncate_prompt_request.api_key,
+    )
 
     outputs: list[TruncatePromptResult] = []
     for inp in truncate_prompt_request.inputs:
@@ -193,12 +334,7 @@ async def truncate_prompt(
             discarded = await _truncate_prompt_input(
                 request=request,
                 deployment_id=deployment_id,
-                deployment=deployment,
-                deployment_type=deployment_type,
-                app_config=app_config,
-                upstream_endpoint=upstream_endpoint,
-                extra_headers=extra_headers,
-                file_storage=file_storage,
+                truncator=truncator,
                 input_request=inp,
             )
             outputs.append(TruncatePromptSuccess(discarded_messages=discarded))

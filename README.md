@@ -1169,10 +1169,7 @@ To expose the tokenize endpoint to DIAL clients, add `features.tokenizeEndpoint`
 
 The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/truncate_prompt` using the [DIAL SDK truncate_prompt schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/truncate_prompt.py).
 
-It is the dry-run counterpart of the `max_prompt_tokens` truncation that *(optionally)* happens inline during a `chat/completions` call: given a chat completion request and a `max_prompt_tokens` budget, it reports which messages *would* be discarded to make the prompt fit — **without calling the model**. Only token counting is performed *(following the corresponding [tokenization algorithm](#tokenization-algorithm))*.
-
-> [!WARNING]
-> This endpoint is **not fully implemented yet**. Its result only matches the actual inline `chat/completions` truncation for GPT and vLLM deployments. For Responses, Mistral, Databricks, and legacy Completions deployments the reported `discarded_messages` may not reflect what a real `chat/completions` call would discard. This note will be removed once support for the remaining deployment types is completed.
+It is the dry-run counterpart of the `max_prompt_tokens` truncation that *(optionally)* happens during a `chat/completions` call: given a chat completion request and a `max_prompt_tokens` budget, it reports which messages *would* be discarded to make the prompt fit — **without calling the model**. Only token counting is performed *(following the corresponding [tokenization algorithm](#tokenization-algorithm))*.
 
 Request:
 
@@ -1208,10 +1205,7 @@ Each input is truncated independently:
 - `max_prompt_tokens` is required for every input. An input missing it yields an error output, while the rest of the batch still succeeds.
 - If a single input can't be processed, its output is an `{"status": "error", "error": "..."}` object, so a batch may mix successes and failures.
 
-The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Responses, Mistral, Databricks, and legacy Completions APIs. Deployments backed by Images, Video, Audio, or Anthropic Messages APIs don't support prompt truncation and return `404`.
-
-> [!NOTE]
-> Results are currently reliable only for GPT and vLLM deployments. Support for the other types is not fully implemented — see the warning above.
+The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Anthropic Messages, Responses, Mistral, Databricks, and legacy Completions APIs. Deployments backed by Images, Video, or Audio APIs don't support prompt truncation and return `404`.
 
 Truncate prompt endpoints support [upstream header proxying](#upstream-header-proxying).
 
