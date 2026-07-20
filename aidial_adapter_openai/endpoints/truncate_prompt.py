@@ -210,9 +210,9 @@ async def truncate_prompt(
             truncator = _RequestTokenizerTruncator(
                 tokenizer=_RequestTokenizerAdapter(tokenizer)
             )
-        case _ as other:
+        case _ as not_implemented:
             raise ResourceNotFoundError(
-                f"The truncate_prompt endpoint is not implemented for this deployment: {other}"
+                f"The truncate_prompt endpoint is not implemented for this deployment: {not_implemented}"
             )
 
     outputs: list[TruncatePromptResult] = []
