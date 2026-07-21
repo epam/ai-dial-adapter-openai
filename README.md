@@ -1206,7 +1206,7 @@ Each input is truncated independently:
 - `max_prompt_tokens` is required for every input. An input missing it yields an error output, while the rest of the batch still succeeds.
 - If a single input can't be processed, its output is an `{"status": "error", "error": "..."}` object, so a batch may mix successes and failures.
 
-The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Anthropic Messages, Responses, Mistral, Databricks, and legacy Completions APIs. Deployments backed by Images, Video, or Audio APIs don't support prompt truncation and return `404`.
+The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Anthropic Messages, and Responses APIs. Other deployment types return `404`.
 
 Truncate prompt endpoints support [upstream header proxying](#upstream-header-proxying).
 
