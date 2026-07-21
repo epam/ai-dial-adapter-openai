@@ -149,10 +149,15 @@ async def test_truncate_prompt_missing_max_prompt_tokens_is_isolated(
     )
 
     assert response.status_code == 200
-    outputs = response.json()["outputs"]
-    assert outputs[0] == {"status": "success", "discarded_messages": []}
-    assert outputs[1]["status"] == "error"
-    assert "max_prompt_tokens" in outputs[1]["error"]
+    assert response.json() == {
+        "outputs": [
+            {"status": "success", "discarded_messages": []},
+            {
+                "status": "error",
+                "error": "max_prompt_tokens is required for the truncate_prompt endpoint",
+            },
+        ],
+    }
 
 
 @pytest.mark.asyncio
@@ -173,6 +178,9 @@ async def test_truncate_prompt_unsupported_deployment_returns_404(
     )
 
     assert response.status_code == 404
+    assert response.json()["error"]["message"] == (
+        "The truncate_prompt endpoint is not implemented for this deployment: DALLE3"
+    )
 
 
 @respx.mock

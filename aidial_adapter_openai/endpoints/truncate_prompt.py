@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -17,6 +18,7 @@ from fastapi import Request
 from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.anthropic import create_adapter
+from aidial_adapter_openai.chat_completions.gpt import truncate_gpt_prompt
 from aidial_adapter_openai.chat_completions.tokenizer_factory import (
     RequestTokenizer,
     create_request_tokenizer,
@@ -29,12 +31,17 @@ from aidial_adapter_openai.dial_api.request import (
     get_upstream_model_name,
 )
 from aidial_adapter_openai.dial_api.storage import (
+    FileStorage,
     create_file_storage,
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.request import (
     get_api_version,
     get_request_app_config,
+)
+from aidial_adapter_openai.utils.tokenizer import (
+    Tokenizer,
+    create_tiktoken_tokenizer,
 )
 from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt as truncate_prompt_with_tokenizer,
@@ -45,26 +52,49 @@ from aidial_adapter_openai.utils.upstream_headers import (
 )
 
 
-@dataclass
-class _RequestTokenizerAdapter:
-    """Adapts a ``RequestTokenizer`` to the ``truncate_prompt`` interface."""
+class Truncator(Protocol):
+    async def truncate(
+        self, max_prompt_tokens: int, request: ChatCompletionRequest
+    ) -> DiscardedMessages: ...
 
+
+@dataclass
+class _GptTruncator:
+    tokenizer: Tokenizer
+    file_storage: FileStorage | None
+
+    async def truncate(
+        self, max_prompt_tokens: int, request: ChatCompletionRequest
+    ) -> DiscardedMessages:
+        request_dict = request.model_dump(exclude_none=True)
+        _, discarded, _ = await truncate_gpt_prompt(
+            request=request_dict,
+            file_storage=self.file_storage,
+            max_prompt_tokens=max_prompt_tokens,
+            tokenizer=self.tokenizer,
+        )
+        return discarded
+
+
+@dataclass
+class _RequestTokenizerTruncator:
     tokenizer: RequestTokenizer
 
     async def tokenize(self, request: dict) -> int:
         return await self.tokenizer.tokenize_request(request)
 
-
-class Truncator(Protocol):
-    """Truncates a single prepared chat request using pre-built dependencies."""
-
     async def truncate(
-        self,
-        *,
-        request_dict: dict,
-        max_prompt_tokens: int,
-        input_request: ChatCompletionRequest,
-    ) -> DiscardedMessages: ...
+        self, max_prompt_tokens: int, request: ChatCompletionRequest
+    ) -> DiscardedMessages:
+        request_dict = request.model_dump(exclude_none=True)
+        _, discarded, _ = await truncate_prompt_with_tokenizer(
+            tokenizer=self,
+            original_request=request_dict,
+            messages=request_dict["messages"],
+            get_raw_message=lambda m: m,
+            max_prompt_tokens=max_prompt_tokens,
+        )
+        return discarded
 
 
 @dataclass
@@ -72,38 +102,17 @@ class _AnthropicTruncator:
     adapter: ChatCompletionAdapter
 
     async def truncate(
-        self,
-        *,
-        request_dict: dict,
-        max_prompt_tokens: int,
-        input_request: ChatCompletionRequest,
+        self, max_prompt_tokens: int, request: ChatCompletionRequest
     ) -> DiscardedMessages:
-        params = ModelParameters.create(input_request)
+        # ModelParameters.create reads max_prompt_tokens from the request.
+        request = request.model_copy(
+            update={"max_prompt_tokens": max_prompt_tokens}
+        )
+        params = ModelParameters.create(request)
         discarded = await self.adapter.compute_discarded_messages(
-            params, input_request.messages
+            params, request.messages
         )
         return discarded or []
-
-
-@dataclass
-class _RequestTokenizerTruncator:
-    tokenizer: _RequestTokenizerAdapter
-
-    async def truncate(
-        self,
-        *,
-        request_dict: dict,
-        max_prompt_tokens: int,
-        input_request: ChatCompletionRequest,
-    ) -> DiscardedMessages:
-        _, discarded, _ = await truncate_prompt_with_tokenizer(
-            tokenizer=self.tokenizer,
-            original_request=request_dict,
-            messages=request_dict["messages"],
-            get_raw_message=lambda m: m,
-            max_prompt_tokens=max_prompt_tokens,
-        )
-        return discarded
 
 
 async def _load_truncate_prompt_request(
@@ -120,33 +129,28 @@ async def _load_truncate_prompt_request(
         raise RequestValidationError(msg) from e
 
 
-async def _truncate_prompt_input(
+def _prepare_inputs(
     *,
-    request: Request,
+    truncate_prompt_request: TruncatePromptRequest,
+    request_headers: Mapping[str, str],
     deployment_id: str,
-    truncator: Truncator,
-    input_request: ChatCompletionRequest,
-) -> DiscardedMessages:
-    if (max_prompt_tokens := input_request.max_prompt_tokens) is None:
-        raise RequestValidationError(
-            "max_prompt_tokens is required for the truncate_prompt endpoint"
+) -> list[tuple[ChatCompletionRequest, int | None]]:
+    """Enrich inputs with upstream model names and peel off max_prompt_tokens."""
+    prepared: list[tuple[ChatCompletionRequest, int | None]] = []
+    for inp in truncate_prompt_request.inputs:
+        max_prompt_tokens = inp.max_prompt_tokens
+        request = inp.model_copy(
+            update={
+                "model": get_upstream_model_name(
+                    request_headers=request_headers,
+                    deployment_id=deployment_id,
+                    model=inp.model,
+                ),
+                "max_prompt_tokens": None,
+            }
         )
-
-    request_dict = input_request.model_dump(exclude_none=True)
-    request_dict["model"] = get_upstream_model_name(
-        request_headers=request.headers,
-        deployment_id=deployment_id,
-        model=request_dict.get("model"),
-    )
-    # max_prompt_tokens is passed explicitly to the truncation algorithm and
-    # must not leak into the request sent to upstream tokenizers.
-    request_dict.pop("max_prompt_tokens", None)
-
-    return await truncator.truncate(
-        request_dict=request_dict,
-        max_prompt_tokens=max_prompt_tokens,
-        input_request=input_request,
-    )
+        prepared.append((request, max_prompt_tokens))
+    return prepared
 
 
 async def truncate_prompt(
@@ -178,23 +182,19 @@ async def truncate_prompt(
                 raise ValueError(
                     f"Unexpected client for Anthropic deployment - {type(client)}"
                 )
-            model_name = get_upstream_model_name(
-                request_headers=request.headers,
-                deployment_id=deployment_id,
-                model=None,
-            )
             adapter = await create_adapter(
-                model_name, truncate_prompt_request.api_key, client
+                deployment_id, truncate_prompt_request.api_key, client
             )
             truncator = _AnthropicTruncator(adapter=adapter)
+        case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
+            truncator = _GptTruncator(
+                tokenizer=create_tiktoken_tokenizer(
+                    app_config, deployment_id, deployment_type
+                ),
+                file_storage=file_storage,
+            )
         case (
-            D.GPT4O
-            | D.GPT4O_MINI
-            | D.GPT_GENERIC
-            | D.RESPONSES_API
-            | D.MISTRAL
-            | D.DATABRICKS
-            | D.COMPLETIONS_API
+            D.RESPONSES_API
             | D.VLLM_CHAT_COMPLETIONS_API
             | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
         ):
@@ -207,22 +207,27 @@ async def truncate_prompt(
                 extra_headers=extra_headers,
                 file_storage=file_storage,
             )
-            truncator = _RequestTokenizerTruncator(
-                tokenizer=_RequestTokenizerAdapter(tokenizer)
-            )
+            truncator = _RequestTokenizerTruncator(tokenizer=tokenizer)
         case _ as not_implemented:
             raise ResourceNotFoundError(
                 f"The truncate_prompt endpoint is not implemented for this deployment: {not_implemented}"
             )
 
+    prepared_inputs = _prepare_inputs(
+        truncate_prompt_request=truncate_prompt_request,
+        request_headers=request.headers,
+        deployment_id=deployment_id,
+    )
+
     outputs: list[TruncatePromptResult] = []
-    for inp in truncate_prompt_request.inputs:
+    for chat_request, max_prompt_tokens in prepared_inputs:
         try:
-            discarded = await _truncate_prompt_input(
-                request=request,
-                deployment_id=deployment_id,
-                truncator=truncator,
-                input_request=inp,
+            if max_prompt_tokens is None:
+                raise RequestValidationError(
+                    "max_prompt_tokens is required for the truncate_prompt endpoint"
+                )
+            discarded = await truncator.truncate(
+                max_prompt_tokens, chat_request
             )
             outputs.append(TruncatePromptSuccess(discarded_messages=discarded))
         except Exception as e:

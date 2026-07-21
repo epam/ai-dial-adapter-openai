@@ -1,7 +1,8 @@
 """
-Prompt truncation that works at the level of the full chat completion request.
+Coarse-grained prompt truncation that works at the level of the full chat
+completion request.
 
-The entire remaining message list is tokenised in a single call via a
+The entire remaining message list is tokenized in a single call via a
 :class:`Tokenizer` instance on each truncation step.  This is appropriate
 for upstreams (for example, vLLM) that expose a dedicated tokenization endpoint
 and can account for all modalities (text, images, files) in one shot.
