@@ -81,6 +81,18 @@ async def responses_client():
         yield client
 
 
+@pytest.fixture
+async def anthropic_client():
+    config = ApplicationConfig().add_deployment(
+        "claude-test", ChatCompletionDeploymentType.ANTHROPIC_MESSAGES_API
+    )
+    async with create_test_client(
+        app_config=config,
+        base_url="http://test-app.com/openai/deployments/claude-test",
+    ) as client:
+        yield client
+
+
 @respx.mock
 @pytest.mark.asyncio
 async def test_tokenize_vllm_request_input(vllm_client: httpx.AsyncClient):
@@ -243,6 +255,59 @@ async def test_tokenize_tiktoken_string_input(gpt_client: httpx.AsyncClient):
     assert response.status_code == 200
     assert response.json() == {
         "outputs": [{"status": "success", "token_count": 1}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_tokenize_anthropic_string_input(
+    anthropic_client: httpx.AsyncClient,
+):
+    response = await anthropic_client.post(
+        "tokenize",
+        params={"api-version": "2024-02-01"},
+        json={"inputs": [{"type": "string", "value": "hello"}]},
+        headers=_tokenize_headers(
+            **{
+                "X-UPSTREAM-ENDPOINT": "https://example.com/anthropic/v1/messages",
+                "X-UPSTREAM-KEY": "upstream-key",
+            }
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "outputs": [{"status": "success", "token_count": 5}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_tokenize_anthropic_request_input(
+    anthropic_client: httpx.AsyncClient,
+):
+    response = await anthropic_client.post(
+        "tokenize",
+        params={"api-version": "2024-02-01"},
+        json={
+            "inputs": [
+                {
+                    "type": "request",
+                    "value": {
+                        "messages": [{"role": "user", "content": "hello"}],
+                    },
+                }
+            ]
+        },
+        headers=_tokenize_headers(
+            **{
+                "X-UPSTREAM-ENDPOINT": "https://example.com/anthropic/v1/messages",
+                "X-UPSTREAM-KEY": "upstream-key",
+            }
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "outputs": [{"status": "success", "token_count": 10}],
     }
 
 

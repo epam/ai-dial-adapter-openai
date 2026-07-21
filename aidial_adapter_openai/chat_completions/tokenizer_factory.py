@@ -7,9 +7,14 @@ the tokenizer for a deployment through a single implementation.
 from dataclasses import dataclass
 from typing import Protocol
 
+from aidial_adapter_anthropic.adapter import ChatCompletionAdapter
+from aidial_adapter_anthropic.dial.request import ModelParameters
+from aidial_sdk.chat_completion.request import ChatCompletionRequest
+from anthropic import AsyncAnthropicFoundry
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 
+from aidial_adapter_openai.chat_completions.anthropic import create_adapter
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
@@ -41,7 +46,9 @@ class RequestTokenizer(Protocol):
 
     async def tokenize_text(self, model_name: str, text: str) -> int: ...
 
-    async def tokenize_request(self, request: dict) -> int: ...
+    async def tokenize_request(self, request: ChatCompletionRequest) -> int: ...
+
+    async def tokenize_raw_request(self, request: dict) -> int: ...
 
 
 @dataclass
@@ -58,7 +65,12 @@ class _VllmRequestTokenizer:
             }
         )
 
-    async def tokenize_request(self, request: dict) -> int:
+    async def tokenize_request(self, request: ChatCompletionRequest) -> int:
+        return await self.tokenize_raw_request(
+            request.model_dump(exclude_none=True)
+        )
+
+    async def tokenize_raw_request(self, request: dict) -> int:
         request["messages"] = await transform_vllm_messages(
             request["messages"], self.file_storage
         )
@@ -73,11 +85,31 @@ class _TiktokenRequestTokenizer:
     async def tokenize_text(self, model_name: str, text: str) -> int:
         return await self.tokenizer.tokenize_text(text)
 
-    async def tokenize_request(self, request: dict) -> int:
+    async def tokenize_request(self, request: ChatCompletionRequest) -> int:
+        return await self.tokenize_raw_request(
+            request.model_dump(exclude_none=True)
+        )
+
+    async def tokenize_raw_request(self, request: dict) -> int:
         messages = await ResourceProcessor(
             file_storage=self.file_storage
         ).transform_messages(request["messages"])
         return await self.tokenizer.tokenize_request(request, messages)
+
+
+@dataclass
+class _AnthropicRequestTokenizer:
+    adapter: ChatCompletionAdapter
+
+    async def tokenize_text(self, model_name: str, text: str) -> int:
+        return await self.adapter.count_completion_tokens(text)
+
+    async def tokenize_request(self, request: ChatCompletionRequest) -> int:
+        params = ModelParameters.create(request)
+        return await self.adapter.count_prompt_tokens(params, request.messages)
+
+    async def tokenize_raw_request(self, request: dict) -> int:
+        raise ValueError("Raw request tokenization isn't supported")
 
 
 async def create_request_tokenizer(
@@ -89,6 +121,7 @@ async def create_request_tokenizer(
     upstream_endpoint: str,
     extra_headers: dict[str, str],
     file_storage: FileStorage | None,
+    api_key: str | None = None,
 ) -> RequestTokenizer:
     deployment_type = deployment.deployment_type
     match deployment_type:
@@ -118,6 +151,26 @@ async def create_request_tokenizer(
                 )
 
             return ResponsesTokenizer(client=client, file_storage=file_storage)
+
+        case D.ANTHROPIC_MESSAGES_API:
+            if api_key is None:
+                raise ValueError(
+                    "api_key is expected to be not None to proceed with Anthropic tokenization"
+                )
+
+            deployment_endpoint = deployment.endpoint
+            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
+            creds = await get_credentials(request.headers, vendor=vendor)
+            api_version = get_api_version(request)
+            client = deployment_endpoint.get_client(
+                {**creds, "api_version": api_version, "headers": extra_headers}
+            )
+            if not isinstance(client, AsyncAnthropicFoundry):
+                raise ValueError(
+                    f"Unexpected client for Anthropic deployment - {type(client)}"
+                )
+            adapter = await create_adapter(deployment_id, api_key, client)
+            return _AnthropicRequestTokenizer(adapter=adapter)
 
         case _:
             tiktoken_tokenizer = create_tiktoken_tokenizer(

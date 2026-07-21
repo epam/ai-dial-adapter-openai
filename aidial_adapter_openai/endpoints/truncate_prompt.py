@@ -81,7 +81,7 @@ class _RequestTokenizerTruncator:
     tokenizer: RequestTokenizer
 
     async def tokenize(self, request: dict) -> int:
-        return await self.tokenizer.tokenize_request(request)
+        return await self.tokenizer.tokenize_raw_request(request)
 
     async def truncate(
         self, max_prompt_tokens: int, request: ChatCompletionRequest

@@ -1,6 +1,5 @@
 from typing import assert_never
 
-from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.deployment.tokenize import (
     TokenizeError,
     TokenizeInput,
@@ -29,14 +28,6 @@ from aidial_adapter_openai.utils.upstream_headers import (
 )
 
 
-def _prepare_chat_request(
-    value: ChatCompletionRequest, model_name: str
-) -> dict:
-    request = value.model_dump(exclude_none=True)
-    request["model"] = model_name
-    return request
-
-
 async def _tokenize_input(
     *,
     tokenize_input: TokenizeInput,
@@ -49,7 +40,8 @@ async def _tokenize_input(
                 model_name, tokenize_input.value
             )
         case "request":
-            request = _prepare_chat_request(tokenize_input.value, model_name)
+            request = tokenize_input.value
+            request.model = model_name
             return await tokenizer.tokenize_request(request)
         case unreachable:
             assert_never(unreachable)
@@ -89,6 +81,7 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
         upstream_endpoint=upstream_endpoint,
         extra_headers=extra_headers,
         file_storage=file_storage,
+        api_key=tokenize_request.api_key,
     )
 
     outputs: list[TokenizeOutput] = []
