@@ -1209,7 +1209,7 @@ Each input is truncated independently:
 The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Anthropic Messages, and Responses APIs. Other deployment types return `404`.
 
 > [!NOTE]
-> Truncation isn’t supported for Mistral, Databricks, and legacy Completions APIs.
+> Truncation **isn’t supported** for Mistral, Databricks, and legacy Completions APIs.
 
 Truncate prompt endpoints support [upstream header proxying](#upstream-header-proxying).
 
