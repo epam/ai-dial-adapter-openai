@@ -27,22 +27,6 @@ from aidial_adapter_openai.utils.truncation_types import (
 )
 
 
-async def multi_modal_truncate_prompt(
-    request: dict,
-    messages: list[MultiModalMessage],
-    max_prompt_tokens: int,
-    tokenizer: Tokenizer,
-) -> tuple[list[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
-    return await truncate_messages(
-        messages=messages,
-        message_tokens=tokenizer.tokenize_request_message,
-        is_system_message=lambda message: message.raw_message["role"]
-        == "system",
-        max_prompt_tokens=max_prompt_tokens,
-        initial_prompt_tokens=await tokenizer.tokenize_request(request, []),
-    )
-
-
 async def truncate_gpt_prompt(
     *,
     request: dict,
@@ -53,8 +37,13 @@ async def truncate_gpt_prompt(
     multi_modal_messages = await ResourceProcessor(
         file_storage=file_storage
     ).transform_messages(request["messages"])
-    return await multi_modal_truncate_prompt(
-        request, multi_modal_messages, max_prompt_tokens, tokenizer
+    return await truncate_messages(
+        messages=multi_modal_messages,
+        message_tokens=tokenizer.tokenize_request_message,
+        is_system_message=lambda message: message.raw_message["role"]
+        == "system",
+        max_prompt_tokens=max_prompt_tokens,
+        initial_prompt_tokens=await tokenizer.tokenize_request(request, []),
     )
 
 
