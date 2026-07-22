@@ -81,6 +81,9 @@ def create_app(
     app.post("/openai/deployments/{deployment_id:path}/tokenize")(
         endpoints.tokenize
     )
+    app.post("/openai/deployments/{deployment_id:path}/truncate_prompt")(
+        endpoints.truncate_prompt
+    )
     app.get("/openai/deployments/{deployment_id:path}/configuration")(
         endpoints.configuration
     )

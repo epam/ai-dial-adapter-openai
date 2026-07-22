@@ -55,7 +55,6 @@ from aidial_adapter_openai.image_generation.adapter import (
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.responses.adapter import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import (
     bad_upstream_endpoint,
@@ -69,7 +68,10 @@ from aidial_adapter_openai.utils.streaming import (
     ChatResponse,
     create_server_response,
 )
-from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.tokenizer import (
+    Tokenizer,
+    create_tiktoken_tokenizer,
+)
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
@@ -119,11 +121,9 @@ async def call_chat_completion(
     )
 
     def _get_tokenizer() -> Tokenizer:
-        tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
-            deployment_id, deployment_id
+        return create_tiktoken_tokenizer(
+            app_config, deployment_id, deployment_type
         )
-        image_tokenizer = get_image_tokenizer(deployment_type)
-        return Tokenizer(model=tiktoken_model, image_tokenizer=image_tokenizer)
 
     if isinstance(client, AsyncAnthropicFoundry):
         return await anthropic_chat_completions(

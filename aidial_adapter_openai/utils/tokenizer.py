@@ -12,6 +12,12 @@ from aidial_sdk.exceptions import InternalServerError
 from tiktoken import Encoding, encoding_for_model
 from tiktoken.model import MODEL_PREFIX_TO_ENCODING
 
+from aidial_adapter_openai.configuration.app_config import (
+    ApplicationConfig,
+)
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from aidial_adapter_openai.utils.chat_completion_response import (
     ChatCompletionResponse,
 )
@@ -19,6 +25,7 @@ from aidial_adapter_openai.utils.concurrency import run_in_threadpool
 from aidial_adapter_openai.utils.image_tokenizer import (
     IMAGE_SUPPORTING_DEPLOYMENTS,
     ImageTokenizer,
+    get_image_tokenizer,
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
@@ -247,3 +254,17 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
         self.warnings.clear()
 
         return tokens
+
+
+def create_tiktoken_tokenizer(
+    app_config: ApplicationConfig,
+    deployment_id: str,
+    deployment_type: ChatCompletionDeploymentType,
+) -> Tokenizer:
+    tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
+        deployment_id, deployment_id
+    )
+    return Tokenizer(
+        model=tiktoken_model,
+        image_tokenizer=get_image_tokenizer(deployment_type),
+    )

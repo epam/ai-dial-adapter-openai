@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Protocol, assert_never
+from typing import assert_never
 
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.deployment.tokenize import (
@@ -13,86 +12,21 @@ from aidial_sdk.deployment.tokenize import (
 )
 from aidial_sdk.exceptions import RequestValidationError
 from fastapi import Request
-from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 from pydantic import ValidationError
 
-from aidial_adapter_openai.chat_completions.transformation import (
-    ResourceProcessor,
-)
-from aidial_adapter_openai.chat_completions.vllm.chat_completion import (
-    transform_vllm_messages,
-)
-from aidial_adapter_openai.chat_completions.vllm.tokenizer import (
-    VllmTokenizer,
-)
-from aidial_adapter_openai.configuration.app_config import (
-    ApplicationConfig,
-    DeploymentAPIType,
-)
-from aidial_adapter_openai.configuration.deployment_type import (
-    ChatCompletionDeploymentType as D,
+from aidial_adapter_openai.chat_completions.tokenizer_factory import (
+    RequestTokenizer,
+    create_request_tokenizer,
 )
 from aidial_adapter_openai.dial_api.request import (
     get_upstream_endpoint,
     get_upstream_model_name,
 )
-from aidial_adapter_openai.dial_api.storage import (
-    FileStorage,
-    create_file_storage,
-)
-from aidial_adapter_openai.responses.tokenizer import ResponsesTokenizer
-from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.image_tokenizer import get_image_tokenizer
-from aidial_adapter_openai.utils.request import (
-    get_api_version,
-    get_request_app_config,
-)
-from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.dial_api.storage import create_file_storage
+from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
-
-
-class _Tokenizer(Protocol):
-    async def tokenize_text(self, model_name: str, text: str) -> int: ...
-
-    async def tokenize_request(self, request: dict) -> int: ...
-
-
-@dataclass
-class _VllmTokenizer:
-    file_storage: FileStorage | None
-    tokenizer: VllmTokenizer
-
-    async def tokenize_text(self, model_name: str, text: str) -> int:
-        return await self.tokenizer.tokenize(
-            {
-                "model": model_name,
-                "prompt": text,
-                "add_special_tokens": False,
-            }
-        )
-
-    async def tokenize_request(self, request: dict) -> int:
-        request["messages"] = await transform_vllm_messages(
-            request["messages"], self.file_storage
-        )
-        return await self.tokenizer.tokenize(request)
-
-
-@dataclass
-class _TiktokenTokenizer:
-    file_storage: FileStorage | None
-    tokenizer: Tokenizer
-
-    async def tokenize_text(self, model_name: str, text: str) -> int:
-        return await self.tokenizer.tokenize_text(text)
-
-    async def tokenize_request(self, request: dict) -> int:
-        messages = await ResourceProcessor(
-            file_storage=self.file_storage
-        ).transform_messages(request["messages"])
-        return await self.tokenizer.tokenize_request(request, messages)
 
 
 def _prepare_chat_request(
@@ -103,60 +37,10 @@ def _prepare_chat_request(
     return request
 
 
-async def _get_tokenizer(
-    *,
-    request: Request,
-    deployment_id: str,
-    deployment: DeploymentAPIType,
-    app_config: ApplicationConfig,
-    upstream_endpoint: str,
-    extra_headers: dict[str, str],
-    file_storage: FileStorage | None,
-) -> _Tokenizer:
-    deployment_type = deployment.deployment_type
-    match deployment_type:
-        case (
-            D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
-        ):
-            vllm_tokenizer = VllmTokenizer(
-                upstream_endpoint=upstream_endpoint,
-                extra_headers=extra_headers,
-            )
-            return _VllmTokenizer(file_storage, vllm_tokenizer)
-
-        case D.RESPONSES_API:
-            deployment_endpoint = deployment.endpoint
-            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
-            creds = await get_credentials(request.headers, vendor=vendor)
-            api_version = get_api_version(request)
-            client = deployment_endpoint.get_client(
-                {**creds, "api_version": api_version, "headers": extra_headers}
-            )
-
-            if not isinstance(
-                client, AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI
-            ):
-                raise ValueError(
-                    f"Unexpected client for the deployment backed by Responses API - {type(client)}"
-                )
-
-            return ResponsesTokenizer(client=client, file_storage=file_storage)
-
-        case _:
-            tiktoken_model = app_config.TIKTOKEN_MODEL_MAPPING.get(
-                deployment_id, deployment_id
-            )
-            tiktoken_tokenizer = Tokenizer(
-                model=tiktoken_model,
-                image_tokenizer=get_image_tokenizer(deployment_type),
-            )
-            return _TiktokenTokenizer(file_storage, tiktoken_tokenizer)
-
-
 async def _tokenize_input(
     *,
     tokenize_input: TokenizeInput,
-    tokenizer: _Tokenizer,
+    tokenizer: RequestTokenizer,
     model_name: str,
 ) -> int:
     match tokenize_input.type:
@@ -197,7 +81,7 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
     extra_headers = get_upstream_extra_headers(request.headers)
     file_storage = create_file_storage(request.headers)
 
-    tokenizer = await _get_tokenizer(
+    tokenizer = await create_request_tokenizer(
         request=request,
         deployment_id=deployment_id,
         deployment=deployment,
