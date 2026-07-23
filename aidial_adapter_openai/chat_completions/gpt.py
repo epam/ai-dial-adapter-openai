@@ -27,14 +27,18 @@ from aidial_adapter_openai.utils.truncation_types import (
 )
 
 
-async def multi_modal_truncate_prompt(
+async def truncate_gpt_prompt(
+    *,
     request: dict,
-    messages: list[MultiModalMessage],
+    file_storage: FileStorage | None,
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
 ) -> tuple[list[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
+    multi_modal_messages = await ResourceProcessor(
+        file_storage=file_storage
+    ).transform_messages(request["messages"])
     return await truncate_messages(
-        messages=messages,
+        messages=multi_modal_messages,
         message_tokens=tokenizer.tokenize_request_message,
         is_system_message=lambda message: message.raw_message["role"]
         == "system",

@@ -4,14 +4,12 @@ from aidial_sdk.exceptions import (
     TruncatePromptSystemError,
 )
 
-from aidial_adapter_openai.chat_completions.gpt import (
-    multi_modal_truncate_prompt,
-)
 from aidial_adapter_openai.utils.image_tokenizer import GPT4O_IMAGE_TOKENIZER
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.resource.base import Resource
 from aidial_adapter_openai.utils.resource.image import ImageResource
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.truncate_messages import truncate_messages
 
 tokenizer = Tokenizer(model="gpt-4o", image_tokenizer=GPT4O_IMAGE_TOKENIZER)
 
@@ -44,7 +42,14 @@ async def test_multimodal_truncate_with_system_and_last_user_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemAndLastUserError):
-        await multi_modal_truncate_prompt({}, transformations, 15, tokenizer)
+        await truncate_messages(
+            messages=transformations,
+            message_tokens=tokenizer.tokenize_request_message,
+            is_system_message=lambda message: message.raw_message["role"]
+            == "system",
+            max_prompt_tokens=15,
+            initial_prompt_tokens=await tokenizer.tokenize_request({}, []),
+        )
 
 
 async def test_multimodal_truncate_with_system_error():
@@ -55,7 +60,14 @@ async def test_multimodal_truncate_with_system_error():
         ),
     ]
     with pytest.raises(TruncatePromptSystemError):
-        await multi_modal_truncate_prompt({}, transformations, 9, tokenizer)
+        await truncate_messages(
+            messages=transformations,
+            message_tokens=tokenizer.tokenize_request_message,
+            is_system_message=lambda message: message.raw_message["role"]
+            == "system",
+            max_prompt_tokens=9,
+            initial_prompt_tokens=await tokenizer.tokenize_request({}, []),
+        )
 
 
 @pytest.mark.parametrize(
@@ -185,11 +197,13 @@ async def test_multimodal_truncate(
         truncated,
         actual_discarded_messages,
         actual_used_tokens,
-    ) = await multi_modal_truncate_prompt(
-        {},
-        transformations,
-        max_prompt_tokens,
-        tokenizer=tokenizer,
+    ) = await truncate_messages(
+        messages=transformations,
+        message_tokens=tokenizer.tokenize_request_message,
+        is_system_message=lambda message: message.raw_message["role"]
+        == "system",
+        max_prompt_tokens=max_prompt_tokens,
+        initial_prompt_tokens=await tokenizer.tokenize_request({}, []),
     )
     assert actual_discarded_messages == discarded_messages
     assert actual_used_tokens == used_tokens
