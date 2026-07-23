@@ -47,21 +47,6 @@ async def truncate_gpt_prompt(
     )
 
 
-async def truncate_gpt_prompt(
-    *,
-    request: dict,
-    file_storage: FileStorage | None,
-    max_prompt_tokens: int,
-    tokenizer: Tokenizer,
-) -> tuple[list[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
-    multi_modal_messages = await ResourceProcessor(
-        file_storage=file_storage
-    ).transform_messages(request["messages"])
-    return await multi_modal_truncate_prompt(
-        request, multi_modal_messages, max_prompt_tokens, tokenizer
-    )
-
-
 def _extract_max_prompt_tokens(request: dict) -> int | None:
     if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
         return None
