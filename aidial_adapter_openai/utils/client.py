@@ -16,7 +16,7 @@ _Client = (
 
 async def get_client(
     request: Request,
-    deployment_id: str,
+    deployment_id: str | None,
     deployment: DeploymentAPIType,
     app_config: ApplicationConfig,
     extra_headers: dict[str, str],
