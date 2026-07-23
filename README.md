@@ -1103,6 +1103,12 @@ Token counting is performed by vLLM for the entire request payload as-is (includ
 
 When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the vLLM-reported token count fits.
 
+##### Responses API tokenization
+
+For deployments backed by the Responses API, the adapter relies on the upstream `responses.input_tokens.count` endpoint to count prompt tokens.
+
+When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the upstream Responses token count fits.
+
 #### Tokenize endpoint
 
 The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize` using the [DIAL SDK tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
