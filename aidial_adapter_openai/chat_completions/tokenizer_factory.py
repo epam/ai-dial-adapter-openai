@@ -33,8 +33,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.tokenizer import ResponsesTokenizer
-from aidial_adapter_openai.utils.auth import get_credentials
-from aidial_adapter_openai.utils.request import get_api_version
+from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.tokenizer import (
     Tokenizer,
     create_tiktoken_tokenizer,
@@ -121,7 +120,7 @@ async def create_request_tokenizer(
     upstream_endpoint: str,
     extra_headers: dict[str, str],
     file_storage: FileStorage | None,
-    api_key: str | None = None,
+    api_key: str,
 ) -> RequestTokenizer:
     deployment_type = deployment.deployment_type
     match deployment_type:
@@ -135,14 +134,13 @@ async def create_request_tokenizer(
             return _VllmRequestTokenizer(file_storage, vllm_tokenizer)
 
         case D.RESPONSES_API:
-            deployment_endpoint = deployment.endpoint
-            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
-            creds = await get_credentials(request.headers, vendor=vendor)
-            api_version = get_api_version(request)
-            client = deployment_endpoint.get_client(
-                {**creds, "api_version": api_version, "headers": extra_headers}
+            client = await get_client(
+                request=request,
+                deployment_id=deployment_id,
+                deployment=deployment,
+                app_config=app_config,
+                extra_headers=extra_headers,
             )
-
             if not isinstance(
                 client, AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI
             ):
@@ -153,17 +151,12 @@ async def create_request_tokenizer(
             return ResponsesTokenizer(client=client, file_storage=file_storage)
 
         case D.ANTHROPIC_MESSAGES_API:
-            if api_key is None:
-                raise ValueError(
-                    "api_key is expected to be not None to proceed with Anthropic tokenization"
-                )
-
-            deployment_endpoint = deployment.endpoint
-            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
-            creds = await get_credentials(request.headers, vendor=vendor)
-            api_version = get_api_version(request)
-            client = deployment_endpoint.get_client(
-                {**creds, "api_version": api_version, "headers": extra_headers}
+            client = await get_client(
+                request=request,
+                deployment_id=deployment_id,
+                deployment=deployment,
+                app_config=app_config,
+                extra_headers=extra_headers,
             )
             if not isinstance(client, AsyncAnthropicFoundry):
                 raise ValueError(

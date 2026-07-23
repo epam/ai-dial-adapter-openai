@@ -33,9 +33,8 @@ from aidial_adapter_openai.dial_api.storage import (
     FileStorage,
     create_file_storage,
 )
-from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.request import (
-    get_api_version,
     get_request_app_config,
 )
 from aidial_adapter_openai.utils.tokenizer import (
@@ -149,11 +148,12 @@ async def truncate_prompt(
     truncator: Truncator
     match deployment_type:
         case D.ANTHROPIC_MESSAGES_API:
-            vendor = app_config.get_vendor(deployment_id, deployment.endpoint)
-            creds = await get_credentials(request.headers, vendor=vendor)
-            api_version = get_api_version(request)
-            client = deployment.endpoint.get_client(
-                {**creds, "api_version": api_version, "headers": extra_headers}
+            client = await get_client(
+                request=request,
+                deployment_id=deployment_id,
+                deployment=deployment,
+                app_config=app_config,
+                extra_headers=extra_headers,
             )
             if not isinstance(client, AsyncAnthropicFoundry):
                 raise ValueError(
@@ -183,6 +183,7 @@ async def truncate_prompt(
                 upstream_endpoint=upstream_endpoint,
                 extra_headers=extra_headers,
                 file_storage=file_storage,
+                api_key=truncate_prompt_request.api_key,
             )
             truncator = _RequestTokenizerTruncator(tokenizer=tokenizer)
         case _ as not_implemented:
