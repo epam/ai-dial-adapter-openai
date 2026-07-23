@@ -13,7 +13,6 @@ from openai import (
 from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
 from openai.types.responses.response_stream_event import ResponseStreamEvent
-from utils.client import get_client
 
 from aidial_adapter_openai.configuration.app_config import DeploymentAPIType
 from aidial_adapter_openai.configuration.deployment_type import (
@@ -29,6 +28,7 @@ from aidial_adapter_openai.dial_api.storage import (
 from aidial_adapter_openai.responses.request import (
     download_dial_urls_in_request,
 )
+from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.parsers import (
     parse_body,
     responses_parser,
@@ -65,6 +65,7 @@ class _ResponsesContext:
         deployment = DeploymentAPIType(
             deployment_type=D.RESPONSES_API, endpoint=endpoint
         )
+        api_version = query_params.pop("api-version", None)
 
         client = await get_client(
             request=request,
@@ -72,6 +73,7 @@ class _ResponsesContext:
             deployment=deployment,
             app_config=app_config,
             extra_headers=upstream_extra_headers,
+            api_version=api_version,
         )
         if not isinstance(
             client, AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI

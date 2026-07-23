@@ -34,6 +34,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.tokenizer import ResponsesTokenizer
 from aidial_adapter_openai.utils.client import get_client
+from aidial_adapter_openai.utils.request import get_api_version
 from aidial_adapter_openai.utils.tokenizer import (
     Tokenizer,
     create_tiktoken_tokenizer,
@@ -140,6 +141,7 @@ async def create_request_tokenizer(
                 deployment=deployment,
                 app_config=app_config,
                 extra_headers=extra_headers,
+                api_version=get_api_version(request),
             )
             if not isinstance(
                 client, AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI
@@ -157,6 +159,7 @@ async def create_request_tokenizer(
                 deployment=deployment,
                 app_config=app_config,
                 extra_headers=extra_headers,
+                api_version=get_api_version(request),
             )
             if not isinstance(client, AsyncAnthropicFoundry):
                 raise ValueError(

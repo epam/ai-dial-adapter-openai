@@ -35,6 +35,7 @@ from aidial_adapter_openai.dial_api.storage import (
 )
 from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.request import (
+    get_api_version,
     get_request_app_config,
 )
 from aidial_adapter_openai.utils.tokenizer import (
@@ -154,6 +155,7 @@ async def truncate_prompt(
                 deployment=deployment,
                 app_config=app_config,
                 extra_headers=extra_headers,
+                api_version=get_api_version(request),
             )
             if not isinstance(client, AsyncAnthropicFoundry):
                 raise ValueError(
