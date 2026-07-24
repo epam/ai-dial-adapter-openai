@@ -46,6 +46,7 @@
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
       - [vLLM tokenization](#vllm-tokenization)
+      - [Responses API tokenization](#responses-api-tokenization)
     - [Tokenize endpoint](#tokenize-endpoint)
       - [DIAL Core configuration](#dial-core-configuration)
     - [Truncate prompt endpoint](#truncate-prompt-endpoint)

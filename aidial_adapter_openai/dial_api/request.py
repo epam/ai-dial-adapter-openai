@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from typing import Any, TypeVar
 
-from aidial_sdk.exceptions import RequestValidationError
+from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
 from pydantic import BaseModel, ValidationError
 
 from aidial_adapter_openai.utils.log_config import logger
@@ -36,6 +36,25 @@ def collect_message_text_content(message: dict) -> str:
                 if item.get("type") == "text":
                     text += item["text"]
     return text
+
+
+def extract_max_prompt_tokens(request: dict) -> int | None:
+    if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
+        return None
+
+    if not isinstance(max_prompt_tokens, int):
+        raise InvalidRequestError(
+            f"'{max_prompt_tokens}' is not of type 'integer'",
+            param="max_prompt_tokens",
+        )
+
+    if max_prompt_tokens < 1:
+        raise InvalidRequestError(
+            f"'{max_prompt_tokens}' is less than the minimum of 1",
+            param="max_prompt_tokens",
+        )
+
+    return max_prompt_tokens
 
 
 DIAL_OVERRIDE_NAME = "X-DIAL-OVERRIDE-NAME"

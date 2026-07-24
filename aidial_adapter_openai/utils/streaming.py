@@ -30,6 +30,7 @@ from aidial_adapter_openai.utils.sse_stream import (
     SSEStreamFormat,
     to_sse_stream,
 )
+from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
 
 
 def generate_id() -> str:
@@ -138,11 +139,6 @@ async def generate_stream(
 
         return chunk
 
-    def set_discarded_messages(chunk: dict | None, indices: list[int]) -> dict:
-        chunk = chunk or empty_chunk
-        chunk["statistics"] = {"discarded_messages": indices}
-        return chunk
-
     last_chunk = None
     buffer_chunk = None
     response_snapshot = ChatCompletionStreamingChunk(response={})
@@ -180,7 +176,10 @@ async def generate_stream(
         last_chunk = merge_chat_completion_chunks(last_chunk, buffer_chunk)
 
     if discarded_messages is not None:
-        last_chunk = set_discarded_messages(last_chunk, discarded_messages)
+        last_chunk = last_chunk or empty_chunk
+        add_statistics_to_response(
+            last_chunk, discarded_messages=discarded_messages
+        )
 
     if response_snapshot.usage is None and (
         not error or response_snapshot.has_messages
@@ -207,6 +206,35 @@ async def generate_stream(
 
     if error:
         raise error
+
+
+def add_statistics_to_response(
+    response: AsyncIterator[dict] | dict,
+    *,
+    discarded_messages: DiscardedMessages | None,
+) -> AsyncIterator[dict] | dict:
+    if discarded_messages is None:
+        return response
+
+    def add_statistics(chunk: dict) -> dict:
+        chunk["statistics"] = {"discarded_messages": discarded_messages}
+        return chunk
+
+    if isinstance(response, dict):
+        return add_statistics(response)
+
+    async def add_statistics_to_last_chunk() -> AsyncIterator[dict]:
+        last_chunk = None
+
+        async for chunk in response:
+            if last_chunk is not None:
+                yield last_chunk
+            last_chunk = chunk
+
+        if last_chunk is not None:
+            yield add_statistics(last_chunk)
+
+    return add_statistics_to_last_chunk()
 
 
 def block_response_to_streaming_chunk(response: dict) -> dict:

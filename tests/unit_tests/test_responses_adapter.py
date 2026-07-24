@@ -107,9 +107,11 @@ async def test_max_prompt_tokens_truncates_messages(
     )
 
     assert response.status_code == 200
-    assert create_bodies[0]["input"] == [
-        {"role": "system", "content": "system message"},
-        {"role": "user", "content": "new question"},
+    assert [body["input"] for body in create_bodies] == [
+        [
+            {"role": "system", "content": "system message"},
+            {"role": "user", "content": "new question"},
+        ]
     ]
 
     if stream:
@@ -151,11 +153,13 @@ async def test_chat_completions_without_max_prompt_tokens_does_not_truncate(
     )
 
     assert response.status_code == 200
-    assert create_bodies[0]["input"] == [
-        {"role": "system", "content": "system message"},
-        {"role": "user", "content": "old question"},
-        {"role": "assistant", "content": "old answer"},
-        {"role": "user", "content": "new question"},
+    assert [body["input"] for body in create_bodies] == [
+        [
+            {"role": "system", "content": "system message"},
+            {"role": "user", "content": "old question"},
+            {"role": "assistant", "content": "old answer"},
+            {"role": "user", "content": "new question"},
+        ]
     ]
 
     if stream:

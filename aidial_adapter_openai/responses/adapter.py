@@ -3,7 +3,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
+from aidial_sdk.exceptions import RequestValidationError
 from openai import (
     AsyncAzureOpenAI,
     AsyncBedrockOpenAI,
@@ -12,6 +12,7 @@ from openai import (
     BaseModel,
 )
 
+from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
     _DEPRECATED_FUNCTION_API,
@@ -24,6 +25,7 @@ from aidial_adapter_openai.responses.tokenizer import (
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import (
+    add_statistics_to_response,
     map_stream,
     map_stream_generator,
 )
@@ -78,25 +80,6 @@ def _to_dict(x: BaseModel) -> dict:
     return ret
 
 
-def _extract_max_prompt_tokens(request: dict[str, Any]) -> int | None:
-    if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
-        return None
-
-    if not isinstance(max_prompt_tokens, int):
-        raise InvalidRequestError(
-            f"'{max_prompt_tokens}' is not of type 'integer'",
-            param="max_prompt_tokens",
-        )
-
-    if max_prompt_tokens < 1:
-        raise InvalidRequestError(
-            f"'{max_prompt_tokens}' is less than the minimum of 1",
-            param="max_prompt_tokens",
-        )
-
-    return max_prompt_tokens
-
-
 async def _truncate_prompt(
     max_prompt_tokens: int,
     request: dict[str, Any],
@@ -131,7 +114,7 @@ async def chat_completion(
     _validate_request(request)
 
     discarded_messages = None
-    if (max_prompt_tokens := _extract_max_prompt_tokens(request)) is not None:
+    if (max_prompt_tokens := extract_max_prompt_tokens(request)) is not None:
         discarded_messages = await _truncate_prompt(
             max_prompt_tokens=max_prompt_tokens,
             request=request,
@@ -149,8 +132,8 @@ async def chat_completion(
         stream = map_stream(
             _to_dict, map_stream_generator(handler.handle, response)
         )
-        return _generate_stream(
-            stream=stream, discarded_messages=discarded_messages
+        return add_statistics_to_response(
+            stream, discarded_messages=discarded_messages
         )
     else:
         if logger.isEnabledFor(logging.DEBUG):
@@ -158,26 +141,5 @@ async def chat_completion(
                 f"responses API response: {json.dumps(response.model_dump())}"
             )
         body = _to_dict(convert_response(response))
-        if discarded_messages is not None:
-            body |= {"statistics": {"discarded_messages": discarded_messages}}
+        add_statistics_to_response(body, discarded_messages=discarded_messages)
         return body
-
-
-async def _generate_stream(
-    *,
-    stream: AsyncIterator[dict],
-    discarded_messages: DiscardedMessages | None,
-) -> AsyncIterator[dict]:
-    last_chunk = None
-
-    async for chunk in stream:
-        if last_chunk is not None:
-            yield last_chunk
-        last_chunk = chunk
-
-    if last_chunk is not None:
-        if discarded_messages is not None:
-            last_chunk["statistics"] = {
-                "discarded_messages": discarded_messages
-            }
-        yield last_chunk
