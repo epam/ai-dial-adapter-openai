@@ -48,7 +48,6 @@ from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
 
-_INVALIDATED_RESPONSE_HEADERS = ("content-length", "content-encoding")
 _ResponsesPayload = (
     Response | InputTokenCountResponse | AsyncStream[ResponseStreamEvent]
 )
@@ -193,15 +192,14 @@ async def _to_fast_api_response(
 def _to_response_with_headers(
     response: LegacyAPIResponse[_ResponsesPayloadT],
 ) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
-    response_headers = dict(response.http_response.headers)
+    response_headers = response.http_response.headers
 
-    # Reformatting or reading content may invalidate content length.
+    # Reformatting of the chunks may invalidate content length.
     # We don't recompress the response, therefore,
     # the content encoding may invalidate too.
-    for header in _INVALIDATED_RESPONSE_HEADERS:
-        for key in list(response_headers):
-            if key.lower() == header:
-                del response_headers[key]
+    for header in ("content-length", "content-encoding"):
+        if header in response_headers:
+            del response_headers[header]
 
     parsed_response = response.parse()
 
@@ -210,10 +208,7 @@ def _to_response_with_headers(
     else:
         body = _to_dict(parsed_response)
 
-    return ResponseWithHeaders(
-        headers=response_headers,
-        body=body,
-    )
+    return ResponseWithHeaders(headers=dict(response_headers), body=body)
 
 
 def _to_dict(
