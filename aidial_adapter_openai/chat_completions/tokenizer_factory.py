@@ -121,7 +121,7 @@ async def create_request_tokenizer(
     upstream_endpoint: str,
     extra_headers: dict[str, str],
     file_storage: FileStorage | None,
-    api_key: str | None = None,
+    api_key: str,
 ) -> RequestTokenizer:
     deployment_type = deployment.deployment_type
     match deployment_type:
@@ -153,11 +153,6 @@ async def create_request_tokenizer(
             return ResponsesTokenizer(client=client, file_storage=file_storage)
 
         case D.ANTHROPIC_MESSAGES_API:
-            if api_key is None:
-                raise ValueError(
-                    "api_key is expected to be not None to proceed with Anthropic tokenization"
-                )
-
             client = await get_client(
                 request=request,
                 deployment_id=deployment_id,
