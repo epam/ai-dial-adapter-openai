@@ -1,3 +1,4 @@
+from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
@@ -23,7 +24,12 @@ class ResponsesTokenizer:
         )
         return response.input_tokens
 
-    async def tokenize_request(self, request: dict) -> int:
+    async def tokenize_request(self, request: ChatCompletionRequest) -> int:
+        return await self.tokenize_raw_request(
+            request.model_dump(exclude_none=True)
+        )
+
+    async def tokenize_raw_request(self, request: dict) -> int:
         tokenize_request, _ = await chat_completions_to_responses_request(
             request=request, file_storage=self._file_storage
         )
