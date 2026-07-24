@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from typing import Self
 
@@ -44,6 +44,8 @@ from aidial_adapter_openai.utils.streaming import (
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
+
+_INVALIDATED_RESPONSE_HEADERS = ("content-length", "content-encoding")
 
 
 @dataclass
@@ -149,6 +151,29 @@ async def responses_delete(
     )
 
 
+async def responses_input_tokens(request: Request):
+    request_body = await parse_body(request)
+    context = await _ResponsesContext.from_request(
+        request, model=request_body.get("model")
+    )
+    file_storage = create_file_storage(request.headers)
+    request_body = await download_dial_urls_in_request(
+        file_storage, request_body
+    )
+
+    response = (
+        await context.client.responses.with_raw_response.input_tokens.count(
+            **request_body
+        )
+    )
+
+    return FastAPIResponse(
+        content=response.http_response.content,
+        headers=_to_safe_response_headers(response.http_response.headers),
+        status_code=response.http_response.status_code,
+    )
+
+
 async def _to_fast_api_response(
     request: Request, response: ResponseWithHeaders[dict | AsyncIterator[dict]]
 ) -> FastAPIResponse:
@@ -164,15 +189,6 @@ async def _to_fast_api_response(
 def _to_response_with_headers(
     response: LegacyAPIResponse[Response | AsyncStream[ResponseStreamEvent]],
 ) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
-    response_headers = response.http_response.headers
-
-    # Reformatting of the chunks may invalidate content length.
-    # We don't recompress the response, therefore,
-    # the content encoding may invalidate too.
-    for header in ("content-length", "content-encoding"):
-        if header in response_headers:
-            del response_headers[header]
-
     parsed_response = response.parse()
 
     if isinstance(parsed_response, AsyncStream):
@@ -180,7 +196,26 @@ def _to_response_with_headers(
     else:
         body = _to_dict(parsed_response)
 
-    return ResponseWithHeaders(headers=dict(response_headers), body=body)
+    return ResponseWithHeaders(
+        headers=_to_safe_response_headers(response.http_response.headers),
+        body=body,
+    )
+
+
+def _to_safe_response_headers(
+    response_headers: Mapping[str, str],
+) -> dict[str, str]:
+    headers = dict(response_headers)
+
+    # Reformatting or reading content may invalidate content length.
+    # We don't recompress the response, therefore,
+    # the content encoding may invalidate too.
+    for header in _INVALIDATED_RESPONSE_HEADERS:
+        for key in list(headers):
+            if key.lower() == header:
+                del headers[key]
+
+    return headers
 
 
 def _to_dict(obj: ResponseStreamEvent | Response) -> dict:

@@ -76,7 +76,9 @@ async def get_credentials(
     *,
     vendor: Vendor,
 ) -> OpenAICreds:
-    api_key = request_headers.get("X-UPSTREAM-KEY")
+    api_key = request_headers.get("X-UPSTREAM-KEY") or request_headers.get(
+        "api-key"
+    )
     if api_key is not None:
         return {"api_key": api_key}
 
