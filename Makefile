@@ -7,6 +7,9 @@ POETRY_PYTHON ?= python
 PYDANTIC_V2 ?= 1
 ARGS ?=
 
+# Any non-empty CI value (even 'false' or '0') means that CI is enabled
+CI ?=
+
 .PHONY: all init_env install build serve lint format test integration_tests docker_build docker_run
 
 -include .env.dev
@@ -15,7 +18,7 @@ export
 all: build
 
 init_env:
-	$(POETRY) env use $(POETRY_PYTHON)
+	$(if $(CI),,$(POETRY) env use $(POETRY_PYTHON))
 
 install: init_env
 	$(POETRY) install
