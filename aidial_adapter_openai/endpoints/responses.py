@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Self, TypeVar
 
@@ -193,6 +193,16 @@ async def _to_fast_api_response(
 def _to_response_with_headers(
     response: LegacyAPIResponse[_ResponsesPayloadT],
 ) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
+    response_headers = dict(response.http_response.headers)
+
+    # Reformatting or reading content may invalidate content length.
+    # We don't recompress the response, therefore,
+    # the content encoding may invalidate too.
+    for header in _INVALIDATED_RESPONSE_HEADERS:
+        for key in list(response_headers):
+            if key.lower() == header:
+                del response_headers[key]
+
     parsed_response = response.parse()
 
     if isinstance(parsed_response, AsyncStream):
@@ -201,36 +211,19 @@ def _to_response_with_headers(
         body = _to_dict(parsed_response)
 
     return ResponseWithHeaders(
-        headers=_to_safe_response_headers(response.http_response.headers),
+        headers=response_headers,
         body=body,
     )
-
-
-def _to_safe_response_headers(
-    response_headers: Mapping[str, str],
-) -> dict[str, str]:
-    headers = dict(response_headers)
-
-    # Reformatting or reading content may invalidate content length.
-    # We don't recompress the response, therefore,
-    # the content encoding may invalidate too.
-    for header in _INVALIDATED_RESPONSE_HEADERS:
-        for key in list(headers):
-            if key.lower() == header:
-                del headers[key]
-
-    return headers
 
 
 def _to_dict(
     obj: ResponseStreamEvent | Response | InputTokenCountResponse,
 ) -> dict:
     ret = obj.to_dict()
-    if isinstance(obj, Response):
-        title = "response"
-    else:
-        title = getattr(obj, "type", None) or getattr(
-            obj, "object", type(obj).__name__
-        )
+    match obj:
+        case Response() | InputTokenCountResponse():
+            title = "response"
+        case _:
+            title = f"event[{obj.type}]"
     debug_print(title, ret)
     return ret
