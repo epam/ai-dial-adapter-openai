@@ -83,11 +83,8 @@ async def responses_client():
 
 @pytest.fixture
 async def anthropic_client():
-    config = ApplicationConfig().add_deployment(
-        "claude-test", ChatCompletionDeploymentType.ANTHROPIC_MESSAGES_API
-    )
     async with create_test_client(
-        app_config=config,
+        app_config=ApplicationConfig(),
         base_url="http://test-app.com/openai/deployments/claude-test",
     ) as client:
         yield client
