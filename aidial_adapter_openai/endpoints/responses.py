@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
-from typing import Self
+from typing import Self, TypeVar
 
 from fastapi import Request
 from fastapi.responses import Response as FastAPIResponse
@@ -12,6 +12,9 @@ from openai import (
 )
 from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
+from openai.types.responses.input_token_count_response import (
+    InputTokenCountResponse,
+)
 from openai.types.responses.response_stream_event import ResponseStreamEvent
 
 from aidial_adapter_openai.configuration.app_config import DeploymentAPIType
@@ -46,6 +49,10 @@ from aidial_adapter_openai.utils.upstream_headers import (
 )
 
 _INVALIDATED_RESPONSE_HEADERS = ("content-length", "content-encoding")
+_ResponsesPayload = (
+    Response | InputTokenCountResponse | AsyncStream[ResponseStreamEvent]
+)
+_ResponsesPayloadT = TypeVar("_ResponsesPayloadT", bound=_ResponsesPayload)
 
 
 @dataclass
@@ -167,11 +174,8 @@ async def responses_input_tokens(request: Request):
         )
     )
 
-    return FastAPIResponse(
-        content=response.http_response.content,
-        headers=_to_safe_response_headers(response.http_response.headers),
-        status_code=response.http_response.status_code,
-    )
+    response_with_headers = _to_response_with_headers(response)
+    return await _to_fast_api_response(request, response_with_headers)
 
 
 async def _to_fast_api_response(
@@ -187,7 +191,7 @@ async def _to_fast_api_response(
 
 
 def _to_response_with_headers(
-    response: LegacyAPIResponse[Response | AsyncStream[ResponseStreamEvent]],
+    response: LegacyAPIResponse[_ResponsesPayloadT],
 ) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
     parsed_response = response.parse()
 
@@ -218,8 +222,15 @@ def _to_safe_response_headers(
     return headers
 
 
-def _to_dict(obj: ResponseStreamEvent | Response) -> dict:
+def _to_dict(
+    obj: ResponseStreamEvent | Response | InputTokenCountResponse,
+) -> dict:
     ret = obj.to_dict()
-    title = "response" if isinstance(obj, Response) else f"event[{obj.type}]"
+    if isinstance(obj, Response):
+        title = "response"
+    else:
+        title = getattr(obj, "type", None) or getattr(
+            obj, "object", type(obj).__name__
+        )
     debug_print(title, ret)
     return ret

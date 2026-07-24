@@ -283,7 +283,9 @@ class TestResponsesEndpoint:
         actual_content = await response.http_response.aread()
 
         assert response.status_code == 200
-        assert actual_content == upstream_response_body
+        assert actual_content == (
+            b'{"input_tokens":123,"object":"response.input_tokens"}'
+        )
 
     @respx.mock
     async def test_retrieve_response(self, client: AsyncOpenAI, stream: bool):
