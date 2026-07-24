@@ -1251,6 +1251,7 @@ The following Responses API endpoints are exposed by the adapter:
 
 ```text
 POST ${ADAPTER_ORIGIN}/openai/v1/responses
+POST ${ADAPTER_ORIGIN}/openai/v1/responses/input_tokens
 ```
 
 Current limitations:
