@@ -14,6 +14,10 @@ from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
 from openai.types.responses.response_stream_event import ResponseStreamEvent
 
+from aidial_adapter_openai.configuration.app_config import DeploymentAPIType
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType as D,
+)
 from aidial_adapter_openai.dial_api.request import (
     DIAL_OVERRIDE_NAME,
     get_upstream_endpoint,
@@ -24,7 +28,7 @@ from aidial_adapter_openai.dial_api.storage import (
 from aidial_adapter_openai.responses.request import (
     download_dial_urls_in_request,
 )
-from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.parsers import (
     parse_body,
     responses_parser,
@@ -55,20 +59,28 @@ class _ResponsesContext:
         deployment_id = headers.get(DIAL_OVERRIDE_NAME) or model
         upstream_endpoint = get_upstream_endpoint(headers)
         upstream_extra_headers = get_upstream_extra_headers(headers)
-
         query_params = dict(request.query_params)
-        api_version = query_params.pop("api-version", None)
         app_config = get_request_app_config(request)
         endpoint = responses_parser.parse(upstream_endpoint)
-        vendor = app_config.get_vendor(deployment_id, endpoint)
-        creds = await get_credentials(headers, vendor=vendor)
-        client = endpoint.get_client(
-            {
-                **creds,
-                "api_version": api_version,
-                "headers": upstream_extra_headers,
-            }
+        deployment = DeploymentAPIType(
+            deployment_type=D.RESPONSES_API, endpoint=endpoint
         )
+        api_version = query_params.pop("api-version", None)
+
+        client = await get_client(
+            request=request,
+            deployment_id=deployment_id,
+            deployment=deployment,
+            app_config=app_config,
+            extra_headers=upstream_extra_headers,
+            api_version=api_version,
+        )
+        if not isinstance(
+            client, AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI
+        ):
+            raise ValueError(
+                f"Unexpected client for the deployment backed by Responses API - {type(client)}"
+            )
 
         return cls(client=client, query_params=query_params)
 

@@ -33,7 +33,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.tokenizer import ResponsesTokenizer
-from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.request import get_api_version
 from aidial_adapter_openai.utils.tokenizer import (
     Tokenizer,
@@ -135,14 +135,14 @@ async def create_request_tokenizer(
             return _VllmRequestTokenizer(file_storage, vllm_tokenizer)
 
         case D.RESPONSES_API:
-            deployment_endpoint = deployment.endpoint
-            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
-            creds = await get_credentials(request.headers, vendor=vendor)
-            api_version = get_api_version(request)
-            client = deployment_endpoint.get_client(
-                {**creds, "api_version": api_version, "headers": extra_headers}
+            client = await get_client(
+                request=request,
+                deployment_id=deployment_id,
+                deployment=deployment,
+                app_config=app_config,
+                extra_headers=extra_headers,
+                api_version=get_api_version(request),
             )
-
             if not isinstance(
                 client, AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI
             ):
@@ -158,12 +158,13 @@ async def create_request_tokenizer(
                     "api_key is expected to be not None to proceed with Anthropic tokenization"
                 )
 
-            deployment_endpoint = deployment.endpoint
-            vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
-            creds = await get_credentials(request.headers, vendor=vendor)
-            api_version = get_api_version(request)
-            client = deployment_endpoint.get_client(
-                {**creds, "api_version": api_version, "headers": extra_headers}
+            client = await get_client(
+                request=request,
+                deployment_id=deployment_id,
+                deployment=deployment,
+                app_config=app_config,
+                extra_headers=extra_headers,
+                api_version=get_api_version(request),
             )
             if not isinstance(client, AsyncAnthropicFoundry):
                 raise ValueError(
