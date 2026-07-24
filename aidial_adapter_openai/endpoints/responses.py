@@ -215,10 +215,10 @@ def _to_dict(
     obj: ResponseStreamEvent | Response | InputTokenCountResponse,
 ) -> dict:
     ret = obj.to_dict()
-    match obj:
-        case Response() | InputTokenCountResponse():
-            title = "response"
-        case _:
-            title = f"event[{obj.type}]"
+    title = (
+        "response"
+        if isinstance(obj, Response | InputTokenCountResponse)
+        else f"event[{obj.type}]"
+    )
     debug_print(title, ret)
     return ret
