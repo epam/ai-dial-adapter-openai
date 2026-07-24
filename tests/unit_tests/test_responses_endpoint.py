@@ -245,6 +245,49 @@ class TestResponsesEndpoint:
         await client.responses.create(**self.test_request)
 
     @respx.mock
+    async def test_count_input_tokens(self, client: AsyncOpenAI):
+        upstream_response_body = json.dumps(
+            {
+                "object": "response.input_tokens",
+                "input_tokens": 123,
+            }
+        ).encode()
+
+        @respx.post(f"{self.UPSTREAM_ENDPOINT}/input_tokens")
+        def _handler(request: httpx.Request):
+            body = json.loads(request.content)
+            assert request.headers.get("authorization") == (
+                f"Bearer {self.UPSTREAM_KEY}"
+            )
+            assert body == {
+                "input": "Test content",
+                "instructions": "Count this prompt.",
+                "model": self.UPSTREAM_MODEL,
+            }
+            return httpx.Response(
+                status_code=200,
+                stream=httpx.ByteStream(gzip.compress(upstream_response_body)),
+                headers={
+                    "foo": "bar",
+                    "Content-Length": "1",  # plainly false value
+                    "Content-Encoding": "gzip",
+                },
+            )
+
+        response = await client.responses.with_raw_response.input_tokens.count(
+            model=self.UPSTREAM_MODEL,
+            input="Test content",
+            instructions="Count this prompt.",
+        )
+
+        actual_content = await response.http_response.aread()
+
+        assert response.status_code == 200
+        assert actual_content == (
+            b'{"input_tokens":123,"object":"response.input_tokens"}'
+        )
+
+    @respx.mock
     async def test_retrieve_response(self, client: AsyncOpenAI, stream: bool):
         expected = self.MOCK_RESPONSE.parse(stream)
 
