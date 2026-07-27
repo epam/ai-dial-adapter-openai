@@ -46,6 +46,7 @@
       - [Text tokenization](#text-tokenization)
       - [Image tokenization](#image-tokenization)
       - [vLLM tokenization](#vllm-tokenization)
+      - [Responses API tokenization](#responses-api-tokenization)
     - [Tokenize endpoint](#tokenize-endpoint)
       - [DIAL Core configuration](#dial-core-configuration)
     - [Truncate prompt endpoint](#truncate-prompt-endpoint)
@@ -1102,6 +1103,12 @@ The adapter first performs the standard Unified → OpenAI-compatible transforma
 Token counting is performed by vLLM for the entire request payload as-is (including tools and multimodal message parts). The adapter does not do any modality-specific token counting for vLLM.
 
 When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the vLLM-reported token count fits.
+
+##### Responses API tokenization
+
+For deployments backed by the Responses API, the adapter relies on the upstream `responses.input_tokens.count` endpoint to count prompt tokens.
+
+When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the upstream Responses token count fits.
 
 #### Tokenize endpoint
 

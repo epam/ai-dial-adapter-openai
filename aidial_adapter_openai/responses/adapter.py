@@ -12,6 +12,7 @@ from openai import (
     BaseModel,
 )
 
+from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
     _DEPRECATED_FUNCTION_API,
@@ -19,10 +20,18 @@ from aidial_adapter_openai.responses.converter import (
     convert_response,
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
+from aidial_adapter_openai.responses.tokenizer import (
+    ResponsesTokenizer,
+)
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import (
+    add_statistics_to_response,
     map_stream,
     map_stream_generator,
+)
+from aidial_adapter_openai.utils.truncate_prompt import truncate_prompt
+from aidial_adapter_openai.utils.truncation_types import (
+    DiscardedMessages,
 )
 
 
@@ -71,6 +80,31 @@ def _to_dict(x: BaseModel) -> dict:
     return ret
 
 
+async def _truncate_prompt(
+    max_prompt_tokens: int,
+    request: dict[str, Any],
+    client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
+    file_storage: FileStorage | None,
+) -> DiscardedMessages | None:
+    (
+        messages,
+        discarded_messages,
+        prompt_tokens,
+    ) = await truncate_prompt(
+        tokenizer=ResponsesTokenizer(client=client, file_storage=file_storage),
+        original_request=request,
+        messages=request["messages"],
+        get_raw_message=lambda m: m,
+        max_prompt_tokens=max_prompt_tokens,
+    )
+    request["messages"] = messages
+    logger.debug(
+        f"Responses estimated prompt tokens after truncation: {prompt_tokens}, "
+        f"discarded messages indices: {discarded_messages}"
+    )
+    return discarded_messages
+
+
 async def chat_completion(
     *,
     request: dict[str, Any],
@@ -79,6 +113,15 @@ async def chat_completion(
 ) -> AsyncIterator[dict] | dict:
     _validate_request(request)
 
+    discarded_messages = None
+    if (max_prompt_tokens := extract_max_prompt_tokens(request)) is not None:
+        discarded_messages = await _truncate_prompt(
+            max_prompt_tokens=max_prompt_tokens,
+            request=request,
+            client=client,
+            file_storage=file_storage,
+        )
+
     _, create_request = await chat_completions_to_responses_request(
         request, file_storage
     )
@@ -86,12 +129,19 @@ async def chat_completion(
 
     if isinstance(response, AsyncStream):
         handler = EventHandler()
-        return map_stream(
+        stream = map_stream(
             _to_dict, map_stream_generator(handler.handle, response)
+        )
+        return add_statistics_to_response(
+            stream, discarded_messages=discarded_messages
         )
     else:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
                 f"responses API response: {json.dumps(response.model_dump())}"
             )
-        return _to_dict(convert_response(response))
+        body = _to_dict(convert_response(response))
+        body = add_statistics_to_response(
+            body, discarded_messages=discarded_messages
+        )
+        return body
