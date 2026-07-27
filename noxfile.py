@@ -1,10 +1,6 @@
-import os
-
 import nox
 
 nox.options.reuse_existing_virtualenvs = True
-if os.environ.get("CI"):
-    nox.options.default_venv_backend = "none"
 
 SRC = ["aidial_adapter_openai", "tests", "noxfile.py"]
 
