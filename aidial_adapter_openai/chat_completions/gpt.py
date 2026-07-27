@@ -1,12 +1,12 @@
 from collections.abc import AsyncIterator, Mapping
 
-from aidial_sdk.exceptions import InvalidRequestError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.caching import get_response_headers_for_caching
 from aidial_adapter_openai.utils.log_config import logger
@@ -14,6 +14,7 @@ from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
+    add_statistics_to_response,
     chunk_to_dict,
     debug_print,
     generate_stream,
@@ -47,24 +48,6 @@ async def truncate_gpt_prompt(
     )
 
 
-def _extract_max_prompt_tokens(request: dict) -> int | None:
-    if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
-        return None
-
-    if not isinstance(max_prompt_tokens, int):
-        raise InvalidRequestError(
-            f"'{max_prompt_tokens}' is not of type 'integer'",
-            param="max_prompt_tokens",
-        )
-
-    if max_prompt_tokens < 1:
-        raise InvalidRequestError(
-            f"'{max_prompt_tokens}' is less than the minimum of 1",
-            param="max_prompt_tokens",
-        )
-    return max_prompt_tokens
-
-
 async def chat_completion(
     *,
     request: dict,
@@ -77,7 +60,7 @@ async def chat_completion(
     n: int = request.get("n") or 1
     model_name = request["model"]
 
-    max_prompt_tokens = _extract_max_prompt_tokens(request)
+    max_prompt_tokens = extract_max_prompt_tokens(request)
     discarded_messages: DiscardedMessages | None
 
     if max_prompt_tokens is not None:
@@ -139,8 +122,9 @@ async def chat_completion(
         return ResponseWithHeaders(headers=response_headers, body=body)
     else:
         body = response.to_dict()
-        if discarded_messages is not None:
-            body |= {"statistics": {"discarded_messages": discarded_messages}}
+        body = add_statistics_to_response(
+            body, discarded_messages=discarded_messages
+        )
 
         actual_prompt_tokens: int | None = None
         if usage := response.usage:

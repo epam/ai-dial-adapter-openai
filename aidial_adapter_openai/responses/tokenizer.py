@@ -37,3 +37,6 @@ class ResponsesTokenizer:
             **tokenize_request
         )
         return response.input_tokens
+
+    async def tokenize(self, request: dict) -> int:
+        return await self.tokenize_raw_request(request)
