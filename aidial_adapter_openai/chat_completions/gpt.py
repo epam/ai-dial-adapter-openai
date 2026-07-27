@@ -122,7 +122,9 @@ async def chat_completion(
         return ResponseWithHeaders(headers=response_headers, body=body)
     else:
         body = response.to_dict()
-        add_statistics_to_response(body, discarded_messages=discarded_messages)
+        body = add_statistics_to_response(
+            body, discarded_messages=discarded_messages
+        )
 
         actual_prompt_tokens: int | None = None
         if usage := response.usage:

@@ -177,7 +177,7 @@ async def generate_stream(
 
     if discarded_messages is not None:
         last_chunk = last_chunk or empty_chunk
-        add_statistics_to_response(
+        last_chunk = add_statistics_to_response(
             last_chunk, discarded_messages=discarded_messages
         )
 
@@ -208,11 +208,14 @@ async def generate_stream(
         raise error
 
 
+_T = TypeVar("_T", bound=(AsyncIterator[dict] | dict))
+
+
 def add_statistics_to_response(
-    response: AsyncIterator[dict] | dict,
+    response: _T,
     *,
     discarded_messages: DiscardedMessages | None,
-) -> AsyncIterator[dict] | dict:
+) -> _T:
     if discarded_messages is None:
         return response
 
@@ -234,7 +237,9 @@ def add_statistics_to_response(
         if last_chunk is not None:
             yield add_statistics(last_chunk)
 
-    return add_statistics_to_last_chunk()
+    # Stream inputs are intentionally wrapped into a plain async generator,
+    # while the generic return type preserves the public call-site type.
+    return add_statistics_to_last_chunk()  # pyright: ignore[reportReturnType]
 
 
 def block_response_to_streaming_chunk(response: dict) -> dict:

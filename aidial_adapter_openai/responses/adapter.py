@@ -141,5 +141,7 @@ async def chat_completion(
                 f"responses API response: {json.dumps(response.model_dump())}"
             )
         body = _to_dict(convert_response(response))
-        add_statistics_to_response(body, discarded_messages=discarded_messages)
+        body = add_statistics_to_response(
+            body, discarded_messages=discarded_messages
+        )
         return body

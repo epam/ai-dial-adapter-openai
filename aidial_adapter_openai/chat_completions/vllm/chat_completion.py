@@ -125,7 +125,9 @@ async def chat_completion(
         return ResponseWithHeaders(headers=None, body=body)
 
     data = response.to_dict()
-    add_statistics_to_response(data, discarded_messages=discarded_messages)
+    data = add_statistics_to_response(
+        data, discarded_messages=discarded_messages
+    )
 
     debug_print("response", data)
     return ResponseWithHeaders(headers=None, body=data)
