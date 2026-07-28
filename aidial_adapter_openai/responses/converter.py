@@ -54,7 +54,9 @@ from openai.types.responses import (
     ResponseOutputItem,
     ResponseOutputMessage,
     ResponseOutputRefusal,
+    ResponseOutputRefusalParam,
     ResponseOutputText,
+    ResponseOutputTextParam,
     ResponseReasoningItem,
     ToolChoiceAllowedParam,
     ToolChoiceCustomParam,
@@ -62,17 +64,34 @@ from openai.types.responses import (
     ToolParam,
     WebSearchToolParam,
 )
+from openai.types.responses.response_computer_tool_call_output_item import (
+    ResponseComputerToolCallOutputItem,
+)
 from openai.types.responses.response_create_params import ToolChoice
+from openai.types.responses.response_custom_tool_call_output_item import (
+    ResponseCustomToolCallOutputItem,
+)
+from openai.types.responses.response_function_tool_call_output_item import (
+    ResponseFunctionToolCallOutputItem,
+)
 from openai.types.responses.response_input_item_param import (
     FunctionCallOutput,
     ResponseInputItemParam,
 )
 from openai.types.responses.response_output_item import (
+    AdditionalTools,
     ImageGenerationCall,
     LocalShellCall,
+    LocalShellCallOutput,
     McpApprovalRequest,
+    McpApprovalResponse,
     McpCall,
     McpListTools,
+    Program,
+    ProgramOutput,
+)
+from openai.types.responses.response_output_message_param import (
+    Content as ResponseOutputContentParam,
 )
 from openai.types.responses.response_output_text import (
     Annotation as ResponsesAnnotation,
@@ -84,6 +103,12 @@ from openai.types.responses.response_output_text import (
 )
 from openai.types.responses.response_output_text import (
     AnnotationURLCitation as ResponsesAnnotationURLCitation,
+)
+from openai.types.responses.response_tool_search_call import (
+    ResponseToolSearchCall,
+)
+from openai.types.responses.response_tool_search_output_item import (
+    ResponseToolSearchOutputItem,
 )
 
 from aidial_adapter_openai.responses.response import (
@@ -128,8 +153,7 @@ def parse_response_url_citation(
 ) -> ResponsesAnnotation | None:
     if annotation.get("type") != "url_citation":
         logger.warning(
-            "Unsupported type of an annotation in stream: "
-            f"{annotation.get('type')}"
+            f"Unsupported type of an annotation in stream: {annotation.get('type')}"
         )
         return None
 
@@ -247,13 +271,26 @@ def _convert_fun_call_part(
             assert_never(part["type"])
 
 
-def _convert_content_part(
-    part: ChatCompletionContentPartParam | ContentArrayOfContentPart,
-) -> ResponseInputContentParam:
+def _to_output_content_param(
+    part: ContentArrayOfContentPart,
+) -> ResponseOutputContentParam:
     match part["type"]:
         case "refusal":
-            raise RequestValidationError(_NO_REFUSAL)
+            return ResponseOutputRefusalParam(
+                type="refusal", refusal=part["refusal"]
+            )
+        case "text":
+            return ResponseOutputTextParam(
+                type="output_text", text=part["text"], annotations=[]
+            )
+        case _:
+            assert_never(part["type"])
 
+
+def _to_input_content_param(
+    part: ChatCompletionContentPartParam,
+) -> ResponseInputContentParam:
+    match part["type"]:
         case "text":
             return ResponseInputTextParam(type="input_text", text=part["text"])
 
@@ -315,7 +352,19 @@ def _convert_message(
     message: ChatCompletionMessageParam,
 ) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
-        case "user" | "assistant" | "system" | "developer":
+        case "system" | "developer" | "user":
+            content = message["content"]
+            if isinstance(content, str):
+                res_content = content
+            else:
+                res_content = [
+                    _to_input_content_param(part) for part in content
+                ]
+
+            role = message["role"]
+            yield EasyInputMessageParam(role=role, content=res_content)
+
+        case "assistant":
             if message.get("function_call"):
                 raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
@@ -326,13 +375,14 @@ def _convert_message(
                 return
 
             role = message["role"]
-
             if isinstance(content, str):
                 res_content = content
             else:
-                res_content = [_convert_content_part(part) for part in content]
+                res_content = [
+                    _to_output_content_param(part) for part in content
+                ]
 
-            yield EasyInputMessageParam(role=role, content=res_content)
+            yield EasyInputMessageParam(role=role, content=res_content)  # type: ignore
 
         case "tool":
             content = message["content"]
@@ -439,18 +489,28 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
             case (
                 ResponseFileSearchToolCall()
                 | ResponseComputerToolCall()
+                | ResponseFunctionToolCallOutputItem()
+                | ResponseComputerToolCallOutputItem()
+                | ResponseToolSearchCall()
+                | ResponseToolSearchOutputItem()
+                | AdditionalTools()
                 | ImageGenerationCall()
                 | ResponseCodeInterpreterToolCall()
                 | LocalShellCall()
+                | LocalShellCallOutput()
                 | McpCall()
                 | McpListTools()
                 | McpApprovalRequest()
+                | McpApprovalResponse()
                 | ResponseCompactionItem()
                 | ResponseFunctionShellToolCall()
                 | ResponseFunctionShellToolCallOutput()
                 | ResponseApplyPatchToolCall()
                 | ResponseApplyPatchToolCallOutput()
                 | ResponseCustomToolCall()
+                | ResponseCustomToolCallOutputItem()
+                | Program()
+                | ProgramOutput()
             ):
                 raise RequestValidationError(
                     f"The response output contains an unsupported item type: {item.type}"

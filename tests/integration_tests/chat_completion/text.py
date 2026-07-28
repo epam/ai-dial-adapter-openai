@@ -28,6 +28,17 @@ def build_text_common(s: TestSuite) -> None:
         and s.response.choices[0].finish_reason == "stop",
     )
 
+    s.test_case(
+        name="content parts in assistant messages",
+        messages=[
+            user("compute (2+3)"),
+            ai(["5", "anything else?"]),
+            user("compute square of the result"),
+        ],
+        expected=lambda s: "25" in s.content
+        and s.response.choices[0].finish_reason == "stop",
+    )
+
     if s.supports_system_prompt:
         s.test_case(
             name="empty system message",
