@@ -4,6 +4,10 @@ import httpx
 import respx
 from openai.types.responses import Response
 
+from aidial_adapter_openai.responses.converter import (
+    chat_completions_to_responses_request,
+)
+
 
 @respx.mock
 async def test_response_model_name(test_app: httpx.AsyncClient):
@@ -40,3 +44,39 @@ async def test_response_model_name(test_app: httpx.AsyncClient):
     )
 
     assert response.status_code == 200
+
+
+async def test_assistant_message_content_parts():
+    _, create_request = await chat_completions_to_responses_request(
+        {
+            "model": "test-model",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "Hello"}],
+                },
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": "Hi"},
+                        {"type": "refusal", "refusal": "No way"},
+                    ],
+                },
+            ],
+        },
+        file_storage=None,
+    )
+
+    assert create_request.get("input") == [
+        {
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Hello"}],
+        },
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "output_text", "text": "Hi", "annotations": []},
+                {"type": "refusal", "refusal": "No way"},
+            ],
+        },
+    ]

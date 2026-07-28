@@ -43,8 +43,14 @@ def sys(content: str) -> ChatCompletionSystemMessageParam:
     return {"role": "system", "content": content}
 
 
-def ai(content: str) -> ChatCompletionAssistantMessageParam:
-    return {"role": "assistant", "content": content}
+def ai(content: str | list[str]) -> ChatCompletionAssistantMessageParam:
+    if isinstance(content, str):
+        return {"role": "assistant", "content": content}
+    else:
+        return {
+            "role": "assistant",
+            "content": [{"type": "text", "text": text} for text in content],
+        }
 
 
 def ai_function(
