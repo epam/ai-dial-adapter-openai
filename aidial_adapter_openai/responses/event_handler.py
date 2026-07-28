@@ -123,6 +123,8 @@ from openai.types.responses.response_output_item import (
     McpApprovalResponse,
     McpCall,
     McpListTools,
+    Program,
+    ProgramOutput,
 )
 from openai.types.responses.response_output_message import ResponseOutputMessage
 from openai.types.responses.response_reasoning_item import ResponseReasoningItem
@@ -456,6 +458,8 @@ class EventHandler(pydantic.BaseModel):
                         | ResponseApplyPatchToolCallOutput()
                         | ResponseCustomToolCall()
                         | ResponseCustomToolCallOutputItem()
+                        | Program()
+                        | ProgramOutput()
                     ):
                         pass
                     case _:
