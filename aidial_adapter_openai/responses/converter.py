@@ -55,7 +55,9 @@ from openai.types.responses import (
     ResponseOutputItem,
     ResponseOutputMessage,
     ResponseOutputRefusal,
+    ResponseOutputRefusalParam,
     ResponseOutputText,
+    ResponseOutputTextParam,
     ResponseReasoningItem,
     ResponseTextConfigParam,
     ToolChoiceAllowedParam,
@@ -87,6 +89,11 @@ from openai.types.responses.response_output_item import (
     McpApprovalResponse,
     McpCall,
     McpListTools,
+    Program,
+    ProgramOutput,
+)
+from openai.types.responses.response_output_message_param import (
+    Content as ResponseOutputContentParam,
 )
 from openai.types.responses.response_output_text import (
     Annotation as ResponsesAnnotation,
@@ -301,13 +308,26 @@ def _convert_fun_call_part(
             assert_never(part["type"])
 
 
-def _convert_content_part(
-    part: ChatCompletionContentPartParam | ContentArrayOfContentPart,
-) -> ResponseInputContentParam:
+def _to_output_content_param(
+    part: ContentArrayOfContentPart,
+) -> ResponseOutputContentParam:
     match part["type"]:
         case "refusal":
-            raise RequestValidationError(_NO_REFUSAL)
+            return ResponseOutputRefusalParam(
+                type="refusal", refusal=part["refusal"]
+            )
+        case "text":
+            return ResponseOutputTextParam(
+                type="output_text", text=part["text"], annotations=[]
+            )
+        case _:
+            assert_never(part["type"])
 
+
+def _to_input_content_param(
+    part: ChatCompletionContentPartParam,
+) -> ResponseInputContentParam:
+    match part["type"]:
         case "text":
             return ResponseInputTextParam(type="input_text", text=part["text"])
 
@@ -366,11 +386,22 @@ def _convert_tool_call(
 
 
 def _convert_message(
-    idx: int,
-    message: ChatCompletionMessageParam,
+    idx: int, message: ChatCompletionMessageParam
 ) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
-        case "user" | "assistant" | "system" | "developer":
+        case "system" | "developer" | "user":
+            content = message["content"]
+            if isinstance(content, str):
+                res_content = content
+            else:
+                res_content = [
+                    _to_input_content_param(part) for part in content
+                ]
+
+            role = message["role"]
+            yield EasyInputMessageParam(role=role, content=res_content)
+
+        case "assistant":
             if state_content := get_message_content_from_state(idx, message):
                 yield from state_content
 
@@ -384,13 +415,14 @@ def _convert_message(
                 return
 
             role = message["role"]
-
             if isinstance(content, str):
                 res_content = content
             else:
-                res_content = [_convert_content_part(part) for part in content]
+                res_content = [
+                    _to_output_content_param(part) for part in content
+                ]
 
-            yield EasyInputMessageParam(role=role, content=res_content)
+            yield EasyInputMessageParam(role=role, content=res_content)  # type: ignore
 
         case "tool":
             content = message["content"]
@@ -592,6 +624,8 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                 | ResponseApplyPatchToolCallOutput()
                 | ResponseCustomToolCall()
                 | ResponseCustomToolCallOutputItem()
+                | Program()
+                | ProgramOutput()
             ):
                 raise RequestValidationError(
                     f"The response output contains an unsupported item type: {item.type}"
