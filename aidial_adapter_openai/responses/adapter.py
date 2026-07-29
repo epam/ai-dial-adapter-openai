@@ -136,6 +136,12 @@ async def chat_completion(
     _, create_request = await chat_completions_to_responses_request(
         request, file_storage
     )
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            f"responses API request: {json.dumps(create_request, default=str)}"
+        )
+
     response = await client.responses.create(**create_request)
 
     if isinstance(response, AsyncStream):

@@ -14,7 +14,7 @@ class HealthCheckFilter(Filter):
 def configure_loggers():
     # By default (in prod) we don't want to print debug messages,
     # because they typically contain prompts.
-    app_log_level = os.getenv("LOG_LEVEL", "INFO")
+    app_log_level = os.getenv("LOG_LEVEL", "DEBUG")
 
     configure_root_logger()
 
