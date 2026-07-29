@@ -1106,9 +1106,12 @@ When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter tr
 
 ##### Responses API tokenization
 
-For deployments backed by the Responses API, the adapter relies on the upstream `responses.input_tokens.count` endpoint to count prompt tokens.
+For deployments backed by the Responses API, the adapter counts prompt tokens depending on the upstream provider:
 
-When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the upstream Responses token count fits.
+- **OpenAI Platform** upstreams support the `responses.input_tokens.count` endpoint, so the adapter delegates token counting to the upstream.
+- **Azure OpenAI** and **Amazon Bedrock** upstreams don't support the `responses/input_tokens` endpoint. Instead of failing the request, the adapter falls back to the local [tiktoken](#text-tokenization) tokenizer to count prompt tokens.
+
+When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the token count *(reported by the upstream or estimated locally via tiktoken)* fits.
 
 #### Tokenize endpoint
 
@@ -1138,9 +1141,11 @@ Response:
 
 Each input is tokenized following the corresponding [tokenization algorithm](#tokenization-algorithm).
 
-For deployments backed by Responses API, `/tokenize` delegates token counting to OpenAI Responses input-token endpoint:
+For deployments backed by Responses API with an **OpenAI Platform** upstream, `/tokenize` delegates token counting to the OpenAI Responses input-token endpoint:
 
 `.../openai/v1/responses` → `.../openai/v1/responses/input_tokens`
+
+For **Azure OpenAI** and **Amazon Bedrock** upstreams, which don't support the `responses/input_tokens` endpoint, `/tokenize` falls back to the local [tiktoken](#text-tokenization) tokenizer.
 
 Tokenize endpoints support [upstream header proxying](#upstream-header-proxying).
 

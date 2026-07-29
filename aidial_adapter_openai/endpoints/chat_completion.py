@@ -147,6 +147,9 @@ async def call_chat_completion(
                 request=request_body,
                 client=client,
                 file_storage=file_storage,
+                deployment_id=deployment_id,
+                deployment_type=deployment_type,
+                app_config=app_config,
             )
 
         case D.AZURE_VIDEO_API:

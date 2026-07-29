@@ -12,6 +12,10 @@ from openai import (
     BaseModel,
 )
 
+from aidial_adapter_openai.configuration.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.deployment_type import (
+    ChatCompletionDeploymentType,
+)
 from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
@@ -20,14 +24,16 @@ from aidial_adapter_openai.responses.converter import (
     convert_response,
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
-from aidial_adapter_openai.responses.tokenizer import (
-    ResponsesTokenizer,
-)
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import (
     add_statistics_to_response,
     map_stream,
     map_stream_generator,
+)
+from aidial_adapter_openai.utils.tokenizer import create_tiktoken_tokenizer
+from aidial_adapter_openai.utils.tokenizer_factory import (
+    ResponsesRequestTokenizer,
+    TiktokenRequestTokenizer,
 )
 from aidial_adapter_openai.utils.truncate_prompt import truncate_prompt
 from aidial_adapter_openai.utils.truncation_types import (
@@ -85,13 +91,28 @@ async def _truncate_prompt(
     request: dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
+    deployment_id: str,
+    deployment_type: ChatCompletionDeploymentType,
+    app_config: ApplicationConfig,
 ) -> DiscardedMessages | None:
+    match client:
+        case AsyncAzureOpenAI() | AsyncBedrockOpenAI():
+            # Do not support responses/input_tokens EP
+            tokenizer = TiktokenRequestTokenizer(
+                file_storage,
+                create_tiktoken_tokenizer(
+                    app_config, deployment_id, deployment_type
+                ),
+            )
+        case _:
+            tokenizer = ResponsesRequestTokenizer(client, file_storage)
+
     (
         messages,
         discarded_messages,
         prompt_tokens,
     ) = await truncate_prompt(
-        tokenizer=ResponsesTokenizer(client=client, file_storage=file_storage),
+        tokenizer=tokenizer,
         original_request=request,
         messages=request["messages"],
         get_raw_message=lambda m: m,
@@ -110,6 +131,9 @@ async def chat_completion(
     request: dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
+    deployment_id: str,
+    deployment_type: ChatCompletionDeploymentType,
+    app_config: ApplicationConfig,
 ) -> AsyncIterator[dict] | dict:
     _validate_request(request)
 
@@ -120,6 +144,9 @@ async def chat_completion(
             request=request,
             client=client,
             file_storage=file_storage,
+            deployment_id=deployment_id,
+            deployment_type=deployment_type,
+            app_config=app_config,
         )
 
     _, create_request = await chat_completions_to_responses_request(
