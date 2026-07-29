@@ -20,14 +20,12 @@ from aidial_adapter_openai.responses.converter import (
     convert_response,
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
+from aidial_adapter_openai.responses.tokenizer import ResponsesRequestTokenizer
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import (
     add_statistics_to_response,
     map_stream,
     map_stream_generator,
-)
-from aidial_adapter_openai.utils.tokenizer_factory import (
-    ResponsesRequestTokenizer,
 )
 from aidial_adapter_openai.utils.truncate_prompt import truncate_prompt
 from aidial_adapter_openai.utils.truncation_types import (

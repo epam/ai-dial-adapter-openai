@@ -13,16 +13,16 @@ from aidial_sdk.exceptions import RequestValidationError
 from fastapi import Request
 from pydantic import ValidationError
 
+from aidial_adapter_openai.chat_completions.tokenizer_factory import (
+    RequestTokenizer,
+    create_request_tokenizer,
+)
 from aidial_adapter_openai.dial_api.request import (
     get_upstream_endpoint,
     get_upstream_model_name,
 )
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.utils.request import get_request_app_config
-from aidial_adapter_openai.utils.tokenizer_factory import (
-    RequestTokenizer,
-    create_request_tokenizer,
-)
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )

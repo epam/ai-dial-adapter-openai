@@ -18,6 +18,10 @@ from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.anthropic import create_adapter
 from aidial_adapter_openai.chat_completions.gpt import truncate_gpt_prompt
+from aidial_adapter_openai.chat_completions.tokenizer_factory import (
+    RequestTokenizer,
+    create_request_tokenizer,
+)
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
@@ -37,10 +41,6 @@ from aidial_adapter_openai.utils.request import (
 from aidial_adapter_openai.utils.tokenizer import (
     Tokenizer,
     create_tiktoken_tokenizer,
-)
-from aidial_adapter_openai.utils.tokenizer_factory import (
-    RequestTokenizer,
-    create_request_tokenizer,
 )
 from aidial_adapter_openai.utils.truncate_prompt import (
     truncate_prompt as truncate_prompt_with_tokenizer,
