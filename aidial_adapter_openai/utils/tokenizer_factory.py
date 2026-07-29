@@ -10,6 +10,7 @@ from typing import Protocol
 from aidial_adapter_anthropic.adapter import ChatCompletionAdapter
 from aidial_adapter_anthropic.dial.request import ModelParameters
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
+from aidial_sdk.exceptions import ResourceNotFoundError
 from anthropic import AsyncAnthropicFoundry
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
@@ -193,8 +194,11 @@ async def create_request_tokenizer(
 
             match client:
                 case AsyncAzureOpenAI() | AsyncBedrockOpenAI():
-                    # Do not support responses/input_tokens EP
-                    return _tiktoken_tokenizer()
+                    raise ResourceNotFoundError(
+                        "The tokenize and truncate_prompt endpoints are not "
+                        "implemented for Responses API deployments backed by "
+                        "Azure OpenAI or Amazon Bedrock."
+                    )
                 case _:
                     return ResponsesRequestTokenizer(client, file_storage)
 
