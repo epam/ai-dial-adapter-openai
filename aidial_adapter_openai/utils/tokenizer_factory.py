@@ -5,7 +5,7 @@ the tokenizer for a deployment through a single implementation.
 """
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, assert_never
 
 from aidial_adapter_anthropic.adapter import ChatCompletionAdapter
 from aidial_adapter_anthropic.dial.request import ModelParameters
@@ -55,7 +55,7 @@ class RequestTokenizer(Protocol):
 
 
 @dataclass
-class VllmRequestTokenizer:
+class _VllmRequestTokenizer:
     file_storage: FileStorage | None
     tokenizer: VllmTokenizer
 
@@ -81,7 +81,7 @@ class VllmRequestTokenizer:
 
 
 @dataclass
-class TiktokenRequestTokenizer:
+class _TiktokenRequestTokenizer:
     file_storage: FileStorage | None
     tokenizer: Tokenizer
 
@@ -104,7 +104,7 @@ class TiktokenRequestTokenizer:
 
 
 @dataclass
-class AnthropicRequestTokenizer:
+class _AnthropicRequestTokenizer:
     adapter: ChatCompletionAdapter
 
     async def tokenize_text(self, model_name: str, text: str) -> int:
@@ -160,11 +160,11 @@ async def create_request_tokenizer(
 ) -> RequestTokenizer:
     deployment_type = deployment.deployment_type
 
-    def _tiktoken_tokenizer() -> TiktokenRequestTokenizer:
+    def _tiktoken_tokenizer() -> _TiktokenRequestTokenizer:
         tokenizer = create_tiktoken_tokenizer(
             app_config, deployment_id, deployment_type
         )
-        return TiktokenRequestTokenizer(file_storage, tokenizer)
+        return _TiktokenRequestTokenizer(file_storage, tokenizer)
 
     match deployment_type:
         case (
@@ -174,7 +174,7 @@ async def create_request_tokenizer(
                 upstream_endpoint=upstream_endpoint,
                 extra_headers=extra_headers,
             )
-            return VllmRequestTokenizer(file_storage, vllm_tokenizer)
+            return _VllmRequestTokenizer(file_storage, vllm_tokenizer)
 
         case D.RESPONSES_API:
             client = await get_client(
@@ -199,8 +199,14 @@ async def create_request_tokenizer(
                         "implemented for Responses API deployments backed by "
                         "Azure OpenAI or Amazon Bedrock."
                     )
-                case _:
+                case AsyncAnthropicFoundry():
+                    raise ValueError(
+                        f"Unexpected client for Responses deployment - {type(client)}"
+                    )
+                case AsyncOpenAI():
                     return ResponsesRequestTokenizer(client, file_storage)
+                case _:
+                    assert_never(client)
 
         case D.ANTHROPIC_MESSAGES_API:
             client = await get_client(
@@ -216,7 +222,7 @@ async def create_request_tokenizer(
                     f"Unexpected client for Anthropic deployment - {type(client)}"
                 )
             adapter = await create_adapter(deployment_id, api_key, client)
-            return AnthropicRequestTokenizer(adapter=adapter)
+            return _AnthropicRequestTokenizer(adapter=adapter)
 
         case _:
             return _tiktoken_tokenizer()

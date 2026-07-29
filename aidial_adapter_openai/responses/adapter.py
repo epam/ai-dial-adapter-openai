@@ -1,7 +1,7 @@
 import json
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, assert_never
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai import (
@@ -94,8 +94,10 @@ async def _truncate_prompt(
                 "because the upstream doesn't support responses/input_tokens."
             )
             return None
-        case _:
+        case AsyncOpenAI():
             tokenizer = ResponsesRequestTokenizer(client, file_storage)
+        case _:
+            assert_never(client)
 
     (
         messages,
