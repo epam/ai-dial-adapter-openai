@@ -1106,9 +1106,12 @@ When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter tr
 
 ##### Responses API tokenization
 
-For deployments backed by the Responses API, the adapter relies on the upstream `responses.input_tokens.count` endpoint to count prompt tokens.
+For deployments backed by the Responses API, the adapter can count prompt tokens only when the upstream provider supports the Responses input-token endpoint:
 
-When `max_prompt_tokens` is set and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the upstream Responses token count fits.
+- **OpenAI Platform** upstreams support the `responses.input_tokens.count` endpoint, so the adapter delegates token counting to the upstream.
+- **Azure OpenAI** and **Amazon Bedrock** upstreams don't support the `responses/input_tokens` endpoint, so `/tokenize` and `/truncate_prompt` return `404` for such deployments.
+
+When `max_prompt_tokens` is set for a Responses API deployment backed by OpenAI Platform and the prompt exceeds the limit, the adapter truncates the conversation by removing whole messages from the oldest history until the upstream Responses token count fits. For Azure OpenAI and Amazon Bedrock Responses API deployments, `max_prompt_tokens` is ignored and a warning is written to the adapter logs.
 
 #### Tokenize endpoint
 
@@ -1138,9 +1141,11 @@ Response:
 
 Each input is tokenized following the corresponding [tokenization algorithm](#tokenization-algorithm).
 
-For deployments backed by Responses API, `/tokenize` delegates token counting to OpenAI Responses input-token endpoint:
+For deployments backed by Responses API with an **OpenAI Platform** upstream, `/tokenize` delegates token counting to the OpenAI Responses input-token endpoint:
 
 `.../openai/v1/responses` → `.../openai/v1/responses/input_tokens`
+
+For **Azure OpenAI** and **Amazon Bedrock** upstreams, which don't support the `responses/input_tokens` endpoint, `/tokenize` returns `404`.
 
 Tokenize endpoints support [upstream header proxying](#upstream-header-proxying).
 
@@ -1213,7 +1218,7 @@ Each input is truncated independently:
 - `max_prompt_tokens` is required for every input. An input missing it yields an error output, while the rest of the batch still succeeds.
 - If a single input can't be processed, its output is an `{"status": "error", "error": "..."}` object, so a batch may mix successes and failures.
 
-The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Anthropic Messages, and Responses APIs. Other deployment types return `404`.
+The endpoint is supported by chat completion deployments backed by GPT *(Azure OpenAI, OpenAI Platform, Azure AI Foundry)*, vLLM, Anthropic Messages, and Responses API deployments whose upstream supports `responses/input_tokens`. Responses API deployments backed by Azure OpenAI or Amazon Bedrock, and other unsupported deployment types, return `404`.
 
 Truncate prompt endpoints support [upstream header proxying](#upstream-header-proxying).
 

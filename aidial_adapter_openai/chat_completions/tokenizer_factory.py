@@ -5,11 +5,12 @@ the tokenizer for a deployment through a single implementation.
 """
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, assert_never
 
 from aidial_adapter_anthropic.adapter import ChatCompletionAdapter
 from aidial_adapter_anthropic.dial.request import ModelParameters
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
+from aidial_sdk.exceptions import ResourceNotFoundError
 from anthropic import AsyncAnthropicFoundry
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
@@ -32,7 +33,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.responses.tokenizer import ResponsesTokenizer
+from aidial_adapter_openai.responses.tokenizer import ResponsesRequestTokenizer
 from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.request import get_api_version
 from aidial_adapter_openai.utils.tokenizer import (
@@ -96,6 +97,9 @@ class _TiktokenRequestTokenizer:
         ).transform_messages(request["messages"])
         return await self.tokenizer.tokenize_request(request, messages)
 
+    async def tokenize(self, request: dict) -> int:
+        return await self.tokenize_raw_request(request)
+
 
 @dataclass
 class _AnthropicRequestTokenizer:
@@ -124,6 +128,13 @@ async def create_request_tokenizer(
     api_key: str,
 ) -> RequestTokenizer:
     deployment_type = deployment.deployment_type
+
+    def _tiktoken_tokenizer() -> _TiktokenRequestTokenizer:
+        tokenizer = create_tiktoken_tokenizer(
+            app_config, deployment_id, deployment_type
+        )
+        return _TiktokenRequestTokenizer(file_storage, tokenizer)
+
     match deployment_type:
         case (
             D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
@@ -150,7 +161,21 @@ async def create_request_tokenizer(
                     f"Unexpected client for the deployment backed by Responses API - {type(client)}"
                 )
 
-            return ResponsesTokenizer(client=client, file_storage=file_storage)
+            match client:
+                case AsyncAzureOpenAI() | AsyncBedrockOpenAI():
+                    raise ResourceNotFoundError(
+                        "The tokenize and truncate_prompt endpoints are not "
+                        "implemented for Responses API deployments backed by "
+                        "Azure OpenAI or Amazon Bedrock."
+                    )
+                case AsyncAnthropicFoundry():
+                    raise ValueError(
+                        f"Unexpected client for Responses deployment - {type(client)}"
+                    )
+                case AsyncOpenAI():
+                    return ResponsesRequestTokenizer(client, file_storage)
+                case _:
+                    assert_never(client)
 
         case D.ANTHROPIC_MESSAGES_API:
             client = await get_client(
@@ -169,7 +194,4 @@ async def create_request_tokenizer(
             return _AnthropicRequestTokenizer(adapter=adapter)
 
         case _:
-            tiktoken_tokenizer = create_tiktoken_tokenizer(
-                app_config, deployment_id, deployment_type
-            )
-            return _TiktokenRequestTokenizer(file_storage, tiktoken_tokenizer)
+            return _tiktoken_tokenizer()

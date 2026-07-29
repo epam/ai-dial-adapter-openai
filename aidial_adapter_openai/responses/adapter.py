@@ -1,7 +1,7 @@
 import json
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, assert_never
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai import (
@@ -20,9 +20,7 @@ from aidial_adapter_openai.responses.converter import (
     convert_response,
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
-from aidial_adapter_openai.responses.tokenizer import (
-    ResponsesTokenizer,
-)
+from aidial_adapter_openai.responses.tokenizer import ResponsesRequestTokenizer
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import (
     add_statistics_to_response,
@@ -86,12 +84,25 @@ async def _truncate_prompt(
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
 ) -> DiscardedMessages | None:
+    match client:
+        case AsyncAzureOpenAI() | AsyncBedrockOpenAI():
+            logger.warning(
+                "max_prompt_tokens is ignored for Responses API "
+                "deployments backed by Azure OpenAI or Amazon Bedrock, "
+                "because the upstream doesn't support responses/input_tokens."
+            )
+            return None
+        case AsyncOpenAI():
+            tokenizer = ResponsesRequestTokenizer(client, file_storage)
+        case _:
+            assert_never(client)
+
     (
         messages,
         discarded_messages,
         prompt_tokens,
     ) = await truncate_prompt(
-        tokenizer=ResponsesTokenizer(client=client, file_storage=file_storage),
+        tokenizer=tokenizer,
         original_request=request,
         messages=request["messages"],
         get_raw_message=lambda m: m,
