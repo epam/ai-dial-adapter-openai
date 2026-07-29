@@ -279,6 +279,7 @@ async def chat_completion(deployment_id: str, request: Request):
     emulate_streaming = (
         deployment_id in app_config.NON_STREAMING_DEPLOYMENTS and is_stream
     )
+    emulate_streaming = False
 
     if emulate_streaming:
         request_body["stream"] = False
