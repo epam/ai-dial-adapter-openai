@@ -11,7 +11,7 @@ from aidial_adapter_openai.responses.converter import (
 )
 from tests.utils.mock_server import MockServer
 
-_UPSTREAM_ENDPOINT = "http://localhost:5001/openai/v1/responses"
+_UPSTREAM_ENDPOINT = "http://test.api.openai.com/openai/v1/responses"
 _INPUT_TOKENS_ENDPOINT = f"{_UPSTREAM_ENDPOINT}/input_tokens"
 
 

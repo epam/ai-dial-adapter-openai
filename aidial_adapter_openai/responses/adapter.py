@@ -12,6 +12,7 @@ from openai import (
     BaseModel,
 )
 
+from aidial_adapter_openai.configuration.app_config import Vendor
 from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
@@ -121,11 +122,14 @@ async def chat_completion(
     request: dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
+    vendor: Vendor,
 ) -> AsyncIterator[dict] | dict:
     _validate_request(request)
 
     discarded_messages = None
-    if (max_prompt_tokens := extract_max_prompt_tokens(request)) is not None:
+    if (
+        max_prompt_tokens := extract_max_prompt_tokens(request)
+    ) is not None and vendor == Vendor.OPENAI_PLATFORM:
         discarded_messages = await _truncate_prompt(
             max_prompt_tokens=max_prompt_tokens,
             request=request,

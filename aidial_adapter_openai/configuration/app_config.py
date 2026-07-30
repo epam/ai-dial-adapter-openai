@@ -53,6 +53,7 @@ class Vendor(StrEnum):
     AWS = "aws"
     VLLM = "vllm"
     AZURE = "azure"
+    OPENAI_PLATFORM = "openai_platform"
 
 
 class ApplicationConfig(ExtraForbidModel):
@@ -109,6 +110,12 @@ class ApplicationConfig(ExtraForbidModel):
         ]:
             if deployment_id in deployments:
                 return Vendor.VLLM
+
+        if (
+            isinstance(endpoint, OpenAIEndpoint)
+            and "api.openai.com" in endpoint.openai_base_url
+        ):
+            return Vendor.OPENAI_PLATFORM
 
         return Vendor.AZURE
 
