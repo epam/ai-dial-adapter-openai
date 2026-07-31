@@ -69,7 +69,7 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
     deployment = app_config.get_chat_completion_deployment_type(
         deployment_id, upstream_endpoint
     )
-
+    vendor = app_config.get_vendor(deployment_id, deployment.endpoint)
     extra_headers = get_upstream_extra_headers(request.headers)
     file_storage = create_file_storage(request.headers)
 
@@ -82,6 +82,7 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
         extra_headers=extra_headers,
         file_storage=file_storage,
         api_key=tokenize_request.api_key,
+        vendor=vendor,
     )
 
     outputs: list[TokenizeOutput] = []

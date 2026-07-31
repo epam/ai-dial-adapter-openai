@@ -82,21 +82,26 @@ def _to_dict(x: BaseModel) -> dict:
 async def _truncate_prompt(
     max_prompt_tokens: int,
     request: dict[str, Any],
+    vendor: Vendor,
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
 ) -> DiscardedMessages | None:
-    match client:
-        case AsyncAzureOpenAI() | AsyncBedrockOpenAI():
+    match vendor:
+        case Vendor.OPENAI_PLATFORM:
+            tokenizer = ResponsesRequestTokenizer(client, file_storage)
+        case Vendor.AWS | Vendor.AZURE:
             logger.warning(
                 "max_prompt_tokens is ignored for Responses API "
                 "deployments backed by Azure OpenAI or Amazon Bedrock, "
                 "because the upstream doesn't support responses/input_tokens."
             )
             return None
-        case AsyncOpenAI():
-            tokenizer = ResponsesRequestTokenizer(client, file_storage)
+        case Vendor.VLLM:
+            raise ValueError(
+                "Unexpected vendor backed by Responses API - VLLM."
+            )
         case _:
-            assert_never(client)
+            assert_never(vendor)
 
     (
         messages,
@@ -127,12 +132,11 @@ async def chat_completion(
     _validate_request(request)
 
     discarded_messages = None
-    if (
-        max_prompt_tokens := extract_max_prompt_tokens(request)
-    ) is not None and vendor == Vendor.OPENAI_PLATFORM:
+    if (max_prompt_tokens := extract_max_prompt_tokens(request)) is not None:
         discarded_messages = await _truncate_prompt(
             max_prompt_tokens=max_prompt_tokens,
             request=request,
+            vendor=vendor,
             client=client,
             file_storage=file_storage,
         )

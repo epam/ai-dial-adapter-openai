@@ -12,9 +12,16 @@ from tests.conftest import create_test_client
 
 _UPSTREAM_ENDPOINT = "http://localhost:5001/v1/chat/completions"
 _TOKENIZE_URL = "http://localhost:5001/tokenize"
-_RESPONSES_UPSTREAM_ENDPOINT = "http://localhost:5001/openai/v1/responses"
-_RESPONSES_INPUT_TOKENS_URL = (
-    "http://localhost:5001/openai/v1/responses/input_tokens"
+_RESPONSES_UPSTREAM_ENDPOINT = "https://api.openai.com/v1/responses"
+_RESPONSES_INPUT_TOKENS_URL = f"{_RESPONSES_UPSTREAM_ENDPOINT}/input_tokens"
+_UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS = [
+    "https://test.openai.azure.com/openai/v1/responses",
+    "https://test.services.ai.azure.com/openai/v1/responses",
+    "https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses",
+]
+_UNSUPPORTED_RESPONSES_VENDOR_ERROR_MESSAGE = (
+    "The tokenize and truncate_prompt endpoints are not implemented for "
+    "Responses API deployments backed by Azure OpenAI or Amazon Bedrock."
 )
 _API_KEY = "test-adapter-api-key"
 _RESPONSES_TOKENIZE_HEADERS = {
@@ -470,3 +477,30 @@ async def test_tokenize_to_responses_request_input(
     assert response.json() == {
         "outputs": [{"status": "success", "token_count": input_tokens}],
     }
+
+
+@pytest.mark.parametrize(
+    "upstream_endpoint", _UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS
+)
+@pytest.mark.asyncio
+async def test_tokenize_to_unsupported_responses_vendor_returns_404(
+    responses_client: httpx.AsyncClient,
+    upstream_endpoint: str,
+):
+    response = await responses_client.post(
+        "tokenize",
+        json={"inputs": [{"type": "string", "value": "Hello World!"}]},
+        headers=_tokenize_headers(
+            **{
+                **_RESPONSES_TOKENIZE_HEADERS,
+                "X-UPSTREAM-ENDPOINT": upstream_endpoint,
+            }
+        ),
+        params=_RESPONSES_TOKENIZE_PARAMS,
+    )
+
+    assert response.status_code == 404
+    assert (
+        response.json()["error"]["message"]
+        == _UNSUPPORTED_RESPONSES_VENDOR_ERROR_MESSAGE
+    )

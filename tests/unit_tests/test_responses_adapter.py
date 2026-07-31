@@ -11,8 +11,13 @@ from aidial_adapter_openai.responses.converter import (
 )
 from tests.utils.mock_server import MockServer
 
-_UPSTREAM_ENDPOINT = "http://test.api.openai.com/openai/v1/responses"
+_UPSTREAM_ENDPOINT = "https://api.openai.com/v1/responses"
 _INPUT_TOKENS_ENDPOINT = f"{_UPSTREAM_ENDPOINT}/input_tokens"
+_UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS = [
+    "https://test.openai.azure.com/openai/v1/responses",
+    "https://test.services.ai.azure.com/openai/v1/responses",
+    "https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses",
+]
 
 
 def _response() -> Response:
@@ -28,10 +33,10 @@ def _response() -> Response:
     )
 
 
-def _headers() -> dict[str, str]:
+def _headers(upstream_endpoint: str = _UPSTREAM_ENDPOINT) -> dict[str, str]:
     return {
         "X-UPSTREAM-KEY": "test-api-key",
-        "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
+        "X-UPSTREAM-ENDPOINT": upstream_endpoint,
     }
 
 
@@ -122,6 +127,58 @@ async def test_max_prompt_tokens_truncates_messages(
         assert chunks[-1]["statistics"] == {"discarded_messages": [1, 2]}
     else:
         assert response.json()["statistics"] == {"discarded_messages": [1, 2]}
+
+
+@respx.mock
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize(
+    "upstream_endpoint", _UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS
+)
+async def test_max_prompt_tokens_ignored_for_unsupported_responses_vendor(
+    test_app: httpx.AsyncClient, stream: bool, upstream_endpoint: str
+):
+    create_bodies: list[dict[str, Any]] = []
+
+    @MockServer().post(upstream_endpoint)
+    def _create_response(request: httpx.Request):
+        create_bodies.append(json.loads(request.content))
+        return (
+            MockServer.mock_responses_api_response("text.txt")
+            if stream
+            else _response()
+        )
+
+    response = await test_app.post(
+        "/openai/deployments/adapter-deployment-name/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "model": "upstream-model-name",
+            "stream": stream,
+            "max_prompt_tokens": 50,
+            "messages": [
+                {"role": "system", "content": "system message"},
+                {"role": "user", "content": "old question"},
+                {"role": "assistant", "content": "old answer"},
+                {"role": "user", "content": "new question"},
+            ],
+        },
+        headers=_headers(upstream_endpoint),
+    )
+
+    assert response.status_code == 200
+    assert [body["input"] for body in create_bodies] == [
+        [
+            {"role": "system", "content": "system message"},
+            {"role": "user", "content": "old question"},
+            {"role": "assistant", "content": "old answer"},
+            {"role": "user", "content": "new question"},
+        ]
+    ]
+
+    if stream:
+        chunks = _chat_completion_chunks(response)
+        assert "statistics" not in chunks[-1]
+    else:
+        assert "statistics" not in response.json()
 
 
 @respx.mock

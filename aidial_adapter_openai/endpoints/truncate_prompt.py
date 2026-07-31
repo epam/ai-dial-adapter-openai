@@ -177,6 +177,7 @@ async def truncate_prompt(
             | D.VLLM_CHAT_COMPLETIONS_API
             | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
         ):
+            vendor = app_config.get_vendor(deployment_id, deployment.endpoint)
             tokenizer = await create_request_tokenizer(
                 request=request,
                 deployment_id=deployment_id,
@@ -186,6 +187,7 @@ async def truncate_prompt(
                 extra_headers=extra_headers,
                 file_storage=file_storage,
                 api_key=truncate_prompt_request.api_key,
+                vendor=vendor,
             )
             truncator = _RequestTokenizerTruncator(tokenizer=tokenizer)
         case _ as not_implemented:

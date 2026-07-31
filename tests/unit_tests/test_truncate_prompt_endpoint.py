@@ -18,6 +18,15 @@ _DALLE_UPSTREAM_ENDPOINT = (
     "https://example.com/openai/deployments/dalle-test/images/generations"
 )
 _ANTHROPIC_UPSTREAM_ENDPOINT = "https://example.com/anthropic/v1/messages"
+_UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS = [
+    "https://test.openai.azure.com/openai/v1/responses",
+    "https://test.services.ai.azure.com/openai/v1/responses",
+    "https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses",
+]
+_UNSUPPORTED_RESPONSES_VENDOR_ERROR_MESSAGE = (
+    "The tokenize and truncate_prompt endpoints are not implemented for "
+    "Responses API deployments backed by Azure OpenAI or Amazon Bedrock."
+)
 
 # "this is four tokens" -> 4 content tokens + 3 per-message + 1 role = 8 tokens.
 # The empty request base costs 3 tokens (TOKENS_PER_REQUEST).
@@ -180,6 +189,38 @@ async def test_truncate_prompt_unsupported_deployment_returns_404(
     assert response.status_code == 404
     assert response.json()["error"]["message"] == (
         "The truncate_prompt endpoint is not implemented for this deployment: DALLE3"
+    )
+
+
+@pytest.mark.parametrize(
+    "upstream_endpoint", _UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS
+)
+@pytest.mark.asyncio
+async def test_truncate_prompt_to_unsupported_responses_vendor_returns_404(
+    gpt_client: httpx.AsyncClient,
+    upstream_endpoint: str,
+):
+    response = await gpt_client.post(
+        "truncate_prompt",
+        json={
+            "inputs": [
+                {
+                    "max_prompt_tokens": 100,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                }
+            ]
+        },
+        headers={
+            **_headers(upstream_endpoint),
+            "X-UPSTREAM-KEY": "dummy",
+        },
+        params={"api-version": "2025-01-01"},
+    )
+
+    assert response.status_code == 404
+    assert (
+        response.json()["error"]["message"]
+        == _UNSUPPORTED_RESPONSES_VENDOR_ERROR_MESSAGE
     )
 
 

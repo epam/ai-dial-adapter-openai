@@ -28,6 +28,7 @@ from aidial_adapter_openai.chat_completions.vllm.tokenizer import (
 from aidial_adapter_openai.configuration.app_config import (
     ApplicationConfig,
     DeploymentAPIType,
+    Vendor,
 )
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
@@ -126,6 +127,7 @@ async def create_request_tokenizer(
     extra_headers: dict[str, str],
     file_storage: FileStorage | None,
     api_key: str,
+    vendor: Vendor,
 ) -> RequestTokenizer:
     deployment_type = deployment.deployment_type
 
@@ -161,19 +163,19 @@ async def create_request_tokenizer(
                     f"Unexpected client for the deployment backed by Responses API - {type(client)}"
                 )
 
-            match client:
-                case AsyncAzureOpenAI() | AsyncBedrockOpenAI():
+            match vendor:
+                case Vendor.OPENAI_PLATFORM:
+                    return ResponsesRequestTokenizer(client, file_storage)
+                case Vendor.AWS | Vendor.AZURE:
                     raise ResourceNotFoundError(
                         "The tokenize and truncate_prompt endpoints are not "
                         "implemented for Responses API deployments backed by "
                         "Azure OpenAI or Amazon Bedrock."
                     )
-                case AsyncAnthropicFoundry():
+                case Vendor.VLLM:
                     raise ValueError(
-                        f"Unexpected client for Responses deployment - {type(client)}"
+                        "Unexpected vendor backed by Responses API - VLLM."
                     )
-                case AsyncOpenAI():
-                    return ResponsesRequestTokenizer(client, file_storage)
                 case _:
                     assert_never(client)
 
