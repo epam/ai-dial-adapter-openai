@@ -12,6 +12,7 @@ from openai import (
     BaseModel,
 )
 
+from aidial_adapter_openai.configuration.app_config import Vendor
 from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
@@ -81,21 +82,26 @@ def _to_dict(x: BaseModel) -> dict:
 async def _truncate_prompt(
     max_prompt_tokens: int,
     request: dict[str, Any],
+    vendor: Vendor,
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
 ) -> DiscardedMessages | None:
-    match client:
-        case AsyncAzureOpenAI() | AsyncBedrockOpenAI():
+    match vendor:
+        case Vendor.OPENAI_PLATFORM:
+            tokenizer = ResponsesRequestTokenizer(client, file_storage)
+        case Vendor.AWS | Vendor.AZURE:
             logger.warning(
                 "max_prompt_tokens is ignored for Responses API "
                 "deployments backed by Azure OpenAI or Amazon Bedrock, "
                 "because the upstream doesn't support responses/input_tokens."
             )
             return None
-        case AsyncOpenAI():
-            tokenizer = ResponsesRequestTokenizer(client, file_storage)
+        case Vendor.VLLM:
+            raise ValueError(
+                "Unexpected vendor backed by Responses API - VLLM."
+            )
         case _:
-            assert_never(client)
+            assert_never(vendor)
 
     (
         messages,
@@ -121,6 +127,7 @@ async def chat_completion(
     request: dict[str, Any],
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
+    vendor: Vendor,
 ) -> AsyncIterator[dict] | dict:
     _validate_request(request)
 
@@ -129,6 +136,7 @@ async def chat_completion(
         discarded_messages = await _truncate_prompt(
             max_prompt_tokens=max_prompt_tokens,
             request=request,
+            vendor=vendor,
             client=client,
             file_storage=file_storage,
         )

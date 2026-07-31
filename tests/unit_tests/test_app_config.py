@@ -195,7 +195,7 @@ def test_get_vendor_for_generic_deployment(deployment: str):
             deployment,
             OpenAIEndpoint(openai_base_url="https://api.openai.com/v1"),
         )
-        == Vendor.AZURE
+        == Vendor.OPENAI_PLATFORM
     )
 
 
