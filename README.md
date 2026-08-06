@@ -73,6 +73,7 @@
     - [Forward compatibility](#forward-compatibility)
   - [Models based on Responses API](#models-based-on-responses-api)
     - [Reasoning configuration](#reasoning-configuration)
+  - [Claude models](#claude-models)
 - [Load balancing](#load-balancing)
 - [Upstream header proxying](#upstream-header-proxying)
 - [Prompt caching](#prompt-caching)
@@ -99,6 +100,8 @@
 LLM Adapters unify the APIs of respective LLMs to align with the Unified Protocol of DIAL Core. Each Adapter operates within a dedicated container. Multi-modality allows supporting non-textual communications such as image-to-text, text-to-image, file transfers and more.
 
 The project implements [AI DIAL API](https://dialx.ai/dial_api) for language models from [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models).
+
+Claude models are served by the [aidial-adapter-anthropic](https://github.com/epam/ai-dial-adapter-anthropic/blob/0.16.0/README.md) package. Its README documents the Claude-specific request/response API and is referenced throughout this document instead of being duplicated here.
 
 ---
 
@@ -972,13 +975,7 @@ Set the feature flag `cacheSupported: true` in the DIAL Core configuration, when
 
 In addition to the DIAL chat completions protocol, the adapter exposes the native [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages) as a transparent passthrough mounted at `/anthropic`. Requests are forwarded to the upstream Anthropic (Azure AI Foundry) endpoint through the Anthropic SDK, so responses — including streaming — are relayed as-is.
 
-The following endpoints are proxied:
-
-|Method|Path|
-|------|----|
-|`POST`|[/anthropic/v1/messages](https://platform.claude.com/docs/en/api/messages)|
-|`POST`|[/anthropic/v1/messages/batches](https://platform.claude.com/docs/en/api/creating-message-batches)|
-|`POST`|[/anthropic/v1/messages/count_tokens](https://platform.claude.com/docs/en/api/messages-count-tokens)|
+The passthrough itself — the list of the proxied endpoints, the error schema and the client compatibility — is documented in the [Anthropic adapter README](https://github.com/epam/ai-dial-adapter-anthropic/blob/0.16.0/README.md#anthropic-api).
 
 The adapter is a pure proxy: it takes the upstream endpoint and key from the `X-UPSTREAM-ENDPOINT` and `X-UPSTREAM-KEY` request headers, which DIAL Core injects when routing to the adapter. When calling the adapter directly, these headers must be supplied by the caller.
 
@@ -1605,27 +1602,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 
 Logging is provided by the DIAL SDK. The `LOG_LEVEL` variable sets the severity threshold for the adapter's logs (`INFO` by default; use `DEBUG` for development).
 
-By default logs are emitted as human-readable text.
-Set `DIAL_SDK_LOG_FORMAT=json` for structured JSON logging.
-The format is controlled by `DIAL_SDK_TEXT_LOG_FORMAT` / `DIAL_SDK_JSON_LOG_FORMAT` (both optional),
-which use Python's `%`-style [logging attributes](https://docs.python.org/3/library/logging.html#logrecord-attributes)
-and default to the values shown below.
-
-Text logging (default):
-
-```txt
-DIAL_SDK_LOG_FORMAT=text
-DIAL_SDK_TEXT_LOG_FORMAT='%(levelprefix)s | %(asctime)s | %(name)s | %(process)d | %(message)s'
-```
-
-Structured JSON logging:
-
-```txt
-DIAL_SDK_LOG_FORMAT=json
-DIAL_SDK_JSON_LOG_FORMAT='{"level": "%(levelname)s", "time": "%(asctime)s", "logger": "%(name)s", "process": "%(process)d", "message": "%(message)s"}'
-```
-
-See the [full logging documentation](https://github.com/epam/ai-dial-sdk/blob/0.38.0/docs/logging.md) for details.
+Everything else — the log format *(human-readable text or structured JSON)*, the `DIAL_SDK_*` variables controlling it, the trace/span id correlation and the OTel log export — is documented in the [DIAL SDK logging documentation](https://github.com/epam/ai-dial-sdk/blob/0.39.0/docs/logging.md).
 
 To enable logs from the underlying Anthropic SDK or OpenAI SDK, set:
 
@@ -1804,6 +1781,10 @@ Here `custom_fields.configuration.reasoning` is an object which is being passed 
 
 > [!IMPORTANT]
 > Not all models support reasoning. Consult with the [documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reasoning?tabs=gpt-5%2Cpython-secure%2Cpy) before enabling reasoning.
+
+### Claude models
+
+The configuration of the Claude models *(extended thinking, reasoning level, beta feature flags, citations)* is documented in the [Anthropic adapter README](https://github.com/epam/ai-dial-adapter-anthropic/blob/0.16.0/README.md#configuration).
 
 ---
 
