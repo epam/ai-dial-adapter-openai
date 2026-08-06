@@ -2,22 +2,22 @@
 
 [[package]]
 name = "aidial-adapter-anthropic"
-version = "0.14.0"
+version = "0.16.0"
 description = "Package implementing adapter from DIAL Chat Completions API to Anthropic API"
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "aidial_adapter_anthropic-0.14.0-py3-none-any.whl", hash = "sha256:9e6839976c822417d9d7acc0faaf7c5c53bfd97cb9a9f1b12565232645e5c179"},
-    {file = "aidial_adapter_anthropic-0.14.0.tar.gz", hash = "sha256:faf2cbc49950d0adb59fb5fd8f5faeab18c2c9a3110544f8c89bb1ad2bed9aa4"},
+    {file = "aidial_adapter_anthropic-0.16.0-py3-none-any.whl", hash = "sha256:eb2eafbcc31fb6bb1636feed423063964170efa615102c1f30373c6cb04ab482"},
+    {file = "aidial_adapter_anthropic-0.16.0.tar.gz", hash = "sha256:e4174f710fa0debbbfa77615ec6d6a4b7ee5c2f61e9cd82cf7f46f53b21a4e34"},
 ]
 
 [package.dependencies]
-aidial-sdk = ">=0.37.0,<1"
+aidial-sdk = ">=0.39.0,<1"
 aiohttp = ">=3.14.1,<4"
-anthropic = ">=0.95.0,<1"
+anthropic = ">=0.105.0,<1"
 fastapi = ">=0.51,<1.0"
-pillow = ">=10.4.0,<13"
+pillow = ">=12.3.0,<13"
 pydantic = ">=2.8.2,<3"
 
 [package.extras]
@@ -43,14 +43,14 @@ pydantic = ">=1.10,<3"
 
 [[package]]
 name = "aidial-sdk"
-version = "0.38.0"
+version = "0.39.0"
 description = "Framework to create applications and model adapters for AI DIAL"
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "aidial_sdk-0.38.0-py3-none-any.whl", hash = "sha256:d67dec8e6133de3e0a75a1646c39d52a0f78860bba57b2e30fb1f158f6f13bd6"},
-    {file = "aidial_sdk-0.38.0.tar.gz", hash = "sha256:ce3022f6e488a2f0de21db2a4ef87bc1e62558e8dd7e96816283b9b20214e1b7"},
+    {file = "aidial_sdk-0.39.0-py3-none-any.whl", hash = "sha256:f16d4899e4e474162b8c9ac4ec880f9ab981e80a5e6404f584918e5f337ec2d3"},
+    {file = "aidial_sdk-0.39.0.tar.gz", hash = "sha256:3577f5c15ddb2f8c8037219e797af17d406234596f67b02a5985245f7516c601"},
 ]
 
 [package.dependencies]
@@ -315,14 +315,14 @@ files = [
 
 [[package]]
 name = "anthropic"
-version = "0.95.0"
+version = "0.105.0"
 description = "The official Python library for the anthropic API"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "anthropic-0.95.0-py3-none-any.whl", hash = "sha256:9fd3503cb666446e28ab5a5d0ec7feda39968399e494bd2cca2f0b927f8aa7a6"},
-    {file = "anthropic-0.95.0.tar.gz", hash = "sha256:e4d815351489e5627f39806f12561c52b574e69be10d12fcab723264f955c11d"},
+    {file = "anthropic-0.105.0-py3-none-any.whl", hash = "sha256:0565975f37a8ac7bdcf97c2002aa5b133376c157d9265997721c7f131e69724d"},
+    {file = "anthropic-0.105.0.tar.gz", hash = "sha256:2cc60ee165948f2c45fd417d2e408dbd787349b17b2ab5520a487683b59aef5d"},
 ]
 
 [package.dependencies]
@@ -341,6 +341,7 @@ aws = ["boto3 (>=1.28.57)", "botocore (>=1.31.57)"]
 bedrock = ["boto3 (>=1.28.57)", "botocore (>=1.31.57)"]
 mcp = ["mcp (>=1.0) ; python_version >= \"3.10\""]
 vertex = ["google-auth[requests] (>=2,<3)"]
+webhooks = ["standardwebhooks (>=1.0.1,<2)"]
 
 [[package]]
 name = "anyio"
@@ -3444,4 +3445,4 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "9e2b9213abdfd4d8659d915b8a6bf9f9a3ab83dfb117cc8c3df2f7d13b89e08d"
+content-hash = "8e89fefe251afaf5797952d085f61eb65a6fd699683e154637d064b09010b9d7"
