@@ -4,7 +4,11 @@ from typing import Any
 import httpx
 import pytest
 import respx
-from openai.types.responses import Response
+from openai.types.responses import Response, ResponseUsage
+from openai.types.responses.response_usage import (
+    InputTokensDetails,
+    OutputTokensDetails,
+)
 
 from aidial_adapter_openai.responses.converter import (
     chat_completions_to_responses_request,
@@ -20,7 +24,7 @@ _UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS = [
 ]
 
 
-def _response() -> Response:
+def _response(usage: ResponseUsage | None = None) -> Response:
     return Response(
         id="id",
         created_at=0,
@@ -30,6 +34,7 @@ def _response() -> Response:
         parallel_tool_calls=False,
         tool_choice="none",
         tools=[],
+        usage=usage,
     )
 
 
@@ -227,6 +232,50 @@ async def test_chat_completions_without_max_prompt_tokens_does_not_truncate(
         assert "statistics" not in chunks[-1]
     else:
         assert "statistics" not in response.json()
+
+
+@respx.mock
+async def test_usage_reports_cache_tokens(test_app: httpx.AsyncClient):
+    usage = ResponseUsage(
+        input_tokens=100,
+        output_tokens=20,
+        total_tokens=120,
+        input_tokens_details=InputTokensDetails(
+            cached_tokens=30, cache_write_tokens=70
+        ),
+        output_tokens_details=OutputTokensDetails(reasoning_tokens=5),
+    )
+
+    @MockServer().post(_UPSTREAM_ENDPOINT)
+    def _create_response(request: httpx.Request):
+        return _response(usage)
+
+    response = await test_app.post(
+        "/openai/deployments/adapter-deployment-name/chat/completions?api-version=2023-03-15-preview",
+        json={
+            "model": "upstream-model-name",
+            "messages": [{"role": "user", "content": "Test content"}],
+        },
+        headers=_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["usage"] == {
+        "prompt_tokens": 100,
+        "completion_tokens": 20,
+        "total_tokens": 120,
+        "prompt_tokens_details": {
+            "audio_tokens": None,
+            "cached_tokens": 30,
+            "cache_write_tokens": 70,
+        },
+        "completion_tokens_details": {
+            "accepted_prediction_tokens": None,
+            "audio_tokens": None,
+            "reasoning_tokens": 5,
+            "rejected_prediction_tokens": None,
+        },
+    }
 
 
 async def test_assistant_message_content_parts():
