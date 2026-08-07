@@ -27,7 +27,8 @@ def _convert_usage(usage: ResponseUsage) -> CompletionUsage:
         completion_tokens=usage.output_tokens,
         total_tokens=usage.total_tokens,
         prompt_tokens_details=PromptTokensDetails(
-            cached_tokens=usage.input_tokens_details.cached_tokens
+            cached_tokens=usage.input_tokens_details.cached_tokens,
+            cache_write_tokens=usage.input_tokens_details.cache_write_tokens,
         ),
         completion_tokens_details=CompletionTokensDetails(
             reasoning_tokens=usage.output_tokens_details.reasoning_tokens
