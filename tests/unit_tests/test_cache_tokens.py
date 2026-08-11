@@ -17,7 +17,7 @@ def _response(prompt_tokens_details: dict | None) -> dict:
 @pytest.mark.parametrize(
     "given,expected",
     [
-        # Alibaba-style cache-write tokens are normalized
+        # Anthropic-style cache-write tokens are normalized
         (
             {"cached_tokens": 0, "cache_creation_input_tokens": 10027},
             {

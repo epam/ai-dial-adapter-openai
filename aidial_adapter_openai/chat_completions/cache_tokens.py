@@ -1,12 +1,10 @@
 """
-Alibaba Model Studio (Qwen) reports cache-write tokens in
+Some models report cache-write tokens in
 `usage.prompt_tokens_details.cache_creation_input_tokens` - a field borrowed
 from the Anthropic Messages API, which isn't a part of the Chat Completions API.
 
 The module normalizes it into `usage.prompt_tokens_details.cache_write_tokens`,
 which is what DIAL expects.
-
-https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions
 """
 
 from collections.abc import AsyncIterator
