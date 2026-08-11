@@ -17,7 +17,7 @@ _T = TypeVar("_T", bound=AsyncIterator[dict] | dict)
 
 def _transform(chunk: dict) -> dict:
     details = (chunk.get("usage") or {}).get("prompt_tokens_details") or {}
-    anthropic_cache_write = details.get("cache_creation_input_tokens")
+    anthropic_cache_write = details.pop("cache_creation_input_tokens", None)
 
     if anthropic_cache_write is not None:
         details["cache_write_tokens"] = max(

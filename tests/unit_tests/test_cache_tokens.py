@@ -17,23 +17,19 @@ def _response(prompt_tokens_details: dict | None) -> dict:
 @pytest.mark.parametrize(
     "given,expected",
     [
-        # Anthropic-style cache-write tokens are normalized
+        # Anthropic-style cache-write tokens are moved
         (
             {"cached_tokens": 0, "cache_creation_input_tokens": 10027},
-            {
-                "cached_tokens": 0,
-                "cache_creation_input_tokens": 10027,
-                "cache_write_tokens": 10027,
-            },
+            {"cached_tokens": 0, "cache_write_tokens": 10027},
         ),
         # The greater of the two is reported
         (
             {"cache_creation_input_tokens": 10027, "cache_write_tokens": 3},
-            {"cache_creation_input_tokens": 10027, "cache_write_tokens": 10027},
+            {"cache_write_tokens": 10027},
         ),
         (
             {"cache_creation_input_tokens": 3, "cache_write_tokens": 10027},
-            {"cache_creation_input_tokens": 3, "cache_write_tokens": 10027},
+            {"cache_write_tokens": 10027},
         ),
         # Untouched when the Anthropic field is missing
         ({"cached_tokens": 5}, {"cached_tokens": 5}),
@@ -56,10 +52,5 @@ async def test_stream():
 
     assert chunks == [
         {"id": "chatcmpl-test", "choices": [{"index": 0}]},
-        _response(
-            {
-                "cache_creation_input_tokens": 10027,
-                "cache_write_tokens": 10027,
-            }
-        ),
+        _response({"cache_write_tokens": 10027}),
     ]
