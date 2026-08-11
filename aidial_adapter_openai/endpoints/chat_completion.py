@@ -15,6 +15,9 @@ from aidial_adapter_openai.audio_api.transcribe.adapter import (
 from aidial_adapter_openai.chat_completions.anthropic import (
     chat_completion as anthropic_chat_completions,
 )
+from aidial_adapter_openai.chat_completions.cache_tokens import (
+    normalize_cache_write_tokens,
+)
 from aidial_adapter_openai.chat_completions.gpt import (
     chat_completion as gpt_chat_completion,
 )
@@ -264,6 +267,7 @@ async def call_chat_completion(
 
             response.body = extract_reasoning_tokens(response.body)
             response.body = extract_audio_content(response.body, request_body)
+            response.body = normalize_cache_write_tokens(response.body)
 
             return response
 
