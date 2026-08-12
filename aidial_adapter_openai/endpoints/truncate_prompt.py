@@ -12,7 +12,7 @@ from aidial_sdk.deployment.truncate_prompt import (
     TruncatePromptSuccess,
 )
 from aidial_sdk.exceptions import RequestValidationError, ResourceNotFoundError
-from anthropic import AsyncAnthropicFoundry
+from anthropic import AsyncAnthropic
 from fastapi import Request
 from pydantic import ValidationError
 
@@ -157,7 +157,7 @@ async def truncate_prompt(
                 extra_headers=extra_headers,
                 api_version=get_api_version(request),
             )
-            if not isinstance(client, AsyncAnthropicFoundry):
+            if not isinstance(client, AsyncAnthropic):
                 raise ValueError(
                     f"Unexpected client for Anthropic deployment - {type(client)}"
                 )

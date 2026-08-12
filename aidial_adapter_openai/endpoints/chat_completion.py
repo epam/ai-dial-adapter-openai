@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from typing import assert_never
 
 import fastapi
-from anthropic import AsyncAnthropicFoundry
+from anthropic import AsyncAnthropic
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
@@ -128,7 +128,7 @@ async def call_chat_completion(
             app_config, deployment_id, deployment_type
         )
 
-    if isinstance(client, AsyncAnthropicFoundry):
+    if isinstance(client, AsyncAnthropic):
         return await anthropic_chat_completions(
             request=request,
             client=client,
