@@ -9,6 +9,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.utils.parsers import (
+    AnthropicEndpoint,
     AzureOpenAIEndpoint,
     BedrockOpenAIEndpoint,
     OpenAIEndpoint,
@@ -186,6 +187,53 @@ def test_app_config_qwen3_asr_vllm_deployments(origin: str, deployment: str):
     )
 
     assert ty.deployment_type == D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+
+
+@pytest.mark.parametrize(
+    ("upstream_endpoint", "base_url", "foundry"),
+    [
+        (
+            "https://test.services.ai.azure.com/anthropic/v1/messages",
+            "https://test.services.ai.azure.com/anthropic",
+            True,
+        ),
+        (
+            "https://api.fireworks.ai/inference/v1/messages",
+            "https://api.fireworks.ai/inference",
+            False,
+        ),
+        (
+            "https://api.anthropic.com/v1/messages",
+            "https://api.anthropic.com",
+            False,
+        ),
+        (
+            "https://openrouter.ai/api/v1/messages",
+            "https://openrouter.ai/api",
+            False,
+        ),
+        # The /anthropic path alone doesn't make it an Azure Foundry endpoint.
+        (
+            "https://gateway.example.com/anthropic/v1/messages",
+            "https://gateway.example.com/anthropic",
+            False,
+        ),
+    ],
+)
+def test_app_config_anthropic_messages(
+    deployment: str,
+    upstream_endpoint: str,
+    base_url: str,
+    foundry: bool,
+):
+    cfg = ApplicationConfig()
+    ty = cfg.get_chat_completion_deployment_type(deployment, upstream_endpoint)
+
+    assert ty.deployment_type == D.ANTHROPIC_MESSAGES_API
+    endpoint = ty.endpoint
+    assert isinstance(endpoint, AnthropicEndpoint)
+    assert endpoint.anthropic_base_url == base_url
+    assert endpoint.foundry == foundry
 
 
 def test_get_vendor_for_generic_deployment(deployment: str):

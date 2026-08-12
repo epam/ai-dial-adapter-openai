@@ -9,7 +9,7 @@ from aidial_adapter_anthropic.dial.request import ModelParameters
 from aidial_adapter_anthropic.dial.storage import FileStorage
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
-from anthropic import AsyncAnthropicFoundry
+from anthropic import AsyncAnthropic
 from fastapi.responses import StreamingResponse
 
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
@@ -27,7 +27,7 @@ def _create_file_storage(api_key: str | None) -> FileStorage | None:
 
 
 async def create_adapter(
-    deployment: str, api_key: str, client: AsyncAnthropicFoundry
+    deployment: str, api_key: str, client: AsyncAnthropic
 ) -> ChatCompletionAdapter:
     return await create_anthropic_adapter(
         deployment=deployment,
@@ -44,7 +44,7 @@ async def chat_completion(
     *,
     request: fastapi.Request,
     deployment_id: str,
-    client: AsyncAnthropicFoundry,
+    client: AsyncAnthropic,
 ) -> StreamingResponse | dict:
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
         model = await create_adapter(deployment_id, request.api_key, client)

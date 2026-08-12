@@ -1,4 +1,4 @@
-from anthropic import AsyncAnthropicFoundry
+from anthropic import AsyncAnthropic
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 
@@ -8,9 +8,7 @@ from aidial_adapter_openai.configuration.app_config import (
 )
 from aidial_adapter_openai.utils.auth import get_credentials
 
-_Client = (
-    AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI | AsyncAnthropicFoundry
-)
+_Client = AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI | AsyncAnthropic
 
 
 async def get_client(

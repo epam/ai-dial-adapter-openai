@@ -3,9 +3,10 @@ from collections.abc import Callable
 from http import HTTPStatus
 from json import JSONDecodeError
 from typing import Any
+from urllib.parse import urlparse
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
-from anthropic import AsyncAnthropicFoundry
+from anthropic import AsyncAnthropic, AsyncAnthropicFoundry
 from aws_bedrock_token_generator import provide_token
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
@@ -66,8 +67,20 @@ class OpenAIEndpoint(ExtraForbidModel):
 
 class AnthropicEndpoint(ExtraForbidModel):
     anthropic_base_url: str
+    # Azure AI Foundry endpoints require Azure-specific authentication,
+    # while other providers of the Messages API (Anthropic itself,
+    # Fireworks, OpenRouter etc) are served by the vanilla client.
+    foundry: bool
 
-    def get_client(self, params: OpenAIParams) -> AsyncAnthropicFoundry:
+    def get_client(self, params: OpenAIParams) -> AsyncAnthropic:
+        if not self.foundry:
+            return AsyncAnthropic(
+                base_url=self.anthropic_base_url,
+                api_key=params.get("api_key"),
+                max_retries=_MAX_RETRIES,
+                http_client=get_anthropic_httpx_client(),
+            )
+
         if (token := params.get("azure_ad_token")) is not None:
 
             def _provider():
@@ -181,10 +194,18 @@ class CompletionsParser(ExtraForbidModel):
 
 
 class AnthropicEndpointParser:
+    @staticmethod
+    def _is_foundry_base_url(base_url: str) -> bool:
+        hostname = urlparse(base_url).hostname or ""
+        return "azure" in hostname and base_url.endswith("/anthropic")
+
     def try_parse(self, endpoint: str) -> AnthropicEndpoint | None:
-        if match := re.match(r"(.*/anthropic)/v1/messages", endpoint):
+        if match := re.match(r"(.*?)/v1/messages", endpoint):
             base_url = match.group(1)
-            return AnthropicEndpoint(anthropic_base_url=base_url)
+            return AnthropicEndpoint(
+                anthropic_base_url=base_url,
+                foundry=self._is_foundry_base_url(base_url),
+            )
         return None
 
 

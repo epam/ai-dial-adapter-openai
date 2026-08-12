@@ -840,9 +840,11 @@ You can connect the [Qwen3-ASR](https://docs.vllm.ai/projects/recipes/en/latest/
 
 #### Anthropic Messages API
 
-The adapter supports Claude models deployed in Azure Foundry and exposing Anthropic Messages API:
+The adapter supports models exposing the Anthropic Messages API — Claude models deployed in Azure AI Foundry as well as third-party providers of the same API, e.g. [Anthropic](https://platform.claude.com/docs/en/api/messages), [Fireworks](https://docs.fireworks.ai/ecosystem/firerouter/quickstart#anthropic-messages) or [OpenRouter](https://openrouter.ai/docs/api/api-reference/anthropic-messages/create-a-message).
 
-<details><summary>DIAL Core Config</summary>
+<details><summary>DIAL Core Config for Azure AI Foundry</summary>
+
+When the API key missing, the adapter falls back to Azure Entra ID authentication.
 
 ```json
 {
@@ -855,6 +857,28 @@ The adapter supports Claude models deployed in Azure Foundry and exposing Anthro
         {
           "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/anthropic/v1/messages",
           "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+<details><summary>DIAL Core Config for Anthropic Platform or a third-party Messages API provider</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${ANTHROPIC_MODEL_NAME}",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://api.anthropic.com/v1/messages",
+          "key": "${API_KEY}"
         }
       ]
     }
@@ -973,11 +997,61 @@ Set the feature flag `cacheSupported: true` in the DIAL Core configuration, when
 
 ### Anthropic API Passthrough
 
-In addition to the DIAL chat completions protocol, the adapter exposes the native [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages) as a transparent passthrough mounted at `/anthropic`. Requests are forwarded to the upstream Anthropic (Azure AI Foundry) endpoint through the Anthropic SDK, so responses — including streaming — are relayed as-is.
+In addition to the DIAL chat completions protocol, the adapter exposes the native [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages) as a transparent passthrough mounted at `/anthropic`. The proxied endpoints, the error schema and the client compatibility are documented in the [Anthropic adapter README](https://github.com/epam/ai-dial-adapter-anthropic/blob/0.16.0/README.md#anthropic-api).
 
-The passthrough itself — the list of the proxied endpoints, the error schema and the client compatibility — is documented in the [Anthropic adapter README](https://github.com/epam/ai-dial-adapter-anthropic/blob/0.16.0/README.md#anthropic-api).
+A DIAL deployment becomes callable via the Messages API once the [anthropicMessages interface](https://github.com/epam/ai-dial-core/blob/development/docs/dynamic-settings/models.md#modelsmodel_nameinterfaces) is declared for it in the DIAL Core config. The upstream endpoint is resolved by the same rules as for [chat completions](#anthropic-messages-api): Azure AI Foundry or any other provider of the Messages API.
 
-The adapter is a pure proxy: it takes the upstream endpoint and key from the `X-UPSTREAM-ENDPOINT` and `X-UPSTREAM-KEY` request headers, which DIAL Core injects when routing to the adapter. When calling the adapter directly, these headers must be supplied by the caller.
+<details><summary>DIAL Core Config for Azure AI Foundry</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${ANTHROPIC_MODEL_NAME}",
+      "interfaces": {
+        "anthropicMessages": {
+          "base_url": "${ADAPTER_ORIGIN}"
+        }
+      },
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/anthropic/v1/messages",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+<details><summary>DIAL Core Config for Anthropic Platform or a third-party Messages API provider</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${ANTHROPIC_MODEL_NAME}",
+      "interfaces": {
+        "anthropicMessages": {
+          "base_url": "${ADAPTER_ORIGIN}"
+        }
+      },
+      "upstreams": [
+        {
+          "endpoint": "https://api.anthropic.com/v1/messages",
+          "key": "${API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
 
 #### Using Claude Code with the adapter
 

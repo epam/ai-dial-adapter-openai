@@ -11,7 +11,7 @@ from aidial_adapter_anthropic.adapter import ChatCompletionAdapter
 from aidial_adapter_anthropic.dial.request import ModelParameters
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.exceptions import ResourceNotFoundError
-from anthropic import AsyncAnthropicFoundry
+from anthropic import AsyncAnthropic
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 
@@ -188,7 +188,7 @@ async def create_request_tokenizer(
                 extra_headers=extra_headers,
                 api_version=get_api_version(request),
             )
-            if not isinstance(client, AsyncAnthropicFoundry):
+            if not isinstance(client, AsyncAnthropic):
                 raise ValueError(
                     f"Unexpected client for Anthropic deployment - {type(client)}"
                 )
