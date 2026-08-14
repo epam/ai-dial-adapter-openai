@@ -119,8 +119,9 @@ async def responses_create(request: Request) -> FastAPIResponse:
 
     response_with_headers = _to_response_with_headers(
         response,
-        # Reported for a successful generation only: a failed request makes
-        # DIAL Core try another upstream, whose provider cache is cold.
+        # Reported for a successful generation only: the SDK raises on a 4xx/5xx
+        # upstream response, so a failed request never claims the affinity to an
+        # upstream whose provider cache DIAL Core would find cold on a retry.
         extra_headers=await build_cache_headers(
             request_headers=request.headers,
             breakpoint_path=get_responses_breakpoint_path(
