@@ -148,6 +148,7 @@ async def call_chat_completion(
         case D.RESPONSES_API:
             return await responses(
                 request=request_body,
+                request_headers=request_headers,
                 client=client,
                 file_storage=file_storage,
                 vendor=vendor,

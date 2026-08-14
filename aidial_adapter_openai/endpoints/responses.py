@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Self, TypeVar
+from typing import Self, TypeVar, cast
 
 from fastapi import Request
 from fastapi.responses import Response as FastAPIResponse
@@ -14,6 +14,9 @@ from openai._legacy_response import LegacyAPIResponse
 from openai.types.responses import Response
 from openai.types.responses.input_token_count_response import (
     InputTokenCountResponse,
+)
+from openai.types.responses.response_create_params import (
+    ResponseCreateParamsBase,
 )
 from openai.types.responses.response_stream_event import ResponseStreamEvent
 
@@ -30,6 +33,10 @@ from aidial_adapter_openai.dial_api.storage import (
 )
 from aidial_adapter_openai.responses.request import (
     download_dial_urls_in_request,
+)
+from aidial_adapter_openai.utils.caching import (
+    build_cache_headers,
+    get_responses_breakpoint_path,
 )
 from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.parsers import (
@@ -110,7 +117,17 @@ async def responses_create(request: Request) -> FastAPIResponse:
         context.client.responses.with_raw_response.create, request_body
     )
 
-    response_with_headers = _to_response_with_headers(response)
+    response_with_headers = _to_response_with_headers(
+        response,
+        # Reported for a successful generation only: a failed request makes
+        # DIAL Core try another upstream, whose provider cache is cold.
+        extra_headers=await build_cache_headers(
+            request_headers=request.headers,
+            breakpoint_path=get_responses_breakpoint_path(
+                cast(ResponseCreateParamsBase, request_body)
+            ),
+        ),
+    )
     return await _to_fast_api_response(request, response_with_headers)
 
 
@@ -191,6 +208,8 @@ async def _to_fast_api_response(
 
 def _to_response_with_headers(
     response: LegacyAPIResponse[_ResponsesPayloadT],
+    *,
+    extra_headers: dict[str, str] | None = None,
 ) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
     response_headers = response.http_response.headers
 
@@ -208,7 +227,9 @@ def _to_response_with_headers(
     else:
         body = _to_dict(parsed_response)
 
-    return ResponseWithHeaders(headers=dict(response_headers), body=body)
+    return ResponseWithHeaders(
+        headers={**response_headers, **(extra_headers or {})}, body=body
+    )
 
 
 def _to_dict(

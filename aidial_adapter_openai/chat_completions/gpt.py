@@ -1,14 +1,21 @@
 from collections.abc import AsyncIterator, Mapping
+from typing import cast
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat.completion_create_params import (
+    CompletionCreateParamsBase,
+)
 
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
 from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.caching import get_response_headers_for_caching
+from aidial_adapter_openai.utils.caching import (
+    build_cache_headers,
+    get_chat_completions_breakpoint_path,
+)
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
@@ -60,6 +67,12 @@ async def chat_completion(
     n: int = request.get("n") or 1
     model_name = request["model"]
 
+    # Computed upfront: the path must address the request body
+    # as DIAL Core has sent it, before the truncation reindexes messages.
+    breakpoint_path = get_chat_completions_breakpoint_path(
+        cast(CompletionCreateParamsBase, request)
+    )
+
     max_prompt_tokens = extract_max_prompt_tokens(request)
     discarded_messages: DiscardedMessages | None
 
@@ -103,9 +116,9 @@ async def chat_completion(
     ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
-        response_headers = await get_response_headers_for_caching(
+        response_headers = await build_cache_headers(
             request_headers=request_headers,
-            request_body=request,
+            breakpoint_path=breakpoint_path,
             get_request_tokens=get_prompt_tokens,
         )
 
@@ -133,9 +146,9 @@ async def chat_completion(
         async def get_request_tokens():
             return actual_prompt_tokens or await get_prompt_tokens()
 
-        response_headers = await get_response_headers_for_caching(
+        response_headers = await build_cache_headers(
             request_headers=request_headers,
-            request_body=request,
+            breakpoint_path=breakpoint_path,
             get_request_tokens=get_request_tokens,
         )
 
