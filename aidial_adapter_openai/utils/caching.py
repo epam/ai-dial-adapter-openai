@@ -1,6 +1,12 @@
 import time
 from collections.abc import Callable, Coroutine, Mapping
-from typing import Any
+
+from openai.types.chat.completion_create_params import (
+    CompletionCreateParamsBase,
+)
+from openai.types.responses.response_create_params import (
+    ResponseCreateParamsBase,
+)
 
 _DIAL_CACHE_BREAKPOINT_PATH = "X-DIAL-CACHE-BREAKPOINT-PATH"
 _DIAL_CACHE_EXPIRE_AT = "X-DIAL-CACHE-EXPIRE-AT"
@@ -17,42 +23,58 @@ _DEFAULT_TTL_SEC = 5 * 60  # 5 minutes
 _PROMPT_TOKENS_THRESHOLD = 1024
 
 
-def _get_last_message_idx(request_body: Any) -> int | None:
-    if not isinstance(request_body, dict):
+def get_chat_completions_breakpoint_path(
+    request: CompletionCreateParamsBase,
+) -> str | None:
+    messages = request.get("messages")
+    if not isinstance(messages, list) or not messages:
         return None
 
-    messages = request_body.get("messages") or []
-    if not isinstance(messages, list):
-        return None
-
-    if not messages:
-        return None
-
-    return len(messages) - 1
+    return f"prefix.body.messages[{len(messages) - 1}]"
 
 
-async def get_response_headers_for_caching(
+def get_responses_breakpoint_path(
+    request: ResponseCreateParamsBase,
+) -> str | None:
+    input = request.get("input")
+    if isinstance(input, list):
+        if input:
+            return f"prefix.body.input[{len(input) - 1}]"
+    elif input is not None:
+        # A scalar where an array is expected counts as a one-element array,
+        # the way DIAL Core hashes it: `"input": "hi"` is `input[0]`.
+        return "prefix.body.input[0]"
+
+    # No input at all: the instructions are the only prefix left to cache.
+    if request.get("instructions"):
+        return "prefix.body.instructions[0]"
+
+    return None
+
+
+async def build_cache_headers(
     *,
     request_headers: Mapping[str, str],
-    request_body: Any,
-    get_request_tokens: Callable[[], Coroutine[None, None, int]],
+    breakpoint_path: str | None,
+    get_request_tokens: (
+        Callable[[], Coroutine[None, None, int]] | None
+    ) = None,
 ) -> dict[str, str] | None:
     # DIAL Core always sends this header if the deployment
     # is marked in listing as supporting auto-caching
     if request_headers.get(_DIAL_CACHE_BREAKPOINT_PATH) is None:
         return None
 
-    if (last_message_idx := _get_last_message_idx(request_body)) is None:
+    if breakpoint_path is None:
         return None
 
-    path = f"prefix.body.messages[{last_message_idx}]"
-    expire_at = str(int(time.time()) + _DEFAULT_TTL_SEC)
-
-    prompt_tokens = await get_request_tokens()
-    if prompt_tokens < _PROMPT_TOKENS_THRESHOLD:
+    if (
+        get_request_tokens is not None
+        and await get_request_tokens() < _PROMPT_TOKENS_THRESHOLD
+    ):
         return None
 
     return {
-        _DIAL_CACHE_BREAKPOINT_PATH: path,
-        _DIAL_CACHE_EXPIRE_AT: expire_at,
+        _DIAL_CACHE_BREAKPOINT_PATH: breakpoint_path,
+        _DIAL_CACHE_EXPIRE_AT: str(int(time.time()) + _DEFAULT_TTL_SEC),
     }

@@ -1,7 +1,7 @@
 import json
 import logging
-from collections.abc import AsyncIterator
-from typing import Any, assert_never
+from collections.abc import AsyncIterator, Mapping
+from typing import Any, assert_never, cast
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai import (
@@ -10,6 +10,9 @@ from openai import (
     AsyncOpenAI,
     AsyncStream,
     BaseModel,
+)
+from openai.types.chat.completion_create_params import (
+    CompletionCreateParamsBase,
 )
 
 from aidial_adapter_openai.configuration.app_config import Vendor
@@ -22,8 +25,13 @@ from aidial_adapter_openai.responses.converter import (
 )
 from aidial_adapter_openai.responses.event_handler import EventHandler
 from aidial_adapter_openai.responses.tokenizer import ResponsesRequestTokenizer
+from aidial_adapter_openai.utils.caching import (
+    build_cache_headers,
+    get_chat_completions_breakpoint_path,
+)
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.streaming import (
+    ResponseWithHeaders,
     add_statistics_to_response,
     map_stream,
     map_stream_generator,
@@ -125,11 +133,21 @@ async def _truncate_prompt(
 async def chat_completion(
     *,
     request: dict[str, Any],
+    request_headers: Mapping[str, str],
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
     vendor: Vendor,
-) -> AsyncIterator[dict] | dict:
+) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
     _validate_request(request)
+
+    # Computed upfront: the path must address the request body
+    # as DIAL Core has sent it, before the truncation reindexes messages.
+    response_headers = await build_cache_headers(
+        request_headers=request_headers,
+        breakpoint_path=get_chat_completions_breakpoint_path(
+            cast(CompletionCreateParamsBase, request)
+        ),
+    )
 
     discarded_messages = None
     if (max_prompt_tokens := extract_max_prompt_tokens(request)) is not None:
@@ -146,13 +164,11 @@ async def chat_completion(
     )
     response = await client.responses.create(**create_request)
 
+    body: AsyncIterator[dict] | dict
     if isinstance(response, AsyncStream):
         handler = EventHandler()
-        stream = map_stream(
+        body = map_stream(
             _to_dict, map_stream_generator(handler.handle, response)
-        )
-        return add_statistics_to_response(
-            stream, discarded_messages=discarded_messages
         )
     else:
         if logger.isEnabledFor(logging.DEBUG):
@@ -160,7 +176,10 @@ async def chat_completion(
                 f"responses API response: {json.dumps(response.model_dump())}"
             )
         body = _to_dict(convert_response(response))
-        body = add_statistics_to_response(
+
+    return ResponseWithHeaders(
+        headers=response_headers,
+        body=add_statistics_to_response(
             body, discarded_messages=discarded_messages
-        )
-        return body
+        ),
+    )
