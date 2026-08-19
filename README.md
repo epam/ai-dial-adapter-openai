@@ -763,7 +763,7 @@ Since every upstream carries its own credentials, a single deployment can be [ba
 </details>
 
 > [!IMPORTANT]
-> `aws_access_key_id` and `aws_secret_access_key` are only accepted together. The adapter returns `500` when one of them is configured without the other, or when `aws_session_token` is configured without both.
+> `aws_access_key_id` and `aws_secret_access_key` are only accepted together. The adapter returns `400` when one of them is configured without the other, or when `aws_session_token` is configured without both.
 
 #### OpenAI Completions API
 

@@ -229,7 +229,7 @@ async def test_incomplete_static_credentials_are_rejected(
         await _get_credentials(extra_data)
 
     error = exc_info.value
-    assert error.status_code == 500
+    assert error.status_code == 400
     assert error.message.startswith("Incomplete AWS credentials")
 
 

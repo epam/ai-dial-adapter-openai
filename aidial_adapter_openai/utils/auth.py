@@ -6,7 +6,7 @@ from typing import Any, assert_never
 
 import boto3
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import InternalServerError
+from aidial_sdk.exceptions import InternalServerError, InvalidRequestError
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
@@ -84,13 +84,6 @@ def get_azure_token_provider() -> _AzureTokenProvider:
 
 
 class AWSCredentials(BaseModel):
-    """
-    Credentials the Bedrock client signs its requests with.
-    All the fields are unset when the deployment configures no credentials
-    at all: the OpenAI SDK then resolves them via the default AWS credential
-    chain on its own.
-    """
-
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     aws_session_token: str | None = None
@@ -108,8 +101,6 @@ class _AWSAssumeRoleProvider:
         self._sts_client: Any = None
         self._credentials: AWSCredentials | None = None
         self._expires_on: int = 0
-        # Serializes refreshes so that a burst of requests triggers
-        # a single AssumeRole call.
         self._lock = asyncio.Lock()
 
     def close(self) -> None:
@@ -200,7 +191,6 @@ class AWSAssumeRoleCredentials(BaseModel):
 def _select_credentials(
     extra_data: UpstreamExtraData,
 ) -> AWSClientCredentials | AWSAssumeRoleCredentials | None:
-    # The upstream config takes precedence over the adapter environment.
     access_key_id = extra_data.aws_access_key_id or os.getenv(
         "AWS_ACCESS_KEY_ID"
     )
@@ -222,13 +212,13 @@ def _select_credentials(
         )
 
     if access_key_id or secret_access_key:
-        raise InternalServerError(
+        raise InvalidRequestError(
             "Incomplete AWS credentials: aws_access_key_id and "
             "aws_secret_access_key must be configured together."
         )
 
     if session_token:
-        raise InternalServerError(
+        raise InvalidRequestError(
             "Incomplete AWS credentials: aws_session_token requires "
             "aws_access_key_id and aws_secret_access_key."
         )
