@@ -1,5 +1,4 @@
 import re
-from collections.abc import Callable
 from http import HTTPStatus
 from json import JSONDecodeError
 from typing import Any
@@ -7,7 +6,6 @@ from urllib.parse import urlparse
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
 from anthropic import AsyncAnthropic, AsyncAnthropicFoundry
-from aws_bedrock_token_generator import provide_token
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 from typing_extensions import TypedDict
@@ -25,6 +23,10 @@ class OpenAIParams(TypedDict, total=False):
     azure_ad_token: str
     api_version: str | None
     headers: dict[str, str]
+
+    aws_access_key_id: str | None
+    aws_secret_access_key: str | None
+    aws_session_token: str | None
 
 
 # Retries are handled on the DIAL Core side
@@ -99,27 +101,33 @@ class AnthropicEndpoint(ExtraForbidModel):
         )
 
 
+class BedrockOpenAIClientParams(TypedDict, total=False):
+    aws_access_key_id: str | None
+    aws_secret_access_key: str | None
+    aws_session_token: str | None
+
+
 class BedrockOpenAIEndpoint(ExtraForbidModel):
     bedrock_region: str
 
     def get_client(self, params: OpenAIParams) -> AsyncBedrockOpenAI:
         api_key = params.get("api_key")
-        token_provider: Callable | None = None
+        client_params: BedrockOpenAIClientParams = {}
 
         if not api_key:
-
-            def _token_provider() -> str:
-                return provide_token(self.bedrock_region)
-
-            token_provider = _token_provider
+            client_params = {
+                "aws_access_key_id": params.get("aws_access_key_id"),
+                "aws_secret_access_key": params.get("aws_secret_access_key"),
+                "aws_session_token": params.get("aws_session_token"),
+            }
 
         return AsyncBedrockOpenAI(
-            bedrock_token_provider=token_provider,
-            aws_region=self.bedrock_region,
             api_key=api_key,
+            aws_region=self.bedrock_region,
             max_retries=_MAX_RETRIES,
             default_headers=params.get("headers"),
             http_client=get_http_client(),
+            **client_params,
         )
 
 
