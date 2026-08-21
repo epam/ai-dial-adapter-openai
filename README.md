@@ -29,6 +29,7 @@
       - [Speech-to-text models (STT)](#speech-to-text-models-stt)
     - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
     - [Amazon Bedrock OpenAI Chat Completions API](#amazon-bedrock-openai-chat-completions-api)
+      - [Authentication](#authentication)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
     - [Alibaba Cloud Model Studio Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api)
@@ -697,11 +698,6 @@ Use a Bedrock model id with the `openai.` prefix in `overrideName` (for example 
 
 </details>
 
-Authentication options:
-
-- Provide `key` in the DIAL Core upstream config (Bedrock bearer token).
-- Omit `key` and use AWS credentials from the environment (for example `AWS_PROFILE`).
-
 As in other v1-style upstreams, set `overrideName` to the Bedrock model id (for example `openai.gpt-5.4`).
 
 > [!NOTE]
@@ -709,6 +705,65 @@ As in other v1-style upstreams, set `overrideName` to the Bedrock model id (for 
 > - [OpenAI models in Amazon Bedrock](https://developers.openai.com/api/docs/guides/amazon-bedrock)
 > - [AWS OpenAI model cards](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.html)
 > - [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html)
+
+##### Authentication
+
+The adapter authenticates to Bedrock with the first of the following credentials that is configured:
+
+1. **Bedrock bearer token** - the `key` field of the upstream config.
+2. **Static AWS credentials** - `aws_access_key_id` and `aws_secret_access_key`, optionally accompanied by `aws_session_token`.
+3. **AWS role** - `aws_assume_role_arn`. The adapter exchanges its own credentials for the temporary credentials of the given role and reuses them until they are about to expire.
+4. **AWS credential provider chain** - when nothing above is configured, the credentials are resolved by the AWS SDK itself *(instance profile, EKS service account, and other sources)*.
+
+The credentials of options 2-4 are configured either globally via `AWS_*` environment variables, or on a per upstream basis via the [upstream `extra_data`](#upstream-header-proxying) field of the DIAL Core config. The fields in the extra data override the corresponding environment variables:
+
+|`extra_data` field|Env variable|
+|---|---|
+|`aws_access_key_id`|`AWS_ACCESS_KEY_ID`|
+|`aws_secret_access_key`|`AWS_SECRET_ACCESS_KEY`|
+|`aws_session_token`|`AWS_SESSION_TOKEN`|
+|`aws_assume_role_arn`|`AWS_ASSUME_ROLE_ARN`|
+
+Since every upstream carries its own credentials, a single deployment can be [balanced](#load-balancing) across several AWS accounts. The region isn't a part of the credentials - it's taken from the upstream endpoint:
+
+<details><summary>DIAL Core Config (credentials per upstream)</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "openai.gpt-5.4",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://bedrock-mantle.us-east-1.api.aws/openai/v1/chat/completions",
+          "extra_data": {
+            "aws_access_key_id": "${AWS_ACCESS_KEY_ID}",
+            "aws_secret_access_key": "${AWS_SECRET_ACCESS_KEY}",
+            "aws_session_token": "${OPTIONAL_AWS_SESSION_TOKEN}"
+          }
+        },
+        {
+          "endpoint": "https://bedrock-mantle.eu-west-1.api.aws/openai/v1/chat/completions",
+          "extra_data": {
+            "aws_assume_role_arn": "arn:aws:iam::123456789012:role/BedrockAccessRoleName"
+          }
+        },
+        {
+          "endpoint": "https://bedrock-mantle.us-west-2.api.aws/openai/v1/chat/completions",
+          "key": "${BEDROCK_BEARER_TOKEN}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!IMPORTANT]
+> `aws_access_key_id` and `aws_secret_access_key` are only accepted together. The adapter returns `500` when one of them is configured without the other, or when `aws_session_token` is configured without both.
 
 #### OpenAI Completions API
 
@@ -1434,12 +1489,9 @@ Whereas, `endpoint` URL is required and enables Chat Completions API in DIAL.
 
 </details>
 
-Authentication follows the same rules as for Bedrock Chat Completions API:
+Authentication follows the same rules as for the [Bedrock Chat Completions API](#authentication).
 
-- static Bedrock bearer token via `key`, or
-- AWS credential provider chain from environment variables.
-
-For long-running workloads, prefer provider-based credentials (short-term token refresh via AWS credential chain) over static long-lived keys. See [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html).
+For long-running workloads, prefer the credentials that the adapter refreshes on its own *(an assumed role or the AWS credential provider chain)* over static long-lived keys. See [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html).
 
 #### Alibaba Cloud Model Studio Responses API
 
@@ -1664,7 +1716,11 @@ Deployments that do not fall into any of the categories are considered to suppor
 |NON_STREAMING_DEPLOYMENTS|``|Comma-separated list of deployments that do not support streaming. The adapter will emulate streaming by calling the model and converting its response into a single-chunk stream. Example: `"o1-mini,o1-preview"`|
 |ACCESS_TOKEN_EXPIRATION_WINDOW|10|The Azure access token is renewed this many seconds before its actual expiration time. The buffer ensures that the token does not expire in the middle of an operation due to processing time and potential network delays.|
 |AZURE_OPEN_AI_SCOPE||Provided scope of access token to Azure OpenAI services. Default: `https://cognitiveservices.azure.com/.default`|
-|AWS_PROFILE||AWS profile name used by the Bedrock token provider when Bedrock upstream `key` is not configured.|
+|AWS_ACCESS_KEY_ID||AWS credentials with an access to the Bedrock service. Used by [Bedrock deployments](#authentication) whose upstream configures neither `key`, nor the credentials in `extra_data`.|
+|AWS_SECRET_ACCESS_KEY||AWS credentials with an access to the Bedrock service.|
+|AWS_SESSION_TOKEN||AWS session token accompanying the credentials above. Only applicable to temporary credentials.|
+|AWS_ASSUME_ROLE_ARN||AWS role to assume in order to access the Bedrock service, e.g. `arn:aws:iam::123456789012:role/RoleName`. Ignored when the static credentials above are configured.|
+|AWS_CREDENTIALS_EXPIRATION_WINDOW|300|The credentials of an assumed AWS role are renewed this many seconds before their actual expiration time. The buffer ensures that the credentials do not expire in the middle of an operation due to processing time and potential network delays.|
 |API_VERSIONS_MAPPING|`{}`|Mapping of API versions for requests to the Azure OpenAI Chat Completions API. Example: `{"2023-03-15-preview": "2023-05-15", "": "2024-02-15-preview"}`. An empty key sets the default API version when the user does not pass one in the request. Find the details in the section about [API versioning](#api-versioning).|
 |ELIMINATE_EMPTY_CHOICES|False|When enabled, the response stream is guaranteed to exclude chunks with an empty list of choices. This is useful when a DIAL client doesn't support such chunks. An empty list of choices can be generated by Azure OpenAI in at least two cases: (1) when the **Content filter** is not disabled, Azure includes [prompt filter results](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter?tabs=warning%2Cuser-prompt%2Cpython-new#prompt-annotation-message) in the first chunk with an empty list of choices; (2) when `stream_options.include_usage` is enabled, the last chunk contains usage data and an empty list of choices.|
 |WEB_CONCURRENCY|1|Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).|
@@ -1895,6 +1951,7 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
 
 The [upstream `extra_data`](https://github.com/epam/ai-dial-core/blob/development/docs/dynamic-settings/models.md#modelsmodel_nameupstreams) field in the DIAL Core config allows specifying which incoming request headers the adapter should forward to the upstream. DIAL Core provides `extra_data` to the adapter inside the `X-UPSTREAM-EXTRA-DATA` request header. The adapter then attaches every header listed in `headers_to_proxy` that is present in the incoming request to the outgoing upstream call.
 
+The same field also carries the [AWS credentials](#authentication) of the Amazon Bedrock upstreams.
 
 A practical use case is routing requests within a vLLM cluster: [DIAL Chat](https://github.com/epam/ai-dial-chat) generates an `x-conversation-id` header for every conversation, and a vLLM routing can use it as an affinity key to route all turns of the same conversation to the same worker.
 
