@@ -12,7 +12,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.request import get_app_config
 from aidial_adapter_openai.utils.upstream_headers import (
-    UPSTREAM_EXTRA_DATA_HEADER,
+    _UPSTREAM_EXTRA_DATA_HEADER,
 )
 from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
 
@@ -100,7 +100,7 @@ def create_azure_openai_client(
         if upstream_endpoint is not None:
             default_headers["X-UPSTREAM-ENDPOINT"] = upstream_endpoint
         if upstream_extra_data is not None:
-            default_headers[UPSTREAM_EXTRA_DATA_HEADER] = json.dumps(
+            default_headers[_UPSTREAM_EXTRA_DATA_HEADER] = json.dumps(
                 upstream_extra_data
             )
 

@@ -12,7 +12,7 @@ from aidial_adapter_openai.utils import auth
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import BedrockOpenAIEndpoint
 from aidial_adapter_openai.utils.upstream_headers import (
-    UPSTREAM_EXTRA_DATA_HEADER,
+    _UPSTREAM_EXTRA_DATA_HEADER,
 )
 
 _REGION = "us-east-1"
@@ -145,7 +145,7 @@ async def _get_credentials(
     headers = (
         {}
         if extra_data is None
-        else {UPSTREAM_EXTRA_DATA_HEADER: json.dumps(extra_data)}
+        else {_UPSTREAM_EXTRA_DATA_HEADER: json.dumps(extra_data)}
     )
     return await auth.get_credentials(
         headers, vendor=Vendor.AWS, endpoint=_ENDPOINT
@@ -213,24 +213,34 @@ async def test_credential_resolution(
 
 
 @pytest.mark.parametrize(
-    "extra_data",
+    "extra_data, err_msg",
     [
-        pytest.param({"aws_access_key_id": "key"}, id="access_key_id_alone"),
         pytest.param(
-            {"aws_secret_access_key": "secret"}, id="secret_access_key_alone"
+            {"aws_access_key_id": "key"},
+            "Incomplete AWS credentials: aws_access_key_id and aws_secret_access_key must be configured together.",
+            id="access_key_id_alone",
         ),
-        pytest.param({"aws_session_token": "token"}, id="session_token_alone"),
+        pytest.param(
+            {"aws_secret_access_key": "secret"},
+            "Incomplete AWS credentials: aws_access_key_id and aws_secret_access_key must be configured together.",
+            id="secret_access_key_alone",
+        ),
+        pytest.param(
+            {"aws_session_token": "token"},
+            "Incomplete AWS credentials: aws_session_token requires aws_access_key_id and aws_secret_access_key.",
+            id="session_token_alone",
+        ),
     ],
 )
 async def test_incomplete_static_credentials_are_rejected(
-    extra_data: dict[str, Any],
+    extra_data: dict[str, Any], err_msg: str
 ):
     with pytest.raises(DialException) as exc_info:
         await _get_credentials(extra_data)
 
     error = exc_info.value
-    assert error.status_code == 400
-    assert error.message.startswith("Incomplete AWS credentials")
+    assert error.status_code == 500
+    assert error.message == err_msg
 
 
 async def test_assume_role_exchanges_the_arn_for_temporary_credentials(
@@ -258,7 +268,7 @@ async def test_assumed_credentials_are_reused_until_they_near_expiration(
     monkeypatch.setattr(
         auth.time,
         "time",
-        lambda: sts_client.expires_on - auth.AWS_EXPIRATION_WINDOW_IN_SEC / 2,
+        lambda: sts_client.expires_on - auth.EXPIRATION_WINDOW_IN_SEC / 2,
     )
 
     assert await _get_credentials(extra_data) == _aws_creds(

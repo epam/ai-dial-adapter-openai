@@ -4,7 +4,7 @@ from http import HTTPStatus
 from aidial_sdk.exceptions import HTTPException
 from pydantic import BaseModel, ValidationError
 
-UPSTREAM_EXTRA_DATA_HEADER = "X-UPSTREAM-EXTRA-DATA"
+_UPSTREAM_EXTRA_DATA_HEADER = "X-UPSTREAM-EXTRA-DATA"
 
 
 class UpstreamExtraData(BaseModel):
@@ -24,7 +24,7 @@ class UpstreamExtraData(BaseModel):
 def get_upstream_extra_data(
     request_headers: Mapping[str, str],
 ) -> UpstreamExtraData:
-    extra_data_header = request_headers.get(UPSTREAM_EXTRA_DATA_HEADER, "{}")
+    extra_data_header = request_headers.get(_UPSTREAM_EXTRA_DATA_HEADER, "{}")
 
     try:
         return UpstreamExtraData.model_validate_json(extra_data_header)
@@ -32,7 +32,7 @@ def get_upstream_extra_data(
         raise HTTPException(
             status_code=HTTPStatus.BAD_GATEWAY,
             type="internal_server_error",
-            message=f"Invalid {UPSTREAM_EXTRA_DATA_HEADER} header: {e}",
+            message=f"Invalid {_UPSTREAM_EXTRA_DATA_HEADER} header: {e}",
         ) from e
 
 

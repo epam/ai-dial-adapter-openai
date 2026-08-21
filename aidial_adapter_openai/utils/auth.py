@@ -6,7 +6,7 @@ from typing import Any, assert_never
 
 import boto3
 from aidial_sdk.exceptions import HTTPException as DialException
-from aidial_sdk.exceptions import InternalServerError, InvalidRequestError
+from aidial_sdk.exceptions import InternalServerError
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
@@ -28,9 +28,6 @@ from aidial_adapter_openai.utils.upstream_headers import (
 
 EXPIRATION_WINDOW_IN_SEC: int = int(
     os.getenv("ACCESS_TOKEN_EXPIRATION_WINDOW", 10)
-)
-AWS_EXPIRATION_WINDOW_IN_SEC: int = int(
-    os.getenv("AWS_CREDENTIALS_EXPIRATION_WINDOW", 300)
 )
 AZURE_OPEN_AI_SCOPE: str = os.getenv(
     "AZURE_OPEN_AI_SCOPE", "https://cognitiveservices.azure.com/.default"
@@ -134,7 +131,7 @@ class _AWSAssumeRoleProvider:
 
             if (
                 self._credentials is None
-                or now + AWS_EXPIRATION_WINDOW_IN_SEC > self._expires_on
+                or now + EXPIRATION_WINDOW_IN_SEC > self._expires_on
             ):
                 try:
                     (
@@ -212,13 +209,13 @@ def _select_credentials(
         )
 
     if access_key_id or secret_access_key:
-        raise InvalidRequestError(
+        raise InternalServerError(
             "Incomplete AWS credentials: aws_access_key_id and "
             "aws_secret_access_key must be configured together."
         )
 
     if session_token:
-        raise InvalidRequestError(
+        raise InternalServerError(
             "Incomplete AWS credentials: aws_session_token requires "
             "aws_access_key_id and aws_secret_access_key."
         )
