@@ -35,7 +35,7 @@ async def _get_anthropic_client(
             "Expected Anthropic API /v1/messages endpoint."
         )
 
-    creds = await get_credentials(headers, vendor=Vendor.AZURE)
+    creds = await get_credentials(headers, vendor=Vendor.AZURE, endpoint=None)
     return endpoint.get_client({**creds})
 
 

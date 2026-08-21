@@ -38,15 +38,17 @@ from aidial_adapter_openai.utils.parsers import (
 )
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
+DeploymentAPIEndpoint = (
+    AzureOpenAIEndpoint
+    | OpenAIEndpoint
+    | AnthropicEndpoint
+    | BedrockOpenAIEndpoint
+)
+
 
 class DeploymentAPIType(ExtraForbidModel):
     deployment_type: D
-    endpoint: (
-        AzureOpenAIEndpoint
-        | OpenAIEndpoint
-        | AnthropicEndpoint
-        | BedrockOpenAIEndpoint
-    )
+    endpoint: DeploymentAPIEndpoint
 
 
 class Vendor(StrEnum):
