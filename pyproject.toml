@@ -44,7 +44,7 @@ aidial-sdk = { version = "0.39.0", extras = ["telemetry"] }
 aidial-adapter-anthropic = "0.16.0"
 anthropic = "0.105.0"
 jmespath = "1.1.0"
-aidial-client = "0.11.0"
+aidial-client = "0.16.1"
 aws-bedrock-token-generator = "^1.1.0"
 
 [tool.poetry.group.test.dependencies]
