@@ -1,8 +1,7 @@
 from collections.abc import Mapping
-from typing import assert_never, cast
+from typing import assert_never
 
 import fastapi
-from aidial_client.types.chat import ChatCompletionRequest
 from anthropic import AsyncAnthropic
 from fastapi import Request
 from openai import AsyncAzureOpenAI
@@ -50,7 +49,6 @@ from aidial_adapter_openai.chat_completions.vllm import (
 from aidial_adapter_openai.completions import chat_completion as completion
 from aidial_adapter_openai.configuration.app_config import (
     ApplicationConfig,
-    Vendor,
 )
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
@@ -264,11 +262,6 @@ async def call_chat_completion(
             )
 
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
-            if vendor == Vendor.ALIBABA:
-                alibaba.convert_chat_completions_request(
-                    cast(ChatCompletionRequest, request_body)
-                )
-
             response = await gpt_chat_completion(
                 request=request_body,
                 request_headers=request_headers,
@@ -276,6 +269,7 @@ async def call_chat_completion(
                 file_storage=file_storage,
                 tokenizer=_get_tokenizer(),
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
+                vendor=vendor,
             )
 
             response.body = extract_reasoning_tokens(response.body)

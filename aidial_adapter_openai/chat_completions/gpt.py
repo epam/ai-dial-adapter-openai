@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator, Mapping
 from typing import cast
 
+from aidial_client.types.chat import ChatCompletionRequest
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from openai.types.chat.completion_create_params import (
@@ -10,8 +11,10 @@ from openai.types.chat.completion_create_params import (
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.configuration.app_config import Vendor
 from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
+from aidial_adapter_openai.providers import alibaba
 from aidial_adapter_openai.utils.caching import (
     build_cache_headers,
     get_chat_completions_breakpoint_path,
@@ -63,6 +66,7 @@ async def chat_completion(
     file_storage: FileStorage | None,
     tokenizer: Tokenizer,
     eliminate_empty_choices: bool,
+    vendor: Vendor,
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
     n: int = request.get("n") or 1
     model_name = request["model"]
@@ -110,6 +114,12 @@ async def chat_completion(
             return prompt_tokens
 
     request["messages"] = [m.raw_message for m in multi_modal_messages]
+
+    # The upstream-specific rewrites go last, once the request is final
+    if vendor == Vendor.ALIBABA:
+        alibaba.convert_chat_completions_request(
+            cast(ChatCompletionRequest, request)
+        )
 
     response: (
         AsyncStream[ChatCompletionChunk] | ChatCompletion

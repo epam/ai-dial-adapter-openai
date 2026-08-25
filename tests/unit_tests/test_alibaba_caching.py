@@ -18,12 +18,18 @@ _GLOB_DEPLOYMENT = "ali.model-name"
 _LISTED_DEPLOYMENT = "test-alibaba-model-name"
 
 _SESSION_CACHE_HEADER = "x-dashscope-session-cache"
+_IMAGE_URL = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+    "AAAADUlEQVR42mP8z8AAAwAB/gEBmVRxCwAAAABJRU5ErkJggg=="
+)
+_BREAKPOINT_PATH_HEADER = "X-DIAL-CACHE-BREAKPOINT-PATH"
 
 
 @pytest.fixture
 async def test_app():
     app_config = ApplicationConfig(
-        ALIBABA_DEPLOYMENTS=["ali.*", _LISTED_DEPLOYMENT]
+        ALIBABA_DEPLOYMENTS=["ali.*", _LISTED_DEPLOYMENT],
+        GPT4O_DEPLOYMENTS=["ali.*"],
     )
     async with create_test_client(app_config=app_config) as client:
         yield client
@@ -56,6 +62,7 @@ async def _post_chat_completions(
     deployment_id: str,
     messages: list[dict[str, Any]],
     upstream_endpoint: str = _CHAT_COMPLETIONS_UPSTREAM,
+    extra_headers: dict[str, str] | None = None,
     **extra_body: Any,
 ) -> httpx.Response:
     return await test_app.post(
@@ -65,6 +72,7 @@ async def _post_chat_completions(
         headers={
             "X-UPSTREAM-KEY": "test-upstream-api-key",
             "X-UPSTREAM-ENDPOINT": upstream_endpoint,
+            **(extra_headers or {}),
         },
     )
 
@@ -185,6 +193,82 @@ async def test_top_level_cache_breakpoint_marks_the_last_message(
             "content": [{"type": "text", "text": "2+3=?", **_CACHE_CONTROL}],
         },
     ]
+
+
+@respx.mock
+@pytest.mark.parametrize("breakpoint_message_index", [0, 3, None])
+async def test_reported_dial_breakpoint_path_covers_the_whole_prompt(
+    test_app: httpx.AsyncClient, breakpoint_message_index: int | None
+):
+    _mock_chat_completions_upstream()
+
+    # The path is only reported above the caching token threshold
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": "word " * 2000},
+        {"role": "user", "content": "2+3=?"},
+        {"role": "assistant", "content": "5"},
+        {"role": "user", "content": "and 3+4=?"},
+    ]
+    if breakpoint_message_index is not None:
+        messages[breakpoint_message_index] |= _CACHE_BREAKPOINT
+
+    response = await _post_chat_completions(
+        test_app,
+        deployment_id=_GLOB_DEPLOYMENT,
+        messages=messages,
+        # DIAL Core sends the header for an auto-caching deployment
+        extra_headers={_BREAKPOINT_PATH_HEADER: "whatever"},
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.headers[_BREAKPOINT_PATH_HEADER] == "prefix.body.messages[3]"
+    )
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    "message",
+    [
+        pytest.param(
+            {
+                "role": "user",
+                "content": "what is on the picture?",
+                "custom_content": {
+                    "attachments": [{"type": "image/png", "url": _IMAGE_URL}]
+                },
+            },
+            id="dial-attachment",
+        ),
+        pytest.param(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "what is on the picture?"},
+                    {"type": "image_url", "image_url": {"url": _IMAGE_URL}},
+                ],
+            },
+            id="content-parts",
+        ),
+    ],
+)
+async def test_cache_breakpoint_marks_last_content_part(
+    test_app: httpx.AsyncClient, message: dict[str, Any]
+):
+    _mock_chat_completions_upstream()
+
+    response = await _post_chat_completions(
+        test_app,
+        # An image-capable deployment served by Model Studio
+        deployment_id=_GLOB_DEPLOYMENT,
+        messages=[message | _CACHE_BREAKPOINT],
+    )
+
+    assert response.status_code == 200
+    content = _upstream_messages()[0]["content"]
+    assert [part["type"] for part in content] == ["text", "image_url"]
+    assert "cache_control" not in content[0]
+    assert content[-1]["cache_control"] == _CACHE_CONTROL["cache_control"]
 
 
 @respx.mock
