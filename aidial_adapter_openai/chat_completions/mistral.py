@@ -5,6 +5,9 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
+from aidial_adapter_openai.dial_api.normalize_request import (
+    normalize_dial_request,
+)
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import map_stream
@@ -138,7 +141,9 @@ async def chat_completion(
 ) -> AsyncIterator[dict] | dict:
     response: (
         AsyncStream[ChatCompletionChunk] | ChatCompletion
-    ) = await call_with_extra_body(client.chat.completions.create, request)
+    ) = await call_with_extra_body(
+        client.chat.completions.create, normalize_dial_request(request)
+    )
 
     if isinstance(response, AsyncStream):
         raw_stream = map_stream(_response_to_dict, response)
