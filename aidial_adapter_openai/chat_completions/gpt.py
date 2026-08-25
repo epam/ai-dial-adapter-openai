@@ -10,6 +10,9 @@ from openai.types.chat.completion_create_params import (
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
+from aidial_adapter_openai.dial_api.normalize_request import (
+    normalize_dial_request,
+)
 from aidial_adapter_openai.dial_api.request import extract_max_prompt_tokens
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.caching import (
@@ -113,7 +116,9 @@ async def chat_completion(
 
     response: (
         AsyncStream[ChatCompletionChunk] | ChatCompletion
-    ) = await call_with_extra_body(client.chat.completions.create, request)
+    ) = await call_with_extra_body(
+        client.chat.completions.create, normalize_dial_request(request)
+    )
 
     if isinstance(response, AsyncStream):
         response_headers = await build_cache_headers(
