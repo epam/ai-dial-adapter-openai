@@ -22,7 +22,9 @@ async def get_client(
 ) -> _Client:
     deployment_endpoint = deployment.endpoint
     vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
-    creds = await get_credentials(request.headers, vendor=vendor)
+    creds = await get_credentials(
+        request.headers, vendor=vendor, endpoint=deployment_endpoint
+    )
     extra_vendor_headers = alibaba.get_extra_headers(
         vendor, deployment.deployment_type
     )

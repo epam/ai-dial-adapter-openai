@@ -17,7 +17,10 @@ from aidial_adapter_openai.exceptions.handlers import (
     adapter_exception_handler,
     fastapi_exception_handler,
 )
-from aidial_adapter_openai.utils.auth import get_azure_token_provider
+from aidial_adapter_openai.utils.auth import (
+    get_assume_role_provider,
+    get_azure_token_provider,
+)
 from aidial_adapter_openai.utils.cache import cache
 from aidial_adapter_openai.utils.http_client import (
     get_anthropic_httpx_client,
@@ -44,6 +47,7 @@ async def lifespan(app: FastAPI):
     await get_anthropic_httpx_client.clear()
     await get_dial_client_pool.clear()
     await get_azure_token_provider.clear()
+    await get_assume_role_provider.clear()
 
 
 def create_app(

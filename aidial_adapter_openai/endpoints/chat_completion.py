@@ -119,7 +119,9 @@ async def call_chat_completion(
     logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
     vendor = app_config.get_vendor(deployment_id, endpoint)
-    creds = await get_credentials(request_headers, vendor=vendor)
+    creds = await get_credentials(
+        request_headers, vendor=vendor, endpoint=endpoint
+    )
 
     upstream_extra_headers = get_upstream_extra_headers(request_headers)
     upstream_extra_headers |= alibaba.get_extra_headers(vendor, deployment_type)

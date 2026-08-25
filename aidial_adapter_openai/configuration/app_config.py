@@ -40,6 +40,13 @@ from aidial_adapter_openai.utils.parsers import (
 )
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
+DeploymentAPIEndpoint = (
+    AzureOpenAIEndpoint
+    | OpenAIEndpoint
+    | AnthropicEndpoint
+    | BedrockOpenAIEndpoint
+)
+
 
 class DeploymentPatterns(list[str]):
     def __contains__(self, deployment_id: object) -> bool:
@@ -53,12 +60,7 @@ DeploymentList = Annotated[list[str], AfterValidator(DeploymentPatterns)]
 
 class DeploymentAPIType(ExtraForbidModel):
     deployment_type: D
-    endpoint: (
-        AzureOpenAIEndpoint
-        | OpenAIEndpoint
-        | AnthropicEndpoint
-        | BedrockOpenAIEndpoint
-    )
+    endpoint: DeploymentAPIEndpoint
 
 
 class Vendor(StrEnum):

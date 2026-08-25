@@ -1,6 +1,7 @@
 import contextlib
+import json
 from collections.abc import Generator
-from typing import Protocol
+from typing import Any, Protocol
 
 import httpx
 import pytest
@@ -10,6 +11,9 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.utils.request import get_app_config
+from aidial_adapter_openai.utils.upstream_headers import (
+    _UPSTREAM_EXTRA_DATA_HEADER,
+)
 from tests.integration_tests.constants import TEST_DEPLOYMENTS_CONFIG
 
 _TEST_TIMEOUT = httpx.Timeout(30, connect=10)
@@ -73,6 +77,7 @@ class AzureOpenAIClientFactory(Protocol):
         api_version: str | None = None,
         upstream_endpoint: str | None = None,
         upstream_key: str | None = None,
+        upstream_extra_data: dict[str, Any] | None = None,
     ) -> AsyncAzureOpenAI: ...
 
 
@@ -87,12 +92,17 @@ def create_azure_openai_client(
         api_version: str | None = None,
         upstream_endpoint: str | None = None,
         upstream_key: str | None = "test-upstream-api-key",
+        upstream_extra_data: dict[str, Any] | None = None,
     ) -> AsyncAzureOpenAI:
         default_headers: dict[str, str] = {}
         if upstream_key is not None:
             default_headers["X-UPSTREAM-KEY"] = upstream_key
         if upstream_endpoint is not None:
             default_headers["X-UPSTREAM-ENDPOINT"] = upstream_endpoint
+        if upstream_extra_data is not None:
+            default_headers[_UPSTREAM_EXTRA_DATA_HEADER] = json.dumps(
+                upstream_extra_data
+            )
 
         return AsyncAzureOpenAI(
             azure_endpoint=str(test_app.base_url),
