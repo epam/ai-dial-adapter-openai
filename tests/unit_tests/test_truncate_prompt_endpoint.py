@@ -25,7 +25,8 @@ _UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS = [
 ]
 _UNSUPPORTED_RESPONSES_VENDOR_ERROR_MESSAGE = (
     "The tokenize and truncate_prompt endpoints are not implemented for "
-    "Responses API deployments backed by Azure OpenAI or Amazon Bedrock."
+    "Responses API deployments backed by Azure OpenAI, Amazon Bedrock or "
+    "Alibaba Cloud Model Studio."
 )
 
 # "this is four tokens" -> 4 content tokens + 3 per-message + 1 role = 8 tokens.

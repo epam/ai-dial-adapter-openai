@@ -236,6 +236,27 @@ def test_app_config_anthropic_messages(
     assert endpoint.foundry == foundry
 
 
+@pytest.mark.parametrize(
+    ("deployment_id", "expected_type"),
+    [
+        ("vllm.llama3", D.VLLM_CHAT_COMPLETIONS_API),
+        ("gpt-4o-mini", D.GPT_GENERIC),
+        # the matching is case-sensitive
+        ("VLLM.llama3", D.GPT_GENERIC),
+    ],
+)
+def test_deployment_glob_patterns(
+    origin: str, deployment_id: str, expected_type: D
+):
+    cfg = ApplicationConfig(VLLM_DEPLOYMENTS=["vllm.*"])
+
+    ty = cfg.get_chat_completion_deployment_type(
+        deployment_id, f"{origin}/whatever/chat/completions"
+    )
+
+    assert ty.deployment_type == expected_type
+
+
 def test_get_vendor_for_generic_deployment(deployment: str):
     cfg = ApplicationConfig()
     assert (

@@ -1639,18 +1639,23 @@ The following variables cluster all deployments into the groups of deployments w
 
 |Variable|Default|Description|
 |---|---|---|
-|DALLE3_DEPLOYMENTS|``|Comma-separated list of deployments that support DALL-E 3 API. Example: `dall-e-3,dalle3,dall-e`|
-|DALLE3_AZURE_API_VERSION|2024-02-01|The API version for requests to the Azure DALL·E 3 API|
 |GPT_IMAGE_1_DEPLOYMENTS|``|Comma-separated list of deployments that support GPT-Image 1 API. Example: `gpt-image-1`|
 |GPT_IMAGE_1_AZURE_API_VERSION|2024-02-01|The API version for requests to the Azure GPT-Image 1 API|
+|DALLE3_DEPLOYMENTS|``|Comma-separated list of deployments that support DALL-E 3 API. Example: `dall-e-3,dalle3,dall-e`|
+|DALLE3_AZURE_API_VERSION|2024-02-01|The API version for requests to the Azure DALL·E 3 API|
 |MISTRAL_DEPLOYMENTS|``|Comma-separated list of deployments that support Mistral Large Azure API. Example: `mistral-large-azure,mistral-large`|
 |DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
-|GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
-|GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
 |VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream, including [vLLM embedding deployments](#vllm-embeddings-api). Example: `vllm-llama3,embeddinggemma`|
 |QWEN3_ASR_VLLM_DEPLOYMENTS|``| Comma-separated list of [Qwen3-ASR deployments](#qwen3-asr) served via vLLM. Example: `qwen3-asr`|
+|GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
+|GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
+|ALIBABA_DEPLOYMENTS|``|Comma-separated list of Alibaba Cloud Model Studio deployments. The setting enables the Model Studio [prompt caching](#prompt-caching). Example: `ali.*,qwen3-max`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
+
+Every `*_DEPLOYMENTS` variable accepts a comma-separated list of deployment names or [glob patterns](https://docs.python.org/3/library/fnmatch.html), e.g. `ali.*` covers all the deployments with the `ali.` name prefix. The matching is case-sensitive.
+
+A deployment matching more than one of the variables is assigned to the one which goes first in the table below.
 
 Deployments that do not fall into any of the categories are considered to support text-to-text chat completion OpenAI API or text embeddings OpenAI API.
 
@@ -1961,6 +1966,11 @@ When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and 
 
 > [!IMPORTANT]
 > Verify that the deployment actually supports [prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching#supported-models) before enabling it.
+
+[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/context-cache) deployments are declared in the `ALIBABA_DEPLOYMENTS` environment variable. The caching is enabled for them as follows:
+
+1. In the Chat Completions API deployments, the DIAL cache breakpoints declared in messages via `custom_fields.cache_breakpoint` are converted into the Model Studio ones - the Anthropic-style `cache_control` markers. The markers aren't supported in the tool definitions, therefore the tool-level DIAL breakpoints are ignored.
+2. In the Responses API deployments, which do not support the markers, the implicit caching of the conversation prefix is requested via the `x-dashscope-session-cache: enable` upstream header. In the [Responses API endpoints](#responses-api-deployments), where the deployment id isn't a part of the request path, the deployment is recognized by the `X-DIAL-OVERRIDE-NAME` header, or by the `model` request field when the header is missing.
 
 ---
 

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 from enum import StrEnum
-from typing import assert_never
+from fnmatch import fnmatchcase
+from typing import Annotated, assert_never
 
 from aidial_sdk.exceptions import InternalServerError
+from pydantic import AfterValidator
 
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
@@ -39,6 +41,16 @@ from aidial_adapter_openai.utils.parsers import (
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
 
 
+class DeploymentPatterns(list[str]):
+    def __contains__(self, deployment_id: object) -> bool:
+        return isinstance(deployment_id, str) and any(
+            fnmatchcase(deployment_id, pattern) for pattern in self
+        )
+
+
+DeploymentList = Annotated[list[str], AfterValidator(DeploymentPatterns)]
+
+
 class DeploymentAPIType(ExtraForbidModel):
     deployment_type: D
     endpoint: (
@@ -54,28 +66,30 @@ class Vendor(StrEnum):
     VLLM = "vllm"
     AZURE = "azure"
     OPENAI_PLATFORM = "openai_platform"
+    ALIBABA = "alibaba"
 
 
 class ApplicationConfig(ExtraForbidModel):
     TIKTOKEN_MODEL_MAPPING: dict[str, str] = {}
 
-    DALLE3_DEPLOYMENTS: list[str] = []
+    DALLE3_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
     DALLE3_AZURE_API_VERSION: str = "2024-02-01"
 
-    GPT_IMAGE_1_DEPLOYMENTS: list[str] = []
+    GPT_IMAGE_1_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
     GPT_IMAGE_1_AZURE_API_VERSION: str = "2025-04-01-preview"
 
-    MISTRAL_DEPLOYMENTS: list[str] = []
-    DATABRICKS_DEPLOYMENTS: list[str] = []
-    GPT4O_DEPLOYMENTS: list[str] = []
-    GPT4O_MINI_DEPLOYMENTS: list[str] = []
-    VLLM_DEPLOYMENTS: list[str] = []
-    QWEN3_ASR_VLLM_DEPLOYMENTS: list[str] = []
-    AZURE_AI_VISION_DEPLOYMENTS: list[str] = []
+    MISTRAL_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
+    DATABRICKS_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
+    GPT4O_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
+    GPT4O_MINI_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
+    VLLM_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
+    QWEN3_ASR_VLLM_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
+    AZURE_AI_VISION_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
+    ALIBABA_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
 
     API_VERSIONS_MAPPING: dict[str, str] = {}
     COMPLETION_DEPLOYMENTS_PROMPT_TEMPLATES: dict[str, str] = {}
-    NON_STREAMING_DEPLOYMENTS: list[str] = []
+    NON_STREAMING_DEPLOYMENTS: DeploymentList = DeploymentPatterns()
     ELIMINATE_EMPTY_CHOICES: bool = False
     SSE_HEARTBEAT_INTERVAL: float | None = None
 
@@ -110,6 +124,9 @@ class ApplicationConfig(ExtraForbidModel):
         ]:
             if deployment_id in deployments:
                 return Vendor.VLLM
+
+        if deployment_id in self.ALIBABA_DEPLOYMENTS:
+            return Vendor.ALIBABA
 
         if (
             isinstance(endpoint, OpenAIEndpoint)
@@ -290,6 +307,7 @@ class ApplicationConfig(ExtraForbidModel):
                 "VLLM_DEPLOYMENTS",
                 "QWEN3_ASR_VLLM_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
+                "ALIBABA_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
             )
         }

@@ -1,11 +1,13 @@
 from collections.abc import Mapping
-from typing import assert_never
+from typing import assert_never, cast
 
 import fastapi
+from aidial_client.types.chat import ChatCompletionRequest
 from anthropic import AsyncAnthropic
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
+import aidial_adapter_openai.providers.alibaba as alibaba
 from aidial_adapter_openai.audio_api.speech.adapter import (
     chat_completion as audio_speech_gen,
 )
@@ -46,7 +48,10 @@ from aidial_adapter_openai.chat_completions.vllm import (
     extract_reasoning as vllm_extract_reasoning,
 )
 from aidial_adapter_openai.completions import chat_completion as completion
-from aidial_adapter_openai.configuration.app_config import ApplicationConfig
+from aidial_adapter_openai.configuration.app_config import (
+    ApplicationConfig,
+    Vendor,
+)
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
@@ -119,6 +124,8 @@ async def call_chat_completion(
     creds = await get_credentials(request_headers, vendor=vendor)
 
     upstream_extra_headers = get_upstream_extra_headers(request_headers)
+    upstream_extra_headers |= alibaba.get_extra_headers(vendor, deployment_type)
+
     client = endpoint.get_client(
         {**creds, "api_version": api_version, "headers": upstream_extra_headers}
     )
@@ -257,6 +264,11 @@ async def call_chat_completion(
             )
 
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
+            if vendor == Vendor.ALIBABA:
+                alibaba.convert_chat_completions_request(
+                    cast(ChatCompletionRequest, request_body)
+                )
+
             response = await gpt_chat_completion(
                 request=request_body,
                 request_headers=request_headers,

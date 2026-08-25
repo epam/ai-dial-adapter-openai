@@ -87,7 +87,7 @@ async def get_credentials(
             }
         case Vendor.AWS:
             return {}
-        case Vendor.VLLM | Vendor.OPENAI_PLATFORM:
+        case Vendor.VLLM | Vendor.OPENAI_PLATFORM | Vendor.ALIBABA:
             raise DialException(
                 "X-UPSTREAM-KEY header is missing", 401, "Unauthorized"
             )
