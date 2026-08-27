@@ -12,10 +12,13 @@ from tests.utils.openai import chat_completion, user
 
 D = DeploymentConfig
 
+# Matches both the bedrock-mantle and the bedrock-runtime hosts.
+_BEDROCK_HOST_MARKER = "//bedrock-"
+
 _bedrock_text_deployments: list[D] = [
     deployment
     for deployment in TEST_DEPLOYMENTS_CONFIG.chat_deployments
-    if "bedrock-mantle." in deployment.upstream_endpoint
+    if _BEDROCK_HOST_MARKER in deployment.upstream_endpoint
     and not deployment.supports_video_generation
     and not deployment.supports_tts
     and not deployment.supports_stt
