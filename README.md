@@ -673,8 +673,19 @@ Note the difference from the Azure OpenAI configuration:
 
 #### Amazon Bedrock OpenAI Chat Completions API
 
-The adapter supports OpenAI models deployed through Amazon Bedrock Mantle.
-Use a Bedrock model id with the `openai.` prefix in `overrideName` (for example `openai.gpt-5.4`):
+The adapter supports OpenAI models deployed through Amazon Bedrock. Two upstream endpoint formats are recognized:
+
+- **Bedrock Mantle** - `https://bedrock-mantle.${AWS_REGION}.api.aws/openai/v1/chat/completions`
+- **Bedrock Runtime** - `https://bedrock-runtime.${AWS_REGION}.amazonaws.com/openai/v1/chat/completions`
+
+Both formats are authenticated the same way, but they expect different model ids in `overrideName`:
+
+|Upstream endpoint|`overrideName`|
+|---|---|
+|Bedrock Mantle|`openai.gpt-5.4`|
+|Bedrock Runtime|`us.openai.gpt-5.4` *(the model id prefixed with the region)*|
+
+Model availability differs between the two formats - check the [AWS OpenAI model cards](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.html) before choosing one.
 
 <details><summary>DIAL Core Config</summary>
 
@@ -698,7 +709,7 @@ Use a Bedrock model id with the `openai.` prefix in `overrideName` (for example 
 
 </details>
 
-As in other v1-style upstreams, set `overrideName` to the Bedrock model id (for example `openai.gpt-5.4`).
+As in other v1-style upstreams, set `overrideName` to the Bedrock model id.
 
 > [!NOTE]
 > Bedrock support and feature parity can differ from direct OpenAI API support. Validate your model, region, and required capabilities before rollout:
@@ -1465,7 +1476,12 @@ Whereas, `endpoint` URL is required and enables Chat Completions API in DIAL.
 #### Amazon Bedrock OpenAI Responses API
 
 > [!IMPORTANT]
-> Use `overrideName` with a Bedrock model id in `openai.*` format (for example `openai.gpt-5.4`).
+> Use `overrideName` with a Bedrock model id in `openai.*` format. Bedrock Mantle takes the plain model id *(`openai.gpt-5.4`)*, while Bedrock Runtime expects it prefixed with the region *(`us.openai.gpt-5.4`)*.
+
+Both Bedrock upstream endpoint formats are supported:
+
+- **Bedrock Mantle** - `https://bedrock-mantle.${AWS_REGION}.api.aws/openai/v1/responses`
+- **Bedrock Runtime** - `https://bedrock-runtime.${AWS_REGION}.amazonaws.com/openai/v1/responses`
 
 <details><summary>DIAL Core Config</summary>
 

@@ -1,7 +1,9 @@
 import pytest
 from aidial_sdk.exceptions import HTTPException as DialException
+from openai import AsyncBedrockOpenAI, AsyncOpenAI
 
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
+from aidial_adapter_openai.utils import parsers
 from aidial_adapter_openai.utils.parsers import (
     AzureOpenAIEndpoint,
     BedrockOpenAIEndpoint,
@@ -29,6 +31,16 @@ RESPONSE_CASES = [
         "https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses",
         BedrockOpenAIEndpoint(
             bedrock_region="us-east-2",
+            client="mantle",
+            openai_base_url="https://bedrock-mantle.us-east-2.api.aws/openai/v1",
+        ),
+    ),
+    (
+        "https://bedrock-runtime.us-east-2.amazonaws.com/openai/v1/responses",
+        BedrockOpenAIEndpoint(
+            bedrock_region="us-east-2",
+            client="runtime",
+            openai_base_url="https://bedrock-runtime.us-east-2.amazonaws.com/openai/v1",
         ),
     ),
 ]
@@ -133,6 +145,23 @@ NORMAL_CHAT_CASES = [
         "https://bedrock-mantle.eu-west-1.api.aws/openai/v1/chat/completions",
         BedrockOpenAIEndpoint(
             bedrock_region="eu-west-1",
+            client="mantle",
+            openai_base_url="https://bedrock-mantle.eu-west-1.api.aws/openai/v1",
+        ),
+    ),
+    (
+        "https://bedrock-runtime.eu-west-1.amazonaws.com/openai/v1/chat/completions",
+        BedrockOpenAIEndpoint(
+            bedrock_region="eu-west-1",
+            client="runtime",
+            openai_base_url="https://bedrock-runtime.eu-west-1.amazonaws.com/openai/v1",
+        ),
+    ),
+    # A host merely starting with the Bedrock one is not Bedrock.
+    (
+        "https://bedrock-runtime.eu-west-1.amazonaws.com.example.com/openai/v1/chat/completions",
+        OpenAIEndpoint(
+            openai_base_url="https://bedrock-runtime.eu-west-1.amazonaws.com.example.com/openai/v1",
         ),
     ),
 ]
@@ -215,6 +244,26 @@ def test_responses_parser(endpoint, parsed):
 def test_optional_chat_endpoint_parser(endpoint, parsed):
     result = chat_completions_optional_parser.parse(endpoint)
     assert result == parsed
+
+
+@pytest.mark.parametrize(
+    "client, expected_type",
+    [("mantle", AsyncBedrockOpenAI), ("runtime", AsyncOpenAI)],
+)
+def test_bedrock_endpoint_client_routing(
+    monkeypatch: pytest.MonkeyPatch, client, expected_type
+):
+    monkeypatch.setattr(
+        parsers, "provide_token", lambda *args, **kwargs: "bedrock-api-key"
+    )
+
+    endpoint = BedrockOpenAIEndpoint(
+        bedrock_region="us-east-1",
+        client=client,
+        openai_base_url="https://bedrock.example.com/openai/v1",
+    )
+
+    assert type(endpoint.get_client({})) is expected_type
 
 
 OPENAI_VIDEO_API_CASES = [
