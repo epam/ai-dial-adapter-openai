@@ -16,7 +16,18 @@ from aidial_adapter_openai.utils.upstream_headers import (
 )
 
 _REGION = "us-east-1"
-_ENDPOINT = BedrockOpenAIEndpoint(bedrock_region=_REGION)
+_ENDPOINTS = [
+    BedrockOpenAIEndpoint(
+        bedrock_region=_REGION,
+        client="mantle",
+        openai_base_url=f"https://bedrock-mantle.{_REGION}.api.aws/openai/v1",
+    ),
+    BedrockOpenAIEndpoint(
+        bedrock_region=_REGION,
+        client="runtime",
+        openai_base_url=f"https://bedrock-runtime.{_REGION}.amazonaws.com/openai/v1",
+    ),
+]
 _ROLE_ARN = "arn:aws:iam::123456789012:role/BedrockAccess"
 _AWS_ENV_VARS = (
     "AWS_ACCESS_KEY_ID",
@@ -62,6 +73,15 @@ async def test_get_credentials_raises_without_key_for_non_azure():
     error = exc_info.value
     assert error.status_code == 401
     assert error.message == "X-UPSTREAM-KEY header is missing"
+
+
+@pytest.fixture(params=_ENDPOINTS, ids=lambda endpoint: endpoint.client)
+def endpoint(request: pytest.FixtureRequest) -> BedrockOpenAIEndpoint:
+    """
+    Both Bedrock clients resolve the credentials the same way: only the region
+    of the endpoint takes part in it.
+    """
+    return request.param
 
 
 @pytest.fixture(autouse=True)
@@ -140,6 +160,7 @@ def _aws_creds(
 
 
 async def _get_credentials(
+    endpoint: BedrockOpenAIEndpoint,
     extra_data: dict[str, Any] | None = None,
 ) -> OpenAICreds:
     headers = (
@@ -148,7 +169,7 @@ async def _get_credentials(
         else {_UPSTREAM_EXTRA_DATA_HEADER: json.dumps(extra_data)}
     )
     return await auth.get_credentials(
-        headers, vendor=Vendor.AWS, endpoint=_ENDPOINT
+        headers, vendor=Vendor.AWS, endpoint=endpoint
     )
 
 
@@ -202,6 +223,7 @@ async def _get_credentials(
 )
 async def test_credential_resolution(
     monkeypatch: pytest.MonkeyPatch,
+    endpoint: BedrockOpenAIEndpoint,
     extra_data: dict[str, Any] | None,
     env: dict[str, str],
     expected: OpenAICreds,
@@ -209,7 +231,7 @@ async def test_credential_resolution(
     for env_var, value in env.items():
         monkeypatch.setenv(env_var, value)
 
-    assert await _get_credentials(extra_data) == expected
+    assert await _get_credentials(endpoint, extra_data) == expected
 
 
 @pytest.mark.parametrize(
@@ -233,10 +255,10 @@ async def test_credential_resolution(
     ],
 )
 async def test_incomplete_static_credentials_are_rejected(
-    extra_data: dict[str, Any], err_msg: str
+    endpoint: BedrockOpenAIEndpoint, extra_data: dict[str, Any], err_msg: str
 ):
     with pytest.raises(DialException) as exc_info:
-        await _get_credentials(extra_data)
+        await _get_credentials(endpoint, extra_data)
 
     error = exc_info.value
     assert error.status_code == 500
@@ -244,9 +266,9 @@ async def test_incomplete_static_credentials_are_rejected(
 
 
 async def test_assume_role_exchanges_the_arn_for_temporary_credentials(
-    sts_client: _StubSTSClient,
+    endpoint: BedrockOpenAIEndpoint, sts_client: _StubSTSClient
 ):
-    creds = await _get_credentials({"aws_assume_role_arn": _ROLE_ARN})
+    creds = await _get_credentials(endpoint, {"aws_assume_role_arn": _ROLE_ARN})
 
     assert creds == _aws_creds("sts-key-1", "sts-secret-1", "sts-token-1")
     assert sts_client.region_name == _REGION
@@ -256,13 +278,15 @@ async def test_assume_role_exchanges_the_arn_for_temporary_credentials(
 
 
 async def test_assumed_credentials_are_reused_until_they_near_expiration(
-    monkeypatch: pytest.MonkeyPatch, sts_client: _StubSTSClient
+    monkeypatch: pytest.MonkeyPatch,
+    endpoint: BedrockOpenAIEndpoint,
+    sts_client: _StubSTSClient,
 ):
     extra_data = {"aws_assume_role_arn": _ROLE_ARN}
 
-    credentials = await _get_credentials(extra_data)
+    credentials = await _get_credentials(endpoint, extra_data)
 
-    assert await _get_credentials(extra_data) == credentials
+    assert await _get_credentials(endpoint, extra_data) == credentials
     assert len(sts_client.calls) == 1
 
     monkeypatch.setattr(
@@ -271,19 +295,19 @@ async def test_assumed_credentials_are_reused_until_they_near_expiration(
         lambda: sts_client.expires_on - auth.EXPIRATION_WINDOW_IN_SEC / 2,
     )
 
-    assert await _get_credentials(extra_data) == _aws_creds(
+    assert await _get_credentials(endpoint, extra_data) == _aws_creds(
         "sts-key-2", "sts-secret-2", "sts-token-2"
     )
     assert len(sts_client.calls) == 2
 
 
 async def test_assume_role_failure_is_reported_as_a_dial_error(
-    sts_client: _StubSTSClient,
+    endpoint: BedrockOpenAIEndpoint, sts_client: _StubSTSClient
 ):
     sts_client.failure = RuntimeError("AccessDenied")
 
     with pytest.raises(DialException) as exc_info:
-        await _get_credentials({"aws_assume_role_arn": _ROLE_ARN})
+        await _get_credentials(endpoint, {"aws_assume_role_arn": _ROLE_ARN})
 
     error = exc_info.value
     assert error.status_code == 500

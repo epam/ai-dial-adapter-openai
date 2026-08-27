@@ -427,6 +427,24 @@ tests = ["attrs[tests-no-zope]", "zope-interface"]
 tests-no-zope = ["cloudpickle ; platform_python_implementation == \"CPython\"", "hypothesis", "mypy (>=1.1.1) ; platform_python_implementation == \"CPython\"", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins ; platform_python_implementation == \"CPython\" and python_version < \"3.11\"", "pytest-xdist[psutil]"]
 
 [[package]]
+name = "aws-bedrock-token-generator"
+version = "1.1.0"
+description = "A lightweight library for generating short-term bearer tokens for AWS Bedrock API authentication"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "aws_bedrock_token_generator-1.1.0-py3-none-any.whl", hash = "sha256:bd12854f7c7e52dde5d980d369379f12d0cc5f0855099d87f38688b0f9de5cd4"},
+    {file = "aws_bedrock_token_generator-1.1.0.tar.gz", hash = "sha256:95ccb07f63a91ac486561f6df05cc4e04784c8ff5086dc687ed9c5fd3ab1b5ba"},
+]
+
+[package.dependencies]
+botocore = ">=1.33.0"
+
+[package.extras]
+dev = ["black (>=21.0)", "flake8 (>=3.8)", "mypy (>=0.800)", "pytest (>=6.0)", "pytest-cov (>=2.0)"]
+
+[[package]]
 name = "azure-core"
 version = "1.38.0"
 description = "Microsoft Azure Core Library for Python"
@@ -3462,4 +3480,4 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "6dcd99390a208b962b53ef48ee66541a327344df1ab169328f386384512dfbbf"
+content-hash = "61e69d56788e8249f648271dafacedb2ea635b2e2d2dddc6f6e7b99e85603565"
