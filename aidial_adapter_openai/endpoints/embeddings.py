@@ -31,10 +31,7 @@ async def embedding(deployment_id: str, request: Request):
     model = request_body["model"] = request_body.get("model") or deployment_id
 
     vendor = Vendor.AZURE if app_config.is_azure(deployment_id) else Vendor.VLLM
-    creds = await get_credentials(
-        request.headers,
-        vendor=vendor,
-    )
+    creds = await get_credentials(request.headers, vendor=vendor, endpoint=None)
     upstream_extra_headers = get_upstream_extra_headers(request.headers)
     api_version = get_api_version(request)
     upstream_endpoint = request.headers["X-UPSTREAM-ENDPOINT"]

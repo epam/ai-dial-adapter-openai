@@ -1,13 +1,13 @@
 import re
-from collections.abc import Callable
 from http import HTTPStatus
 from json import JSONDecodeError
-from typing import Any
+from typing import Any, Literal, assert_never
 from urllib.parse import urlparse
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
 from anthropic import AsyncAnthropic, AsyncAnthropicFoundry
 from aws_bedrock_token_generator import provide_token
+from botocore.credentials import CredentialProvider, Credentials
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 from typing_extensions import TypedDict
@@ -25,6 +25,10 @@ class OpenAIParams(TypedDict, total=False):
     azure_ad_token: str
     api_version: str | None
     headers: dict[str, str]
+
+    aws_access_key_id: str | None
+    aws_secret_access_key: str | None
+    aws_session_token: str | None
 
 
 # Retries are handled on the DIAL Core side
@@ -99,28 +103,91 @@ class AnthropicEndpoint(ExtraForbidModel):
         )
 
 
+class BedrockOpenAIClientParams(TypedDict, total=False):
+    aws_access_key_id: str | None
+    aws_secret_access_key: str | None
+    aws_session_token: str | None
+
+
+class _StaticCredentialProvider(CredentialProvider):
+    def __init__(self, credentials: Credentials) -> None:
+        super().__init__()
+        self._credentials = credentials
+
+    def load(self) -> Credentials:  # type: ignore[reportIncompatibleMethodOverride]
+        return self._credentials
+
+
+def _get_credential_provider(
+    params: OpenAIParams,
+) -> CredentialProvider | None:
+    access_key_id = params.get("aws_access_key_id")
+    secret_access_key = params.get("aws_secret_access_key")
+
+    if not access_key_id or not secret_access_key:
+        return None
+
+    return _StaticCredentialProvider(
+        Credentials(
+            access_key=access_key_id,
+            secret_key=secret_access_key,
+            token=params.get("aws_session_token"),
+        )
+    )
+
+
 class BedrockOpenAIEndpoint(ExtraForbidModel):
     bedrock_region: str
+    client: Literal["runtime", "mantle"]
+    openai_base_url: str
 
-    def get_client(self, params: OpenAIParams) -> AsyncBedrockOpenAI:
+    def _build_mantle(self, params: OpenAIParams) -> AsyncBedrockOpenAI:
         api_key = params.get("api_key")
-        token_provider: Callable | None = None
+        client_params: BedrockOpenAIClientParams = {}
 
         if not api_key:
-
-            def _token_provider() -> str:
-                return provide_token(self.bedrock_region)
-
-            token_provider = _token_provider
+            client_params = {
+                "aws_access_key_id": params.get("aws_access_key_id"),
+                "aws_secret_access_key": params.get("aws_secret_access_key"),
+                "aws_session_token": params.get("aws_session_token"),
+            }
 
         return AsyncBedrockOpenAI(
-            bedrock_token_provider=token_provider,
+            api_key=api_key,
             aws_region=self.bedrock_region,
+            max_retries=_MAX_RETRIES,
+            default_headers=params.get("headers"),
+            http_client=get_http_client(),
+            **client_params,
+        )
+
+    def _build_runtime(self, params: OpenAIParams) -> AsyncOpenAI:
+        api_key = params.get("api_key")
+
+        if not api_key:
+            api_key = provide_token(
+                self.bedrock_region,
+                aws_credentials_provider=_get_credential_provider(params),
+            )
+
+        return AsyncOpenAI(
+            base_url=self.openai_base_url,
             api_key=api_key,
             max_retries=_MAX_RETRIES,
             default_headers=params.get("headers"),
             http_client=get_http_client(),
         )
+
+    def get_client(
+        self, params: OpenAIParams
+    ) -> AsyncBedrockOpenAI | AsyncOpenAI:
+        match self.client:
+            case "mantle":
+                return self._build_mantle(params)
+            case "runtime":
+                return self._build_runtime(params)
+            case _:
+                assert_never(self.client)
 
 
 def _parse_endpoint(
@@ -136,7 +203,17 @@ def _parse_endpoint(
         r"https?://bedrock-mantle\.([a-z0-9-]+)\.api\.aws(?:/.*)?",
         endpoint,
     ):
-        return BedrockOpenAIEndpoint(bedrock_region=match[1])
+        return BedrockOpenAIEndpoint(
+            bedrock_region=match[1], client="mantle", openai_base_url=endpoint
+        )
+
+    if match := re.fullmatch(
+        r"https?://bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com(?:/.*)?",
+        endpoint,
+    ):
+        return BedrockOpenAIEndpoint(
+            bedrock_region=match[1], client="runtime", openai_base_url=endpoint
+        )
 
     # Last generation API
     if match := re.fullmatch("(.+?)/openai/deployments/(.+)", endpoint):
