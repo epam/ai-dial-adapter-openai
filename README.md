@@ -805,8 +805,6 @@ AWS sets several constraints for session tags. See the AWS docs on [passing sess
 |A claim|`userClaims.email`|
 |Several|`roles.0,project,userClaims.email`|
 
-> [!NOTE]
-> The tags are resolved per request, so `DIAL_URL` must be set and the request must carry the `api-key` header. When either is missing, the tags are skipped with a warning and the role is assumed without them.
 
 #### OpenAI Completions API
 
