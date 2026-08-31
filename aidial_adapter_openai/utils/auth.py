@@ -21,6 +21,10 @@ from aidial_adapter_openai.utils.cache import cache
 from aidial_adapter_openai.utils.concurrency import run_in_threadpool
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import BedrockOpenAIEndpoint
+from aidial_adapter_openai.utils.session_tags import (
+    SessionTag,
+    resolve_session_tags,
+)
 from aidial_adapter_openai.utils.upstream_headers import (
     UpstreamExtraData,
     get_upstream_extra_data,
@@ -92,9 +96,15 @@ class _AWSAssumeRoleProvider:
     the given role and reuses them until they are about to expire.
     """
 
-    def __init__(self, role_arn: str, region: str) -> None:
+    def __init__(
+        self,
+        role_arn: str,
+        region: str,
+        session_tags: list[SessionTag] | None,
+    ) -> None:
         self._role_arn = role_arn
         self._region = region
+        self._session_tags = session_tags
         self._sts_client: Any = None
         self._credentials: AWSCredentials | None = None
         self._expires_on: int = 0
@@ -111,10 +121,14 @@ class _AWSAssumeRoleProvider:
                 "sts", region_name=self._region
             )
 
-        creds = self._sts_client.assume_role(
-            RoleArn=self._role_arn,
-            RoleSessionName=_ASSUME_ROLE_SESSION_NAME,
-        )["Credentials"]
+        params: dict[str, Any] = {
+            "RoleArn": self._role_arn,
+            "RoleSessionName": _ASSUME_ROLE_SESSION_NAME,
+        }
+        if self._session_tags:
+            params["Tags"] = self._session_tags
+
+        creds = self._sts_client.assume_role(**params)["Credentials"]
 
         return (
             AWSCredentials(
@@ -158,9 +172,9 @@ async def _close_assume_role_provider(provider: _AWSAssumeRoleProvider) -> None:
 
 @cache(_close_assume_role_provider)
 def get_assume_role_provider(
-    role_arn: str, region: str
+    role_arn: str, region: str, session_tags: list[SessionTag] | None
 ) -> _AWSAssumeRoleProvider:
-    return _AWSAssumeRoleProvider(role_arn, region)
+    return _AWSAssumeRoleProvider(role_arn, region, session_tags)
 
 
 class AWSClientCredentials(BaseModel):
@@ -179,9 +193,11 @@ class AWSClientCredentials(BaseModel):
 class AWSAssumeRoleCredentials(BaseModel):
     aws_assume_role_arn: str
 
-    async def get_credentials(self, region: str) -> AWSCredentials:
+    async def get_credentials(
+        self, region: str, session_tags: list[SessionTag] | None
+    ) -> AWSCredentials:
         return await get_assume_role_provider(
-            self.aws_assume_role_arn, region
+            self.aws_assume_role_arn, region, session_tags
         ).get_credentials()
 
 
@@ -234,10 +250,21 @@ class AWSCloudUpstreamConfig(BaseModel):
         extra_data = get_upstream_extra_data(headers)
         return cls(credentials=_select_credentials(extra_data))
 
-    async def get_credentials(self, aws_region: str) -> AWSCredentials:
-        if self.credentials is None:
-            return AWSCredentials()
-        return await self.credentials.get_credentials(aws_region)
+    async def get_credentials(
+        self, aws_region: str, api_key: str | None
+    ) -> AWSCredentials:
+        match self.credentials:
+            case None:
+                return AWSCredentials()
+            case AWSClientCredentials():
+                return await self.credentials.get_credentials(aws_region)
+            case AWSAssumeRoleCredentials():
+                session_tags = await resolve_session_tags(api_key)
+                return await self.credentials.get_credentials(
+                    aws_region, session_tags
+                )
+            case _:
+                assert_never(self.credentials)
 
 
 class OpenAICreds(TypedDict, total=False):
@@ -273,7 +300,7 @@ async def get_credentials(
 
             upstream_config = AWSCloudUpstreamConfig.create(request_headers)
             creds = await upstream_config.get_credentials(
-                endpoint.bedrock_region
+                endpoint.bedrock_region, request_headers.get("api-key")
             )
 
             return {

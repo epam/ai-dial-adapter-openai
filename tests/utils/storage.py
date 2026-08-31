@@ -8,7 +8,7 @@ from typing_extensions import override
 
 from aidial_adapter_openai.dial_api.resource import ValidationError
 from aidial_adapter_openai.dial_api.storage import (
-    FileMetadata,
+    FileItem,
     FileStorage,
 )
 from aidial_adapter_openai.utils.env import get_env_bool
@@ -72,7 +72,7 @@ class MockFileStorage(FileStorage):
 
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes
-    ) -> FileMetadata:
+    ) -> FileItem:
         ext = self._get_file_extension(content_type)
         name = self._get_fresh_filename() + ext
 
@@ -80,7 +80,7 @@ class MockFileStorage(FileStorage):
         file.write_bytes(content)
         self.files.append(file)
 
-        return FileMetadata(
+        return FileItem(
             name=name,
             parent_path=os.path.dirname(name),
             bucket="mock-bucket",
