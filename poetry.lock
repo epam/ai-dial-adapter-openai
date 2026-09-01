@@ -25,14 +25,14 @@ bedrock = ["botocore (>=1.10.0)"]
 
 [[package]]
 name = "aidial-client"
-version = "0.11.0"
+version = "0.14.0"
 description = "A Python client library for the AI DIAL API"
 optional = false
 python-versions = "<3.14,>=3.10"
 groups = ["main"]
 files = [
-    {file = "aidial_client-0.11.0-py3-none-any.whl", hash = "sha256:c2b97c0e381b78811c72cbf820d1abceec7af302f3e113d6c2dc98df135b3691"},
-    {file = "aidial_client-0.11.0.tar.gz", hash = "sha256:aace045806a57343bd9600c6287cade8807a56ea31fa8bf6aaeb3b5abcb8d9a9"},
+    {file = "aidial_client-0.14.0-py3-none-any.whl", hash = "sha256:66de6953324087264c88fed9d6557092aabe1b06599495fd3751b3df8f5fb114"},
+    {file = "aidial_client-0.14.0.tar.gz", hash = "sha256:f64e9bc265458b6495eb30fedf66e91c96d091b8346fa5b785682706e3f49db3"},
 ]
 
 [package.dependencies]
@@ -3480,4 +3480,4 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "61e69d56788e8249f648271dafacedb2ea635b2e2d2dddc6f6e7b99e85603565"
+content-hash = "4afe5e05f9c033424d96c0d1e4251e66cb762d7df843ef671c59f68399b41d68"
