@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from aidial_client import DialException
-from aidial_client.types.metadata import FileMetadata
+from aidial_client.types.metadata import FileItem
 from aidial_sdk.exceptions import InvalidRequestError
 
 from aidial_adapter_openai.dial_api.storage import FileStorage
@@ -18,7 +18,7 @@ def _make_dial_client(
     *,
     appdata_home: PurePosixPath | None = None,
     files_home: PurePosixPath | None = None,
-    upload_result: FileMetadata | None = None,
+    upload_result: FileItem | None = None,
     download_result: bytes = b"from-sdk",
     download_error: Exception | None = None,
 ):
@@ -49,7 +49,7 @@ def _make_dial_client(
 
 @pytest.mark.asyncio
 async def test_upload_uses_dial_client_sdk(monkeypatch):
-    metadata = FileMetadata(
+    metadata = FileItem(
         name="sha256.png",
         parent_path="images",
         bucket="user-bucket",

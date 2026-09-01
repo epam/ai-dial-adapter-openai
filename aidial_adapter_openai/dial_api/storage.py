@@ -11,7 +11,7 @@ from urllib.parse import unquote, urljoin
 import httpx
 from aidial_client import AsyncDial, DialException
 from aidial_client._exception import NotDialURLError
-from aidial_client.types.metadata import FileMetadata
+from aidial_client.types.metadata import FileItem
 from aidial_sdk.exceptions import InvalidRequestError
 
 from aidial_adapter_openai.utils.log_config import logger as log
@@ -55,7 +55,7 @@ class FileStorage:
 
     async def upload(
         self, upload_dir: str, filename: str, content_type: str, content: bytes
-    ) -> FileMetadata:
+    ) -> FileItem:
         ext = mimetypes.guess_extension(content_type) or ""
         stored_filename = f"{filename}{ext}"
         base_dir = await self._upload_base_dir()
@@ -70,7 +70,7 @@ class FileStorage:
 
     async def upload_file(
         self, upload_dir: str, data: str | bytes, content_type: str
-    ) -> FileMetadata:
+    ) -> FileItem:
         filename = _compute_hash_digest(data)
         if isinstance(data, str):
             content: bytes = base64.b64decode(data)
