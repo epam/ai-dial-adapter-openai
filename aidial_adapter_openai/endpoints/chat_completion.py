@@ -61,6 +61,7 @@ from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.providers.registry import get_vendor_adapter
 from aidial_adapter_openai.responses.adapter import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
+from aidial_adapter_openai.utils.client import get_client
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import (
     bad_upstream_endpoint,
@@ -119,18 +120,17 @@ async def call_chat_completion(
     logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
     vendor = app_config.get_vendor(deployment_id, endpoint)
-    creds = await get_credentials(
-        request_headers, vendor=vendor, endpoint=endpoint
-    )
-
     vendor_adapter = get_vendor_adapter(vendor)
 
-    upstream_extra_headers = get_upstream_extra_headers(
-        request_headers
-    ) | vendor_adapter.get_extra_headers(deployment_type)
+    upstream_extra_headers = get_upstream_extra_headers(request_headers)
 
-    client = endpoint.get_client(
-        {**creds, "api_version": api_version, "headers": upstream_extra_headers}
+    client = await get_client(
+        request=request,
+        deployment_id=deployment_id,
+        deployment=deployment,
+        app_config=app_config,
+        extra_headers=upstream_extra_headers,
+        api_version=api_version,
     )
 
     def _get_tokenizer() -> Tokenizer:
@@ -165,6 +165,9 @@ async def call_chat_completion(
             )
 
         case D.AZURE_VIDEO_API:
+            creds = await get_credentials(
+                request_headers, vendor=vendor, endpoint=endpoint
+            )
             return await azure_video_gen(
                 request=request,
                 request_body=request_body,
