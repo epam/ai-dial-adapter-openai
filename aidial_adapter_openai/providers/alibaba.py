@@ -7,31 +7,35 @@ from typing import Any, cast
 
 from aidial_client.types.chat import ChatCompletionRequest, Message
 
-from aidial_adapter_openai.configuration.app_config import Vendor
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
+from aidial_adapter_openai.providers.vendor_adapter import VendorAdapter
 
 _CACHE_CONTROL = {"type": "ephemeral"}
 
 _SESSION_CACHE_HEADERS = {"x-dashscope-session-cache": "enable"}
 
 
-def get_extra_headers(vendor: Vendor, deployment_type: D) -> dict[str, str]:
-    if vendor == Vendor.ALIBABA and deployment_type == D.RESPONSES_API:
-        return _SESSION_CACHE_HEADERS
-    return {}
+class AlibabaAdapter(VendorAdapter):
+    def get_extra_headers(self, deployment_type: D) -> dict[str, str]:
+        # The Responses API doesn't support the `cache_control` markers,
+        # therefore the caching is requested for the whole session instead.
+        if deployment_type == D.RESPONSES_API:
+            return _SESSION_CACHE_HEADERS
+        return {}
 
+    def transform_chat_completions_request(
+        self, request: ChatCompletionRequest
+    ) -> None:
+        messages = request.get("messages") or []
 
-def convert_chat_completions_request(request: ChatCompletionRequest) -> None:
-    messages = request.get("messages") or []
+        for message in messages:
+            if _pop_cache_breakpoint(message):
+                _mark_cache_control(message)
 
-    for message in messages:
-        if _pop_cache_breakpoint(message):
-            _mark_cache_control(message)
-
-    if _pop_cache_breakpoint(request) and messages:
-        _mark_cache_control(messages[-1])
+        if _pop_cache_breakpoint(request) and messages:
+            _mark_cache_control(messages[-1])
 
 
 def _pop_cache_breakpoint(fields: ChatCompletionRequest | Message) -> bool:

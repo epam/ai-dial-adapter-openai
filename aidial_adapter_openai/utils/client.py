@@ -2,11 +2,11 @@ from anthropic import AsyncAnthropic
 from fastapi import Request
 from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
 
-import aidial_adapter_openai.providers.alibaba as alibaba
 from aidial_adapter_openai.configuration.app_config import (
     ApplicationConfig,
     DeploymentAPIType,
 )
+from aidial_adapter_openai.providers.registry import get_vendor_adapter
 from aidial_adapter_openai.utils.auth import get_credentials
 
 _Client = AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI | AsyncAnthropic
@@ -25,8 +25,8 @@ async def get_client(
     creds = await get_credentials(
         request.headers, vendor=vendor, endpoint=deployment_endpoint
     )
-    extra_vendor_headers = alibaba.get_extra_headers(
-        vendor, deployment.deployment_type
+    extra_vendor_headers = get_vendor_adapter(vendor).get_extra_headers(
+        deployment.deployment_type
     )
 
     return deployment_endpoint.get_client(

@@ -6,7 +6,6 @@ from anthropic import AsyncAnthropic
 from fastapi import Request
 from openai import AsyncAzureOpenAI
 
-import aidial_adapter_openai.providers.alibaba as alibaba
 from aidial_adapter_openai.audio_api.speech.adapter import (
     chat_completion as audio_speech_gen,
 )
@@ -59,6 +58,7 @@ from aidial_adapter_openai.image_generation.adapter import (
     chat_completion as image_generation,
 )
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
+from aidial_adapter_openai.providers.registry import get_vendor_adapter
 from aidial_adapter_openai.responses.adapter import chat_completion as responses
 from aidial_adapter_openai.utils.auth import get_credentials
 from aidial_adapter_openai.utils.log_config import logger
@@ -123,8 +123,11 @@ async def call_chat_completion(
         request_headers, vendor=vendor, endpoint=endpoint
     )
 
-    upstream_extra_headers = get_upstream_extra_headers(request_headers)
-    upstream_extra_headers |= alibaba.get_extra_headers(vendor, deployment_type)
+    vendor_adapter = get_vendor_adapter(vendor)
+
+    upstream_extra_headers = get_upstream_extra_headers(
+        request_headers
+    ) | vendor_adapter.get_extra_headers(deployment_type)
 
     client = endpoint.get_client(
         {**creds, "api_version": api_version, "headers": upstream_extra_headers}
@@ -271,7 +274,7 @@ async def call_chat_completion(
                 file_storage=file_storage,
                 tokenizer=_get_tokenizer(),
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
-                vendor=vendor,
+                vendor_adapter=vendor_adapter,
             )
 
             response.body = extract_reasoning_tokens(response.body)
