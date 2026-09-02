@@ -79,6 +79,9 @@
 - [Load balancing](#load-balancing)
 - [Upstream header proxying](#upstream-header-proxying)
 - [Prompt caching](#prompt-caching)
+  - [Azure AI Foundry](#azure-ai-foundry)
+  - [Alibaba Cloud Model Studio](#alibaba-cloud-model-studio)
+  - [Anthropic](#anthropic)
 - [API versioning](#api-versioning)
 - [Server performance configuration](#server-performance-configuration)
 - [Deployment](#deployment)
@@ -2040,6 +2043,8 @@ When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and 
 
 ## Prompt caching
 
+### Azure AI Foundry
+
 [Prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching) can be enabled via the `autoCachingSupported` flag in the DIAL Core config.
 
 ```json
@@ -2071,10 +2076,61 @@ When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and 
 > [!IMPORTANT]
 > Verify that the deployment actually supports [prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching#supported-models) before enabling it.
 
-[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/context-cache) deployments are declared in the `ALIBABA_DEPLOYMENTS` environment variable. The caching is enabled for them as follows:
+### Alibaba Cloud Model Studio
 
-1. In the Chat Completions API deployments, the DIAL cache breakpoints declared in messages via `custom_fields.cache_breakpoint` are converted into the Model Studio ones - the Anthropic-style `cache_control` markers. The markers aren't supported in the tool definitions, therefore the tool-level DIAL breakpoints are ignored.
-2. In the Responses API deployments, which do not support the markers, the implicit caching of the conversation prefix is requested via the `x-dashscope-session-cache: enable` upstream header. In the [Responses API endpoints](#responses-api-deployments), where the deployment id isn't a part of the request path, the deployment is recognized by the `X-DIAL-OVERRIDE-NAME` header, or by the `model` request field when the header is missing.
+[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/context-cache) deployments are declared in the `ALIBABA_DEPLOYMENTS` environment variable.
+
+In the [Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api) deployments, the caching is requested via the DIAL cache breakpoints.
+
+A top-level breakpoint caches the whole prompt:
+
+<details><summary>Top-level cache breakpoint</summary>
+
+```json
+{
+  "model": "qwen-plus",
+  "messages": [
+    {"role": "user", "content": "Hello!"}
+  ],
+  "custom_fields": {
+    "cache_breakpoint": {}
+  }
+}
+```
+
+</details>
+
+A per-message breakpoint caches the prompt up to and including that message:
+
+<details><summary>Message cache breakpoint</summary>
+
+```json
+{
+  "model": "qwen-plus",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {
+      "role": "user",
+      "content": "Here is a long document: ...",
+      "custom_fields": {
+        "cache_breakpoint": {}
+      }
+    },
+    {"role": "user", "content": "Summarize it."}
+  ]
+}
+```
+
+</details>
+
+> [!NOTE]
+> Model Studio doesn't cache the tool definitions, therefore the tool-level cache breakpoints are ignored.
+
+In the [Responses API](#alibaba-cloud-model-studio-responses-api) deployments, the caching of the conversation prefix is enabled automatically - the request requires no cache breakpoints.
+
+### Anthropic
+
+See [Automatic prompt caching](#automatic-prompt-caching) and [Explicit prompt caching](#explicit-prompt-caching) in the [Anthropic Messages API](#anthropic-messages-api) section.
 
 ---
 
