@@ -883,7 +883,10 @@ The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#
       "upstreams": [
         {
           "endpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
-          "key": "${DASHSCOPE_API_KEY}"
+          "key": "${DASHSCOPE_API_KEY}",
+          "extra_data": {
+            "vendor": "alibaba-cloud"
+          }
         }
       ]
     }
@@ -894,6 +897,8 @@ The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#
 </details>
 
 Where `MODEL_STUDIO_MODEL_NAME` is one of the available [models](https://www.alibabacloud.com/help/en/model-studio/models) on the platform *(for example `qwen3.7-max`, `qwen-plus`, or `qwen-flash`)*.
+
+The `extra_data.vendor` field is required to enable the [cache breakpoints](#alibaba-cloud-model-studio) - without it the adapter treats the upstream as a vanilla OpenAI one and passes the breakpoints through untouched.
 
 The upstream URL doesn't include the model name, so it is passed via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
 
@@ -1558,7 +1563,10 @@ For long-running workloads, prefer the credentials that the adapter refreshes on
       "upstreams": [
         {
           "responsesEndpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/responses",
-          "key": "${DASHSCOPE_API_KEY}"
+          "key": "${DASHSCOPE_API_KEY}",
+          "extra_data": {
+            "vendor": "alibaba-cloud"
+          }
         }
       ]
     }
@@ -1567,6 +1575,8 @@ For long-running workloads, prefer the credentials that the adapter refreshes on
 ```
 
 </details>
+
+The `extra_data.vendor` field is required to enable the [prompt caching](#alibaba-cloud-model-studio). The Responses API doesn't support the cache breakpoints, so the caching of the conversation prefix is requested for the whole session instead.
 
 > [!NOTE]
 > As with the Chat Completions API, the upstream `base_url` differs by region. Replace `${MODEL_STUDIO_WORKSPACE_ID}` with your workspace id and adjust the host to match your region *(the US (Virginia) host `dashscope-us.aliyuncs.com` doesn't include a workspace id)*. Use the current `/compatible-mode/v1/responses` path — the legacy `/api/v2/apps/protocols/compatible-mode/v1/responses` path is deprecated. See the [endpoint list](https://www.alibabacloud.com/help/en/model-studio/compatibility-with-openai-responses-api) for details.
@@ -1751,12 +1761,7 @@ The following variables cluster all deployments into the groups of deployments w
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
-|ALIBABA_DEPLOYMENTS|``|Comma-separated list of Alibaba Cloud Model Studio deployments. The setting enables the Model Studio [prompt caching](#prompt-caching). Example: `ali.*,qwen3-max`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
-
-Every `*_DEPLOYMENTS` variable accepts a comma-separated list of deployment names or [glob patterns](https://docs.python.org/3/library/fnmatch.html), e.g. `ali.*` covers all the deployments with the `ali.` name prefix. The matching is case-sensitive.
-
-A deployment matching more than one of the variables is assigned to the one which goes first in the table below.
 
 Deployments that do not fall into any of the categories are considered to support text-to-text chat completion OpenAI API or text embeddings OpenAI API.
 
@@ -2078,9 +2083,9 @@ When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and 
 
 ### Alibaba Cloud Model Studio
 
-[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/context-cache) deployments are declared in the `ALIBABA_DEPLOYMENTS` environment variable.
+[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/context-cache) upstreams declare `extra_data.vendor: alibaba-cloud` in the DIAL Core config, as shown for the [Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api) and the [Responses API](#alibaba-cloud-model-studio-responses-api) deployments. The caching is disabled for an upstream that doesn't declare it.
 
-In the [Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api) deployments, the caching is requested via the DIAL cache breakpoints.
+In the Chat Completions API deployments, the caching is requested via the DIAL cache breakpoints.
 
 A top-level breakpoint caches the whole prompt:
 

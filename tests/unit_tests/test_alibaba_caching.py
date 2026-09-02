@@ -13,9 +13,10 @@ from tests.utils.stream import OpenAIStream, single_choice_chunk
 _CHAT_COMPLETIONS_UPSTREAM = "http://test-upstream/v1/chat/completions"
 _RESPONSES_UPSTREAM = "http://test-upstream/v1/responses"
 
-# Matched by the "ali.*" glob pattern in ALIBABA_DEPLOYMENTS.
-_GLOB_DEPLOYMENT = "ali.model-name"
-_LISTED_DEPLOYMENT = "test-alibaba-model-name"
+_DEPLOYMENT = "ali.model-name"
+
+# The upstream `extra_data` field declaring the Model Studio upstream
+_ALIBABA_EXTRA_DATA = {"X-UPSTREAM-EXTRA-DATA": '{"vendor": "alibaba-cloud"}'}
 
 _SESSION_CACHE_HEADER = "x-dashscope-session-cache"
 _IMAGE_URL = (
@@ -27,10 +28,7 @@ _BREAKPOINT_PATH_HEADER = "X-DIAL-CACHE-BREAKPOINT-PATH"
 
 @pytest.fixture
 async def test_app():
-    app_config = ApplicationConfig(
-        ALIBABA_DEPLOYMENTS=["ali.*", _LISTED_DEPLOYMENT],
-        GPT4O_DEPLOYMENTS=["ali.*"],
-    )
+    app_config = ApplicationConfig()
     async with create_test_client(app_config=app_config) as client:
         yield client
 
@@ -59,20 +57,19 @@ def _mock_responses_upstream() -> None:
 async def _post_chat_completions(
     test_app: httpx.AsyncClient,
     *,
-    deployment_id: str,
     messages: list[dict[str, Any]],
     upstream_endpoint: str = _CHAT_COMPLETIONS_UPSTREAM,
-    extra_headers: dict[str, str] | None = None,
+    extra_headers: dict[str, str] = _ALIBABA_EXTRA_DATA,
     **extra_body: Any,
 ) -> httpx.Response:
     return await test_app.post(
-        f"/openai/deployments/{deployment_id}/chat/completions"
+        f"/openai/deployments/{_DEPLOYMENT}/chat/completions"
         "?api-version=2024-02-01",
         json={"model": "model-name", "messages": messages, **extra_body},
         headers={
             "X-UPSTREAM-KEY": "test-upstream-api-key",
             "X-UPSTREAM-ENDPOINT": upstream_endpoint,
-            **(extra_headers or {}),
+            **extra_headers,
         },
     )
 
@@ -100,7 +97,6 @@ async def test_cache_breakpoints_are_converted(test_app: httpx.AsyncClient):
 
     response = await _post_chat_completions(
         test_app,
-        deployment_id=_GLOB_DEPLOYMENT,
         messages=[
             {
                 "role": "system",
@@ -147,27 +143,6 @@ async def test_cache_breakpoints_are_converted(test_app: httpx.AsyncClient):
 
 
 @respx.mock
-async def test_cache_breakpoints_are_converted_for_listed_deployment(
-    test_app: httpx.AsyncClient,
-):
-    _mock_chat_completions_upstream()
-
-    response = await _post_chat_completions(
-        test_app,
-        deployment_id=_LISTED_DEPLOYMENT,
-        messages=[_MESSAGE_WITH_BREAKPOINT],
-    )
-
-    assert response.status_code == 200
-    assert _upstream_messages() == [
-        {
-            "role": "user",
-            "content": [{"type": "text", "text": "2+3=?", **_CACHE_CONTROL}],
-        }
-    ]
-
-
-@respx.mock
 async def test_top_level_cache_breakpoint_marks_the_last_message(
     test_app: httpx.AsyncClient,
 ):
@@ -175,7 +150,6 @@ async def test_top_level_cache_breakpoint_marks_the_last_message(
 
     response = await _post_chat_completions(
         test_app,
-        deployment_id=_GLOB_DEPLOYMENT,
         messages=[
             {"role": "system", "content": "be a helpful assistant"},
             {"role": "user", "content": "2+3=?"},
@@ -214,10 +188,10 @@ async def test_reported_dial_breakpoint_path_covers_the_whole_prompt(
 
     response = await _post_chat_completions(
         test_app,
-        deployment_id=_GLOB_DEPLOYMENT,
         messages=messages,
         # DIAL Core sends the header for an auto-caching deployment
-        extra_headers={_BREAKPOINT_PATH_HEADER: "whatever"},
+        extra_headers=_ALIBABA_EXTRA_DATA
+        | {_BREAKPOINT_PATH_HEADER: "whatever"},
     )
 
     assert response.status_code == 200
@@ -258,10 +232,7 @@ async def test_cache_breakpoint_marks_last_content_part(
     _mock_chat_completions_upstream()
 
     response = await _post_chat_completions(
-        test_app,
-        # An image-capable deployment served by Model Studio
-        deployment_id=_GLOB_DEPLOYMENT,
-        messages=[message | _CACHE_BREAKPOINT],
+        test_app, messages=[message | _CACHE_BREAKPOINT]
     )
 
     assert response.status_code == 200
@@ -272,15 +243,13 @@ async def test_cache_breakpoint_marks_last_content_part(
 
 
 @respx.mock
-async def test_cache_breakpoints_are_intact_for_non_alibaba_deployment(
+async def test_cache_breakpoints_are_intact_without_vendor_extra_data(
     test_app: httpx.AsyncClient,
 ):
     _mock_chat_completions_upstream()
 
     response = await _post_chat_completions(
-        test_app,
-        deployment_id="gpt-4o",
-        messages=[_MESSAGE_WITH_BREAKPOINT],
+        test_app, messages=[_MESSAGE_WITH_BREAKPOINT], extra_headers={}
     )
 
     assert response.status_code == 200
@@ -289,25 +258,21 @@ async def test_cache_breakpoints_are_intact_for_non_alibaba_deployment(
 
 @respx.mock
 @pytest.mark.parametrize(
-    ("deployment_id", "expected_header"),
-    [
-        (_GLOB_DEPLOYMENT, "enable"),
-        (_LISTED_DEPLOYMENT, "enable"),
-        ("gpt-4o", None),
-    ],
+    ("extra_headers", "expected_header"),
+    [(_ALIBABA_EXTRA_DATA, "enable"), ({}, None)],
 )
 async def test_session_cache_header_in_responses_adapter(
     test_app: httpx.AsyncClient,
-    deployment_id: str,
+    extra_headers: dict[str, str],
     expected_header: str | None,
 ):
     _mock_responses_upstream()
 
     response = await _post_chat_completions(
         test_app,
-        deployment_id=deployment_id,
         messages=[{"role": "user", "content": "2+3=?"}],
         upstream_endpoint=_RESPONSES_UPSTREAM,
+        extra_headers=extra_headers,
     )
 
     assert response.status_code == 200
@@ -319,20 +284,23 @@ async def test_session_cache_header_in_responses_adapter(
 
 @respx.mock
 @pytest.mark.parametrize(
-    ("model", "expected_header"),
-    [(_GLOB_DEPLOYMENT, "enable"), ("gpt-4o", None)],
+    ("extra_headers", "expected_header"),
+    [(_ALIBABA_EXTRA_DATA, "enable"), ({}, None)],
 )
 async def test_session_cache_header_in_responses_passthrough(
-    test_app: httpx.AsyncClient, model: str, expected_header: str | None
+    test_app: httpx.AsyncClient,
+    extra_headers: dict[str, str],
+    expected_header: str | None,
 ):
     _mock_responses_upstream()
 
     response = await test_app.post(
         "/openai/v1/responses",
-        json={"model": model, "input": "2+3=?"},
+        json={"model": _DEPLOYMENT, "input": "2+3=?"},
         headers={
             "X-UPSTREAM-KEY": "test-upstream-api-key",
             "X-UPSTREAM-ENDPOINT": _RESPONSES_UPSTREAM,
+            **extra_headers,
         },
     )
 
