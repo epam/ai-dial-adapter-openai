@@ -30,6 +30,7 @@
     - [OpenAI Platform Chat Completions API](#openai-platform-chat-completions-api)
     - [Amazon Bedrock OpenAI Chat Completions API](#amazon-bedrock-openai-chat-completions-api)
       - [Authentication](#authentication)
+      - [Session tags](#session-tags)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
     - [Alibaba Cloud Model Studio Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api)
@@ -673,8 +674,19 @@ Note the difference from the Azure OpenAI configuration:
 
 #### Amazon Bedrock OpenAI Chat Completions API
 
-The adapter supports OpenAI models deployed through Amazon Bedrock Mantle.
-Use a Bedrock model id with the `openai.` prefix in `overrideName` (for example `openai.gpt-5.4`):
+The adapter supports OpenAI models deployed through Amazon Bedrock. Two upstream endpoint formats are recognized:
+
+- **Bedrock Mantle** - `https://bedrock-mantle.${AWS_REGION}.api.aws/openai/v1/chat/completions`
+- **Bedrock Runtime** - `https://bedrock-runtime.${AWS_REGION}.amazonaws.com/openai/v1/chat/completions`
+
+Both formats are authenticated the same way, but they expect different model ids in `overrideName`:
+
+|Upstream endpoint|`overrideName`|
+|---|---|
+|Bedrock Mantle|`openai.gpt-5.4`|
+|Bedrock Runtime|`us.openai.gpt-5.4` *(the model id prefixed with the region)*|
+
+Model availability differs between the two formats - check the [AWS OpenAI model cards](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.html) before choosing one.
 
 <details><summary>DIAL Core Config</summary>
 
@@ -698,7 +710,7 @@ Use a Bedrock model id with the `openai.` prefix in `overrideName` (for example 
 
 </details>
 
-As in other v1-style upstreams, set `overrideName` to the Bedrock model id (for example `openai.gpt-5.4`).
+As in other v1-style upstreams, set `overrideName` to the Bedrock model id.
 
 > [!NOTE]
 > Bedrock support and feature parity can differ from direct OpenAI API support. Validate your model, region, and required capabilities before rollout:
@@ -764,6 +776,35 @@ Since every upstream carries its own credentials, a single deployment can be [ba
 
 > [!IMPORTANT]
 > `aws_access_key_id` and `aws_secret_access_key` are only accepted together. The adapter returns `500` when one of them is configured without the other, or when `aws_session_token` is configured without both.
+
+##### Session tags
+
+`AWS_SESSION_TAGS_FIELDS` configures optional AWS STS [session tags](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html) for the Bedrock credentials obtained through `AssumeRole`. The adapter resolves the configured paths against the JSON response to the DIAL `GET /v1/user/info` [request](https://dialx.ai/dial_api#operation/getUserInfo), converts each resolved value to a JSON string, and passes the resulting tags to the STS `AssumeRole` call.
+
+The tags are only applied to the assume role credentials *(option 3 above)*. They are ignored for the bearer token, the static credentials and the AWS credential provider chain.
+
+The variable is a comma-separated list of dot-separated paths into that JSON response. The user info response has the following fields:
+
+|Field|Type|Description|
+|---|---|---|
+|`roles`|array of strings|User roles, addressable by list index, e.g. `roles.0`|
+|`project`|string or null|User project|
+|`userClaims`|object or null|User claims, addressable by nested paths, e.g. `userClaims.email`|
+
+Paths use object keys and integer list indices, for example `userClaims.access.0`. Empty path entries are ignored, and unresolvable paths are skipped with a warning.
+
+Tag keys are the configured paths. String values are used as-is. All other values are JSON-serialized, e.g. numbers, booleans, `null`, objects and arrays.
+
+AWS sets several constraints for session tags. See the AWS docs on [passing session tags in AWS STS](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_operations) for details. The adapter truncates the keys and the values that exceed the limits and drops the entries beyond the maximum count, reporting each adjustment in the logs.
+
+|Intent|`AWS_SESSION_TAGS_FIELDS`|
+|---|---|
+|Disabled|Unset the variable|
+|First role|`roles.0`|
+|Project|`project`|
+|A claim|`userClaims.email`|
+|Several|`roles.0,project,userClaims.email`|
+
 
 #### OpenAI Completions API
 
@@ -1465,7 +1506,12 @@ Whereas, `endpoint` URL is required and enables Chat Completions API in DIAL.
 #### Amazon Bedrock OpenAI Responses API
 
 > [!IMPORTANT]
-> Use `overrideName` with a Bedrock model id in `openai.*` format (for example `openai.gpt-5.4`).
+> Use `overrideName` with a Bedrock model id in `openai.*` format. Bedrock Mantle takes the plain model id *(`openai.gpt-5.4`)*, while Bedrock Runtime expects it prefixed with the region *(`us.openai.gpt-5.4`)*.
+
+Both Bedrock upstream endpoint formats are supported:
+
+- **Bedrock Mantle** - `https://bedrock-mantle.${AWS_REGION}.api.aws/openai/v1/responses`
+- **Bedrock Runtime** - `https://bedrock-runtime.${AWS_REGION}.amazonaws.com/openai/v1/responses`
 
 <details><summary>DIAL Core Config</summary>
 
@@ -1726,6 +1772,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 |AWS_SESSION_TOKEN||AWS session token accompanying the credentials above. Only applicable to temporary credentials.|
 |AWS_ASSUME_ROLE_ARN||AWS role to assume in order to access the Bedrock service, e.g. `arn:aws:iam::123456789012:role/RoleName`. Ignored when the static credentials above are configured.|
 |AWS_CREDENTIALS_EXPIRATION_WINDOW|300|The credentials of an assumed AWS role are renewed this many seconds before their actual expiration time. The buffer ensures that the credentials do not expire in the middle of an operation due to processing time and potential network delays.|
+|AWS_SESSION_TAGS_FIELDS||Comma-separated list of paths into the DIAL user info to pass as [AWS STS session tags](#session-tags) when assuming a role, e.g. `roles.0,project,userClaims.email`. Unset to disable.|
 |API_VERSIONS_MAPPING|`{}`|Mapping of API versions for requests to the Azure OpenAI Chat Completions API. Example: `{"2023-03-15-preview": "2023-05-15", "": "2024-02-15-preview"}`. An empty key sets the default API version when the user does not pass one in the request. Find the details in the section about [API versioning](#api-versioning).|
 |ELIMINATE_EMPTY_CHOICES|False|When enabled, the response stream is guaranteed to exclude chunks with an empty list of choices. This is useful when a DIAL client doesn't support such chunks. An empty list of choices can be generated by Azure OpenAI in at least two cases: (1) when the **Content filter** is not disabled, Azure includes [prompt filter results](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter?tabs=warning%2Cuser-prompt%2Cpython-new#prompt-annotation-message) in the first chunk with an empty list of choices; (2) when `stream_options.include_usage` is enabled, the last chunk contains usage data and an empty list of choices.|
 |WEB_CONCURRENCY|1|Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).|

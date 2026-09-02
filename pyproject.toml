@@ -46,6 +46,7 @@ anthropic = "0.105.0"
 jmespath = "1.1.0"
 aidial-client = "0.16.1"
 boto3 = "1.43.74"
+aws-bedrock-token-generator = "^1.1.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "9.0.3"

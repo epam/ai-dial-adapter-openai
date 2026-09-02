@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pytest
 from aidial_sdk.exceptions import HTTPException
 
@@ -100,27 +102,53 @@ def test_app_config_chat_responses_openai_platform(
     )
 
 
-def test_app_config_chat_responses_bedrock(deployment: str):
+_BedrockClient = Literal["mantle", "runtime"]
+
+_BEDROCK_HOSTS: dict[_BedrockClient, str] = {
+    "mantle": "bedrock-mantle.{region}.api.aws",
+    "runtime": "bedrock-runtime.{region}.amazonaws.com",
+}
+
+_BEDROCK_CLIENTS = list(_BEDROCK_HOSTS)
+
+
+def _bedrock_base_url(client: _BedrockClient, region: str) -> str:
+    return f"https://{_BEDROCK_HOSTS[client].format(region=region)}/openai/v1"
+
+
+@pytest.mark.parametrize("client", _BEDROCK_CLIENTS)
+def test_app_config_chat_responses_bedrock(
+    deployment: str, client: _BedrockClient
+):
+    base_url = _bedrock_base_url(client, "us-east-2")
+
     ty = ApplicationConfig().get_chat_completion_deployment_type(
-        deployment,
-        "https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses",
+        deployment, f"{base_url}/responses"
     )
 
     assert ty.deployment_type == D.RESPONSES_API
     assert ty.endpoint == BedrockOpenAIEndpoint(
         bedrock_region="us-east-2",
+        client=client,
+        openai_base_url=base_url,
     )
 
 
-def test_app_config_chat_bedrock_chat_completions(deployment: str):
+@pytest.mark.parametrize("client", _BEDROCK_CLIENTS)
+def test_app_config_chat_bedrock_chat_completions(
+    deployment: str, client: _BedrockClient
+):
+    base_url = _bedrock_base_url(client, "eu-west-1")
+
     ty = ApplicationConfig().get_chat_completion_deployment_type(
-        deployment,
-        "https://bedrock-mantle.eu-west-1.api.aws/openai/v1/chat/completions",
+        deployment, f"{base_url}/chat/completions"
     )
 
     assert ty.deployment_type == D.GPT_GENERIC
     assert ty.endpoint == BedrockOpenAIEndpoint(
         bedrock_region="eu-west-1",
+        client=client,
+        openai_base_url=base_url,
     )
 
 
@@ -290,12 +318,20 @@ def test_get_vendor_for_vllm_families(cfg: ApplicationConfig):
     )
 
 
-def test_get_vendor_for_bedrock_endpoint(deployment: str):
+@pytest.mark.parametrize("client", _BEDROCK_CLIENTS)
+def test_get_vendor_for_bedrock_endpoint(
+    deployment: str, client: _BedrockClient
+):
+    region = "us-east-2"
     cfg = ApplicationConfig()
     assert (
         cfg.get_vendor(
             deployment,
-            BedrockOpenAIEndpoint(bedrock_region="us-east-2"),
+            BedrockOpenAIEndpoint(
+                bedrock_region=region,
+                client=client,
+                openai_base_url=_bedrock_base_url(client, region),
+            ),
         )
         == Vendor.AWS
     )
