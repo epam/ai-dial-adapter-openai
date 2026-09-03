@@ -120,7 +120,6 @@ async def call_chat_completion(
     logger.debug(f"deployment api type: {deployment.model_dump_json()}")
     deployment_type, endpoint = deployment.deployment_type, deployment.endpoint
     vendor = app_config.get_vendor(deployment_id, endpoint, request_headers)
-    vendor_adapter = get_vendor_adapter(vendor)
 
     upstream_extra_headers = get_upstream_extra_headers(request_headers)
 
@@ -277,7 +276,7 @@ async def call_chat_completion(
                 file_storage=file_storage,
                 tokenizer=_get_tokenizer(),
                 eliminate_empty_choices=app_config.ELIMINATE_EMPTY_CHOICES,
-                vendor_adapter=vendor_adapter,
+                vendor_adapter=get_vendor_adapter(vendor),
             )
 
             response.body = extract_reasoning_tokens(response.body)
