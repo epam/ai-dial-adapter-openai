@@ -21,7 +21,8 @@ _UNSUPPORTED_RESPONSES_UPSTREAM_ENDPOINTS = [
 ]
 _UNSUPPORTED_RESPONSES_VENDOR_ERROR_MESSAGE = (
     "The tokenize and truncate_prompt endpoints are not implemented for "
-    "Responses API deployments backed by Azure OpenAI or Amazon Bedrock."
+    "Responses API deployments backed by Azure OpenAI, Amazon Bedrock or "
+    "Alibaba Cloud Model Studio."
 )
 _API_KEY = "test-adapter-api-key"
 _RESPONSES_TOKENIZE_HEADERS = {

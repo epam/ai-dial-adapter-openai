@@ -270,8 +270,38 @@ def test_get_vendor_for_generic_deployment(deployment: str):
         cfg.get_vendor(
             deployment,
             OpenAIEndpoint(openai_base_url="https://api.openai.com/v1"),
+            {},
         )
         == Vendor.OPENAI_PLATFORM
+    )
+
+
+def test_get_vendor_from_upstream_extra_data(deployment: str):
+    cfg = ApplicationConfig()
+    assert (
+        cfg.get_vendor(
+            deployment,
+            OpenAIEndpoint(openai_base_url="https://api.openai.com/v1"),
+            {"X-UPSTREAM-EXTRA-DATA": '{"vendor": "alibaba-cloud"}'},
+        )
+        == Vendor.ALIBABA
+    )
+
+
+def test_get_vendor_rejects_unknown_upstream_vendor(deployment: str):
+    cfg = ApplicationConfig()
+
+    with pytest.raises(HTTPException) as exc_info:
+        cfg.get_vendor(
+            deployment,
+            OpenAIEndpoint(openai_base_url="https://api.openai.com/v1"),
+            {"X-UPSTREAM-EXTRA-DATA": '{"vendor": "foobar"}'},
+        )
+
+    assert exc_info.value.status_code == 502
+    assert exc_info.value.message == (
+        "Invalid X-UPSTREAM-EXTRA-DATA header: "
+        "'vendor' - Input should be 'alibaba-cloud'"
     )
 
 
@@ -292,6 +322,7 @@ def test_get_vendor_for_vllm_families(cfg: ApplicationConfig):
         cfg.get_vendor(
             deployment_id,
             OpenAIEndpoint(openai_base_url="https://api.openai.com/v1"),
+            {},
         )
         == Vendor.VLLM
     )
@@ -311,6 +342,7 @@ def test_get_vendor_for_bedrock_endpoint(
                 client=client,
                 openai_base_url=_bedrock_base_url(client, region),
             ),
+            {},
         )
         == Vendor.AWS
     )

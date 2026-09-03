@@ -97,11 +97,12 @@ async def _truncate_prompt(
     match vendor:
         case Vendor.OPENAI_PLATFORM:
             tokenizer = ResponsesRequestTokenizer(client, file_storage)
-        case Vendor.AWS | Vendor.AZURE:
+        case Vendor.AWS | Vendor.AZURE | Vendor.ALIBABA:
             logger.warning(
-                "max_prompt_tokens is ignored for Responses API "
-                "deployments backed by Azure OpenAI or Amazon Bedrock, "
-                "because the upstream doesn't support responses/input_tokens."
+                "max_prompt_tokens is ignored for Responses API deployments "
+                "backed by Azure OpenAI, Amazon Bedrock or Alibaba Cloud "
+                "Model Studio, because the upstream doesn't support "
+                "responses/input_tokens."
             )
             return None
         case Vendor.VLLM:

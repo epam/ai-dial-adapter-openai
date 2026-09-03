@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import assert_never
 
@@ -37,6 +38,10 @@ from aidial_adapter_openai.utils.parsers import (
     transcriptions_parser,
 )
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
+from aidial_adapter_openai.utils.upstream_headers import (
+    UpstreamVendor,
+    get_upstream_extra_data,
+)
 
 DeploymentAPIEndpoint = (
     AzureOpenAIEndpoint
@@ -56,6 +61,7 @@ class Vendor(StrEnum):
     VLLM = "vllm"
     AZURE = "azure"
     OPENAI_PLATFORM = "openai_platform"
+    ALIBABA = "alibaba"
 
 
 class ApplicationConfig(ExtraForbidModel):
@@ -102,7 +108,16 @@ class ApplicationConfig(ExtraForbidModel):
             | BedrockOpenAIEndpoint
             | None
         ),
+        request_headers: Mapping[str, str],
     ) -> Vendor:
+        match get_upstream_extra_data(request_headers).vendor:
+            case UpstreamVendor.ALIBABA_CLOUD:
+                return Vendor.ALIBABA
+            case None:
+                pass
+            case _ as unhandled:
+                assert_never(unhandled)
+
         if isinstance(endpoint, BedrockOpenAIEndpoint):
             return Vendor.AWS
 
