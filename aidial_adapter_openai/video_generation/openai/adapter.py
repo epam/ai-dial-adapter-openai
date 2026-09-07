@@ -134,12 +134,11 @@ async def chat_completion(
 ) -> StreamingResponse | dict:
     validate_request(request_body)
 
-    model_name = request_body["model"]
     configuration = _parse_configuration(request_body)
     prompt = await VideoGenPrompt.from_request(request_body, file_storage)
 
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
-        response.set_model(model_name)
+        response.set_model(deployment_id)
 
         with (
             response.create_single_choice() as choice,
@@ -151,7 +150,7 @@ async def chat_completion(
                 seconds = str(seconds_arg)
 
             video_job = await client.videos.create(
-                model=model_name,
+                model=deployment_id,
                 prompt=prompt.prompt,
                 input_reference=prompt.get_last_file(configuration) or omit,
                 seconds=seconds,  # type: ignore

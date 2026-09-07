@@ -3,7 +3,6 @@ from typing import assert_never
 from aidial_sdk.deployment.tokenize import (
     TokenizeError,
     TokenizeInput,
-    TokenizeInputRequest,
     TokenizeOutput,
     TokenizeRequest,
     TokenizeResponse,
@@ -17,10 +16,7 @@ from aidial_adapter_openai.chat_completions.tokenizer_factory import (
     RequestTokenizer,
     create_request_tokenizer,
 )
-from aidial_adapter_openai.dial_api.request import (
-    get_upstream_endpoint,
-    get_upstream_model_name,
-)
+from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.utils.upstream_headers import (
@@ -88,20 +84,10 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
     outputs: list[TokenizeOutput] = []
     for tokenize_input in tokenize_request.inputs:
         try:
-            request_model = (
-                tokenize_input.value.model
-                if isinstance(tokenize_input, TokenizeInputRequest)
-                else None
-            )
-            model_name = get_upstream_model_name(
-                request_headers=request.headers,
-                deployment_id=deployment_id,
-                model=request_model,
-            )
             token_count = await _tokenize_input(
                 tokenize_input=tokenize_input,
                 tokenizer=tokenizer,
-                model_name=model_name,
+                model_name=deployment_id,
             )
             outputs.append(TokenizeSuccess(token_count=token_count))
         except Exception as exc:

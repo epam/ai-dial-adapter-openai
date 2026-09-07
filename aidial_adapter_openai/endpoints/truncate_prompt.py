@@ -25,10 +25,7 @@ from aidial_adapter_openai.chat_completions.tokenizer_factory import (
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
-from aidial_adapter_openai.dial_api.request import (
-    get_upstream_endpoint,
-    get_upstream_model_name,
-)
+from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
 from aidial_adapter_openai.dial_api.storage import (
     FileStorage,
     create_file_storage,
@@ -140,11 +137,6 @@ async def truncate_prompt(
     deployment_type = deployment.deployment_type
     extra_headers = get_upstream_extra_headers(request.headers)
     file_storage = create_file_storage(request.headers)
-    model_name = get_upstream_model_name(
-        request_headers=request.headers,
-        deployment_id=deployment_id,
-        model=None,
-    )
 
     truncator: Truncator
     match deployment_type:
@@ -162,7 +154,7 @@ async def truncate_prompt(
                     f"Unexpected client for Anthropic deployment - {type(client)}"
                 )
             adapter = await create_adapter(
-                model_name, truncate_prompt_request.api_key, client
+                deployment_id, truncate_prompt_request.api_key, client
             )
             truncator = _AnthropicTruncator(adapter=adapter)
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
@@ -198,7 +190,7 @@ async def truncate_prompt(
     outputs: list[TruncatePromptResult] = []
     for inp in truncate_prompt_request.inputs:
         max_prompt_tokens = inp.max_prompt_tokens
-        inp.model = model_name
+        inp.model = deployment_id
         inp.max_prompt_tokens = None
 
         try:

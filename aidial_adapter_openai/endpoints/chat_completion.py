@@ -95,17 +95,9 @@ async def call_chat_completion(
     request_headers: Mapping[str, str],
     api_version: str,
 ) -> ChatResponse:
-    # Azure OpenAI deployments ignore "model" request field,
-    # since the deployment id is already encoded in the endpoint path.
-    # This is not the case for non-Azure OpenAI deployments, so
-    # they require the "model" field to be set.
-    # However, openai==1.33.0 requires the "model" field for **both**
-    # Azure and non-Azure deployments.
-    # Therefore, we provide the "model" field for all deployments here.
-    # The same goes for /embeddings endpoint.
-    model_name = request_body["model"] = (
-        request_body.get("model") or deployment_id
-    )
+    # Guarding against receiving an arbitrary model identifier from the user request.
+    # Replacing it with the deployment id coming from the adapter endpoint.
+    request_body["model"] = deployment_id
 
     upstream_endpoint = get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
@@ -134,7 +126,7 @@ async def call_chat_completion(
         return await anthropic_chat_completions(
             request=request,
             client=client,
-            deployment_id=model_name,
+            deployment_id=deployment_id,
         )
 
     match deployment_type:

@@ -13,6 +13,7 @@ from aidial_adapter_openai.chat_completions.anthropic_passthrough import (
     mount_anthropic_passthrough,
 )
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
+from aidial_adapter_openai.dial_api.request import apply_override_name
 from aidial_adapter_openai.exceptions.handlers import (
     adapter_exception_handler,
     fastapi_exception_handler,
@@ -66,6 +67,9 @@ def create_app(
     app.get("/health")(endpoints.health)
 
     app.post("/openai/v1/responses")(endpoints.responses_create)
+    app.post("/openai/v1/responses/input_tokens")(
+        endpoints.responses_input_tokens
+    )
     app.get("/openai/v1/responses/{responses_id:str}")(
         endpoints.responses_retrieve
     )
@@ -75,24 +79,21 @@ def create_app(
     app.post("/openai/v1/responses/{responses_id:str}/cancel")(
         endpoints.responses_cancel
     )
-    app.post("/openai/v1/responses/input_tokens")(
-        endpoints.responses_input_tokens
-    )
 
     app.post("/openai/deployments/{deployment_id:path}/embeddings")(
-        endpoints.embedding
+        apply_override_name(endpoints.embedding)
     )
     app.post("/openai/deployments/{deployment_id:path}/chat/completions")(
-        endpoints.chat_completion
+        apply_override_name(endpoints.chat_completion)
     )
     app.post("/openai/deployments/{deployment_id:path}/tokenize")(
-        endpoints.tokenize
+        apply_override_name(endpoints.tokenize)
     )
     app.post("/openai/deployments/{deployment_id:path}/truncate_prompt")(
-        endpoints.truncate_prompt
+        apply_override_name(endpoints.truncate_prompt)
     )
     app.get("/openai/deployments/{deployment_id:path}/configuration")(
-        endpoints.configuration
+        apply_override_name(endpoints.configuration)
     )
 
     mount_anthropic_passthrough(app, path="/anthropic")

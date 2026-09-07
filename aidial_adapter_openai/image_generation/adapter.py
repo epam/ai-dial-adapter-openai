@@ -32,7 +32,6 @@ async def chat_completion(
     prompt = await ImageGenPrompt.from_request(request_body, file_storage)
 
     n = int(request_body.get("n", 1))
-    model_name = request_body["model"]
 
     config_cls = model.get_configuration()
     response_format = model.get_response_format()
@@ -46,7 +45,7 @@ async def chat_completion(
 
     if prompt.images:
         model_response: ImagesResponse = await client.images.edit(
-            model=model_name,
+            model=deployment_id,
             image=images,  # type: ignore
             prompt=prompt.text_prompt,
             response_format=response_format,
@@ -55,7 +54,7 @@ async def chat_completion(
         )
     else:
         model_response = await client.images.generate(
-            model=model_name,
+            model=deployment_id,
             prompt=prompt.text_prompt,
             response_format=response_format,
             n=n,
@@ -68,7 +67,7 @@ async def chat_completion(
     image_content_type = model.get_image_content_type(config)
 
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
-        response.set_model(model_name)
+        response.set_model(deployment_id)
         response.set_response_id(generate_id())
         response.set_created(model_response.created)
 
