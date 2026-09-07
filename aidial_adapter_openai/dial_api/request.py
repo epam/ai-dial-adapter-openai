@@ -1,3 +1,4 @@
+import functools
 from collections.abc import Mapping
 from typing import Any, Generic, TypeVar
 
@@ -76,6 +77,9 @@ def apply_override_name(
     # a Azures OpenAI endpoint remains unchanged.
     # This decorator fixes this.
 
+    # Preserves the handler's return annotation, which FastAPI
+    # turns into the route's response model.
+    @functools.wraps(handler)
     async def func(deployment_id: str, request: fastapi.Request) -> _R:
         deployment_id = (
             request.headers.get("X-DIAL-OVERRIDE-NAME") or deployment_id
