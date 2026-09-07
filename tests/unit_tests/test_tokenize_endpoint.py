@@ -170,7 +170,7 @@ async def test_tokenize_vllm_uses_override_name_header(
         headers=_tokenize_headers(
             **{
                 "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
-                "X-DIAL-OVERRIDE-NAME": "upstream-model-name",
+                "X-DIAL-OVERRIDE-NAME": "vllm-test",
             }
         ),
     )
@@ -182,7 +182,7 @@ async def test_tokenize_vllm_uses_override_name_header(
             {"status": "success", "token_count": 2},
         ],
     }
-    assert captured["body"]["model"] == "upstream-model-name"
+    assert captured["body"]["model"] == "vllm-test"
 
 
 @respx.mock

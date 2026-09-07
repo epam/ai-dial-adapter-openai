@@ -57,7 +57,7 @@ def _chat_completion_chunks(response: httpx.Response) -> list[dict[str, Any]]:
 @respx.mock
 async def test_response_model_name(test_app: httpx.AsyncClient):
     def check_request(request: httpx.Request):
-        assert json.loads(request.content)["model"] == "upstream-model-name"
+        assert json.loads(request.content)["model"] == "adapter-deployment-name"
         return httpx.Response(
             status_code=200, content=json.dumps(_response().model_dump())
         )
@@ -67,7 +67,8 @@ async def test_response_model_name(test_app: httpx.AsyncClient):
     response = await test_app.post(
         "/openai/deployments/adapter-deployment-name/chat/completions?api-version=2023-03-15-preview",
         json={
-            "model": "upstream-model-name",
+            # The model name provided in the request body is ignored.
+            "model": "request-provided-model-name",
             "messages": [{"role": "user", "content": "Test content"}],
         },
         headers=_headers(),

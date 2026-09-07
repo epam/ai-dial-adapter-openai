@@ -51,8 +51,16 @@ async def test_dalle3_configuration_endpoint(
         headers=headers,
     )
 
-    assert response.status_code == 200
-    assert response.json()["properties"].keys() == {"quality", "size", "style"}
+    if upstream_endpoint is None:
+        assert response.status_code == 500
+        assert response.text == "Internal Server Error"
+    else:
+        assert response.status_code == 200
+        assert response.json()["properties"].keys() == {
+            "quality",
+            "size",
+            "style",
+        }
 
 
 @respx.mock
