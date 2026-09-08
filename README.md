@@ -113,37 +113,28 @@ Claude models are served by the [aidial-adapter-anthropic](https://github.com/ep
 
 ## Configuring the upstream model name
 
-Every upstream call carries a model name. Where the adapter reads it from depends on which of its endpoints DIAL Core is configured to call:
+Every upstream call carries a model name. Where the adapter takes it from depends on which of its endpoints DIAL Core is configured to call:
 
-|Adapter endpoint|Source of the model name|
+|Adapter endpoint|Source of the upstream model name|
 |---|---|
-|`/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/...`|The `${UPSTREAM_DEPLOYMENT_ID}` path segment|
-|`/openai/v1/responses`, `/anthropic`|The `model` field of the request body|
+|`/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/...` *(`chat/completions`, `embeddings`, `tokenize`, `truncate_prompt`, `configuration`)*|The `${UPSTREAM_DEPLOYMENT_ID}` path segment; the `model` field of the request body is ignored|
+|`/openai/v1/responses` (`responsesEndpoint`) and the [Anthropic passthrough](#anthropic-api-passthrough) *(no deployment id in the URL)*|The `model` field of the request body, which DIAL Core fills with the DIAL model id|
 
-**Azure-style endpoints** — `chat/completions`, `embeddings`, `tokenize`, `truncate_prompt` and `configuration` — already carry the deployment id in the URL. The adapter sends that id upstream as the model name and **ignores** the `model` field of the request body:
-
-```text
-"endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_MODEL_NAME}/chat/completions"
-```
-
-**Endpoints without a deployment id** — the Responses API (`responsesEndpoint`) and the [Anthropic passthrough](#anthropic-api-passthrough) — have no id in the URL to read, so the model name comes from the request body.
-
-The `overrideName` field in the DIAL Core configuration for a model consistently overrides upstream model name.
-
-This isn't very practical for the **Azure-style endpoints**, since the following configuration with the override name:
+The `overrideName` field of a DIAL Core model configuration overrides the upstream model name in both cases:
 
 ```json
 {
   "models": {
     "dial-model-id": {
       "overrideName": "upstream-model-name",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/a-deployment-id/chat/completions"
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/a-deployment-id/chat/completions",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses"
     }
   }
 }
 ```
 
-is equivalent to the one without the override name:
+For endpoints with a deployment id, `overrideName` is just an alternative to writing the name into the URL. As far as `endpoint` is concerned, the config above is equivalent to this one, which has no override:
 
 ```json
 {
@@ -155,32 +146,9 @@ is equivalent to the one without the override name:
 }
 ```
 
-However, `overrideName` is especially useful for the **endpoints without a deployment id**:
+For endpoints without a deployment id, it's the only way to keep the DIAL model id decoupled from the upstream one; without it, `dial-model-id` is sent upstream verbatim.
 
-```json
-{
-  "models": {
-    "dial-model-id": {
-      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses"
-    }
-  }
-}
-```
-
-When the `overrideName` is missing the upstream model name is resolved into `dial-model-id`, which may not be desirable, if you want to hide the upstream model name behind the abstraction of a DIAL model.
-
-```json
-{
-  "models": {
-    "dial-model-id": {
-      "overrideName": "upstream-model-name",
-      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses"
-    }
-  }
-}
-```
-
-This configuration explicitly sets the upstream model name and by doing so decouples the DIAL model ids from the upstream ones. For this reason we recommend specifying `overrideName` always to make the configuration more explicit and maintainable.
+We recommend always specifying `overrideName` to make the configuration explicit and maintainable.
 
 ---
 
@@ -2025,6 +1993,8 @@ The configuration of the Claude models *(extended thinking, reasoning level, bet
 
 The adapter supports multiple upstream definitions in the DIAL Core config:
 
+<details><summary>DIAL Core Config</summary>
+
 ```json
 {
   "models": {
@@ -2034,19 +2004,21 @@ The adapter supports multiple upstream definitions in the DIAL Core config:
       "displayName": "GPT-4o",
       "upstreams": [
         {
-          "endpoint": "https://$AZURE_OPENAI_SERVICE_NAME1.openai.azure.com/openai/deployments/gpt-4o-2024-11-20/chat/completions"
+          "endpoint": "https://$AZURE_OPENAI_SERVICE_NAME1.openai.azure.com/openai/v1/chat/completions"
         },
         {
-          "endpoint": "https://$AZURE_OPENAI_SERVICE_NAME2.openai.azure.com/openai/deployments/gpt-4o-2024-11-20/chat/completions"
+          "endpoint": "https://$AZURE_OPENAI_SERVICE_NAME2.openai.azure.com/openai/v1/chat/completions"
         },
         {
-          "endpoint": "https://$AZURE_OPENAI_SERVICE_NAME3.openai.azure.com/openai/deployments/gpt-4o-2024-11-20/chat/completions"
+          "endpoint": "https://$AZURE_OPENAI_SERVICE_NAME3.openai.azure.com/openai/v1/chat/completions"
         }
       ]
     }
   }
 }
 ```
+
+</details>
 
 ---
 

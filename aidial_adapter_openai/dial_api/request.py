@@ -73,8 +73,8 @@ def apply_override_name(
     handler: _AzureStyleRequestHandler[_R],
 ) -> _AzureStyleRequestHandler[_R]:
     # DIAL Core only applies the models[*].overrideName field to
-    # the request body. The deployment ids path parameters in
-    # a Azures OpenAI endpoint remains unchanged.
+    # the request body. The deployment id path parameter in
+    # an Azure OpenAI endpoint remains unchanged.
     # This decorator fixes this.
 
     # Preserves the handler's return annotation, which FastAPI
