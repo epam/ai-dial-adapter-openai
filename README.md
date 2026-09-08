@@ -14,11 +14,12 @@
 </h4>
 
 - [Overview](#overview)
+- [Configuring the upstream model name](#configuring-the-upstream-model-name)
 - [Chat Completions API deployments](#chat-completions-api-deployments)
   - [Supported upstream chat APIs](#supported-upstream-chat-apis)
-    - [Azure OpenAI Chat Completions API (Last generation API)](#azure-openai-chat-completions-api-last-generation-api)
-    - [Azure OpenAI Chat Completions API (Next generation API)](#azure-openai-chat-completions-api-next-generation-api)
-    - [Azure OpenAI Responses API (Next generation API)](#azure-openai-responses-api-next-generation-api)
+    - [Azure OpenAI Chat Completions API](#azure-openai-chat-completions-api)
+    - [Azure OpenAI Chat Completions API (legacy)](#azure-openai-chat-completions-api-legacy)
+    - [Azure OpenAI Responses API](#azure-openai-responses-api)
       - [Web Search Tool](#web-search-tool)
     - [Azure AI Foundry Chat Completions API](#azure-ai-foundry-chat-completions-api)
     - [Azure OpenAI Images API](#azure-openai-images-api)
@@ -55,14 +56,14 @@
       - [DIAL Core configuration](#dial-core-configuration-1)
 - [Responses API deployments](#responses-api-deployments)
   - [Supported upstream Responses APIs](#supported-upstream-responses-apis)
-    - [Azure OpenAI Responses API](#azure-openai-responses-api)
+    - [Azure OpenAI Responses API](#azure-openai-responses-api-1)
     - [OpenAI Platform Responses API](#openai-platform-responses-api)
     - [Amazon Bedrock OpenAI Responses API](#amazon-bedrock-openai-responses-api)
     - [Alibaba Cloud Model Studio Responses API](#alibaba-cloud-model-studio-responses-api)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
-    - [Azure OpenAI Embeddings API (Last generation API)](#azure-openai-embeddings-api-last-generation-api)
-    - [Azure OpenAI Embeddings API (Next generation API)](#azure-openai-embeddings-api-next-generation-api)
+    - [Azure OpenAI Embeddings API](#azure-openai-embeddings-api)
+    - [Azure OpenAI Embeddings API (legacy)](#azure-openai-embeddings-api-legacy)
     - [Azure multimodal embeddings](#azure-multimodal-embeddings)
     - [OpenAI Platform Embeddings API](#openai-platform-embeddings-api)
     - [vLLM Embeddings API](#vllm-embeddings-api)
@@ -110,6 +111,79 @@ Claude models are served by the [aidial-adapter-anthropic](https://github.com/ep
 
 ---
 
+## Configuring the upstream model name
+
+Every upstream call carries a model name. Where the adapter reads it from depends on which of its endpoints DIAL Core is configured to call:
+
+|Adapter endpoint|Source of the model name|
+|---|---|
+|`/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/...`|The `${UPSTREAM_DEPLOYMENT_ID}` path segment|
+|`/openai/v1/responses`, `/anthropic`|The `model` field of the request body|
+
+**Azure-style endpoints** — `chat/completions`, `embeddings`, `tokenize`, `truncate_prompt` and `configuration` — already carry the deployment id in the URL. The adapter sends that id upstream as the model name and **ignores** the `model` field of the request body:
+
+```text
+"endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_MODEL_NAME}/chat/completions"
+```
+
+**Endpoints without a deployment id** — the Responses API (`responsesEndpoint`) and the [Anthropic passthrough](#anthropic-api-passthrough) — have no id in the URL to read, so the model name comes from the request body.
+
+The `overrideName` field in the DIAL Core configuration for a model consistently overrides upstream model name.
+
+This isn't very practical for the **Azure-style endpoints**, since the following configuration with the override name:
+
+```json
+{
+  "models": {
+    "dial-model-id": {
+      "overrideName": "upstream-model-name",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/a-deployment-id/chat/completions"
+    }
+  }
+}
+```
+
+is equivalent to the one without the override name:
+
+```json
+{
+  "models": {
+    "dial-model-id": {
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/upstream-model-name/chat/completions"
+    }
+  }
+}
+```
+
+However, `overrideName` is especially useful for the **endpoints without a deployment id**:
+
+```json
+{
+  "models": {
+    "dial-model-id": {
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses"
+    }
+  }
+}
+```
+
+When the `overrideName` is missing the upstream model name is resolved into `dial-model-id`, which may not be desirable, if you want to hide the upstream model name behind the abstraction of a DIAL model.
+
+```json
+{
+  "models": {
+    "dial-model-id": {
+      "overrideName": "upstream-model-name",
+      "responsesEndpoint": "${ADAPTER_ORIGIN}/openai/v1/responses"
+    }
+  }
+}
+```
+
+This configuration explicitly sets the upstream model name and by doing so decouples the DIAL model ids from the upstream ones. For this reason we recommend specifying `overrideName` always to make the configuration more explicit and maintainable.
+
+---
+
 ## Chat Completions API deployments
 
 The adapter is able to convert certain upstream APIs to the [DIAL Chat Completions API](https://dialx.ai/dial_api#operation/sendChatCompletionRequest) *(which is an extension of Azure [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat))*.
@@ -117,12 +191,12 @@ The adapter is able to convert certain upstream APIs to the [DIAL Chat Completio
 Chat Completions deployments are exposed via the endpoint:
 
 ```text
-POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions
+POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/chat/completions
 ```
 
 ### Supported upstream chat APIs
 
-#### Azure OpenAI Chat Completions API (Last generation API)
+#### Azure OpenAI Chat Completions API
 
 <details><summary>DIAL Core Config</summary>
 
@@ -131,78 +205,7 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completi
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
-      "upstreams": [
-        {
-          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/chat/completions",
-          "key": "${OPTIONAL_API_KEY}"
-        }
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-There are three free variables in the config related to deployment ids.
-Each of these variables corresponds to an HTTP request initiated by the DIAL client:
-
-1. `DIAL_DEPLOYMENT_ID` - it's the deployment id visible to the DIAL Client via DIAL deployment listing. The client will be using the id to call the model by sending the request `POST ${DIAL_CORE_ORIGIN}/openai/deployments/${DIAL_DEPLOYMENT_ID}/chat/completions`
-2. `ADAPTER_DEPLOYMENT_ID` - the deployment id the OpenAI adapter receives when DIAL Core calls `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions`. Use this identifier in environment variables that define [deployment categories](#categories-of-deployments).
-3. `AZURE_OPENAI_DEPLOYMENT_ID` - the Azure OpenAI deployment called by the OpenAI adapter.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor U as DIAL Client
-    participant C as DIAL Core
-    participant A as OpenAI Adapter
-    participant AZ as Azure OpenAI
-    participant OP as OpenAI Platform
-
-    Note over U,C: DIAL_DEPLOYMENT_ID
-    U->>C: POST /openai/deployments/<br>${DIAL_DEPLOYMENT_ID}/chat/completions
-
-    Note over C,A: ADAPTER_DEPLOYMENT_ID
-    C->>A: POST ${ADAPTER_ORIGIN}/openai/deployments/<br>${ADAPTER_DEPLOYMENT_ID}/chat/completions
-
-    alt Azure OpenAI upstream
-        Note over A,AZ: AZURE_OPENAI_DEPLOYMENT_ID
-        A->>AZ: POST https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/<br>openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/<br>chat/completions
-        Note right of A: Auth: api-key (if provided) or Azure AD via DefaultAzureCredential
-        AZ-->>A: JSON or SSE stream
-    else OpenAI Platform upstream
-        A->>OP: POST https://api.openai.com/v1/chat/completions<br>(with "model"=${OPENAI_MODEL_NAME}, api-key)
-        OP-->>A: JSON or SSE stream
-    end
-
-    A-->>C: Normalized response (headers/stream)
-    C-->>U: Response to client
-```
-
-Typically these three variables share the same value (the Azure OpenAI deployment name). They may differ if you expose multiple DIAL deployments that call the same Azure OpenAI endpoint but [configured](#configurable-models) differently.
-
-The [DefaultAzureCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential?view=azure-python) is used to authenticate requests to Azure when an API key is not provided in the upstream configuration.
-
-#### Azure OpenAI Chat Completions API (Next generation API)
-
-The Next generation API (aka [v1 API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle?tabs=key#next-generation-api)) doesn't include the deployment id in the URL:
-
-- Last generation API: `POST https://SERVICE_NAME.openai.azure.com/openai/deployments/gpt-4o/chat/completions`
-- Next generation API: `POST https://SERVICE_NAME.openai.azure.com/openai/v1/chat/completions`
-
-The DIAL configuration changes accordingly:
-
-<details><summary>DIAL Core Config</summary>
-
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "chat",
-      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/chat/completions",
@@ -216,9 +219,79 @@ The DIAL configuration changes accordingly:
 
 </details>
 
-Because the deployment ID is not included in the upstream URL, specify it in the `overrideName` field. If this field is missing, the model name takes the value of the `model` field from the original chat completion request (if present), otherwise `${ADAPTER_DEPLOYMENT_ID}`.
+There are two free variables in the config related to deployment ids.
 
-#### Azure OpenAI Responses API (Next generation API)
+1. `DIAL_DEPLOYMENT_ID` is the deployment id visible to the DIAL Client via DIAL deployment listing. The client will be using the id to call the model by sending the request `POST ${DIAL_CORE_ORIGIN}/openai/deployments/${DIAL_DEPLOYMENT_ID}/chat/completions`
+2. `UPSTREAM_DEPLOYMENT_ID` - the deployment id the OpenAI adapter receives when DIAL Core calls `POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/chat/completions`. This must correspond to the Azure deployment id in the given Azure OpenAI service. Use this identifier in environment variables that define [deployment categories](#categories-of-deployments).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as DIAL Client
+    participant C as DIAL Core
+    participant A as OpenAI Adapter
+    participant AZ as Azure OpenAI
+    participant OP as OpenAI Platform
+
+    Note over U,C: DIAL_DEPLOYMENT_ID
+    U->>C: POST /openai/deployments/<br>${DIAL_DEPLOYMENT_ID}/chat/completions
+
+    Note over C,A: UPSTREAM_DEPLOYMENT_ID
+    C->>A: POST ${ADAPTER_ORIGIN}/openai/deployments/<br>${UPSTREAM_DEPLOYMENT_ID}/chat/completions
+
+    alt v1 Azure OpenAI upstream
+        Note over A,AZ: UPSTREAM_DEPLOYMENT_ID
+        A->>AZ: POST https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/chat/completions<br>(with "model"=${UPSTREAM_DEPLOYMENT_ID})
+        Note right of A: Auth: api-key (if provided) or Azure AD via DefaultAzureCredential
+        AZ-->>A: JSON or SSE stream
+    else OpenAI Platform upstream
+        A->>OP: POST https://api.openai.com/v1/chat/completions<br>(with "model"=${UPSTREAM_DEPLOYMENT_ID}, api-key)
+        OP-->>A: JSON or SSE stream
+    end
+
+    A-->>C: Normalized response (headers/stream)
+    C-->>U: Response to client
+```
+
+Typically these two variables share the same value (the Azure OpenAI deployment name). They may differ if you expose multiple DIAL deployments that call the same Azure OpenAI endpoint but [configured](#configurable-models) differently.
+
+The [DefaultAzureCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential?view=azure-python) is used to authenticate requests to Azure when an API key is not provided in the upstream configuration.
+
+#### Azure OpenAI Chat Completions API (legacy)
+
+The legacy last generation API includes explicit deployment id in the URL, e.g.:
+
+`POST https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/gpt-4o/chat/completions`
+
+The DIAL upstream configuration changes accordingly:
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+We recommend always setting the same upstream deployment id in the `endpoint` and all `upstream[*].endpoint` URLs, since `upstream[*].endpoint` is the actual endpoint that will be called at the end of the day.
+
+> [!WARNING]
+> Because of the risk of such a misconfiguration, we recommend avoiding this configuration and instead opt for the [v1 API](#azure-openai-chat-completions-api).
+
+#### Azure OpenAI Responses API
 
 Certain advanced features of OpenAI models, such as [reasoning summary](https://platform.openai.com/docs/guides/reasoning#reasoning-summaries), are only accessible via Responses API and not accessible via Chat Completions API.
 
@@ -229,8 +302,7 @@ Certain advanced features of OpenAI models, such as [reasoning summary](https://
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/responses",
@@ -243,14 +315,6 @@ Certain advanced features of OpenAI models, such as [reasoning summary](https://
 ```
 
 </details>
-
-As in other cases where the upstream URL omits a deployment id, specify it in the `overrideName` field.
-
-The last generation API is also supported via an URLs in the following format:
-
-```text
-"endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/responses"
-```
 
 ##### Web Search Tool
 
@@ -282,6 +346,7 @@ The deployments backed by Azure OpenAI Responses API support the [Web Search too
   "stream": true
 }
 ```
+
 </details>
 
 Each Web Search tool calls are translated into a DIAL stages, and URL citations are mirrored as DIAL attachments:
@@ -316,6 +381,7 @@ Each Web Search tool calls are translated into a DIAL stages, and URL citations 
   ]
 }
 ```
+
 </details>
 
 #### Azure AI Foundry Chat Completions API
@@ -332,8 +398,7 @@ Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deplo
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/models/chat/completions",
@@ -354,11 +419,10 @@ Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deplo
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
-          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.openai.azure.com/openai/deployments/gpt-oss-120b/chat/completions",
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}/chat/completions",
           "key": "${OPTIONAL_API_KEY}"
         }
       ]
@@ -378,7 +442,7 @@ Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deplo
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/images/generations",
@@ -406,7 +470,6 @@ The supported upstream models are `dall-e-3` and `gpt-image-1`. These are the va
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "sora",
       "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/sora/chat/completions",
       "upstreams": [
         {
@@ -463,7 +526,6 @@ Find the details in the [Azure API specification](https://github.com/Azure/azure
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "sora-2",
       "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/sora-2/chat/completions",
       "upstreams": [
         {
@@ -572,10 +634,10 @@ Set `AZURE_DEPLOYMENT_ID` variable to one of the [text-to-speech models](https:/
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AUDIO_API_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
-          "endpoint": "https://${AZURE_SERVICE_NAME}.(openai|cognitiveservices).azure.com/openai/deployments/${AZURE_DEPLOYMENT_ID/audio/speech",
+          "endpoint": "https://${AZURE_SERVICE_NAME}.(openai|cognitiveservices).azure.com/openai/v1/audio/speech",
           "key": "${OPTIONAL_API_KEY}"
         }
       ]
@@ -621,10 +683,10 @@ Set `AZURE_DEPLOYMENT_ID` variable to one of the [speech-to-text models](https:/
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AUDIO_API_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
-          "endpoint": "https://${AZURE_SERVICE_NAME}.(openai|cognitiveservices).azure.com/openai/deployments/${AZURE_DEPLOYMENT_ID/audio/transcriptions",
+          "endpoint": "https://${AZURE_SERVICE_NAME}.(openai|cognitiveservices).azure.com/openai/v1/audio/transcriptions",
           "key": "${OPTIONAL_API_KEY}"
         }
       ]
@@ -655,8 +717,7 @@ The usage is computed in the following way:
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${OPENAI_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://api.openai.com/v1/chat/completions",
@@ -670,10 +731,7 @@ The usage is computed in the following way:
 
 </details>
 
-Note the difference from the Azure OpenAI configuration:
-
-- The API key is required.
-- Added `overrideName` to specify the upstream OpenAI model name. The upstream URL does not include the model name *(unlike Azure)*, so we pass it via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
+Note that the API key is required compared to the Azure OpenAI configuration.
 
 #### Amazon Bedrock OpenAI Chat Completions API
 
@@ -682,9 +740,9 @@ The adapter supports OpenAI models deployed through Amazon Bedrock. Two upstream
 - **Bedrock Mantle** - `https://bedrock-mantle.${AWS_REGION}.api.aws/openai/v1/chat/completions`
 - **Bedrock Runtime** - `https://bedrock-runtime.${AWS_REGION}.amazonaws.com/openai/v1/chat/completions`
 
-Both formats are authenticated the same way, but they expect different model ids in `overrideName`:
+Both formats are authenticated the same way, but they expect different model ids:
 
-|Upstream endpoint|`overrideName`|
+|Upstream endpoint|Model id|
 |---|---|
 |Bedrock Mantle|`openai.gpt-5.4`|
 |Bedrock Runtime|`us.openai.gpt-5.4` *(the model id prefixed with the region)*|
@@ -698,8 +756,7 @@ Model availability differs between the two formats - check the [AWS OpenAI model
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "openai.gpt-5.4",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/openai.gpt-5.4/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://bedrock-mantle.${AWS_REGION}.api.aws/openai/v1/chat/completions",
@@ -713,10 +770,11 @@ Model availability differs between the two formats - check the [AWS OpenAI model
 
 </details>
 
-As in other v1-style upstreams, set `overrideName` to the Bedrock model id.
+As in other v1-style upstreams, the adapter deployment id in the endpoint URL is the Bedrock model id.
 
 > [!NOTE]
 > Bedrock support and feature parity can differ from direct OpenAI API support. Validate your model, region, and required capabilities before rollout:
+>
 > - [OpenAI models in Amazon Bedrock](https://developers.openai.com/api/docs/guides/amazon-bedrock)
 > - [AWS OpenAI model cards](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.html)
 > - [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html)
@@ -748,8 +806,7 @@ Since every upstream carries its own credentials, a single deployment can be [ba
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "openai.gpt-5.4",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/openai.gpt-5.4/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://bedrock-mantle.us-east-1.api.aws/openai/v1/chat/completions",
@@ -808,7 +865,6 @@ AWS sets several constraints for session tags. See the AWS docs on [passing sess
 |A claim|`userClaims.email`|
 |Several|`roles.0,project,userClaims.email`|
 
-
 #### OpenAI Completions API
 
 The adapter also supports **legacy** [Completions API](https://platform.openai.com/docs/api-reference/completions/create) both for Azure-style upstream endpoints and OpenAI Platform-style endpoints:
@@ -820,8 +876,7 @@ The adapter also supports **legacy** [Completions API](https://platform.openai.c
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${OPENAI_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://api.openai.com/v1/completions",
@@ -846,7 +901,6 @@ The Mistral Platform provides [Chat Completions API](https://docs.mistral.ai/api
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${MISTRAL_MODEL_NAME}",
       "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${MISTRAL_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
@@ -878,8 +932,7 @@ The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${MODEL_STUDIO_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${MODEL_STUDIO_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
@@ -916,8 +969,7 @@ vLLM provides an OpenAI-compatible Chat Completions API and can be connected to 
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${VLLM_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${VLLM_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "${VLLM_ORIGIN}/v1/chat/completions"
@@ -930,7 +982,7 @@ vLLM provides an OpenAI-compatible Chat Completions API and can be connected to 
 
 </details>
 
-Enable the vLLM-specific flow by adding `${ADAPTER_DEPLOYMENT_ID}` to the environment variable `VLLM_DEPLOYMENTS`.
+Enable the vLLM-specific flow by adding `${UPSTREAM_DEPLOYMENT_ID}` to the environment variable `VLLM_DEPLOYMENTS`.
 
 ##### Qwen3-ASR
 
@@ -955,8 +1007,7 @@ When the API key missing, the adapter falls back to Azure Entra ID authenticatio
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${ANTHROPIC_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ANTHROPIC_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/anthropic/v1/messages",
@@ -977,8 +1028,7 @@ When the API key missing, the adapter falls back to Azure Entra ID authenticatio
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${ANTHROPIC_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ANTHROPIC_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://api.anthropic.com/v1/messages",
@@ -1037,13 +1087,12 @@ To enable it:
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${ANTHROPIC_MODEL_NAME}",
       "defaults": {
         "custom_fields": {
           "cache_breakpoint": {}
         }
       },
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ANTHROPIC_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME1}.services.ai.azure.com/anthropic/v1/messages",
@@ -1077,8 +1126,7 @@ Set the feature flag `cacheSupported: true` in the DIAL Core configuration, when
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${ANTHROPIC_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ANTHROPIC_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME1}.services.ai.azure.com/anthropic/v1/messages",
@@ -1192,7 +1240,7 @@ ANTHROPIC_DEFAULT_HAIKU_MODEL="claude-haiku-4-5"
 Notes:
 
 - `ANTHROPIC_BASE_URL` must match the host and port the adapter is served on (the `make serve` default is `5001`; adjust the port accordingly).
-- The model passed to the adapter is the **upstream Claude model name** served by the Azure AI Foundry deployment, _not_ a Claude API alias.
+- The model passed to the adapter is the **upstream Claude model name** served by the Azure AI Foundry deployment, *not* a Claude API alias.
 - The adapter authenticates to the upstream with `X-UPSTREAM-KEY`; when routing through DIAL Core these headers are set automatically, so `ANTHROPIC_CUSTOM_HEADERS` is not needed.
 - `ANTHROPIC_DEFAULT_HAIKU_MODEL` sets a lightweight model Claude Code uses for background tasks. Point it at a fast model the upstream serves.
 
@@ -1290,7 +1338,7 @@ When `max_prompt_tokens` is set for a Responses API deployment backed by OpenAI 
 
 #### Tokenize endpoint
 
-The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize` using the [DIAL SDK tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
+The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/tokenize` using the [DIAL SDK tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
 
 Request:
 
@@ -1335,8 +1383,7 @@ To expose the tokenize endpoint to DIAL clients, add `features.tokenizeEndpoint`
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${UPSTREAM_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "${UPSTREAM_ORIGIN}/v1/chat/completions",
@@ -1344,7 +1391,7 @@ To expose the tokenize endpoint to DIAL clients, add `features.tokenizeEndpoint`
         }
       ],
       "features": {
-        "tokenizeEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/tokenize"
+        "tokenizeEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/tokenize"
       }
     }
   }
@@ -1355,7 +1402,7 @@ To expose the tokenize endpoint to DIAL clients, add `features.tokenizeEndpoint`
 
 #### Truncate prompt endpoint
 
-The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/truncate_prompt` using the [DIAL SDK truncate_prompt schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/truncate_prompt.py).
+The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/truncate_prompt` using the [DIAL SDK truncate_prompt schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/truncate_prompt.py).
 
 It is the dry-run counterpart of the `max_prompt_tokens` truncation that *(optionally)* happens during a `chat/completions` call: given a chat completion request and a `max_prompt_tokens` budget, it reports which messages *would* be discarded to make the prompt fit — **without calling the model**. Only token counting is performed *(following the corresponding [tokenization algorithm](#tokenization-algorithm))*.
 
@@ -1408,8 +1455,7 @@ To expose the truncate prompt endpoint to DIAL clients, add `features.truncatePr
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${UPSTREAM_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
           "endpoint": "${UPSTREAM_ORIGIN}/v1/chat/completions",
@@ -1417,7 +1463,7 @@ To expose the truncate prompt endpoint to DIAL clients, add `features.truncatePr
         }
       ],
       "features": {
-        "truncatePromptEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/truncate_prompt"
+        "truncatePromptEndpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/truncate_prompt"
       }
     }
   }
@@ -1590,12 +1636,12 @@ The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API
 Embeddings deployments are exposed via the endpoint:
 
 ```text
-POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
+POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/embeddings
 ```
 
 ### Supported upstream embedding APIs
 
-#### Azure OpenAI Embeddings API (Last generation API)
+#### Azure OpenAI Embeddings API
 
 <details><summary>DIAL Core Config</summary>
 
@@ -1604,31 +1650,7 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
-      "upstreams": [
-        {
-          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/embeddings",
-          "key": "${OPTIONAL_API_KEY}"
-        }
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-#### Azure OpenAI Embeddings API (Next generation API)
-
-<details><summary>DIAL Core Config</summary>
-
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "embedding",
-      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/embeddings",
       "upstreams": [
         {
           "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/embeddings",
@@ -1642,6 +1664,32 @@ POST ${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings
 
 </details>
 
+#### Azure OpenAI Embeddings API (legacy)
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "embedding",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/embeddings",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_ID}/embeddings",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!WARNING]
+> Just like [Azure OpenAI Chat Completions legacy](#azure-openai-chat-completions-api-legacy) it's considered legacy and we recommend to used [Azure OpenAI Embeddings API](#azure-openai-embeddings-api) instead.
+
 #### Azure multimodal embeddings
 
 The adapter supports [Azure Multimodal embeddings](https://learn.microsoft.com/en-us/azure/ai-services/computer-vision/concept-image-retrieval).
@@ -1653,7 +1701,7 @@ The adapter supports [Azure Multimodal embeddings](https://learn.microsoft.com/e
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/embeddings",
       "upstreams": [
         {
           "endpoint": "https://${COMPUTER_VISION_SERVICE_NAME}.cognitiveservices.azure.com",
@@ -1668,7 +1716,7 @@ The adapter supports [Azure Multimodal embeddings](https://learn.microsoft.com/e
 </details>
 
 > [!IMPORTANT]
-> `${ADAPTER_DEPLOYMENT_ID}` must be added to the env variable `AZURE_AI_VISION_DEPLOYMENTS` to enable the embeddings deployment.
+> `${UPSTREAM_DEPLOYMENT_ID}` must be added to the env variable `AZURE_AI_VISION_DEPLOYMENTS` to enable the embeddings deployment.
 
 The multimodal embeddings model supports text and images as inputs.
 
@@ -1692,8 +1740,7 @@ The response will contain three embedding vectors, each corresponding to one of 
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
-      "overrideName": "${OPENAI_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${OPENAI_MODEL_NAME}/embeddings",
       "upstreams": [
         {
           "endpoint": "https://api.openai.com/v1/embeddings",
@@ -1716,8 +1763,7 @@ The response will contain three embedding vectors, each corresponding to one of 
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "embedding",
-      "overrideName": "${UPSTREAM_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/embeddings",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/embeddings",
       "inputAttachmentTypes": ["image/png", "image/jpeg", "image/webp"],
       "upstreams": [
         {
@@ -1732,7 +1778,7 @@ The response will contain three embedding vectors, each corresponding to one of 
 </details>
 
 > [!IMPORTANT]
-> `${ADAPTER_DEPLOYMENT_ID}` must be added to the env variable `VLLM_DEPLOYMENTS` to enable the embeddings deployment.
+> `${UPSTREAM_DEPLOYMENT_ID}` must be added to the env variable `VLLM_DEPLOYMENTS` to enable the embeddings deployment.
 
 The adapter proxies [DIAL Embeddings API](#embedding-deployments) requests to the upstream. Configure the upstream endpoint in DIAL Core as `.../v1/embeddings` or `.../pooling` depending on which API the model exposes.
 
@@ -2022,8 +2068,7 @@ A practical use case is routing requests within a vLLM cluster: [DIAL Chat](http
   "models": {
     "${DIAL_DEPLOYMENT_ID}": {
       "type": "chat",
-      "overrideName": "${VLLM_MODEL_NAME}",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${ADAPTER_DEPLOYMENT_ID}/chat/completions",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${VLLM_MODEL_NAME}/chat/completions",
       "upstreams": [
         {
           "endpoint": "${VLLM_ORIGIN}/v1/chat/completions",
