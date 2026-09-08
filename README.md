@@ -79,6 +79,9 @@
 - [Load balancing](#load-balancing)
 - [Upstream header proxying](#upstream-header-proxying)
 - [Prompt caching](#prompt-caching)
+  - [Azure AI Foundry](#azure-ai-foundry)
+  - [Alibaba Cloud Model Studio](#alibaba-cloud-model-studio)
+  - [Anthropic](#anthropic)
 - [API versioning](#api-versioning)
 - [Server performance configuration](#server-performance-configuration)
 - [Deployment](#deployment)
@@ -880,7 +883,10 @@ The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#
       "upstreams": [
         {
           "endpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
-          "key": "${DASHSCOPE_API_KEY}"
+          "key": "${DASHSCOPE_API_KEY}",
+          "extra_data": {
+            "vendor": "alibaba-cloud"
+          }
         }
       ]
     }
@@ -891,6 +897,8 @@ The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#
 </details>
 
 Where `MODEL_STUDIO_MODEL_NAME` is one of the available [models](https://www.alibabacloud.com/help/en/model-studio/models) on the platform *(for example `qwen3.7-max`, `qwen-plus`, or `qwen-flash`)*.
+
+The `extra_data.vendor` field is required to enable the [cache breakpoints](#alibaba-cloud-model-studio) - without it the adapter treats the upstream as a vanilla OpenAI one and passes the breakpoints through untouched.
 
 The upstream URL doesn't include the model name, so it is passed via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
 
@@ -1555,7 +1563,10 @@ For long-running workloads, prefer the credentials that the adapter refreshes on
       "upstreams": [
         {
           "responsesEndpoint": "https://${MODEL_STUDIO_WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/responses",
-          "key": "${DASHSCOPE_API_KEY}"
+          "key": "${DASHSCOPE_API_KEY}",
+          "extra_data": {
+            "vendor": "alibaba-cloud"
+          }
         }
       ]
     }
@@ -1564,6 +1575,8 @@ For long-running workloads, prefer the credentials that the adapter refreshes on
 ```
 
 </details>
+
+The `extra_data.vendor` field is required to enable the [prompt caching](#alibaba-cloud-model-studio). The Responses API doesn't support the cache breakpoints, so the caching of the conversation prefix is requested for the whole session instead.
 
 > [!NOTE]
 > As with the Chat Completions API, the upstream `base_url` differs by region. Replace `${MODEL_STUDIO_WORKSPACE_ID}` with your workspace id and adjust the host to match your region *(the US (Virginia) host `dashscope-us.aliyuncs.com` doesn't include a workspace id)*. Use the current `/compatible-mode/v1/responses` path — the legacy `/api/v2/apps/protocols/compatible-mode/v1/responses` path is deprecated. See the [endpoint list](https://www.alibabacloud.com/help/en/model-studio/compatibility-with-openai-responses-api) for details.
@@ -2035,6 +2048,8 @@ When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and 
 
 ## Prompt caching
 
+### Azure AI Foundry
+
 [Prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching) can be enabled via the `autoCachingSupported` flag in the DIAL Core config.
 
 ```json
@@ -2065,6 +2080,62 @@ When a DIAL Chat request carries `x-conversation-id: abc123`, the DIAL Core and 
 
 > [!IMPORTANT]
 > Verify that the deployment actually supports [prompt caching](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/prompt-caching#supported-models) before enabling it.
+
+### Alibaba Cloud Model Studio
+
+[Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/context-cache) upstreams declare `extra_data.vendor: alibaba-cloud` in the DIAL Core config, as shown for the [Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api) and the [Responses API](#alibaba-cloud-model-studio-responses-api) deployments. The caching is disabled for an upstream that doesn't declare it.
+
+In the Chat Completions API deployments, the caching is requested via the DIAL cache breakpoints.
+
+A top-level breakpoint caches the whole prompt:
+
+<details><summary>Top-level cache breakpoint</summary>
+
+```json
+{
+  "model": "qwen-plus",
+  "messages": [
+    {"role": "user", "content": "Hello!"}
+  ],
+  "custom_fields": {
+    "cache_breakpoint": {}
+  }
+}
+```
+
+</details>
+
+A per-message breakpoint caches the prompt up to and including that message:
+
+<details><summary>Message cache breakpoint</summary>
+
+```json
+{
+  "model": "qwen-plus",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {
+      "role": "user",
+      "content": "Here is a long document: ...",
+      "custom_fields": {
+        "cache_breakpoint": {}
+      }
+    },
+    {"role": "user", "content": "Summarize it."}
+  ]
+}
+```
+
+</details>
+
+> [!NOTE]
+> Model Studio doesn't cache the tool definitions, therefore the tool-level cache breakpoints are ignored.
+
+In the [Responses API](#alibaba-cloud-model-studio-responses-api) deployments, the caching of the conversation prefix is enabled automatically - the request requires no cache breakpoints.
+
+### Anthropic
+
+See [Automatic prompt caching](#automatic-prompt-caching) and [Explicit prompt caching](#explicit-prompt-caching) in the [Anthropic Messages API](#anthropic-messages-api) section.
 
 ---
 

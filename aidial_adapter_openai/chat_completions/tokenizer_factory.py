@@ -166,11 +166,12 @@ async def create_request_tokenizer(
             match vendor:
                 case Vendor.OPENAI_PLATFORM:
                     return ResponsesRequestTokenizer(client, file_storage)
-                case Vendor.AWS | Vendor.AZURE:
+                case Vendor.AWS | Vendor.AZURE | Vendor.ALIBABA:
                     raise ResourceNotFoundError(
                         "The tokenize and truncate_prompt endpoints are not "
                         "implemented for Responses API deployments backed by "
-                        "Azure OpenAI or Amazon Bedrock."
+                        "Azure OpenAI, Amazon Bedrock or Alibaba Cloud "
+                        "Model Studio."
                     )
                 case Vendor.VLLM:
                     raise ValueError(
