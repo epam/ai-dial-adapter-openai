@@ -23,6 +23,7 @@ from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 class UpstreamConfig(ExtraAllowedModel):
     endpoint: str
     key: str | None = None
+    extraData: Any | None = None
 
 
 class Features(ExtraAllowedModel):
@@ -130,9 +131,11 @@ class DeploymentConfig(BaseModel, Generic[_T]):
     model_defaults: dict | None
     model_features: Features
     model_attachments: list[str]
+    override_name: str | None
 
     upstream_endpoint: str
     upstream_api_key: str | None
+    upstream_extra_data: Any | None
     upstream_idx: int | None
 
     @property
@@ -140,6 +143,12 @@ class DeploymentConfig(BaseModel, Generic[_T]):
         headers = {"X-UPSTREAM-ENDPOINT": self.upstream_endpoint}
         if self.upstream_api_key is not None:
             headers["X-UPSTREAM-KEY"] = self.upstream_api_key
+        if self.override_name is not None:
+            headers["X-DIAL-OVERRIDE-NAME"] = self.override_name
+        if self.upstream_extra_data is not None:
+            headers["X-UPSTREAM-EXTRA-DATA"] = json.dumps(
+                self.upstream_extra_data
+            )
         return headers
 
     @classmethod
@@ -168,6 +177,8 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                         model_features=model_config.features,
                         model_attachments=model_config.inputAttachmentTypes
                         or [],
+                        override_name=model_config.overrideName,
+                        upstream_extra_data=upstream_config.extraData,
                         type_=get_deployment_type(
                             model_config, deployment_id, upstream_endpoint
                         ),
