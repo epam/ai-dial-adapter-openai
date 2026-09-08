@@ -386,31 +386,7 @@ Each Web Search tool calls are translated into a DIAL stages, and URL citations 
 
 #### Azure AI Foundry Chat Completions API
 
-Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deployed to an Azure AI Foundry service. They are accessible via:
-
-- Azure AI model inference endpoint or
-- Azure OpenAI endpoint
-
-<details><summary>DIAL Core Config (Azure AI model inference endpoint)</summary>
-
-```json
-{
-  "models": {
-    "${DIAL_DEPLOYMENT_ID}": {
-      "type": "chat",
-      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}/chat/completions",
-      "upstreams": [
-        {
-          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/models/chat/completions",
-          "key": "${OPTIONAL_API_KEY}"
-        }
-      ]
-    }
-  }
-}
-```
-
-</details>
+Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deployed to an Azure AI Foundry service. They are accessible via Azure OpenAI endpoint or legacy Azure AI model inference endpoint.
 
 <details><summary>DIAL Core Config (Azure OpenAI endpoint)</summary>
 
@@ -422,7 +398,28 @@ Certain LLM models like `gpt-oss-120b` or `Mistral-Large-2411` can only be deplo
       "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}/chat/completions",
       "upstreams": [
         {
-          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.openai.azure.com/openai/deployments/${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}/chat/completions",
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.openai.azure.com/openai/v1/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+<details><summary>DIAL Core Config ([retired](https://learn.microsoft.com/en-us/azure/foundry/how-to/model-inference-to-openai-migration?tabs=openai&pivots=programming-language-python) Azure AI model inference endpoint)</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${AZURE_AI_FOUNDRY_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_AI_FOUNDRY_SERVICE_NAME}.services.ai.azure.com/models/chat/completions",
           "key": "${OPTIONAL_API_KEY}"
         }
       ]
