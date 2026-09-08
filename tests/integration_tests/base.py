@@ -94,7 +94,8 @@ class CoreConfig(ExtraAllowedModel):
     def get_app_config(self) -> ApplicationConfig:
         ret = ApplicationConfig()
         for model_id, model_config in self.models.items():
-            model_config.env.save_to_application_config(model_id, ret)
+            deployment_id = model_config.overrideName or model_id
+            model_config.env.save_to_application_config(deployment_id, ret)
         return ret
 
 
@@ -168,11 +169,12 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                     None if len(model_config.upstreams) <= 1 else upstream_index
                 )
 
+                model_name = model_config.overrideName or deployment_id
                 configs.append(
                     cls(
                         upstream_idx=upstream_idx,
                         id_=deployment_id,
-                        model_name=model_config.overrideName or deployment_id,
+                        model_name=model_name,
                         model_defaults=model_config.defaults,
                         model_features=model_config.features,
                         model_attachments=model_config.inputAttachmentTypes
@@ -180,7 +182,7 @@ class DeploymentConfig(BaseModel, Generic[_T]):
                         override_name=model_config.overrideName,
                         upstream_extra_data=upstream_config.extraData,
                         type_=get_deployment_type(
-                            model_config, deployment_id, upstream_endpoint
+                            model_config, model_name, upstream_endpoint
                         ),
                         upstream_endpoint=upstream_endpoint,
                         upstream_api_key=upstream_config.key,
