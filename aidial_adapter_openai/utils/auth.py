@@ -308,7 +308,7 @@ async def get_credentials(
                 "aws_secret_access_key": creds.aws_secret_access_key,
                 "aws_session_token": creds.aws_session_token,
             }
-        case Vendor.VLLM | Vendor.OPENAI_PLATFORM:
+        case Vendor.VLLM | Vendor.OPENAI_PLATFORM | Vendor.ALIBABA:
             raise DialException(
                 "X-UPSTREAM-KEY header is missing", 401, "Unauthorized"
             )
