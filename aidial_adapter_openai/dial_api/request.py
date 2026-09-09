@@ -69,7 +69,7 @@ class _AzureStyleRequestHandler(Protocol, Generic[_R]):
     ) -> _R: ...
 
 
-def apply_override_name(
+def override_deployment_id(
     handler: _AzureStyleRequestHandler[_R],
 ) -> _AzureStyleRequestHandler[_R]:
     # DIAL Core only applies the models[*].overrideName field to
