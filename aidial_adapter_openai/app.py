@@ -66,9 +66,6 @@ def create_app(
     app.get("/health")(endpoints.health)
 
     app.post("/openai/v1/responses")(endpoints.responses_create)
-    app.post("/openai/v1/responses/input_tokens")(
-        endpoints.responses_input_tokens
-    )
     app.get("/openai/v1/responses/{responses_id:str}")(
         endpoints.responses_retrieve
     )
@@ -77,6 +74,9 @@ def create_app(
     )
     app.post("/openai/v1/responses/{responses_id:str}/cancel")(
         endpoints.responses_cancel
+    )
+    app.post("/openai/v1/responses/input_tokens")(
+        endpoints.responses_input_tokens
     )
 
     app.post("/openai/deployments/{deployment_id:path}/embeddings")(
