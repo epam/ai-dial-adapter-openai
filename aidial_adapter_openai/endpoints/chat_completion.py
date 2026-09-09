@@ -52,7 +52,10 @@ from aidial_adapter_openai.configuration.app_config import (
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    DeploymentId,
+    get_upstream_endpoint,
+)
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.image_generation.adapter import (
     chat_completion as image_generation,
@@ -99,17 +102,9 @@ async def call_chat_completion(
     request_headers: Mapping[str, str],
     api_version: str,
 ) -> ChatResponse:
-    # Azure OpenAI deployments ignore "model" request field,
-    # since the deployment id is already encoded in the endpoint path.
-    # This is not the case for non-Azure OpenAI deployments, so
-    # they require the "model" field to be set.
-    # However, openai==1.33.0 requires the "model" field for **both**
-    # Azure and non-Azure deployments.
-    # Therefore, we provide the "model" field for all deployments here.
-    # The same goes for /embeddings endpoint.
-    model_name = request_body["model"] = (
-        request_body.get("model") or deployment_id
-    )
+    # Guarding against receiving an arbitrary model identifier from the user request.
+    # Replacing it with the deployment id coming from the adapter endpoint.
+    request_body["model"] = deployment_id
 
     upstream_endpoint = get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
@@ -141,7 +136,7 @@ async def call_chat_completion(
         return await anthropic_chat_completions(
             request=request,
             client=client,
-            deployment_id=model_name,
+            deployment_id=deployment_id,
         )
 
     match deployment_type:
@@ -289,7 +284,7 @@ async def call_chat_completion(
             assert_never(deployment_type)
 
 
-async def chat_completion(deployment_id: str, request: Request):
+async def chat_completion(deployment_id: DeploymentId, request: Request):
     app_config = get_request_app_config(request)
     request_body = await parse_body(request)
 

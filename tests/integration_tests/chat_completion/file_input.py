@@ -6,7 +6,7 @@ from aidial_adapter_openai.configuration.deployment_type import (
 from tests.integration_tests.chat_completion.test_case import TestSuite
 from tests.integration_tests.constants import (
     PDF_DOCUMENT_RESOURCE,
-    UNSUPPORTED_DOCUMENT_RESOURCE,
+    RANDOM_BINARY_FILE,
 )
 from tests.utils.openai import (
     ChatCompletionResult,
@@ -79,7 +79,7 @@ def build_file_input_common(s: TestSuite) -> None:
     s.test_case(
         name="unsupported_document_in_attachments",
         messages=[
-            user_with_attachment_url(query, UNSUPPORTED_DOCUMENT_RESOURCE),
+            user_with_attachment_url(query, RANDOM_BINARY_FILE),
         ],
         expected=ExpectedException(
             type=(

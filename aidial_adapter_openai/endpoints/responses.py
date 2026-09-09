@@ -25,7 +25,6 @@ from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
 from aidial_adapter_openai.dial_api.request import (
-    DIAL_OVERRIDE_NAME,
     get_upstream_endpoint,
 )
 from aidial_adapter_openai.dial_api.storage import (
@@ -71,7 +70,6 @@ class _ResponsesContext:
         cls, request: Request, *, model: str | None = None
     ) -> Self:
         headers = request.headers
-        deployment_id = headers.get(DIAL_OVERRIDE_NAME) or model
         upstream_endpoint = get_upstream_endpoint(headers)
         upstream_extra_headers = get_upstream_extra_headers(headers)
         query_params = dict(request.query_params)
@@ -84,7 +82,7 @@ class _ResponsesContext:
 
         client = await get_client(
             request=request,
-            deployment_id=deployment_id,
+            deployment_id=model,
             deployment=deployment,
             app_config=app_config,
             extra_headers=upstream_extra_headers,

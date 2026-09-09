@@ -110,9 +110,8 @@ async def chat_completion(
     file_storage: FileStorage | None,
 ) -> StreamingResponse | dict:
     is_stream = bool(request_body.get("stream"))
-    model_name = request_body["model"]
 
-    is_whisper_deployment = "whisper" in model_name
+    is_whisper_deployment = "whisper" in deployment_id
     response_format = "verbose_json" if is_whisper_deployment else "json"
 
     prompt = await TranscribePrompt.from_request(request_body, file_storage)
@@ -123,7 +122,7 @@ async def chat_completion(
     audio_response = await client.audio.transcriptions.create(
         file=file,
         prompt=prompt.system_message or omit,
-        model=model_name,
+        model=deployment_id,
         stream=is_stream,
         response_format=response_format,
         temperature=request_body.get("temperature") or omit,
@@ -133,7 +132,7 @@ async def chat_completion(
     audio_response = await normalize_audio_response(audio_response)
 
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
-        response.set_model(model_name)
+        response.set_model(deployment_id)
         response.set_response_id(generate_id())
         response.set_created(generate_created())
 

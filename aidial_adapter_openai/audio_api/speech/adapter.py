@@ -61,8 +61,6 @@ async def chat_completion(
     prompt = collect_message_text_content(messages[-1]).strip()
     prompt_tokens = await tokenizer.tokenize_text(prompt)
 
-    model_name = request_body["model"]
-
     config = parse_configuration(Configuration, request_body) or Configuration()
 
     if system_message := collect_system_messages(messages):
@@ -73,14 +71,14 @@ async def chat_completion(
     extra_body = config.model_dump(exclude_none=True)
 
     response = await client.audio.speech.create(
-        input=prompt, model=model_name, **extra_body
+        input=prompt, model=deployment_id, **extra_body
     )
 
     audio_data = response.read()
     audio_format = response.response.headers.get("content-type") or "audio/mpeg"
 
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
-        response.set_model(model_name)
+        response.set_model(deployment_id)
         response.set_response_id(generate_id())
         response.set_created(generate_created())
 

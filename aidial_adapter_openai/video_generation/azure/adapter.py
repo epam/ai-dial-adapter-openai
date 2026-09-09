@@ -142,7 +142,6 @@ async def chat_completion(
 ) -> StreamingResponse | dict:
     validate_request(request_body)
 
-    model_name = request_body["model"]
     configuration = _get_configuration(request_body)
     prompt = await VideoGenPrompt.from_request(request_body, file_storage)
     inpaint_items, files = prompt.get_files()
@@ -150,7 +149,7 @@ async def chat_completion(
     client = AzureVideoAPIClient(creds=creds, base_url=upstream_endpoint)
 
     async def _handler(request: DIALRequest, response: DIALResponse) -> None:
-        response.set_model(model_name)
+        response.set_model(deployment_id)
 
         with (
             response.create_single_choice() as choice,
@@ -158,7 +157,7 @@ async def chat_completion(
         ):
             job_id = await _create_job(
                 request=CreateVideoGenerationRequest.create(
-                    model=model_name,
+                    model=deployment_id,
                     prompt=prompt.prompt,
                     width=configuration.width,
                     height=configuration.height,

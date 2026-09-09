@@ -40,6 +40,11 @@ UNSUPPORTED_DOCUMENT_RESOURCE = Resource(
     data=(CURRENT_DIR / "assets" / "table.xlsx").read_bytes(),
 )
 
+RANDOM_BINARY_FILE = Resource(
+    type="application/octet-stream",
+    data=(CURRENT_DIR / "assets" / "random.bin").read_bytes(),
+)
+
 TEST_DEPLOYMENTS_CONFIG_PATH = os.getenv(
     "INTEGRATION_TEST_DEPLOYMENTS_CONFIG_PATH",
     "tests/integration_tests/integration_test_config.json",

@@ -1,7 +1,8 @@
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Annotated, Any, TypeVar
 
 from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
+from fastapi import Depends, Header, Path
 from pydantic import BaseModel, ValidationError
 
 from aidial_adapter_openai.utils.log_config import logger
@@ -57,16 +58,22 @@ def extract_max_prompt_tokens(request: dict) -> int | None:
     return max_prompt_tokens
 
 
-DIAL_OVERRIDE_NAME = "X-DIAL-OVERRIDE-NAME"
-
-
-def get_upstream_model_name(
-    *,
-    request_headers: Mapping[str, str],
-    deployment_id: str,
-    model: str | None,
+def _resolve_deployment_id(
+    deployment_id: Annotated[str, Path()],
+    override_name: Annotated[
+        str | None, Header(alias="X-DIAL-OVERRIDE-NAME")
+    ] = None,
 ) -> str:
-    return request_headers.get(DIAL_OVERRIDE_NAME) or model or deployment_id
+    # DIAL Core only applies the models[*].overrideName field to
+    # the request body. The deployment id path parameter in
+    # an Azure OpenAI endpoint remains unchanged.
+    # This dependency fixes this.
+    return override_name or deployment_id
+
+
+# The deployment id path parameter of an Azure-style endpoint,
+# with the override name applied.
+DeploymentId = Annotated[str, Depends(_resolve_deployment_id)]
 
 
 def get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:

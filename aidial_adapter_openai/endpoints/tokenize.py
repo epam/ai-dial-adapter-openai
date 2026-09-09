@@ -3,7 +3,6 @@ from typing import assert_never
 from aidial_sdk.deployment.tokenize import (
     TokenizeError,
     TokenizeInput,
-    TokenizeInputRequest,
     TokenizeOutput,
     TokenizeRequest,
     TokenizeResponse,
@@ -18,8 +17,8 @@ from aidial_adapter_openai.chat_completions.tokenizer_factory import (
     create_request_tokenizer,
 )
 from aidial_adapter_openai.dial_api.request import (
+    DeploymentId,
     get_upstream_endpoint,
-    get_upstream_model_name,
 )
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.utils.request import get_request_app_config
@@ -61,7 +60,9 @@ async def _load_tokenize_request(
         raise RequestValidationError(msg) from e
 
 
-async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
+async def tokenize(
+    deployment_id: DeploymentId, request: Request
+) -> TokenizeResponse:
     tokenize_request = await _load_tokenize_request(request, deployment_id)
 
     app_config = get_request_app_config(request)
@@ -90,20 +91,10 @@ async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
     outputs: list[TokenizeOutput] = []
     for tokenize_input in tokenize_request.inputs:
         try:
-            request_model = (
-                tokenize_input.value.model
-                if isinstance(tokenize_input, TokenizeInputRequest)
-                else None
-            )
-            model_name = get_upstream_model_name(
-                request_headers=request.headers,
-                deployment_id=deployment_id,
-                model=request_model,
-            )
             token_count = await _tokenize_input(
                 tokenize_input=tokenize_input,
                 tokenizer=tokenizer,
-                model_name=model_name,
+                model_name=deployment_id,
             )
             outputs.append(TokenizeSuccess(token_count=token_count))
         except Exception as exc:
