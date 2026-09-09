@@ -1,4 +1,6 @@
 ---
+analyzer:
+  skip_excluded: true
 excludes:
   scopes:
     - pattern: "dev"
@@ -10,42 +12,3 @@ excludes:
     - pattern: "test"
       reason: "TEST_DEPENDENCY_OF"
       comment: "Packages for testing only."
-license_choices:
-  repository_license_choices:
-    - given: FTL OR GPL-2.0-or-later
-      choice: FTL
-resolutions:
-  rule_violations:
-    - message: ".*PyPI::setuptools:78\\.1\\.1.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "BSD 3-Clause New or Revised License: https://github.com/pypa/setuptools/blob/v78.1.1/LICENSE"
-    - message: ".*PyPI::numpy:2\\.3\\.3.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "BSD 3-Clause license: https://github.com/numpy/numpy/blob/v2.3.3/LICENSES_bundled.txt"
-    - message: ".*PyPI::tiktoken:0\\.12\\.0.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "MIT License: https://github.com/openai/tiktoken/blob/0.12.0/LICENSE"
-    - message: ".*PyPI::httpcore:1\\.0\\.9.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "BSD 3-Clause New or Revised License: https://github.com/encode/httpcore/blob/1.0.9/LICENSE.md"
-    - message: ".*PyPI::httpx:0\\.27\\.0.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "BSD 3-Clause New or Revised License: https://github.com/encode/httpx/blob/0.27.0/LICENSE.md"
-    - message: ".*PyPI::urllib3:2\\.7\\.0.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "MIT License: https://github.com/urllib3/urllib3/blob/2.7.0/LICENSE.txt"
-    - message: ".*PyPI::typing-extensions:4\\.14\\.0.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "Same as CPython: https://github.com/python/typing_extensions/blob/4.14.0/LICENSE"
-    - message: ".*PyPI::fastapi:0\\.135\\.1.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "MIT License: https://github.com/fastapi/fastapi/blob/0.135.1/LICENSE"
-    - message: ".*PyPI::starlette:1\\.3\\.1.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "BSD 3-Clause New or Revised License: https://github.com/Kludex/starlette/blob/1.3.1/LICENSE.md"
-    - message: ".*PyPI::anyio:4\\.12\\.0.*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "MIT License: https://github.com/agronholm/anyio/blob/4.12.0/LICENSE"
-    - message: ".*PyPI::(opentelemetry|typing-extensions|typing-inspection|pillow|cffi|cryptography|pyjwt|aidial-adapter-anthropic|aidial-sdk|aidial-client|idna|aiofiles).*"
-      reason: "CANT_FIX_EXCEPTION"
-      comment: "ORT cannot pick up license information"
