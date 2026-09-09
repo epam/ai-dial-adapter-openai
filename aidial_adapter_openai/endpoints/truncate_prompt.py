@@ -25,7 +25,10 @@ from aidial_adapter_openai.chat_completions.tokenizer_factory import (
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    DeploymentId,
+    get_upstream_endpoint,
+)
 from aidial_adapter_openai.dial_api.storage import (
     FileStorage,
     create_file_storage,
@@ -123,7 +126,7 @@ async def _load_truncate_prompt_request(
 
 
 async def truncate_prompt(
-    deployment_id: str, request: Request
+    deployment_id: DeploymentId, request: Request
 ) -> TruncatePromptResponse:
     truncate_prompt_request = await _load_truncate_prompt_request(
         request, deployment_id

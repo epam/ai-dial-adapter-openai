@@ -16,7 +16,10 @@ from aidial_adapter_openai.chat_completions.tokenizer_factory import (
     RequestTokenizer,
     create_request_tokenizer,
 )
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    DeploymentId,
+    get_upstream_endpoint,
+)
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.utils.upstream_headers import (
@@ -57,7 +60,9 @@ async def _load_tokenize_request(
         raise RequestValidationError(msg) from e
 
 
-async def tokenize(deployment_id: str, request: Request) -> TokenizeResponse:
+async def tokenize(
+    deployment_id: DeploymentId, request: Request
+) -> TokenizeResponse:
     tokenize_request = await _load_tokenize_request(request, deployment_id)
 
     app_config = get_request_app_config(request)

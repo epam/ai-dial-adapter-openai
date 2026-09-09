@@ -1,7 +1,10 @@
 from fastapi import Request
 
 from aidial_adapter_openai.configuration.app_config import Vendor
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    DeploymentId,
+    get_upstream_endpoint,
+)
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.embeddings.azure_ai_vision import (
     embeddings as azure_ai_vision_embeddings,
@@ -24,7 +27,7 @@ from aidial_adapter_openai.utils.upstream_headers import (
 )
 
 
-async def embedding(deployment_id: str, request: Request):
+async def embedding(deployment_id: DeploymentId, request: Request):
     app_config = get_request_app_config(request)
     request_body = await parse_body(request)
 

@@ -1,11 +1,9 @@
-import functools
 from collections.abc import Mapping
-from typing import Any, Generic, TypeVar
+from typing import Annotated, Any, TypeVar
 
-import fastapi
 from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
+from fastapi import Depends, Header, Path
 from pydantic import BaseModel, ValidationError
-from typing_extensions import Protocol
 
 from aidial_adapter_openai.utils.log_config import logger
 
@@ -60,33 +58,22 @@ def extract_max_prompt_tokens(request: dict) -> int | None:
     return max_prompt_tokens
 
 
-_R = TypeVar("_R", covariant=True)
-
-
-class _AzureStyleRequestHandler(Protocol, Generic[_R]):
-    async def __call__(
-        self, deployment_id: str, request: fastapi.Request
-    ) -> _R: ...
-
-
-def override_deployment_id(
-    handler: _AzureStyleRequestHandler[_R],
-) -> _AzureStyleRequestHandler[_R]:
+def _resolve_deployment_id(
+    deployment_id: Annotated[str, Path()],
+    override_name: Annotated[
+        str | None, Header(alias="X-DIAL-OVERRIDE-NAME")
+    ] = None,
+) -> str:
     # DIAL Core only applies the models[*].overrideName field to
     # the request body. The deployment id path parameter in
     # an Azure OpenAI endpoint remains unchanged.
-    # This decorator fixes this.
+    # This dependency fixes this.
+    return override_name or deployment_id
 
-    # Preserves the handler's return annotation, which FastAPI
-    # turns into the route's response model.
-    @functools.wraps(handler)
-    async def func(deployment_id: str, request: fastapi.Request) -> _R:
-        deployment_id = (
-            request.headers.get("X-DIAL-OVERRIDE-NAME") or deployment_id
-        )
-        return await handler(deployment_id, request)
 
-    return func
+# The deployment id path parameter of an Azure-style endpoint,
+# with the override name applied.
+DeploymentId = Annotated[str, Depends(_resolve_deployment_id)]
 
 
 def get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:

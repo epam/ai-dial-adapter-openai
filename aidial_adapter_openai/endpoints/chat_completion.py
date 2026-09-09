@@ -52,7 +52,10 @@ from aidial_adapter_openai.configuration.app_config import (
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    DeploymentId,
+    get_upstream_endpoint,
+)
 from aidial_adapter_openai.dial_api.storage import create_file_storage
 from aidial_adapter_openai.image_generation.adapter import (
     chat_completion as image_generation,
@@ -281,7 +284,7 @@ async def call_chat_completion(
             assert_never(deployment_type)
 
 
-async def chat_completion(deployment_id: str, request: Request):
+async def chat_completion(deployment_id: DeploymentId, request: Request):
     app_config = get_request_app_config(request)
     request_body = await parse_body(request)
 

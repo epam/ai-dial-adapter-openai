@@ -16,7 +16,10 @@ from aidial_adapter_openai.audio_api.transcribe.configuration import (
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
-from aidial_adapter_openai.dial_api.request import get_upstream_endpoint
+from aidial_adapter_openai.dial_api.request import (
+    DeploymentId,
+    get_upstream_endpoint,
+)
 from aidial_adapter_openai.image_generation.model import ImageGenerationModel
 from aidial_adapter_openai.responses.configuration import ResponsesConfig
 from aidial_adapter_openai.utils.request import get_request_app_config
@@ -72,7 +75,7 @@ def _get_deployment_configuration(deployment_type: D) -> type[BaseModel] | None:
             assert_never(deployment_type)
 
 
-async def configuration(deployment_id: str, request: Request) -> dict:
+async def configuration(deployment_id: DeploymentId, request: Request) -> dict:
     app_config = get_request_app_config(request)
     upstream_endpoint = get_upstream_endpoint(request.headers)
     deployment = app_config.get_chat_completion_deployment_type(
