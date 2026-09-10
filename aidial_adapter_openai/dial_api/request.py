@@ -1,8 +1,12 @@
 from collections.abc import Mapping
 from typing import Annotated, Any, TypeVar
 
-from aidial_sdk.exceptions import InvalidRequestError, RequestValidationError
-from fastapi import Depends, Header, Path
+from aidial_sdk.exceptions import (
+    InternalServerError,
+    InvalidRequestError,
+    RequestValidationError,
+)
+from fastapi import Depends, Header, Request
 from pydantic import BaseModel, ValidationError
 
 from aidial_adapter_openai.utils.log_config import logger
@@ -59,16 +63,21 @@ def extract_max_prompt_tokens(request: dict) -> int | None:
 
 
 def _resolve_deployment_id(
-    deployment_id: Annotated[str, Path()],
+    request: Request,
     override_name: Annotated[
         str | None, Header(alias="X-DIAL-OVERRIDE-NAME")
     ] = None,
 ) -> str:
-    # DIAL Core only applies the models[*].overrideName field to
-    # the request body. The deployment id path parameter in
-    # an Azure OpenAI endpoint remains unchanged.
-    # This dependency fixes this.
-    return override_name or deployment_id
+    # Resolving upstream deployment ID via a series of fallbacks.
+    # The key principle - is not to trust whatever came in the request model field,
+    # since it isn't something that could be controlled in the DIAL Core config.
+    upstream_deployment_id = (
+        override_name
+        or request.path_params.get("deployment_id")
+        or _get_dial_deployment_id(request.headers)
+    )
+    logger.debug(f"Upstream deployment ID: {upstream_deployment_id}")
+    return upstream_deployment_id
 
 
 # The deployment id path parameter of an Azure-style endpoint,
@@ -76,10 +85,19 @@ def _resolve_deployment_id(
 DeploymentId = Annotated[str, Depends(_resolve_deployment_id)]
 
 
+def _get_dial_deployment_id(request_headers: Mapping[str, str]) -> str:
+    name = "X-DIAL-DEPLOYMENT-ID"
+    if (deployment_id := request_headers.get(name)) is None:
+        raise InternalServerError(f"{name} header is missing in the request.")
+
+    logger.debug(f"DIAL deployment ID: {deployment_id}")
+    return deployment_id
+
+
 def get_upstream_endpoint(request_headers: Mapping[str, str]) -> str:
     name = "X-UPSTREAM-ENDPOINT"
     if (endpoint := request_headers.get(name)) is None:
-        raise ValueError(f"{name} header is missing in the request.")
+        raise InternalServerError(f"{name} header is missing in the request.")
 
     logger.debug(f"upstream endpoint: {endpoint}")
     return endpoint

@@ -918,8 +918,6 @@ Where `MODEL_STUDIO_MODEL_NAME` is one of the available [models](https://www.ali
 
 The `extra_data.vendor` field is required to enable the [cache breakpoints](#alibaba-cloud-model-studio) - without it the adapter treats the upstream as a vanilla OpenAI one and passes the breakpoints through untouched.
 
-The upstream URL doesn't include the model name, so it is passed via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
-
 > [!NOTE]
 > The upstream `base_url` differs by region *(Singapore, US (Virginia), China (Beijing), China (Hong Kong), Japan (Tokyo), and Germany (Frankfurt))*. Replace `${MODEL_STUDIO_WORKSPACE_ID}` with your workspace id and adjust the host to match your region. For the US (Virginia) region the host is `dashscope-us.aliyuncs.com` and doesn't include a workspace id. See the [endpoint list](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope) for details.
 
