@@ -32,6 +32,9 @@
     - [Amazon Bedrock OpenAI Chat Completions API](#amazon-bedrock-openai-chat-completions-api)
       - [Authentication](#authentication)
       - [Session tags](#session-tags)
+        - [The Bedrock source](#the-bedrock-source)
+        - [The role session name](#the-role-session-name)
+        - [The DIAL UserInfo source](#the-dial-userinfo-source)
     - [OpenAI Completions API](#openai-completions-api)
     - [Mistral Chat Completion API](#mistral-chat-completion-api)
     - [Alibaba Cloud Model Studio Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api)
@@ -804,31 +807,52 @@ Since every upstream carries its own credentials, a single deployment can be [ba
 
 ##### Session tags
 
-`AWS_SESSION_TAGS_FIELDS` configures optional AWS STS [session tags](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html) for the Bedrock credentials obtained through `AssumeRole`. The adapter resolves the configured paths against the JSON response to the DIAL `GET /v1/user/info` [request](https://dialx.ai/dial_api#operation/getUserInfo), converts each resolved value to a JSON string, and passes the resulting tags to the STS `AssumeRole` call.
+`AWS_SESSION_TAGS` declares the AWS STS [session tags](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html) to pass to the `AssumeRole` call made for a Bedrock client. Setting it enables the feature; unsetting it disables it.
 
-The tags are only applied to the assume role credentials *(option 3 above)*. They are ignored for the bearer token, the static credentials and the AWS credential provider chain.
+```ini
+AWS_SESSION_TAGS={"application":"Bedrock.modelId","project":"UserInfo.project","employee":"UserInfo.userClaims.email"}
+```
 
-The variable is a comma-separated list of dot-separated paths into that JSON response. The user info response has the following fields:
+The variable is a JSON dictionary of `<tag key>: <value source>` entries. The **key** is the name the tag is passed to AWS under - pick whatever your IAM policies expect. The **value source** names where the value comes from:
+
+|Value source|Provides|
+|---|---|
+|`Bedrock.modelId`|The requested model|
+|`UserInfo.<path>`|A field of the DIAL `GET /v1/user/info` response|
+
+Entries whose value source is unknown (`Nope.project`, `Bedrock.region`, or an unprefixed `project`) are skipped with a warning.
+
+The tags are only applied to the assume role credentials. They are ignored for the bearer token, the static credentials and the AWS credential provider chain. They are also never applied to the [Anthropic API passthrough](#anthropic-messages-api), which authenticates to Azure only.
+
+Failing to retrieve a tag never fails the request: the failure is logged as a warning and the tag is ignored, while the remaining tags are still passed.
+
+The adapter fits the tags to the AWS constraints for [session tags](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_operations), logging every adjustment it makes.
+
+###### The Bedrock source
+
+`Bedrock.modelId` holds the model id the request is served under: the deployment id from the request path, with the `models[*].overrideName` field of the DIAL Core config applied.
+
+###### The role session name
+
+The `AssumeRole` call names its session `BedrockAccessSession` by default. When a tag takes the `UserInfo.project` value source and the user has a project, the session is named `Project_<project>` instead - so add an entry for that value source to `AWS_SESSION_TAGS` to enable this. The tag key you choose doesn't matter here; users with no project fall back to the default name.
+
+The name is fitted to the AWS constraints for the [`RoleSessionName` parameter of `AssumeRole`](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html).
+
+###### The DIAL UserInfo source
+
+The `UserInfo.<path>` value source takes the value at `<path>` from the JSON response to the DIAL `GET /v1/user/info` [request](https://dialx.ai/dial_api#operation/getUserInfo), converting the resolved value to a JSON string.
+
+`<path>` is a dot-separated path into that JSON response, which has the following fields:
 
 |Field|Type|Description|
 |---|---|---|
-|`roles`|array of strings|User roles, addressable by list index, e.g. `roles.0`|
+|`roles`|array of strings|User roles, addressable by list index, e.g. `UserInfo.roles.0`|
 |`project`|string or null|User project|
-|`userClaims`|object or null|User claims, addressable by nested paths, e.g. `userClaims.email`|
+|`userClaims`|object or null|User claims, addressable by nested paths, e.g. `UserInfo.userClaims.email`|
 
-Paths use object keys and integer list indices, for example `userClaims.access.0`. Empty path entries are ignored, and unresolvable paths are skipped with a warning.
+Paths use object keys and integer list indices, for example `UserInfo.userClaims.access.0`. Unresolvable paths are skipped with a warning.
 
-Tag keys are the configured paths. String values are used as-is. All other values are JSON-serialized, e.g. numbers, booleans, `null`, objects and arrays.
-
-AWS sets several constraints for session tags. See the AWS docs on [passing session tags in AWS STS](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_operations) for details. The adapter truncates the keys and the values that exceed the limits and drops the entries beyond the maximum count, reporting each adjustment in the logs.
-
-|Intent|`AWS_SESSION_TAGS_FIELDS`|
-|---|---|
-|Disabled|Unset the variable|
-|First role|`roles.0`|
-|Project|`project`|
-|A claim|`userClaims.email`|
-|Several|`roles.0,project,userClaims.email`|
+String values are used as-is. All other values are JSON-serialized, e.g. numbers, booleans, `null`, objects and arrays.
 
 #### OpenAI Completions API
 
@@ -1789,7 +1813,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 |AWS_SESSION_TOKEN||AWS session token accompanying the credentials above. Only applicable to temporary credentials.|
 |AWS_ASSUME_ROLE_ARN||AWS role to assume in order to access the Bedrock service, e.g. `arn:aws:iam::123456789012:role/RoleName`. Ignored when the static credentials above are configured.|
 |AWS_CREDENTIALS_EXPIRATION_WINDOW|300|The credentials of an assumed AWS role are renewed this many seconds before their actual expiration time. The buffer ensures that the credentials do not expire in the middle of an operation due to processing time and potential network delays.|
-|AWS_SESSION_TAGS_FIELDS||Comma-separated list of paths into the DIAL user info to pass as [AWS STS session tags](#session-tags) when assuming a role, e.g. `roles.0,project,userClaims.email`. Unset to disable.|
+|AWS_SESSION_TAGS||A JSON dictionary of the [AWS STS session tags](#session-tags) to pass when assuming a role, mapping the tag key to the value source to take it from, e.g. `{"application":"Bedrock.modelId","project":"UserInfo.project"}`. Unset to disable.|
 |API_VERSIONS_MAPPING|`{}`|Mapping of API versions for requests to the Azure OpenAI Chat Completions API. Example: `{"2023-03-15-preview": "2023-05-15", "": "2024-02-15-preview"}`. An empty key sets the default API version when the user does not pass one in the request. Find the details in the section about [API versioning](#api-versioning).|
 |ELIMINATE_EMPTY_CHOICES|False|When enabled, the response stream is guaranteed to exclude chunks with an empty list of choices. This is useful when a DIAL client doesn't support such chunks. An empty list of choices can be generated by Azure OpenAI in at least two cases: (1) when the **Content filter** is not disabled, Azure includes [prompt filter results](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter?tabs=warning%2Cuser-prompt%2Cpython-new#prompt-annotation-message) in the first chunk with an empty list of choices; (2) when `stream_options.include_usage` is enabled, the last chunk contains usage data and an empty list of choices.|
 |WEB_CONCURRENCY|1|Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).|

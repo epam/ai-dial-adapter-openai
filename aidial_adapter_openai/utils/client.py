@@ -25,7 +25,10 @@ async def get_client(
         deployment_id, deployment_endpoint, request.headers
     )
     creds = await get_credentials(
-        request.headers, vendor=vendor, endpoint=deployment_endpoint
+        request.headers,
+        vendor=vendor,
+        endpoint=deployment_endpoint,
+        deployment_id=deployment_id,
     )
     extra_vendor_headers = get_vendor_adapter(vendor).get_extra_headers(
         deployment.deployment_type
