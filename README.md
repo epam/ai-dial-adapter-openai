@@ -121,9 +121,10 @@ Every upstream call carries a model name. Where the adapter takes it from depend
 |Adapter endpoint|Source of the upstream model name|
 |---|---|
 |`/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/...` *(`chat/completions`, `embeddings`, `tokenize`, `truncate_prompt`, `configuration`)*|The `${UPSTREAM_DEPLOYMENT_ID}` path segment; the `model` field of the request body is ignored|
+|`/openai/v1/...` *(the same set of endpoints, no deployment id in the URL)*|The `X-DIAL-DEPLOYMENT-ID` header, which DIAL Core fills with the DIAL model id; the `model` field of the request body is ignored|
 |`/openai/v1/responses` (`responsesEndpoint`) and the [Anthropic passthrough](#anthropic-api-passthrough) *(no deployment id in the URL)*|The `model` field of the request body, which DIAL Core fills with the DIAL model id|
 
-The `overrideName` field of a DIAL Core model configuration overrides the upstream model name in both cases:
+The `overrideName` field of a DIAL Core model configuration overrides the upstream model name in every case:
 
 ```json
 {
@@ -159,9 +160,10 @@ We recommend always specifying `overrideName` to make the configuration explicit
 
 The adapter is able to convert certain upstream APIs to the [DIAL Chat Completions API](https://dialx.ai/dial_api#operation/sendChatCompletionRequest) *(which is an extension of Azure [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat))*.
 
-Chat Completions deployments are exposed via the endpoint:
+Chat Completions deployments are exposed via the endpoints:
 
 ```text
+POST ${ADAPTER_ORIGIN}/openai/v1/chat/completions
 POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/chat/completions
 ```
 
@@ -942,8 +944,6 @@ Where `MODEL_STUDIO_MODEL_NAME` is one of the available [models](https://www.ali
 
 The `extra_data.vendor` field is required to enable the [cache breakpoints](#alibaba-cloud-model-studio) - without it the adapter treats the upstream as a vanilla OpenAI one and passes the breakpoints through untouched.
 
-The upstream URL doesn't include the model name, so it is passed via `overrideName`. If this field is missing, the model name takes the value of the `model` field from the original chat completion request *(if present)*, otherwise `${ADAPTER_DEPLOYMENT_ID}`.
-
 > [!NOTE]
 > The upstream `base_url` differs by region *(Singapore, US (Virginia), China (Beijing), China (Hong Kong), Japan (Tokyo), and Germany (Frankfurt))*. Replace `${MODEL_STUDIO_WORKSPACE_ID}` with your workspace id and adjust the host to match your region. For the US (Virginia) region the host is `dashscope-us.aliyuncs.com` and doesn't include a workspace id. See the [endpoint list](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope) for details.
 
@@ -1327,7 +1327,14 @@ When `max_prompt_tokens` is set for a Responses API deployment backed by OpenAI 
 
 #### Tokenize endpoint
 
-The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/tokenize` using the [DIAL SDK tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
+The tokenize endpoint is exposed via the endpoints:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/v1/tokenize
+POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/tokenize
+```
+
+It follows the [DIAL SDK tokenize schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/tokenize.py):
 
 Request:
 
@@ -1391,7 +1398,14 @@ To expose the tokenize endpoint to DIAL clients, add `features.tokenizeEndpoint`
 
 #### Truncate prompt endpoint
 
-The adapter exposes `POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/truncate_prompt` using the [DIAL SDK truncate_prompt schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/truncate_prompt.py).
+The truncate prompt endpoint is exposed via the endpoints:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/v1/truncate_prompt
+POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/truncate_prompt
+```
+
+It follows the [DIAL SDK truncate_prompt schema](https://github.com/epam/ai-dial-sdk/blob/development/aidial_sdk/deployment/truncate_prompt.py).
 
 It is the dry-run counterpart of the `max_prompt_tokens` truncation that *(optionally)* happens during a `chat/completions` call: given a chat completion request and a `max_prompt_tokens` budget, it reports which messages *would* be discarded to make the prompt fit — **without calling the model**. Only token counting is performed *(following the corresponding [tokenization algorithm](#tokenization-algorithm))*.
 
@@ -1622,9 +1636,10 @@ The `extra_data.vendor` field is required to enable the [prompt caching](#alibab
 
 The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API](https://dialx.ai/dial_api#operation/sendEmbeddingsRequest) *(which is an extension of Azure [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create))*.
 
-Embeddings deployments are exposed via the endpoint:
+Embeddings deployments are exposed via the endpoints:
 
 ```text
+POST ${ADAPTER_ORIGIN}/openai/v1/embeddings
 POST ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/embeddings
 ```
 
@@ -1840,9 +1855,14 @@ OPENAI_LOG=debug
 
 ## Configurable models
 
-Certain models support configuration via the `$ADAPTER_ORIGIN/openai/deployments/$DEPLOYMENT_NAME/configuration` endpoint.
+Certain models support configuration via the endpoints:
 
-GET request to this endpoint returns the schema of the model configuration in [JSON Schema](https://json-schema.org/) format.
+```text
+GET ${ADAPTER_ORIGIN}/openai/v1/configuration
+GET ${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/configuration
+```
+
+The endpoint returns the schema of the model configuration in [JSON Schema](https://json-schema.org/) format.
 
 Such models expect the `custom_fields.configuration` field of the `chat/completions` request to contain a JSON value conforming to that schema.
 The `custom_fields.configuration` field is optional **if and only if** every field in the schema is also optional.

@@ -53,7 +53,9 @@ async def test_dalle3_configuration_endpoint(
 
     if upstream_endpoint is None:
         assert response.status_code == 500
-        assert response.text == "Internal Server Error"
+        assert response.json()["error"]["message"] == (
+            "X-UPSTREAM-ENDPOINT header is missing in the request."
+        )
     else:
         assert response.status_code == 200
         assert response.json()["properties"].keys() == {
