@@ -8,7 +8,6 @@ from typing import Any, ClassVar, Self
 from aidial_client import UserInfo
 from typing_extensions import TypedDict
 
-from aidial_adapter_openai.app import get_dial_client_pool
 from aidial_adapter_openai.dial_api.storage import DIAL_URL
 from aidial_adapter_openai.utils.env import get_env_dict
 from aidial_adapter_openai.utils.log_config import logger as log
@@ -307,6 +306,9 @@ async def _fetch_user_info(api_key: str | None) -> UserInfo | None:
             "DIAL_URL env variable is not set"
         )
         return None
+
+    # Fixes circular import.
+    from aidial_adapter_openai.app import get_dial_client_pool
 
     client = get_dial_client_pool().create_client(
         base_url=DIAL_URL, api_key=api_key

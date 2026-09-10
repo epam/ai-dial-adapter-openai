@@ -37,7 +37,6 @@ _AWS_ENV_VARS = (
     "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN",
     "AWS_ASSUME_ROLE_ARN",
-    "AWS_SESSION_TAGS",
 )
 
 
@@ -103,6 +102,15 @@ def isolate_aws_environment(monkeypatch: pytest.MonkeyPatch):
     """
     for env_var in _AWS_ENV_VARS:
         monkeypatch.delenv(env_var, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def no_session_tags(monkeypatch: pytest.MonkeyPatch):
+    """
+    AWS_SESSION_TAGS is read into the module at import time, so the
+    environment of whoever runs the tests must not leak into the tests.
+    """
+    monkeypatch.setattr(session_tags, "AWS_SESSION_TAGS", None)
 
 
 @pytest.fixture(autouse=True)
@@ -342,7 +350,9 @@ class TestSessionTags:
     @pytest.fixture(autouse=True)
     def session_tags_configured(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(session_tags, "DIAL_URL", _DIAL_URL)
-        monkeypatch.setenv("AWS_SESSION_TAGS", '{"role": "UserInfo.roles.0"}')
+        monkeypatch.setattr(
+            session_tags, "AWS_SESSION_TAGS", {"role": "UserInfo.roles.0"}
+        )
 
     @pytest.fixture
     def user_info(self):
@@ -410,8 +420,8 @@ class TestSessionTags:
         sts_client: _StubSTSClient,
         user_info: Any,
     ):
-        monkeypatch.setenv(
-            "AWS_SESSION_TAGS", '{"project": "UserInfo.project"}'
+        monkeypatch.setattr(
+            session_tags, "AWS_SESSION_TAGS", {"project": "UserInfo.project"}
         )
         user_info.respond(json={"roles": [], "project": "epam"})
 
@@ -434,8 +444,8 @@ class TestSessionTags:
         sts_client: _StubSTSClient,
         user_info: Any,
     ):
-        monkeypatch.setenv(
-            "AWS_SESSION_TAGS", '{"application": "Bedrock.modelId"}'
+        monkeypatch.setattr(
+            session_tags, "AWS_SESSION_TAGS", {"application": "Bedrock.modelId"}
         )
 
         await _get_credentials(
@@ -460,8 +470,8 @@ class TestSessionTags:
         endpoint: BedrockOpenAIEndpoint,
         sts_client: _StubSTSClient,
     ):
-        monkeypatch.setenv(
-            "AWS_SESSION_TAGS", '{"application": "Bedrock.modelId"}'
+        monkeypatch.setattr(
+            session_tags, "AWS_SESSION_TAGS", {"application": "Bedrock.modelId"}
         )
         extra_data = {"aws_assume_role_arn": _ROLE_ARN}
 

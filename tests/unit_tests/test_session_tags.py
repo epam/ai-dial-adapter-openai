@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any
 
@@ -48,13 +47,14 @@ def dial_url(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture(autouse=True)
 def no_session_tags(monkeypatch: pytest.MonkeyPatch):
     """
-    The environment of whoever runs the tests must not leak into the tests.
+    AWS_SESSION_TAGS is read into the module at import time, so the
+    environment of whoever runs the tests must not leak into the tests.
     """
-    monkeypatch.delenv("AWS_SESSION_TAGS", raising=False)
+    monkeypatch.setattr(session_tags, "AWS_SESSION_TAGS", None)
 
 
 def _configure(monkeypatch: pytest.MonkeyPatch, tags: dict[str, str]) -> None:
-    monkeypatch.setenv("AWS_SESSION_TAGS", json.dumps(tags))
+    monkeypatch.setattr(session_tags, "AWS_SESSION_TAGS", tags)
 
 
 # ---------------------------------------------------------------- resolve_paths
@@ -657,21 +657,3 @@ async def test_resolve_session_tags_requires_a_user_info_tag_for_the_api_key(
     _configure(monkeypatch, {"project": "UserInfo.project"})
 
     assert await resolve_session_tags(None, _MODEL) is None
-
-
-@pytest.mark.parametrize(
-    "value",
-    ["not json", "[1, 2]", '"a string"'],
-    ids=["invalid_json", "json_list", "json_string"],
-)
-async def test_resolve_session_tags_tolerates_a_malformed_variable(
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-    value: str,
-):
-    monkeypatch.setenv("AWS_SESSION_TAGS", value)
-
-    with caplog.at_level(logging.ERROR, logger=_LOGGER):
-        assert await resolve_session_tags(_API_KEY, _MODEL) is None
-
-    assert "Skipping AWS STS session tags" in caplog.text
