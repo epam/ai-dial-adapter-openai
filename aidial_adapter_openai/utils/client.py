@@ -22,7 +22,10 @@ async def get_client(
     deployment_endpoint = deployment.endpoint
     vendor = app_config.get_vendor(deployment_id, deployment_endpoint)
     creds = await get_credentials(
-        request.headers, vendor=vendor, endpoint=deployment_endpoint
+        request.headers,
+        vendor=vendor,
+        endpoint=deployment_endpoint,
+        deployment_id=deployment_id,
     )
     return deployment_endpoint.get_client(
         {**creds, "api_version": api_version, "headers": extra_headers}
