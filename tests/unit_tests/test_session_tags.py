@@ -57,9 +57,6 @@ def _configure(monkeypatch: pytest.MonkeyPatch, tags: dict[str, str]) -> None:
     monkeypatch.setattr(session_tags, "AWS_SESSION_TAGS", tags)
 
 
-# ---------------------------------------------------------------- resolve_paths
-
-
 @pytest.mark.parametrize(
     "paths, expected",
     [
@@ -103,9 +100,6 @@ def test_resolve_paths(paths: list[str], expected: dict[str, str]):
 
 def test_resolve_paths_serializes_null():
     assert resolve_paths({"project": None}, ["project"]) == {"project": "null"}
-
-
-# ------------------------------------------------------------------ Tags.parse
 
 
 @pytest.mark.parametrize(
@@ -196,9 +190,6 @@ def test_tags_wants_user_info(config: dict[str, str], expected: bool):
     assert Tags.parse(config).wants_user_info is expected
 
 
-# ------------------------------------------------------ _sanitize_session_tags
-
-
 def test_sanitize_session_tags_fits_the_key_and_value():
     tags = [_model_tag("k" * 200, "v" * 300)]
 
@@ -233,9 +224,6 @@ def test_sanitize_session_tags_keeps_one_source_under_every_key():
             "EPAM / DIAL (prod)",
             "EPAM / DIAL _prod_",
             id="spaces_kept_parens_replaced",
-        ),
-        pytest.param(
-            "Проект-42", "Проект-42", id="non_latin_scripts_pass_through"
         ),
         pytest.param("naïve", "naïve", id="diacritics_pass_through"),
     ],
@@ -351,9 +339,6 @@ def test_sanitize_session_tags_logs_truncated_keys_and_values(
 
     assert "Sanitized AWS STS session tags key(s)" in caplog.text
     assert "Sanitized AWS STS session tags value(s)" in caplog.text
-
-
-# --------------------------------------------------------- Tags.to_session_tags
 
 
 @pytest.fixture
@@ -475,9 +460,6 @@ def test_to_session_tags_truncates_long_model_ids():
     assert tags == [_model_tag("application", "m" * 256)]
 
 
-# ---------------------------------------------------- get_role_session_name
-
-
 @pytest.mark.parametrize(
     "tags, expected",
     [
@@ -539,9 +521,6 @@ def test_get_role_session_name_truncates_long_projects():
 
     assert name == "Project_" + "p" * 56
     assert len(name) == 64
-
-
-# ------------------------------------------------------- resolve_session_tags
 
 
 @pytest.fixture

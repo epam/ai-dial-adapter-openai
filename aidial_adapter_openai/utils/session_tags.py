@@ -152,8 +152,6 @@ def _sanitize_session_tags(tags: list[SessionTag]) -> list[SessionTag]:
         if safe_value != value:
             changed_values.append(key)
         if not safe_key:
-            # There's no key left to name the tag by, so the value source is
-            # all the operator has to go on.
             empty_keys.append(tag["ValueSource"])
             continue
         if safe_key in taken:

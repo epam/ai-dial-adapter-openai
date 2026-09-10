@@ -822,17 +822,15 @@ The variable is a JSON dictionary of `<tag key>: <value source>` entries. The **
 
 Entries whose value source is unknown (`Nope.project`, `Bedrock.region`, or an unprefixed `project`) are skipped with a warning.
 
-The tags are only applied to the assume role credentials *(option 3 above)*. They are ignored for the bearer token, the static credentials and the AWS credential provider chain. They are also never applied to the [Anthropic API passthrough](#anthropic-messages-api), which authenticates to Azure only - so the same `AWS_SESSION_TAGS` value shared with the [Bedrock adapter](https://github.com/epam/ai-dial-adapter-bedrock) yields fewer tags here, where that passthrough is not Bedrock-backed.
+The tags are only applied to the assume role credentials. They are ignored for the bearer token, the static credentials and the AWS credential provider chain. They are also never applied to the [Anthropic API passthrough](#anthropic-messages-api), which authenticates to Azure only.
 
 Failing to retrieve a tag never fails the request: the failure is logged as a warning and the tag is ignored, while the remaining tags are still passed.
 
-The adapter fits the tags to the AWS constraints for [session tags](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_operations), logging every adjustment it makes. Beyond the documented length and count limits, AWS accepts only letters, digits, spaces and `_ . : / = + - @` in a key or a value; the rejected characters are replaced with `_`, and keys that collide once truncated or sanitized get a `_1`, `_2`, ... postfix.
+The adapter fits the tags to the AWS constraints for [session tags](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_operations), logging every adjustment it makes.
 
 ###### The Bedrock source
 
-`Bedrock.modelId` holds the model id the request is served under: the deployment id from the request path, with the `models[*].overrideName` field of the DIAL Core config applied. For a deployment that carries an override name, this is therefore the upstream model name sent to Bedrock, not the DIAL deployment the caller addressed.
-
-The tag is skipped with a warning when the request carries no model id, which is the case for the Responses API operations addressed to a stored response rather than to a model *(retrieve, delete and cancel)*.
+`Bedrock.modelId` holds the model id the request is served under: the deployment id from the request path, with the `models[*].overrideName` field of the DIAL Core config applied.
 
 ###### The role session name
 
@@ -855,14 +853,6 @@ The `UserInfo.<path>` value source takes the value at `<path>` from the JSON res
 Paths use object keys and integer list indices, for example `UserInfo.userClaims.access.0`. Unresolvable paths are skipped with a warning.
 
 String values are used as-is. All other values are JSON-serialized, e.g. numbers, booleans, `null`, objects and arrays.
-
-> [!IMPORTANT]
-> `AWS_SESSION_TAGS` replaces the `AWS_SESSION_TAGS_FIELDS` variable of the previous release, which is no longer read. A deployment that still sets it stops passing session tags altogether. The old variable listed `UserInfo` paths, which now go on the right-hand side:
->
-> ```diff
-> - AWS_SESSION_TAGS_FIELDS=roles.0,project
-> + AWS_SESSION_TAGS={"roles":"UserInfo.roles.0","project":"UserInfo.project"}
-> ```
 
 #### OpenAI Completions API
 
