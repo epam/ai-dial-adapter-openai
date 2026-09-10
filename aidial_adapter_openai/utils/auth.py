@@ -23,6 +23,7 @@ from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import BedrockOpenAIEndpoint
 from aidial_adapter_openai.utils.session_tags import (
     SessionTag,
+    get_role_session_name,
     resolve_session_tags,
 )
 from aidial_adapter_openai.utils.upstream_headers import (
@@ -36,7 +37,6 @@ EXPIRATION_WINDOW_IN_SEC: int = int(
 AZURE_OPEN_AI_SCOPE: str = os.getenv(
     "AZURE_OPEN_AI_SCOPE", "https://cognitiveservices.azure.com/.default"
 )
-_ASSUME_ROLE_SESSION_NAME = "BedrockAccessSession"
 
 
 class _AzureTokenProvider:
@@ -123,10 +123,13 @@ class _AWSAssumeRoleProvider:
 
         params: dict[str, Any] = {
             "RoleArn": self._role_arn,
-            "RoleSessionName": _ASSUME_ROLE_SESSION_NAME,
+            "RoleSessionName": get_role_session_name(self._session_tags),
         }
         if self._session_tags:
-            params["Tags"] = self._session_tags
+            params["Tags"] = [
+                {"Key": tag["Key"], "Value": tag["Value"]}
+                for tag in self._session_tags
+            ]
 
         creds = self._sts_client.assume_role(**params)["Credentials"]
 
@@ -251,7 +254,7 @@ class AWSCloudUpstreamConfig(BaseModel):
         return cls(credentials=_select_credentials(extra_data))
 
     async def get_credentials(
-        self, aws_region: str, api_key: str | None
+        self, aws_region: str, api_key: str | None, deployment_id: str | None
     ) -> AWSCredentials:
         match self.credentials:
             case None:
@@ -259,7 +262,9 @@ class AWSCloudUpstreamConfig(BaseModel):
             case AWSClientCredentials():
                 return await self.credentials.get_credentials(aws_region)
             case AWSAssumeRoleCredentials():
-                session_tags = await resolve_session_tags(api_key)
+                session_tags = await resolve_session_tags(
+                    api_key, deployment_id
+                )
                 return await self.credentials.get_credentials(
                     aws_region, session_tags
                 )
@@ -281,6 +286,7 @@ async def get_credentials(
     *,
     vendor: Vendor,
     endpoint: DeploymentAPIEndpoint | None,
+    deployment_id: str | None,
 ) -> OpenAICreds:
     api_key = request_headers.get("X-UPSTREAM-KEY")
     if api_key is not None:
@@ -300,7 +306,9 @@ async def get_credentials(
 
             upstream_config = AWSCloudUpstreamConfig.create(request_headers)
             creds = await upstream_config.get_credentials(
-                endpoint.bedrock_region, request_headers.get("api-key")
+                endpoint.bedrock_region,
+                request_headers.get("api-key"),
+                deployment_id,
             )
 
             return {
