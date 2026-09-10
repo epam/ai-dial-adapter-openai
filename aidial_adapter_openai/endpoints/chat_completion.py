@@ -160,7 +160,10 @@ async def call_chat_completion(
 
         case D.AZURE_VIDEO_API:
             creds = await get_credentials(
-                request_headers, vendor=vendor, endpoint=endpoint
+                request_headers,
+                vendor=vendor,
+                endpoint=endpoint,
+                deployment_id=deployment_id,
             )
             return await azure_video_gen(
                 request=request,

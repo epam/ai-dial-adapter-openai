@@ -37,7 +37,7 @@ _AWS_ENV_VARS = (
     "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN",
     "AWS_ASSUME_ROLE_ARN",
-    "AWS_SESSION_TAGS_FIELDS",
+    "AWS_SESSION_TAGS",
 )
 
 
@@ -47,7 +47,10 @@ _AWS_ENV_VARS = (
 )
 async def test_get_credentials_returns_api_key_for_any_vendor(vendor: Vendor):
     creds = await auth.get_credentials(
-        {"X-UPSTREAM-KEY": "test-key"}, vendor=vendor, endpoint=None
+        {"X-UPSTREAM-KEY": "test-key"},
+        vendor=vendor,
+        endpoint=None,
+        deployment_id=None,
     )
 
     assert creds == {"api_key": "test-key"}
@@ -64,7 +67,9 @@ async def test_get_credentials_falls_back_to_azure_ad_token(monkeypatch):
 
     monkeypatch.setattr(auth, "_AzureTokenProvider", _mock_token_provider)
 
-    creds = await auth.get_credentials({}, vendor=Vendor.AZURE, endpoint=None)
+    creds = await auth.get_credentials(
+        {}, vendor=Vendor.AZURE, endpoint=None, deployment_id=None
+    )
 
     assert creds == {"azure_ad_token": "token-123"}
 
@@ -72,7 +77,9 @@ async def test_get_credentials_falls_back_to_azure_ad_token(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_credentials_raises_without_key_for_non_azure():
     with pytest.raises(DialException) as exc_info:
-        await auth.get_credentials({}, vendor=Vendor.VLLM, endpoint=None)
+        await auth.get_credentials(
+            {}, vendor=Vendor.VLLM, endpoint=None, deployment_id=None
+        )
 
     error = exc_info.value
     assert error.status_code == 401
@@ -167,6 +174,7 @@ async def _get_credentials(
     endpoint: BedrockOpenAIEndpoint,
     extra_data: dict[str, Any] | None = None,
     api_key: str | None = None,
+    deployment_id: str | None = None,
 ) -> OpenAICreds:
     headers = (
         {}
@@ -176,7 +184,10 @@ async def _get_credentials(
     if api_key is not None:
         headers["api-key"] = api_key
     return await auth.get_credentials(
-        headers, vendor=Vendor.AWS, endpoint=endpoint
+        headers,
+        vendor=Vendor.AWS,
+        endpoint=endpoint,
+        deployment_id=deployment_id,
     )
 
 
@@ -331,7 +342,7 @@ class TestSessionTags:
     @pytest.fixture(autouse=True)
     def session_tags_configured(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(session_tags, "DIAL_URL", _DIAL_URL)
-        monkeypatch.setenv("AWS_SESSION_TAGS_FIELDS", "roles.0")
+        monkeypatch.setenv("AWS_SESSION_TAGS", '{"role": "UserInfo.roles.0"}')
 
     @pytest.fixture
     def user_info(self):
@@ -360,11 +371,13 @@ class TestSessionTags:
             endpoint, {"aws_assume_role_arn": _ROLE_ARN}, api_key="key-1"
         )
 
+        # The value source is internal bookkeeping, so it must not appear
+        # in what reaches AWS.
         assert sts_client.calls == [
             {
                 "RoleArn": _ROLE_ARN,
                 "RoleSessionName": "BedrockAccessSession",
-                "Tags": [{"Key": "roles.0", "Value": "admin"}],
+                "Tags": [{"Key": "role", "Value": "admin"}],
             }
         ]
 
@@ -388,6 +401,78 @@ class TestSessionTags:
             await _get_credentials(endpoint, extra_data, api_key="key-3")
             == admin
         )
+        assert len(sts_client.calls) == 2
+
+    async def test_assume_role_names_the_session_after_the_project(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        endpoint: BedrockOpenAIEndpoint,
+        sts_client: _StubSTSClient,
+        user_info: Any,
+    ):
+        monkeypatch.setenv(
+            "AWS_SESSION_TAGS", '{"project": "UserInfo.project"}'
+        )
+        user_info.respond(json={"roles": [], "project": "epam"})
+
+        await _get_credentials(
+            endpoint, {"aws_assume_role_arn": _ROLE_ARN}, api_key="key-1"
+        )
+
+        assert sts_client.calls == [
+            {
+                "RoleArn": _ROLE_ARN,
+                "RoleSessionName": "Project_epam",
+                "Tags": [{"Key": "project", "Value": "epam"}],
+            }
+        ]
+
+    async def test_the_model_id_tag_carries_the_deployment_id(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        endpoint: BedrockOpenAIEndpoint,
+        sts_client: _StubSTSClient,
+        user_info: Any,
+    ):
+        monkeypatch.setenv(
+            "AWS_SESSION_TAGS", '{"application": "Bedrock.modelId"}'
+        )
+
+        await _get_credentials(
+            endpoint,
+            {"aws_assume_role_arn": _ROLE_ARN},
+            deployment_id="openai.gpt-5.4",
+        )
+
+        # The model id is an independent source: no DIAL user info needed.
+        assert not user_info.called
+        assert sts_client.calls == [
+            {
+                "RoleArn": _ROLE_ARN,
+                "RoleSessionName": "BedrockAccessSession",
+                "Tags": [{"Key": "application", "Value": "openai.gpt-5.4"}],
+            }
+        ]
+
+    async def test_assumed_credentials_are_not_shared_between_deployments(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        endpoint: BedrockOpenAIEndpoint,
+        sts_client: _StubSTSClient,
+    ):
+        monkeypatch.setenv(
+            "AWS_SESSION_TAGS", '{"application": "Bedrock.modelId"}'
+        )
+        extra_data = {"aws_assume_role_arn": _ROLE_ARN}
+
+        first = await _get_credentials(
+            endpoint, extra_data, deployment_id="model-1"
+        )
+        second = await _get_credentials(
+            endpoint, extra_data, deployment_id="model-2"
+        )
+
+        assert first != second
         assert len(sts_client.calls) == 2
 
     async def test_static_credentials_dont_resolve_session_tags(
