@@ -42,6 +42,7 @@ class TestNonStreamingVllmReasoning:
         )
         message = result["choices"][0]["message"]
         assert "reasoning" not in message
+        assert message["reasoning_content"] == "Let me think about this..."
         assert message.get("content") is None
         stage = message["custom_content"]["stages"][0]
         assert stage["content"] == "Let me think about this..."
@@ -58,6 +59,9 @@ class TestNonStreamingVllmReasoning:
         )
         message = result["choices"][0]["message"]
         assert "reasoning" not in message
+        assert (
+            message["reasoning_content"] == "9.11 is greater because 9.11 > 9.8"
+        )
         assert message["content"] == "9.11 is greater than 9.8"
         stage = message["custom_content"]["stages"][0]
         assert stage["content"] == "9.11 is greater because 9.11 > 9.8"
@@ -71,6 +75,7 @@ class TestNonStreamingVllmReasoning:
         )
         message = result["choices"][0]["message"]
         assert message["content"] == "Just an answer"
+        assert "reasoning_content" not in message
         assert "custom_content" not in message
 
     def test_empty_response(self) -> None:
@@ -111,6 +116,7 @@ class TestNonStreamingVllmReasoning:
         # Choice 0 has reasoning
         msg0 = result["choices"][0]["message"]
         assert "reasoning" not in msg0
+        assert msg0["reasoning_content"] == "Reasoning for choice 0"
         assert msg0["content"] == "Answer 0"
         assert (
             msg0["custom_content"]["stages"][0]["content"]
@@ -119,6 +125,7 @@ class TestNonStreamingVllmReasoning:
 
         # Choice 1 has no reasoning
         msg1 = result["choices"][1]["message"]
+        assert "reasoning_content" not in msg1
         assert msg1["content"] == "Answer 1"
         assert "custom_content" not in msg1
 
@@ -150,6 +157,7 @@ class TestStreamingVllmReasoning:
         delta0 = results[0]["choices"][0]["delta"]
         assert delta0.get("role") == "assistant"
         assert "reasoning" not in delta0
+        assert delta0["reasoning_content"] == "Let me think"
         stage0 = delta0["custom_content"]["stages"][0]
         assert stage0["name"] == "Reasoning"
         assert stage0["content"] == "Let me think"
@@ -159,6 +167,7 @@ class TestStreamingVllmReasoning:
         # Second chunk: continues reasoning
         delta1 = results[1]["choices"][0]["delta"]
         assert "reasoning" not in delta1
+        assert delta1["reasoning_content"] == " about this"
         stage1 = delta1["custom_content"]["stages"][0]
         assert "name" not in stage1
         assert stage1["content"] == " about this"
@@ -168,6 +177,7 @@ class TestStreamingVllmReasoning:
         # Third chunk: content (no stage, reasoning field is removed)
         delta2 = results[2]["choices"][0]["delta"]
         assert delta2["content"] == "The answer"
+        assert "reasoning_content" not in delta2
         assert "custom_content" not in delta2
 
         # Final chunk: closes stage

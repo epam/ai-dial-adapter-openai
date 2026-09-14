@@ -34,6 +34,9 @@ class _ReasoningResponseTransformer(BaseModel):
             reasoning = message.pop("reasoning", None)
 
             is_ongoing = reasoning is not None
+            if is_ongoing:
+                message["reasoning_content"] = reasoning
+
             is_opening = (
                 choice_index not in self.opened_reasoning_stages and is_ongoing
             )

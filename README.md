@@ -44,6 +44,7 @@
       - [Default `max_tokens` for Claude models](#default-max_tokens-for-claude-models)
       - [Automatic prompt caching](#automatic-prompt-caching)
       - [Explicit prompt caching](#explicit-prompt-caching)
+  - [Reasoning content](#reasoning-content)
   - [Anthropic API Passthrough](#anthropic-api-passthrough)
     - [Using Claude Code with the adapter](#using-claude-code-with-the-adapter)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
@@ -910,7 +911,7 @@ Where `MISTRAL_MODEL_NAME` is one of the available [models](https://docs.mistral
 
 The deployment should be added to the environment variable `MISTRAL_DEPLOYMENTS`.
 
-The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#reasoning-with-chat-completions) for Magistral models. The reasoning tokens are displayed in a dedicated stage titled `Reasoning`.
+The adapter supports [reasoning](https://docs.mistral.ai/capabilities/reasoning#reasoning-with-chat-completions) for Magistral models. See [Reasoning content](#reasoning-content) for the way the reasoning tokens are reported.
 
 #### Alibaba Cloud Model Studio Chat Completions API
 
@@ -1135,6 +1136,45 @@ Set the feature flag `cacheSupported: true` in the DIAL Core configuration, when
 ```
 
 </details>
+
+### Reasoning content
+
+The reasoning tokens returned by the reasoning models are reported twice:
+
+1. in a dedicated DIAL stage titled `Reasoning`, so that the thought process becomes visible in the DIAL Chat UI,
+2. in the `reasoning_content` field of the response message, next to its `content` field.
+
+```json
+{
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "9.11 is greater than 9.8",
+        "reasoning_content": "Let me compare the decimal parts...",
+        "custom_content": {
+          "stages": [
+            {
+              "name": "Reasoning",
+              "status": "completed",
+              "content": "Let me compare the decimal parts..."
+            }
+          ]
+        }
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+In the streaming mode `reasoning_content` is reported in the response deltas the very same way as `content` is.
+
+The following upstream APIs are supported: [Azure OpenAI Chat Completions API](#azure-openai-chat-completions-api) *(e.g. `gpt-oss-120b`)*, [Mistral Chat Completion API](#mistral-chat-completion-api) *(Magistral models)*, [vLLM Chat Completion API](#vllm-chat-completion-api) *(e.g. `DeepSeek-R1`)* and the Responses API [reasoning summary](#reasoning-configuration).
+
+> [!NOTE]
+> The Claude models report the thought process in a stage titled `Thinking` as well as in the `reasoning_content` field.
 
 ### Anthropic API Passthrough
 

@@ -42,7 +42,7 @@ class _ResponseTransformer(BaseModel):
         for choice in choices:
             choice_index = choice.get("index")
             message = choice.get(self.message_key, {})
-            reasoning_content = message.pop("reasoning_content", None)
+            reasoning_content = message.get("reasoning_content")
 
             is_ongoing = reasoning_content is not None
             is_opening = (

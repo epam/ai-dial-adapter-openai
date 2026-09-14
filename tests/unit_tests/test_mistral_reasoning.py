@@ -31,6 +31,7 @@ class TestNonStreamingMistralReasoning:
         )
         message = result["choices"][0]["message"]
         assert message["content"] == "Hello world"
+        assert "reasoning_content" not in message
         assert "custom_content" not in message
 
     def test_thinking_only_content(self) -> None:
@@ -48,6 +49,10 @@ class TestNonStreamingMistralReasoning:
         )
         message = result["choices"][0]["message"]
         assert message["content"] is None
+        assert message["reasoning_content"] == "Let me think..."
+        # The reasoning content is reported in the message,
+        # not at the top-level of the response.
+        assert "reasoning_content" not in result
         stage = message["custom_content"]["stages"][0]
         assert stage["content"] == "Let me think..."
         assert stage["name"] == "Reasoning"
@@ -69,6 +74,7 @@ class TestNonStreamingMistralReasoning:
         )
         message = result["choices"][0]["message"]
         assert message["content"] == "Answer here"
+        assert message["reasoning_content"] == "Reasoning here"
         stage = message["custom_content"]["stages"][0]
         assert stage["content"] == "Reasoning here"
         assert stage["name"] == "Reasoning"
@@ -91,6 +97,7 @@ class TestNonStreamingMistralReasoning:
         )
         message = result["choices"][0]["message"]
         assert message["content"] == "Answer"
+        assert message["reasoning_content"] == "Part A Part B"
         stage = message["custom_content"]["stages"][0]
         assert stage["content"] == "Part A Part B"
         assert stage["name"] == "Reasoning"
@@ -162,6 +169,10 @@ class TestStreamingMistralReasoning:
         # First thinking chunk: opens stage
         delta0 = results[0]["choices"][0]["delta"]
         assert delta0["content"] is None
+        assert delta0["reasoning_content"] == "Part 1"
+        # The reasoning content is reported in the delta,
+        # not at the top-level of the chunk.
+        assert "reasoning_content" not in results[0]
         stage0 = delta0["custom_content"]["stages"][0]
         assert stage0["name"] == "Reasoning"
         assert stage0["content"] == "Part 1"
@@ -171,6 +182,7 @@ class TestStreamingMistralReasoning:
         # Second thinking chunk: continues stage (no name)
         delta1 = results[1]["choices"][0]["delta"]
         assert delta1["content"] is None
+        assert delta1["reasoning_content"] == " Part 2"
         stage1 = delta1["custom_content"]["stages"][0]
         assert "name" not in stage1
         assert stage1["content"] == " Part 2"
@@ -180,10 +192,12 @@ class TestStreamingMistralReasoning:
         # Text chunk: content is set, no stage
         delta2 = results[2]["choices"][0]["delta"]
         assert delta2["content"] == "Answer"
+        assert "reasoning_content" not in delta2
         assert "custom_content" not in delta2
 
         # Final chunk: closes stage
         delta3 = results[3]["choices"][0]["delta"]
+        assert "reasoning_content" not in delta3
         stage3 = delta3["custom_content"]["stages"][0]
         assert stage3["status"] == "completed"
         assert stage3["index"] == 0

@@ -534,6 +534,7 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
     stages: list[Stage] = []
     state: MessageState = MessageState(responses_output=[])
     tool_calls: list[ChatCompletionMessageToolCallUnion] = []
+    reasoning_parts: list[str] = []
 
     for item in output:
         match item:
@@ -573,6 +574,7 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
                 if summary:
                     for index, summary_part in enumerate(summary):
                         suffix = "" if index == 0 else f" #{index + 1}"
+                        reasoning_parts.append(summary_part.text)
                         stages.append(
                             Stage(
                                 name="Reasoning" + suffix,
@@ -640,6 +642,9 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
             stages=stages or None,
             state=state.model_dump() or None,
         ).model_dump(mode="json", exclude_none=True)
+
+    if reasoning_parts:
+        extra_fields["reasoning_content"] = "\n\n".join(reasoning_parts)
 
     return ChatCompletionMessage(
         role="assistant",
