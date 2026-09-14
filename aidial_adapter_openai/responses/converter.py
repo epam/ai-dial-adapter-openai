@@ -572,8 +572,15 @@ def _convert_output(output: list[ResponseOutputItem]) -> ChatCompletionMessage:
 
             case ResponseReasoningItem(summary=summary):
                 if summary:
-                    for index, summary_part in enumerate(summary):
-                        suffix = "" if index == 0 else f" #{index + 1}"
+                    for summary_part in summary:
+                        # The summary parts of all the reasoning items
+                        # are numbered consecutively, just like
+                        # in the streaming mode.
+                        suffix = (
+                            f" #{len(reasoning_parts) + 1}"
+                            if reasoning_parts
+                            else ""
+                        )
                         reasoning_parts.append(summary_part.text)
                         stages.append(
                             Stage(

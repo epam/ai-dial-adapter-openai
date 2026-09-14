@@ -252,6 +252,7 @@ async def test_reasoning_content_of_multiple_reasoning_items(
     assert response.status_code == 200
     message = response.json()["choices"][0]["message"]
     assert message["reasoning_content"] == _EXPECTED_REASONING_CONTENT
-    assert [
-        stage["content"] for stage in message["custom_content"]["stages"]
-    ] == _SUMMARIES
+    assert message["custom_content"]["stages"] == [
+        {"name": "Reasoning", "status": "completed", "content": "Part one"},
+        {"name": "Reasoning #2", "status": "completed", "content": "Part two"},
+    ]
