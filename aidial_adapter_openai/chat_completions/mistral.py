@@ -70,6 +70,9 @@ class _MistralResponseTransformer:
 
             thinking_text = "".join(thinking_parts)
             is_ongoing = bool(thinking_text)
+            if is_ongoing:
+                message["reasoning_content"] = thinking_text
+
             is_opening = (
                 choice_index not in self.opened_reasoning_stages and is_ongoing
             )

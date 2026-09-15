@@ -174,6 +174,9 @@ class EventHandler(pydantic.BaseModel):
     stage_base_name_count: dict[str, int] = pydantic.Field(default_factory=dict)
     """Per-stage-type counter for suffix generation."""
 
+    prev_reasoning_stage_key: str | None = None
+    """Stage key of the reasoning summary part the reasoning content was last emitted for."""
+
     @property
     def id(self) -> str:
         if self.id_ is None:
@@ -488,6 +491,22 @@ class EventHandler(pydantic.BaseModel):
                     )
                     if chunk is not None:
                         yield chunk
+
+                separator = (
+                    ""
+                    if self.prev_reasoning_stage_key in (None, stage_key)
+                    else "\n\n"
+                )
+                self.prev_reasoning_stage_key = stage_key
+
+                yield self._chunk(
+                    choice=Choice(
+                        index=0,
+                        delta=ChoiceDelta(
+                            reasoning_content=separator + content  # type: ignore
+                        ),
+                    )
+                )
                 yield self._append_to_stage(
                     stage_key=stage_key, content=content
                 )
