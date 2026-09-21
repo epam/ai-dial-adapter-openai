@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 import fastapi
+from aidial_adapter_anthropic.passthrough import mount_anthropic_api
 from aidial_client import AsyncDialClientPool
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry as sdk_init_telemetry
@@ -9,9 +10,7 @@ from fastapi import FastAPI
 from openai import OpenAIError
 
 import aidial_adapter_openai.endpoints as endpoints
-from aidial_adapter_openai.apis.anthropic import (
-    mount_anthropic_passthrough as mount_anthropic_api,
-)
+from aidial_adapter_openai.apis.anthropic import get_anthropic_client
 from aidial_adapter_openai.apis.openai import mount_openai_api
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.exceptions.handlers import (
@@ -67,7 +66,7 @@ def create_app(
     app.get("/health")(endpoints.health)
 
     mount_openai_api(app, path="/openai")
-    mount_anthropic_api(app, path="/anthropic")
+    mount_anthropic_api(app, get_anthropic_client, path="/anthropic")
 
     app.add_exception_handler(fastapi.HTTPException, fastapi_exception_handler)
 
