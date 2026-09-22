@@ -1,6 +1,5 @@
 import fastapi
-from aidial_adapter_anthropic.passthrough import mount_anthropic_api
-from anthropic import AsyncAnthropic, AsyncAnthropicFoundry
+from anthropic import AsyncAnthropic
 
 from aidial_adapter_openai.configuration.app_config import (
     Vendor,
@@ -13,17 +12,7 @@ from aidial_adapter_openai.utils.parsers import (
 )
 
 
-def _strip_unsupported_features(
-    client: AsyncAnthropic, features: list[str]
-) -> list[str]:
-    if isinstance(client, AsyncAnthropicFoundry):
-        _unsupported_flags_by_azure = {"advisor-tool-2026-03-01"}
-        return [f for f in features if f not in _unsupported_flags_by_azure]
-
-    return features
-
-
-async def _get_anthropic_client(
+async def get_anthropic_client(
     request: fastapi.Request,
 ) -> AsyncAnthropic:
     headers = request.headers
@@ -39,12 +28,3 @@ async def _get_anthropic_client(
         headers, vendor=Vendor.AZURE, endpoint=None, deployment_id=None
     )
     return endpoint.get_client({**creds})
-
-
-def mount_anthropic_passthrough(app: fastapi.FastAPI, path: str):
-    mount_anthropic_api(
-        app,
-        _get_anthropic_client,
-        path=path,
-        on_anthropic_beta_header=_strip_unsupported_features,
-    )
