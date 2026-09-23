@@ -217,6 +217,36 @@ def test_app_config_qwen3_asr_vllm_deployments(origin: str, deployment: str):
     assert ty.deployment_type == D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
 
 
+def test_app_config_open_moss_vllm_deployments(origin: str, deployment: str):
+    cfg = ApplicationConfig(OPEN_MOSS_VLLM_DEPLOYMENTS=[deployment])
+
+    ty = cfg.get_chat_completion_deployment_type(
+        deployment,
+        f"{origin}/whatever1/whatever2/v1/audio/speech",
+    )
+
+    assert ty.deployment_type == D.OPEN_MOSS_VLLM_CHAT_COMPLETIONS_API
+
+
+def test_app_config_open_moss_rejects_chat_completions_upstream(
+    origin: str, deployment: str
+):
+    cfg = ApplicationConfig(OPEN_MOSS_VLLM_DEPLOYMENTS=[deployment])
+
+    with pytest.raises(HTTPException) as exc_info:
+        cfg.get_chat_completion_deployment_type(
+            deployment,
+            f"{origin}/whatever1/whatever2/chat/completions",
+        )
+
+    error = exc_info.value
+    assert error.status_code == 500
+    assert error.message == (
+        f"OpenMOSS vLLM deployment id {deployment!r} must use "
+        "audio/speech upstream endpoint."
+    )
+
+
 @pytest.mark.parametrize(
     ("upstream_endpoint", "base_url", "foundry"),
     [
@@ -312,11 +342,18 @@ def test_get_vendor_rejects_unknown_upstream_vendor(deployment: str):
         ApplicationConfig(
             QWEN3_ASR_VLLM_DEPLOYMENTS=["qwen3-asr-vllm-deployment"]
         ),
+        ApplicationConfig(
+            OPEN_MOSS_VLLM_DEPLOYMENTS=["open-moss-vllm-deployment"]
+        ),
     ],
 )
 def test_get_vendor_for_vllm_families(cfg: ApplicationConfig):
     deployment_id = next(
-        iter(cfg.VLLM_DEPLOYMENTS or cfg.QWEN3_ASR_VLLM_DEPLOYMENTS)
+        iter(
+            cfg.VLLM_DEPLOYMENTS
+            or cfg.QWEN3_ASR_VLLM_DEPLOYMENTS
+            or cfg.OPEN_MOSS_VLLM_DEPLOYMENTS
+        )
     )
     assert (
         cfg.get_vendor(
@@ -360,10 +397,17 @@ def test_is_azure_for_generic_deployment(deployment: str):
         ApplicationConfig(
             QWEN3_ASR_VLLM_DEPLOYMENTS=["qwen3-asr-vllm-deployment"]
         ),
+        ApplicationConfig(
+            OPEN_MOSS_VLLM_DEPLOYMENTS=["open-moss-vllm-deployment"]
+        ),
     ],
 )
 def test_is_azure_for_non_azure_vllm_families(cfg: ApplicationConfig):
     deployment_id = next(
-        iter(cfg.VLLM_DEPLOYMENTS or cfg.QWEN3_ASR_VLLM_DEPLOYMENTS)
+        iter(
+            cfg.VLLM_DEPLOYMENTS
+            or cfg.QWEN3_ASR_VLLM_DEPLOYMENTS
+            or cfg.OPEN_MOSS_VLLM_DEPLOYMENTS
+        )
     )
     assert not cfg.is_azure(deployment_id)

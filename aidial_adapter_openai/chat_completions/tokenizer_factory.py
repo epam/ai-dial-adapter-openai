@@ -139,7 +139,8 @@ async def create_request_tokenizer(
 
     match deployment_type:
         case (
-            D.VLLM_CHAT_COMPLETIONS_API | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+            D.VLLM_CHAT_COMPLETIONS_API
+            | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
         ):
             vllm_tokenizer = VllmTokenizer(
                 upstream_endpoint=upstream_endpoint,

@@ -79,6 +79,7 @@ class ApplicationConfig(ExtraForbidModel):
     GPT4O_MINI_DEPLOYMENTS: list[str] = []
     VLLM_DEPLOYMENTS: list[str] = []
     QWEN3_ASR_VLLM_DEPLOYMENTS: list[str] = []
+    OPEN_MOSS_VLLM_DEPLOYMENTS: list[str] = []
     AZURE_AI_VISION_DEPLOYMENTS: list[str] = []
 
     API_VERSIONS_MAPPING: dict[str, str] = {}
@@ -93,6 +94,7 @@ class ApplicationConfig(ExtraForbidModel):
         for deployments in [
             self.VLLM_DEPLOYMENTS,
             self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+            self.OPEN_MOSS_VLLM_DEPLOYMENTS,
         ]:
             if deployment_id in deployments:
                 return False
@@ -124,6 +126,7 @@ class ApplicationConfig(ExtraForbidModel):
         for deployments in [
             self.VLLM_DEPLOYMENTS,
             self.QWEN3_ASR_VLLM_DEPLOYMENTS,
+            self.OPEN_MOSS_VLLM_DEPLOYMENTS,
         ]:
             if deployment_id in deployments:
                 return Vendor.VLLM
@@ -167,6 +170,18 @@ class ApplicationConfig(ExtraForbidModel):
             return DeploymentAPIType(
                 deployment_type=D.AZURE_VIDEO_API,
                 endpoint=endpoint,
+            )
+
+        if deployment_id in self.OPEN_MOSS_VLLM_DEPLOYMENTS:
+            if endpoint := speech_parser.try_parse(upstream_endpoint):
+                return DeploymentAPIType(
+                    deployment_type=D.OPEN_MOSS_VLLM_CHAT_COMPLETIONS_API,
+                    endpoint=endpoint,
+                )
+
+            raise InternalServerError(
+                f"OpenMOSS vLLM deployment id {deployment_id!r} must use "
+                "audio/speech upstream endpoint."
             )
 
         if endpoint := speech_parser.try_parse(upstream_endpoint):
@@ -270,6 +285,8 @@ class ApplicationConfig(ExtraForbidModel):
                 self.VLLM_DEPLOYMENTS.append(deployment_id)
             case D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API:
                 self.QWEN3_ASR_VLLM_DEPLOYMENTS.append(deployment_id)
+            case D.OPEN_MOSS_VLLM_CHAT_COMPLETIONS_API:
+                self.OPEN_MOSS_VLLM_DEPLOYMENTS.append(deployment_id)
             case (
                 D.GPT_GENERIC
                 | D.RESPONSES_API
@@ -306,6 +323,7 @@ class ApplicationConfig(ExtraForbidModel):
                 "GPT4O_MINI_DEPLOYMENTS",
                 "VLLM_DEPLOYMENTS",
                 "QWEN3_ASR_VLLM_DEPLOYMENTS",
+                "OPEN_MOSS_VLLM_DEPLOYMENTS",
                 "AZURE_AI_VISION_DEPLOYMENTS",
                 "NON_STREAMING_DEPLOYMENTS",
             )

@@ -171,6 +171,7 @@ async def truncate_prompt(
             D.RESPONSES_API
             | D.VLLM_CHAT_COMPLETIONS_API
             | D.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API
+            | D.OPEN_MOSS_VLLM_CHAT_COMPLETIONS_API
         ):
             vendor = app_config.get_vendor(
                 deployment_id, deployment.endpoint, request.headers

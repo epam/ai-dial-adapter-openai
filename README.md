@@ -984,6 +984,37 @@ You can connect the [Qwen3-ASR](https://docs.vllm.ai/projects/recipes/en/latest/
 > [!NOTE]
 > `QWEN3_ASR_VLLM_DEPLOYMENTS` is separate from `VLLM_DEPLOYMENTS`. Deployments listed in `QWEN3_ASR_VLLM_DEPLOYMENTS` receive the ASR language extraction post-processing, while regular `VLLM_DEPLOYMENTS` receive reasoning extraction instead.
 
+##### OpenMOSS
+
+You can connect OpenMOSS TTS models (such as [MOSS-TTS](https://huggingface.co/OpenMOSS-Team/MOSS-TTS) and [MOSS-TTSD](https://huggingface.co/OpenMOSS-Team/MOSS-TTSD-v1.0)) served with [vLLM-Omni](https://docs.vllm.ai/projects/recipes/en/latest/serving/omni_serving.html) through the same Chat Completions API path. Enable the OpenMOSS vLLM flow by adding `${UPSTREAM_DEPLOYMENT_ID}` to the environment variable `OPEN_MOSS_VLLM_DEPLOYMENTS`.
+
+Both MOSS-TTS and MOSS-TTSD are supported — they share the same adapter flow (voice cloning via reference audio, seed, max_new_tokens). The only difference is the upstream model ID and vLLM-Omni deploy config.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "${VLLM_ORIGIN}/v1/audio/speech",
+          "key": "${VLLM_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+> [!NOTE]
+> `OPEN_MOSS_VLLM_DEPLOYMENTS` is separate from `VLLM_DEPLOYMENTS`. Deployments listed in `OPEN_MOSS_VLLM_DEPLOYMENTS` use the vLLM request transformation path without the regular vLLM reasoning extraction post-processing.
+> The upstream endpoint must be the vLLM-Omni Speech endpoint. The explicit deployment list makes the adapter classify `/v1/audio/speech` as the OpenMOSS vLLM flow instead of the generic Audio Speech API path.
+
 #### Anthropic Messages API
 
 The adapter supports models exposing the Anthropic Messages API — Claude models deployed in Azure AI Foundry as well as third-party providers of the same API, e.g. [Anthropic](https://platform.claude.com/docs/en/api/messages), [Fireworks](https://docs.fireworks.ai/ecosystem/firerouter/quickstart#anthropic-messages) or [OpenRouter](https://openrouter.ai/docs/api/api-reference/anthropic-messages/create-a-message).
@@ -1862,6 +1893,7 @@ The following variables cluster all deployments into the groups of deployments w
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
 |VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream, including [vLLM embedding deployments](#vllm-embeddings-api). Example: `vllm-llama3,embeddinggemma`|
 |QWEN3_ASR_VLLM_DEPLOYMENTS|``| Comma-separated list of [Qwen3-ASR deployments](#qwen3-asr) served via vLLM. Example: `qwen3-asr`|
+|OPEN_MOSS_VLLM_DEPLOYMENTS|``|Comma-separated list of [OpenMOSS deployments](#openmoss) (MOSS-TTS, MOSS-TTSD) served via vLLM-Omni. Example: `moss-tts,moss-ttsd`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
 

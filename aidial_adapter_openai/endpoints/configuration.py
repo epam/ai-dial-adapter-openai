@@ -13,6 +13,9 @@ from aidial_adapter_openai.audio_api.speech.configuration import (
 from aidial_adapter_openai.audio_api.transcribe.configuration import (
     Configuration as TranscribeConfiguration,
 )
+from aidial_adapter_openai.chat_completions.vllm.open_moss import (
+    OpenMossConfiguration,
+)
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType as D,
 )
@@ -58,6 +61,9 @@ def _get_deployment_configuration(deployment_type: D) -> type[BaseModel] | None:
 
         case D.AUDIO_TRANSCRIPTIONS_API:
             return TranscribeConfiguration
+
+        case D.OPEN_MOSS_VLLM_CHAT_COMPLETIONS_API:
+            return OpenMossConfiguration
 
         case (
             D.COMPLETIONS_API
