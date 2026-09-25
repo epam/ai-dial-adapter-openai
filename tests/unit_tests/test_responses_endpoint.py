@@ -11,13 +11,13 @@ import httpx
 import openai
 import pytest
 import respx
-from openai import AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.responses.response_create_params import (
     ResponseCreateParamsBase,
 )
 
 from aidial_adapter_openai.utils.request import get_app_config
-from tests.conftest import OpenAIClientFactory
+from tests.conftest import AzureOpenAIClientFactory, OpenAIClientFactory
 from tests.utils.mock_response import MockResponse, ResponsesAPIMockResponse
 from tests.utils.mock_server import MockServer
 
@@ -358,6 +358,69 @@ class TestResponsesEndpoint:
         response = await client.responses.cancel(self.RESPONSE_ID)
 
         assert response.to_dict() == expected.json
+
+
+class TestDatedResponsesEndpoint:
+    """
+    `AzureOpenAI(api_version=...)` clients call the dated form of the
+    Responses API - `POST /openai/responses?api-version=<date>` - which
+    must be served by the very same implementation as `/openai/v1/responses`.
+    """
+
+    UPSTREAM_KEY = "test-upstream-key"
+    UPSTREAM_ENDPOINT = "http://test-upstream-hostname/openai/responses"
+    UPSTREAM_MODEL = "test-upstream-model-name"
+    API_VERSION = "2025-04-01-preview"
+
+    @pytest.fixture()
+    def client(self, create_azure_openai_client: AzureOpenAIClientFactory):
+        return create_azure_openai_client(
+            "test-azure-deployment",
+            api_version=self.API_VERSION,
+            upstream_endpoint=self.UPSTREAM_ENDPOINT,
+            upstream_key=self.UPSTREAM_KEY,
+        )
+
+    @respx.mock
+    async def test_create(self, client: AsyncAzureOpenAI):
+        expected = MockServer.mock_responses_api_response("text.txt").parse(
+            False
+        )
+
+        @respx.post(self.UPSTREAM_ENDPOINT)
+        def _handler(request: httpx.Request):
+            assert request.url.params.get("api-version") == self.API_VERSION
+            assert request.headers.get("api-key") == self.UPSTREAM_KEY
+            return httpx.Response(
+                status_code=200,
+                headers={"content-type": "application/json"},
+                content=expected.text,
+            )
+
+        response = await client.responses.create(
+            model=self.UPSTREAM_MODEL, input="Test content"
+        )
+
+        assert response.to_dict() == expected.json
+
+    @respx.mock
+    async def test_missing_api_version(self, test_app: httpx.AsyncClient):
+        """The dated upstream API requires the version to be set."""
+        response = await test_app.post(
+            "/openai/responses",
+            json={"model": self.UPSTREAM_MODEL, "input": "Test content"},
+            headers={
+                "Api-Key": "test-adapter-api-key",
+                "X-UPSTREAM-KEY": self.UPSTREAM_KEY,
+                "X-UPSTREAM-ENDPOINT": self.UPSTREAM_ENDPOINT,
+            },
+        )
+
+        assert response.status_code == 400
+        assert (
+            response.json()["error"]["message"]
+            == "api-version is a required query parameter"
+        )
 
 
 def _chunk_lines(text: str, *, n: int) -> Generator[str, None, None]:
