@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from aidial_adapter_anthropic.adapter import ChatCompletionAdapter
-from aidial_adapter_anthropic.dial.request import ModelParameters
+from aidial_adapter_anthropic.dial.request import AdapterRequest
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.deployment.truncate_prompt import (
     TruncatePromptError,
@@ -103,11 +103,9 @@ class _AnthropicTruncator:
     async def truncate(
         self, max_prompt_tokens: int, request: ChatCompletionRequest
     ) -> DiscardedMessages:
-        params = ModelParameters.create(request)
+        params = AdapterRequest.create(request)
         params.max_prompt_tokens = max_prompt_tokens
-        discarded = await self.adapter.compute_discarded_messages(
-            params, request.messages
-        )
+        discarded = await self.adapter.compute_discarded_messages(params)
         return discarded or []
 
 
