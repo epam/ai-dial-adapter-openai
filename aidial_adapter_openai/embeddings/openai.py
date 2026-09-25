@@ -10,7 +10,7 @@ async def embeddings(
     request: dict,
     creds: OpenAICreds,
     endpoint: str,
-    api_version: str,
+    api_version: str | None,
     headers: dict[str, str] | None = None,
 ) -> CreateEmbeddingResponse:
     client = embeddings_parser.parse(endpoint).get_client(

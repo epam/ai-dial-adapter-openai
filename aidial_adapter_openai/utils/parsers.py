@@ -41,13 +41,19 @@ class AzureOpenAIEndpoint(ExtraForbidModel):
     azure_deployment: str | None = None
 
     def get_client(self, params: OpenAIParams) -> AsyncAzureOpenAI:
+        # Unlike the v1 API, the last generation Azure OpenAI API is versioned.
+        if not (api_version := params.get("api_version")):
+            raise InvalidRequestError(
+                "api-version is a required query parameter"
+            )
+
         return AsyncAzureOpenAI(
             base_url=self.azure_base_url,  # type: ignore
             azure_endpoint=self.azure_endpoint,
             azure_deployment=self.azure_deployment,
             api_key=params.get("api_key"),
             azure_ad_token=params.get("azure_ad_token"),
-            api_version=params.get("api_version"),
+            api_version=api_version,
             max_retries=_MAX_RETRIES,
             default_headers=params.get("headers"),
             http_client=get_http_client(),
