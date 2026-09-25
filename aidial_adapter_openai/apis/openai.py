@@ -23,9 +23,13 @@ def mount_openai_api(app: FastAPI, path: str):
     router = APIRouter(prefix=path)
 
     for method, suffix, endpoint in _RESPONSES_ENDPOINTS:
+        # Azure OpenAI v1 API
         router.add_api_route(
             "/v1/responses" + suffix, endpoint, methods=[method]
         )
+        # Azure OpenAI legacy API, versioned via the api-version query
+        # parameter. It's what AzureOpenAI(api_version=...) clients call.
+        router.add_api_route("/responses" + suffix, endpoint, methods=[method])
 
     for method, suffix, endpoint in _CHAT_COMPLETIONS_ENDPOINTS:
         # Azure OpenAI v1 API

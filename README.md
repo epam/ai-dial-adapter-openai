@@ -123,7 +123,7 @@ Every upstream call carries a model name. Where the adapter takes it from depend
 |---|---|
 |`/openai/deployments/${UPSTREAM_DEPLOYMENT_ID}/...` *(`chat/completions`, `embeddings`, `tokenize`, `truncate_prompt`, `configuration`)*|The `${UPSTREAM_DEPLOYMENT_ID}` path segment; the `model` field of the request body is ignored|
 |`/openai/v1/...` *(the same set of endpoints, no deployment id in the URL)*|The `X-DIAL-DEPLOYMENT-ID` header, which DIAL Core fills with the DIAL model id; the `model` field of the request body is ignored|
-|`/openai/v1/responses` (`responsesEndpoint`) and the [Anthropic passthrough](#anthropic-api-passthrough) *(no deployment id in the URL)*|The `model` field of the request body, which DIAL Core fills with the DIAL model id|
+|`/openai/v1/responses` and `/openai/responses` (`responsesEndpoint`) and the [Anthropic passthrough](#anthropic-api-passthrough) *(no deployment id in the URL)*|The `model` field of the request body, which DIAL Core fills with the DIAL model id|
 
 The `overrideName` field of a DIAL Core model configuration overrides the upstream model name in every case:
 
@@ -1532,6 +1532,32 @@ DELETE ${ADAPTER_ORIGIN}/openai/v1/responses/{response_id}
 POST ${ADAPTER_ORIGIN}/openai/v1/responses/{response_id}/cancel
 POST ${ADAPTER_ORIGIN}/openai/v1/responses/input_tokens
 ```
+
+The same endpoints are also exposed in the dated form of the Azure OpenAI API, *i.e.* without the `/v1` path segment and with the `api-version` query parameter:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/responses?api-version=${API_VERSION}
+GET ${ADAPTER_ORIGIN}/openai/responses/{response_id}?api-version=${API_VERSION}
+DELETE ${ADAPTER_ORIGIN}/openai/responses/{response_id}?api-version=${API_VERSION}
+POST ${ADAPTER_ORIGIN}/openai/responses/{response_id}/cancel?api-version=${API_VERSION}
+POST ${ADAPTER_ORIGIN}/openai/responses/input_tokens?api-version=${API_VERSION}
+```
+
+This is what the official `openai` Python SDK calls when it's configured in the Azure mode:
+
+```python
+from openai import AzureOpenAI
+
+client = AzureOpenAI(
+    api_key="${DIAL_API_KEY}",
+    azure_endpoint="${ADAPTER_ORIGIN}",
+    api_version="${API_VERSION}",
+)
+
+client.responses.create(model="${DIAL_DEPLOYMENT_ID}", input="Hello")
+```
+
+The `api-version` parameter is required only when the upstream is the dated Azure OpenAI API; it's ignored otherwise.
 
 Current limitations:
 
