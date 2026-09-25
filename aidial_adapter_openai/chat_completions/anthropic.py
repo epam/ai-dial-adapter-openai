@@ -5,7 +5,7 @@ from aidial_adapter_anthropic.adapter.claude import (
     create_adapter as create_anthropic_adapter,
 )
 from aidial_adapter_anthropic.dial.consumer import ChoiceConsumer
-from aidial_adapter_anthropic.dial.request import ModelParameters
+from aidial_adapter_anthropic.dial.request import AdapterRequest
 from aidial_adapter_anthropic.dial.storage import FileStorage
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
@@ -50,11 +50,11 @@ async def chat_completion(
         model = await create_adapter(deployment_id, request.api_key, client)
         response.set_model(deployment_id)
 
-        params = ModelParameters.create(request)
+        params = AdapterRequest.create(request)
 
         async with ChoiceConsumer(response) as consumer:
             try:
-                await model.chat(consumer, params, request.messages)
+                await model.chat(consumer, params)
             except UserError as e:
                 await e.report_usage(consumer.choice)
                 await response.aflush()

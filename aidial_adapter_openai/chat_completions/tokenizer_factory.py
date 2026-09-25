@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Protocol, assert_never
 
 from aidial_adapter_anthropic.adapter import ChatCompletionAdapter
-from aidial_adapter_anthropic.dial.request import ModelParameters
+from aidial_adapter_anthropic.dial.request import AdapterRequest
 from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.exceptions import ResourceNotFoundError
 from anthropic import AsyncAnthropic
@@ -110,8 +110,8 @@ class _AnthropicRequestTokenizer:
         return await self.adapter.count_completion_tokens(text)
 
     async def tokenize_request(self, request: ChatCompletionRequest) -> int:
-        params = ModelParameters.create(request)
-        return await self.adapter.count_prompt_tokens(params, request.messages)
+        params = AdapterRequest.create(request)
+        return await self.adapter.count_prompt_tokens(params)
 
     async def tokenize_raw_request(self, request: dict) -> int:
         raise ValueError("Raw request tokenization isn't supported")
