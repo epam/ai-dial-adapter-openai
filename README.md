@@ -1543,20 +1543,6 @@ POST ${ADAPTER_ORIGIN}/openai/responses/{response_id}/cancel?api-version=${API_V
 POST ${ADAPTER_ORIGIN}/openai/responses/input_tokens?api-version=${API_VERSION}
 ```
 
-This is what the official `openai` Python SDK calls when it's configured in the Azure mode:
-
-```python
-from openai import AzureOpenAI
-
-client = AzureOpenAI(
-    api_key="${DIAL_API_KEY}",
-    azure_endpoint="${ADAPTER_ORIGIN}",
-    api_version="${API_VERSION}",
-)
-
-client.responses.create(model="${DIAL_DEPLOYMENT_ID}", input="Hello")
-```
-
 The `api-version` parameter is required only when the upstream is the dated Azure OpenAI API; it's ignored otherwise.
 
 Current limitations:
