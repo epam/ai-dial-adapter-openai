@@ -100,7 +100,7 @@ async def call_chat_completion(
     request: fastapi.Request,
     request_body: dict,
     request_headers: Mapping[str, str],
-    api_version: str,
+    api_version: str | None,
 ) -> ChatResponse:
     # Guarding against receiving an arbitrary model identifier from the user request.
     # Replacing it with the deployment id coming from the adapter endpoint.

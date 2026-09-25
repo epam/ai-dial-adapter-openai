@@ -112,6 +112,28 @@ async def test_chat_completions(
 
 
 @respx.mock
+async def test_chat_completions_without_api_version(client: httpx.AsyncClient):
+    """The v1 API isn't versioned, so `api-version` must not be required."""
+    respx.post(_CHAT_COMPLETIONS_UPSTREAM).respond(
+        json=OpenAIStream(
+            single_choice_chunk(
+                delta={"role": "assistant", "content": "5"},
+                finish_reason="stop",
+            )
+        ).to_block_response()
+    )
+
+    response = await client.post(
+        "chat/completions",
+        json={"messages": [{"role": "user", "content": "2+3=?"}]},
+        headers=_headers(_GPT_DEPLOYMENT, _CHAT_COMPLETIONS_UPSTREAM),
+    )
+
+    assert response.status_code == 200
+    assert _upstream_model() == _GPT_DEPLOYMENT
+
+
+@respx.mock
 @pytest.mark.parametrize("request_model", _REQUEST_MODELS)
 @pytest.mark.parametrize(
     "dial_deployment_id,override_name,expected_upstream_id",
@@ -146,6 +168,29 @@ async def test_embeddings(
 
     assert response.status_code == 200
     assert _upstream_model() == expected_upstream_id
+
+
+@respx.mock
+async def test_embeddings_without_api_version(client: httpx.AsyncClient):
+    respx.post(_EMBEDDINGS_UPSTREAM).respond(
+        json={
+            "object": "list",
+            "data": [
+                {"object": "embedding", "embedding": [0.1, 0.2], "index": 0}
+            ],
+            "model": _GPT_DEPLOYMENT,
+            "usage": {"prompt_tokens": 1, "total_tokens": 1},
+        }
+    )
+
+    response = await client.post(
+        "embeddings",
+        json={"input": "hello"},
+        headers=_headers(_GPT_DEPLOYMENT, _EMBEDDINGS_UPSTREAM),
+    )
+
+    assert response.status_code == 200
+    assert _upstream_model() == _GPT_DEPLOYMENT
 
 
 async def test_tokenize(client: httpx.AsyncClient):
