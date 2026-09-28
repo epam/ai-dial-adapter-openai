@@ -103,9 +103,11 @@ class _AnthropicTruncator:
     async def truncate(
         self, max_prompt_tokens: int, request: ChatCompletionRequest
     ) -> DiscardedMessages:
-        params = AdapterRequest.create(request)
-        params.max_prompt_tokens = max_prompt_tokens
-        discarded = await self.adapter.compute_discarded_messages(params)
+        claude_request = AdapterRequest.create(request)
+        claude_request.max_prompt_tokens = max_prompt_tokens
+        discarded = await self.adapter.compute_discarded_messages(
+            claude_request
+        )
         return discarded or []
 
 

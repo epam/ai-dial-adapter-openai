@@ -110,8 +110,8 @@ class _AnthropicRequestTokenizer:
         return await self.adapter.count_completion_tokens(text)
 
     async def tokenize_request(self, request: ChatCompletionRequest) -> int:
-        params = AdapterRequest.create(request)
-        return await self.adapter.count_prompt_tokens(params)
+        claude_request = AdapterRequest.create(request)
+        return await self.adapter.count_prompt_tokens(claude_request)
 
     async def tokenize_raw_request(self, request: dict) -> int:
         raise ValueError("Raw request tokenization isn't supported")

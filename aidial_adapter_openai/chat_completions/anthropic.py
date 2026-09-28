@@ -50,11 +50,11 @@ async def chat_completion(
         model = await create_adapter(deployment_id, request.api_key, client)
         response.set_model(deployment_id)
 
-        params = AdapterRequest.create(request)
+        claude_request = AdapterRequest.create(request)
 
         async with ChoiceConsumer(response) as consumer:
             try:
-                await model.chat(consumer, params)
+                await model.chat(consumer, claude_request)
             except UserError as e:
                 await e.report_usage(consumer.choice)
                 await response.aflush()
