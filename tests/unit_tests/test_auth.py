@@ -13,6 +13,7 @@ from aidial_adapter_openai.configuration.app_config import (
 from aidial_adapter_openai.utils import auth, session_tags
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import BedrockOpenAIEndpoint
+from aidial_adapter_openai.utils.session_tags import SessionTag
 from aidial_adapter_openai.utils.upstream_headers import (
     _UPSTREAM_EXTRA_DATA_HEADER,
 )
@@ -116,14 +117,17 @@ def no_session_tags(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture(autouse=True)
 async def reset_assume_role_providers():
     await auth.get_assume_role_provider.clear()
+    await auth.get_sts_client.clear()
     yield
     await auth.get_assume_role_provider.clear()
+    await auth.get_sts_client.clear()
 
 
 class _StubSTSClient:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
         self.failure: Exception | None = None
+        self.created: int = 0
         self.region_name: str | None = None
         self.expires_on = int(
             (datetime.now(UTC) + timedelta(hours=1)).timestamp()
@@ -155,14 +159,14 @@ class _StubSTSClient:
 def sts_client(monkeypatch: pytest.MonkeyPatch) -> _StubSTSClient:
     client = _StubSTSClient()
 
-    class _StubSession:
-        def client(
-            self, service_name: str, *, region_name: str
-        ) -> _StubSTSClient:
-            client.region_name = region_name
-            return client
+    def _create_client(
+        service_name: str, *, region_name: str
+    ) -> _StubSTSClient:
+        client.created += 1
+        client.region_name = region_name
+        return client
 
-    monkeypatch.setattr(auth.boto3, "Session", _StubSession)
+    monkeypatch.setattr(auth, "create_client", _create_client)
     return client
 
 
@@ -341,6 +345,32 @@ async def test_assume_role_failure_is_reported_as_a_dial_error(
     assert error.message == "Failed to assume the configured AWS role"
 
 
+async def test_the_assume_role_provider_cache_is_bounded():
+    """
+    The cache key carries the session tags, which are per user and per model:
+    left unbounded, the cache grows with the traffic.
+    """
+
+    def provider_for(user: str):
+        tags: list[SessionTag] = [
+            {
+                "Key": "employee",
+                "ValueSource": "UserInfo.userId",
+                "Value": user,
+            }
+        ]
+        return auth.get_assume_role_provider(_ROLE_ARN, _REGION, tags)
+
+    first = provider_for("user-0")
+    assert provider_for("user-0") is first
+
+    for index in range(1, auth.CLIENT_CACHE_MAX_SIZE + 1):
+        provider_for(f"user-{index}")
+
+    # The least recently used provider has been evicted, so it is built anew.
+    assert provider_for("user-0") is not first
+
+
 class TestSessionTags:
     """
     The session tags are only honoured by the assume role call, so the other
@@ -484,6 +514,23 @@ class TestSessionTags:
 
         assert first != second
         assert len(sts_client.calls) == 2
+
+    async def test_one_sts_client_serves_every_tag_set(
+        self,
+        endpoint: BedrockOpenAIEndpoint,
+        sts_client: _StubSTSClient,
+        user_info: Any,
+    ):
+        """An STS client per user would cost ~8 MB and a socket pool each."""
+
+        self._respond_with_role(user_info, "admin", "guest")
+        extra_data = {"aws_assume_role_arn": _ROLE_ARN}
+
+        await _get_credentials(endpoint, extra_data, api_key="key-1")
+        await _get_credentials(endpoint, extra_data, api_key="key-2")
+
+        assert len(sts_client.calls) == 2
+        assert sts_client.created == 1
 
     async def test_static_credentials_dont_resolve_session_tags(
         self, endpoint: BedrockOpenAIEndpoint, user_info: Any
