@@ -4,7 +4,6 @@ import time
 from collections.abc import Mapping
 from typing import Any, assert_never
 
-import boto3
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InternalServerError
 from azure.core.credentials import AccessToken
@@ -17,6 +16,7 @@ from aidial_adapter_openai.configuration.app_config import (
     DeploymentAPIEndpoint,
     Vendor,
 )
+from aidial_adapter_openai.utils.boto import close_client, create_client
 from aidial_adapter_openai.utils.cache import cache
 from aidial_adapter_openai.utils.concurrency import run_in_threadpool
 from aidial_adapter_openai.utils.log_config import logger
@@ -90,6 +90,11 @@ class AWSCredentials(BaseModel):
     aws_session_token: str | None = None
 
 
+@cache(close_client)
+def get_sts_client(region: str) -> Any:
+    return create_client("sts", region_name=region)
+
+
 class _AWSAssumeRoleProvider:
     """
     Exchanges the ambient adapter credentials for temporary credentials of
@@ -105,22 +110,11 @@ class _AWSAssumeRoleProvider:
         self._role_arn = role_arn
         self._region = region
         self._session_tags = session_tags
-        self._sts_client: Any = None
         self._credentials: AWSCredentials | None = None
         self._expires_on: int = 0
         self._lock = asyncio.Lock()
 
-    def close(self) -> None:
-        if self._sts_client is not None:
-            self._sts_client.close()
-            self._sts_client = None
-
     def _assume_role(self) -> tuple[AWSCredentials, int]:
-        if self._sts_client is None:
-            self._sts_client = boto3.Session().client(
-                "sts", region_name=self._region
-            )
-
         params: dict[str, Any] = {
             "RoleArn": self._role_arn,
             "RoleSessionName": get_role_session_name(self._session_tags),
@@ -131,7 +125,9 @@ class _AWSAssumeRoleProvider:
                 for tag in self._session_tags
             ]
 
-        creds = self._sts_client.assume_role(**params)["Credentials"]
+        creds = get_sts_client(self._region).assume_role(**params)[
+            "Credentials"
+        ]
 
         return (
             AWSCredentials(
@@ -169,11 +165,10 @@ class _AWSAssumeRoleProvider:
             return self._credentials
 
 
-async def _close_assume_role_provider(provider: _AWSAssumeRoleProvider) -> None:
-    await run_in_threadpool(provider.close)
+CLIENT_CACHE_MAX_SIZE = 512
 
 
-@cache(_close_assume_role_provider)
+@cache(maxsize=CLIENT_CACHE_MAX_SIZE)
 def get_assume_role_provider(
     role_arn: str, region: str, session_tags: list[SessionTag] | None
 ) -> _AWSAssumeRoleProvider:
