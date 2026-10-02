@@ -1231,8 +1231,9 @@ async def test_allow_custom_content_null(test_app: httpx.AsyncClient):
     )
 
 
+@pytest.mark.parametrize("extra_error_fields", [{}, {"headers": {}}])
 @respx.mock
-async def test_rate_limit_exceeded_during_streaming():
+async def test_rate_limit_exceeded_during_streaming(extra_error_fields: dict):
     app_config = (
         ApplicationConfig()
         .add_deployment("app", ChatCompletionDeploymentType.RESPONSES_API)
@@ -1263,6 +1264,7 @@ async def test_rate_limit_exceeded_during_streaming():
                 "message": "no_kv_space",
                 "type": "server_error",
                 "code": "rate_limit_exceeded",
+                **extra_error_fields,
             }
         },
     )
@@ -1295,5 +1297,47 @@ async def test_rate_limit_exceeded_during_streaming():
                 "code": "rate_limit_exceeded",
                 "message": "no_kv_space",
                 "type": "server_error",
+                **extra_error_fields,
             }
         }
+
+
+@respx.mock
+async def test_error_with_fields_clashing_with_dial_exception(
+    test_app: httpx.AsyncClient,
+):
+    # The upstream error object may contain fields which clash with
+    # the DialException constructor parameters. They must be preserved
+    # in the response body as-is.
+    upstream_error = {
+        "error": {
+            "message": "Bad request",
+            "code": "400",
+            "headers": {"x-upstream-header": "value"},
+            "status_code": 418,
+        }
+    }
+
+    respx.post(
+        "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
+    ).mock(
+        side_effect=mock_response(
+            429,
+            "application/json",
+            json.dumps(upstream_error),
+            extra_headers={"Retry-After": "42"},
+        )
+    )
+
+    response = await test_app.post(
+        "/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview",
+        json={"messages": [{"role": "user", "content": "Test content"}]},
+        headers={
+            "X-UPSTREAM-KEY": "TEST_API_KEY",
+            "X-UPSTREAM-ENDPOINT": "http://localhost:5001/openai/deployments/gpt-4/chat/completions",
+        },
+    )
+
+    assert response.status_code == 429
+    assert response.json() == upstream_error
+    assert response.headers["Retry-After"] == "42"
