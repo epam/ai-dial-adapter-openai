@@ -101,7 +101,7 @@ def _parse_dial_exception(
         ]:
             code = "content_filter"
 
-        return DialException(
+        exc = DialException(
             status_code=status_code,
             message=message,
             type=type,
@@ -109,8 +109,9 @@ def _parse_dial_exception(
             code=code,
             display_message=display_message,
             headers=dict(headers.items()),
-            **error,
         )
+        exc.extra_fields = error
+        return exc
 
     return None
 
