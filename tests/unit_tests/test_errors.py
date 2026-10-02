@@ -1319,7 +1319,7 @@ async def test_error_with_fields_clashing_with_dial_exception(
         "http://localhost:5001/openai/deployments/gpt-4/chat/completions?api-version=2023-03-15-preview"
     ).mock(
         side_effect=mock_response(
-            400,
+            429,
             "application/json",
             json.dumps(upstream_error),
             extra_headers={"Retry-After": "42"},
@@ -1335,6 +1335,6 @@ async def test_error_with_fields_clashing_with_dial_exception(
         },
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 429
     assert response.json() == upstream_error
     assert response.headers["Retry-After"] == "42"
