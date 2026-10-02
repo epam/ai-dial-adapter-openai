@@ -1231,8 +1231,9 @@ async def test_allow_custom_content_null(test_app: httpx.AsyncClient):
     )
 
 
+@pytest.mark.parametrize("extra_error_fields", [{}, {"headers": {}}])
 @respx.mock
-async def test_rate_limit_exceeded_during_streaming():
+async def test_rate_limit_exceeded_during_streaming(extra_error_fields: dict):
     app_config = (
         ApplicationConfig()
         .add_deployment("app", ChatCompletionDeploymentType.RESPONSES_API)
@@ -1263,6 +1264,7 @@ async def test_rate_limit_exceeded_during_streaming():
                 "message": "no_kv_space",
                 "type": "server_error",
                 "code": "rate_limit_exceeded",
+                **extra_error_fields,
             }
         },
     )
@@ -1295,6 +1297,7 @@ async def test_rate_limit_exceeded_during_streaming():
                 "code": "rate_limit_exceeded",
                 "message": "no_kv_space",
                 "type": "server_error",
+                **extra_error_fields,
             }
         }
 
