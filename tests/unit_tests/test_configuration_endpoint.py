@@ -43,6 +43,24 @@ from tests.conftest import create_test_client
             {"instructions", "voice", "speed", "response_format"},
         ),
         (
+            ChatCompletionDeploymentType.OPEN_MOSS_VLLM_CHAT_COMPLETIONS_API,
+            "audio/speech",
+            {
+                "instructions",
+                "voice",
+                "speed",
+                "response_format",
+                "ref_audio",
+                "ref_audio_2",
+                "ref_audio_3",
+                "ref_audio_4",
+                "ref_audio_5",
+                "ref_text",
+                "max_new_tokens",
+                "seed",
+            },
+        ),
+        (
             ChatCompletionDeploymentType.AUDIO_TRANSCRIPTIONS_API,
             "audio/transcriptions",
             {"chunking_strategy"},
@@ -94,6 +112,14 @@ async def test_configuration_endpoint_supported_types(
         (ChatCompletionDeploymentType.GPT4O_MINI, "chat/completions"),
         (ChatCompletionDeploymentType.MISTRAL, "chat/completions"),
         (ChatCompletionDeploymentType.DATABRICKS, "chat/completions"),
+        (
+            ChatCompletionDeploymentType.VLLM_CHAT_COMPLETIONS_API,
+            "chat/completions",
+        ),
+        (
+            ChatCompletionDeploymentType.QWEN3_ASR_VLLM_CHAT_COMPLETIONS_API,
+            "chat/completions",
+        ),
         (ChatCompletionDeploymentType.COMPLETIONS_API, "completions"),
     ],
 )
