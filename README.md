@@ -40,6 +40,8 @@
     - [Alibaba Cloud Model Studio Chat Completions API](#alibaba-cloud-model-studio-chat-completions-api)
     - [vLLM Chat Completion API](#vllm-chat-completion-api)
       - [Qwen3-ASR](#qwen3-asr)
+    - [vLLM-Omni Audio API](#vllm-omni-audio-api)
+      - [OpenMOSS](#openmoss)
     - [Anthropic Messages API](#anthropic-messages-api)
       - [Default `max_tokens` for Claude models](#default-max_tokens-for-claude-models)
       - [Automatic prompt caching](#automatic-prompt-caching)
@@ -630,12 +632,14 @@ The adapter supports the following configuration for the TTS models:
 
 ```text
 {
-  "instruction": "Speak in a cheerful tone.", # optional, sets the tone; appended the system message from the chat completion request
-  "voice": "allow", # one of the preset voices
+  "instructions": "Speak in a cheerful tone.", # optional, sets the tone; appended the system message from the chat completion request
+  "voice": "alloy", # one of the preset voices
   "speed": 1.0, # speech speed multiplier
   "response_format": "mp3" # one of the supported audio formats
 }
 ```
+
+Any other field of the configuration is passed to the upstream request body as is. This is how the parameters specific to a particular TTS provider reach the model — see [vLLM-Omni Audio API](#vllm-omni-audio-api) for an example.
 
 Find the configuration details in the [Azure specification](https://github.com/Azure/azure-rest-api-specs/blob/4c5ec9b4e0b961799cc11f6051f240d18f093c38/specification/cognitiveservices/data-plane/AzureOpenAI/inference/preview/2025-04-01-preview/inference.yaml#L5287-L5323) or in the [OpenAI Platform specification](https://platform.openai.com/docs/api-reference/audio/createSpeech?api-mode=chat).
 
@@ -984,6 +988,72 @@ You can connect the [Qwen3-ASR](https://docs.vllm.ai/projects/recipes/en/latest/
 
 > [!NOTE]
 > `QWEN3_ASR_VLLM_DEPLOYMENTS` is separate from `VLLM_DEPLOYMENTS`. Deployments listed in `QWEN3_ASR_VLLM_DEPLOYMENTS` receive the ASR language extraction post-processing, while regular `VLLM_DEPLOYMENTS` receive reasoning extraction instead.
+
+#### vLLM-Omni Audio API
+
+[vLLM-Omni](https://docs.vllm.ai/projects/vllm-omni/en/latest/) serves text-to-speech models over an OpenAI-compatible [Speech API](https://docs.vllm.ai/projects/vllm-omni/en/latest/serving/speech_api/). Point the upstream at the `/v1/audio/speech` endpoint and the adapter will serve the deployment through the same [TTS flow](#text-to-speech-models-tts) as the Azure Audio API.
+
+##### OpenMOSS
+
+[MOSS-TTS](https://huggingface.co/OpenMOSS-Team/MOSS-TTS) and [MOSS-TTSD](https://huggingface.co/OpenMOSS-Team/MOSS-TTSD-v1.0) are long-form multi-speaker TTS models with zero-shot voice cloning. Both are served by vLLM-Omni through the Speech API and are connected to DIAL the same way — only the upstream model name differs.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "endpoint": "${ADAPTER_ORIGIN}/openai/deployments/${VLLM_MODEL_NAME}/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "${VLLM_ORIGIN}/v1/audio/speech",
+          "key": "${VLLM_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Add `${VLLM_MODEL_NAME}` to the `VLLM_DEPLOYMENTS` environment variable. This is required when the upstream declares no `key`: otherwise the adapter treats the deployment as an Azure one and tries to authenticate against Azure Entra ID.
+
+The voice cloning and generation parameters of the model are passed in `custom_fields.configuration` alongside the standard `voice`, `speed`, `instructions` and `response_format` fields, since the adapter forwards every field it doesn't recognize to the upstream verbatim:
+
+<details><summary>Request</summary>
+
+```json
+{
+  "model": "moss-ttsd",
+  "messages": [
+    {
+      "role": "user",
+      "content": "[S1] Did you hear the news? [S2] I did, and I could hardly believe it."
+    }
+  ],
+  "custom_fields": {
+    "configuration": {
+      "voice": "vivian",
+      "response_format": "wav",
+      "ref_audio": "https://example.com/reference.wav",
+      "ref_text": "The transcript of the reference audio.",
+      "language": "English",
+      "max_new_tokens": 4096,
+      "seed": 42
+    }
+  }
+}
+```
+
+</details>
+
+Here `ref_audio`, `ref_text`, `language`, `max_new_tokens` and `seed` are vLLM-Omni extensions of the Speech API. Consult the [vLLM-Omni documentation](https://docs.vllm.ai/projects/vllm-omni/en/latest/serving/speech_api/) for the full list of the supported parameters and the [MOSS-TTSD model card](https://github.com/OpenMOSS/MOSS-TTSD) for the speaker markup of the prompt.
+
+> [!NOTE]
+> The adapter doesn't validate the extra configuration fields: an unsupported parameter is reported by the upstream model, not by the adapter.
+> Mind that `voice` defaults to `alloy` — the preset of the OpenAI models — so set it explicitly to one of the speakers the model actually provides.
 
 #### Anthropic Messages API
 
@@ -1861,7 +1931,7 @@ The following variables cluster all deployments into the groups of deployments w
 |DATABRICKS_DEPLOYMENTS|``|Comma-separated list of Databricks chat completion deployments. Example: `databricks-dbrx-instruct,databricks-mixtral-8x7b-instruct,databricks-llama-2-70b-chat`|
 |GPT4O_DEPLOYMENTS|``|Comma-separated list of GPT-4o chat completion deployments. Example: `gpt-4o-2024-05-13`|
 |GPT4O_MINI_DEPLOYMENTS|``|Comma-separated list of GPT-4o mini chat completion deployments. Example: `gpt-4o-mini-2024-07-18`|
-|VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream, including [vLLM embedding deployments](#vllm-embeddings-api). Example: `vllm-llama3,embeddinggemma`|
+|VLLM_DEPLOYMENTS|``|Comma-separated list of deployments that use a vLLM OpenAI-compatible upstream, including [vLLM embedding deployments](#vllm-embeddings-api) and [vLLM-Omni TTS deployments](#vllm-omni-audio-api). Example: `vllm-llama3,embeddinggemma,moss-ttsd`|
 |QWEN3_ASR_VLLM_DEPLOYMENTS|``| Comma-separated list of [Qwen3-ASR deployments](#qwen3-asr) served via vLLM. Example: `qwen3-asr`|
 |AZURE_AI_VISION_DEPLOYMENTS|``|Comma-separated list of Azure AI Vision embedding deployments. The endpoint of the deployment is expected to point to the Azure service: `https://<service-name>.cognitiveservices.azure.com/`|
 |AUDIO_AZURE_API_VERSION|2025-03-01-preview|The API version for requests to the [Azure Audio API](#azure-audio-api) endpoints.|
