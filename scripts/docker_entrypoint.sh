@@ -13,7 +13,7 @@ if [ $# -lt 1 ]; then
   exec uvicorn aidial_adapter_openai.app:app \
     --host 0.0.0.0 \
     --port 5000 \
-    --timeout-keep-alive "${TIMEOUT_KEEP_ALIVE:-5}"
+    --timeout-keep-alive "${TIMEOUT_KEEP_ALIVE:-70}"
 fi
 
 # Otherwise, we assume the user wants to run his own process,
