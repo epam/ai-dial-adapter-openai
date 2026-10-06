@@ -160,6 +160,35 @@ def test_tags_parse(config: dict[str, Any], expected: Tags):
 
 
 @pytest.mark.parametrize(
+    "config, expected",
+    [
+        pytest.param(
+            {"application": "*Bedrock.modelId"},
+            Tags(["application"], []),
+            id="optional_model_id",
+        ),
+        pytest.param(
+            {"employee": "*UserInfo.userClaims.email"},
+            Tags([], [("employee", "userClaims.email")], {"userClaims.email"}),
+            id="optional_user_info_path",
+        ),
+        pytest.param(
+            {"x": "*UserInfo.project", "y": "UserInfo.project"},
+            Tags([], [("x", "project"), ("y", "project")]),
+            id="path_stays_required_while_any_tag_requires_it",
+        ),
+        pytest.param(
+            {"a": "*Nope.project"}, Tags([], []), id="optional_unknown_prefix"
+        ),
+    ],
+)
+def test_tags_parse_optional_value_sources(
+    config: dict[str, str], expected: Tags
+):
+    assert Tags.parse(config) == expected
+
+
+@pytest.mark.parametrize(
     "value_source",
     ["project", "Nope.project", "Bedrock.region", "UserInfoProject"],
 )
@@ -367,6 +396,46 @@ def test_to_session_tags_keys_every_tag_by_its_configured_key(
         # The JSON punctuation of a serialized value is sanitized away.
         _user_info_tag("groups", "userClaims.groups", "__a__ _b__"),
     ]
+
+
+def test_to_session_tags_skips_unresolved_optional_paths_silently(
+    caplog: pytest.LogCaptureFixture, user_info: UserInfo
+):
+    tags = Tags.parse(
+        {
+            "application": "*Bedrock.modelId",
+            "employee": "*UserInfo.userClaims.email",
+            "missing": "*UserInfo.userClaims.nope",
+            "role": "UserInfo.roles.0",
+        }
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_LOGGER):
+        # Optional tags that do resolve are passed under their plain value
+        # source.
+        assert tags.to_session_tags(_MODEL, user_info) == [
+            _model_tag("application", _MODEL),
+            _user_info_tag("employee", "userClaims.email", "user@example.com"),
+            _user_info_tag("role", "roles.0", "admin"),
+        ]
+
+    assert caplog.messages == []
+
+
+def test_to_session_tags_still_warns_on_unresolved_required_paths(
+    caplog: pytest.LogCaptureFixture, user_info: UserInfo
+):
+    tags = Tags.parse(
+        {"a": "*UserInfo.userClaims.nope", "b": "UserInfo.userClaims.nope"}
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_LOGGER):
+        assert tags.to_session_tags(None, user_info) == []
+
+    assert (
+        "Skipping unresolved AWS STS session tags path "
+        "'userClaims.nope': KeyError: 'nope'"
+    ) in caplog.messages
 
 
 def test_to_session_tags_serializes_a_missing_project_as_null():
