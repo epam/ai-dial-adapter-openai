@@ -68,10 +68,13 @@ async def chat_completion(
             system_message + "\n" + (config.instructions or "")
         ).strip() or None
 
-    extra_body = config.model_dump(exclude_none=True)
-
     response = await client.audio.speech.create(
-        input=prompt, model=deployment_id, **extra_body
+        input=prompt,
+        model=deployment_id,
+        extra_body=config.model_extra or {},
+        **config.model_dump(
+            exclude_none=True, include=set(Configuration.model_fields)
+        ),
     )
 
     audio_data = response.read()
