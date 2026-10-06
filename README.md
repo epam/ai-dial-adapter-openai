@@ -826,15 +826,9 @@ The variable is a JSON dictionary of `<tag key>: <value source>` entries. The **
 
 Entries whose value source is unknown (`Nope.project`, `Bedrock.region`, or an unprefixed `project`) are skipped with a warning.
 
-Prefix a value source with `*` to make the tag optional: a tag that doesn't resolve is then skipped without a warning:
-
-```ini
-AWS_SESSION_TAGS={"application":"*Bedrock.modelId","project":"UserInfo.project","employee":"*UserInfo.userClaims.email"}
-```
-
 The tags are only applied to the assume role credentials. They are ignored for the bearer token, the static credentials and the AWS credential provider chain. They are also never applied to the [Anthropic API passthrough](#anthropic-messages-api), which authenticates to Azure only.
 
-Failing to retrieve a tag never fails the request: the failure is logged as a warning (unless the tag is optional) and the tag is ignored, while the remaining tags are still passed.
+Failing to retrieve a tag never fails the request: the failure is logged as a warning and the tag is ignored, while the remaining tags are still passed.
 
 The adapter fits the tags to the AWS constraints for [session tags](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_operations), logging every adjustment it makes.
 
