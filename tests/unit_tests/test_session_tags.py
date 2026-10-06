@@ -103,6 +103,42 @@ def test_resolve_paths_serializes_null():
 
 
 @pytest.mark.parametrize(
+    "data",
+    [
+        pytest.param({"userClaims": None, "project": None}, id="null_fields"),
+        pytest.param({}, id="missing_fields"),
+    ],
+)
+def test_resolve_paths_skips_unset_optional_fields_silently(
+    caplog: pytest.LogCaptureFixture, data: dict[str, Any]
+):
+    with caplog.at_level(logging.WARNING, logger=_LOGGER):
+        assert resolve_paths(data, ["userClaims.email", "project.name"]) == {}
+
+    assert caplog.messages == []
+
+
+def test_resolve_paths_warns_on_missing_key_of_set_optional_field(
+    caplog: pytest.LogCaptureFixture,
+):
+    with caplog.at_level(logging.WARNING, logger=_LOGGER):
+        assert (
+            resolve_paths(
+                {"userClaims": {}, "roles": None},
+                ["userClaims.email", "roles.0"],
+            )
+            == {}
+        )
+
+    assert caplog.messages == [
+        "Skipping unresolved AWS STS session tags path "
+        "'userClaims.email': KeyError: 'email'",
+        "Skipping unresolved AWS STS session tags path "
+        "'roles.0': TypeError: cannot index into NoneType",
+    ]
+
+
+@pytest.mark.parametrize(
     "config, expected",
     [
         pytest.param({}, Tags([], []), id="empty"),

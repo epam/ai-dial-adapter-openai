@@ -33,6 +33,9 @@ _ALLOWED_TAG_CATEGORIES = frozenset("LZN")
 _ALLOWED_TAG_CHARS = frozenset("_.:/=+-@")
 _TAG_CHAR_PLACEHOLDER = "_"
 
+# The DIAL user info fields declared optional by the DIAL API
+_OPTIONAL_FIELDS = frozenset({"userClaims", "project"})
+
 _DEFAULT_ROLE_SESSION_NAME = "BedrockAccessSession"
 
 # The value source of the session tag naming the user project. When such a
@@ -66,6 +69,11 @@ def _get_element_at_path(node: Any, path: str) -> Any:
     return node
 
 
+def _is_unset_optional_field(data: dict[str, Any], path: str) -> bool:
+    field = path.split(".", 1)[0]
+    return field in _OPTIONAL_FIELDS and data.get(field) is None
+
+
 def resolve_paths(data: dict[str, Any], paths: list[str]) -> dict[str, str]:
     result: dict[str, str] = {}
 
@@ -76,6 +84,8 @@ def resolve_paths(data: dict[str, Any], paths: list[str]) -> dict[str, str]:
         try:
             element = _get_element_at_path(data, path)
         except (KeyError, IndexError, TypeError, ValueError) as e:
+            if _is_unset_optional_field(data, path):
+                continue
             log.warning(
                 f"Skipping unresolved AWS STS session tags path "
                 f"{path!r}: {type(e).__name__}: {e}"
