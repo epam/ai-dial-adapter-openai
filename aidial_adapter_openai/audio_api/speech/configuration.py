@@ -1,6 +1,8 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 
 Voices = Literal[
     "alloy",
@@ -18,7 +20,13 @@ Voices = Literal[
 Formats = Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]
 
 
-class Configuration(BaseModel):
+class Configuration(ExtraAllowedModel):
+    """
+    The known fields are passed to the TTS API as such, while the extra
+    ones are passed in the request body verbatim, so that the
+    provider-specific parameters could reach the upstream.
+    """
+
     instructions: str | None = Field(
         default=None,
         description=(
