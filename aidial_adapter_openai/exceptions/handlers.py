@@ -3,6 +3,7 @@ import re
 from functools import wraps
 
 import fastapi
+import httpx
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.exceptions import InternalServerError
 from fastapi.requests import Request as FastAPIRequest
@@ -20,6 +21,7 @@ from aidial_adapter_openai.utils.adapter_exception import (
     AdapterException,
     ResponseWrapper,
 )
+from aidial_adapter_openai.utils.http_client import HTTP_MAX_CONNECTIONS
 from aidial_adapter_openai.utils.log_config import logger
 
 _PROVIDER_AUDIO_SIZE_LIMIT_PATTERN = re.compile(
@@ -31,9 +33,25 @@ def _format_size_mb(size_bytes: int) -> str:
     return f"{(size_bytes / (1024 * 1024)):.1f}".rstrip("0").rstrip(".")
 
 
+def _convert_pool_timeout(e: Exception) -> AdapterException | None:
+    # Checked before the SDK converters, since the openai and anthropic SDKs
+    # wrap httpx.PoolTimeout into APITimeoutError.
+    if isinstance(e, httpx.PoolTimeout) or isinstance(
+        e.__cause__, httpx.PoolTimeout
+    ):
+        return DialException(
+            status_code=503,
+            type="internal_server_error",
+            message="No free upstream connection: the adapter connection pool "
+            f"is exhausted (HTTP_MAX_CONNECTIONS={HTTP_MAX_CONNECTIONS})",
+        )
+    return None
+
+
 def to_adapter_exception(e: Exception) -> AdapterException:
     e = (
-        convert_openai_exception(e)
+        _convert_pool_timeout(e)
+        or convert_openai_exception(e)
         or convert_anthropic_errors(e)
         or convert_application_errors(e)
         or InternalServerError(str(e))
