@@ -22,4 +22,6 @@ jobs:
       python-version: 3.11
       poetry-version: 2.1.1
       platforms: "linux/amd64,linux/arm64"
+      trivy-severity: "CRITICAL,HIGH,MEDIUM,LOW"
+      trivy-severity-for-sarif: "CRITICAL,HIGH,MEDIUM,LOW"
     secrets: inherit
