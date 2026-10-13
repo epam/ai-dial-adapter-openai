@@ -190,6 +190,87 @@ class TestResponsesEndpoint:
         assert actual.json == expected.json
 
     @respx.mock
+    async def test_stream_events_passed_through_as_received(
+        self, client: AsyncOpenAI
+    ):
+        # An event type and a field unknown to the SDK, the upstream's own
+        # JSON formatting and a comment: all of it reaches the client intact.
+        events = (
+            ": upstream keep-alive\n\n"
+            "event: response.vendor_specific\n"
+            'data: {"type": "response.vendor_specific", "x": 1}\n\n'
+            "event: response.completed\n"
+            'data: {"type":"response.completed","sequence_number":2}\n\n'
+        )
+
+        @self.mock_upstream_response
+        def _handler(**kwargs):
+            return httpx.Response(
+                status_code=200,
+                headers={"content-type": "text/event-stream"},
+                content=(events + "data: [DONE]\n\n").encode(),
+            )
+
+        response = await client.responses.with_raw_response.create(
+            **self.test_request, stream=True
+        )
+
+        assert response.headers["content-type"].startswith("text/event-stream")
+        assert (await response.http_response.aread()).decode() == events
+
+    @respx.mock
+    async def test_stream_error_payload(self, client: AsyncOpenAI):
+        @self.mock_upstream_response
+        def _handler(**kwargs):
+            return httpx.Response(
+                status_code=200,
+                headers={"content-type": "text/event-stream"},
+                content=(
+                    b"event: response.created\n"
+                    b'data: {"type":"response.created"}\n\n'
+                    b'data: {"error":{"message":"upstream failed"}}\n\n'
+                    b"event: response.completed\n"
+                    b'data: {"type":"response.completed"}\n\n'
+                ),
+            )
+
+        response = await client.responses.with_raw_response.create(
+            **self.test_request, stream=True
+        )
+
+        actual = ResponsesAPIMockResponse(
+            await response.http_response.aread()
+        ).parse_stream()
+        [created, error] = [c["data"] for c in actual.json]
+        assert created == {"type": "response.created"}
+        assert error["error"]["message"] == "upstream failed"
+
+    @respx.mock
+    async def test_stream_broken_mid_way(self, client: AsyncOpenAI):
+        @self.mock_upstream_response
+        def _handler(**kwargs):
+            async def _stream() -> AsyncIterator[bytes]:
+                yield b'event: response.created\ndata: {"type":"response.created"}\n\n'
+                raise httpx.ReadError("connection reset")
+
+            return httpx.Response(
+                status_code=200,
+                headers={"content-type": "text/event-stream"},
+                content=_stream(),
+            )
+
+        response = await client.responses.with_raw_response.create(
+            **self.test_request, stream=True
+        )
+
+        actual = ResponsesAPIMockResponse(
+            await response.http_response.aread()
+        ).parse_stream()
+        [created, error] = [c["data"] for c in actual.json]
+        assert created == {"type": "response.created"}
+        assert "error" in error
+
+    @respx.mock
     async def test_extra_request_field(self, client: AsyncOpenAI, stream: bool):
         @self.mock_upstream_response
         def _handler(body, **kwargs):

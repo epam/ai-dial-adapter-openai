@@ -28,6 +28,7 @@ from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.sse_stream import (
     SSEStreamFormat,
+    to_raw_sse_stream,
     to_sse_stream,
 )
 from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
@@ -263,6 +264,7 @@ def streaming_chunks_to_block_response(chunks: list[dict]) -> dict:
 
 
 _Body = TypeVar("_Body")
+_Item = TypeVar("_Item", dict, str)
 
 
 @dataclass
@@ -294,19 +296,12 @@ async def create_server_response(
         headers = {}
 
     async def stream_to_response(iterator: AsyncIterator[dict]) -> Response:
-        item, stream = await peek_head(reify_exceptions(iterator))
-
-        if isinstance(item, Exception):
-            return item.to_fastapi_response()
-        else:
-            stream = prepend(item, stream)
-            stream = to_sse_stream(stream, sse_stream_format)
-            stream = add_sse_heartbeat(stream, sse_heartbeat_interval)
-            return StreamingResponse(
-                content=stream,
-                media_type="text/event-stream",
-                headers=headers,
-            )
+        return await _sse_response(
+            iterator,
+            lambda stream: to_sse_stream(stream, sse_stream_format),
+            headers=headers,
+            sse_heartbeat_interval=sse_heartbeat_interval,
+        )
 
     async def block_to_response(block: dict) -> Response:
         if emulate_streaming:
@@ -326,6 +321,44 @@ async def create_server_response(
         return body
     else:
         assert_never(body)
+
+
+async def create_sse_passthrough_response(
+    events: AsyncIterator[str],
+    *,
+    headers: dict[str, str],
+    sse_heartbeat_interval: float | None,
+) -> Response:
+    """A streaming response of SSE events that are already formatted."""
+    return await _sse_response(
+        events,
+        to_raw_sse_stream,
+        headers=headers,
+        sse_heartbeat_interval=sse_heartbeat_interval,
+    )
+
+
+async def _sse_response(
+    iterator: AsyncIterator[_Item],
+    to_sse: Callable[
+        [AsyncIterator[_Item | AdapterException]], AsyncIterator[str]
+    ],
+    *,
+    headers: dict[str, str],
+    sse_heartbeat_interval: float | None,
+) -> Response:
+    item, stream = await peek_head(reify_exceptions(iterator))
+
+    if isinstance(item, Exception):
+        return item.to_fastapi_response()
+
+    sse_stream = to_sse(prepend(item, stream))
+    sse_stream = add_sse_heartbeat(sse_stream, sse_heartbeat_interval)
+    return StreamingResponse(
+        content=sse_stream,
+        media_type="text/event-stream",
+        headers=headers,
+    )
 
 
 T = TypeVar("T")
@@ -369,8 +402,8 @@ async def peek_head(
 
 
 async def reify_exceptions(
-    stream: AsyncIterator[dict],
-) -> AsyncIterator[dict | AdapterException]:
+    stream: AsyncIterator[_Item],
+) -> AsyncIterator[_Item | AdapterException]:
     try:
         async for chunk in stream:
             yield chunk

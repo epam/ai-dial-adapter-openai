@@ -1,7 +1,9 @@
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Self, TypeVar, cast
 
+import httpx
 from fastapi import Request
 from fastapi.responses import Response as FastAPIResponse
 from openai import (
@@ -38,15 +40,18 @@ from aidial_adapter_openai.utils.caching import (
     get_responses_breakpoint_path,
 )
 from aidial_adapter_openai.utils.client import get_client
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import (
     parse_body,
     responses_parser,
 )
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.request import get_request_app_config
+from aidial_adapter_openai.utils.sse_stream import iter_sse_events
 from aidial_adapter_openai.utils.streaming import (
     ResponseWithHeaders,
     create_server_response,
+    create_sse_passthrough_response,
     debug_print,
     map_stream,
 )
@@ -109,14 +114,17 @@ async def responses_create(request: Request) -> FastAPIResponse:
         file_storage, request_body
     )
 
+    stream = bool(request_body.get("stream"))
     response: LegacyAPIResponse[
         Response | AsyncStream[ResponseStreamEvent]
     ] = await call_with_extra_body(
         context.client.responses.with_raw_response.create, request_body
     )
 
-    response_with_headers = _to_response_with_headers(
+    return await _to_raw_fast_api_response(
+        request,
         response,
+        stream=stream,
         # Reported for a successful generation only, since
         # the SDK raises on a 4xx/5xx upstream response
         extra_headers=await build_cache_headers(
@@ -126,7 +134,6 @@ async def responses_create(request: Request) -> FastAPIResponse:
             ),
         ),
     )
-    return await _to_fast_api_response(request, response_with_headers)
 
 
 async def responses_retrieve(
@@ -141,8 +148,7 @@ async def responses_retrieve(
         stream=stream,
         extra_query=context.query_params,
     )
-    response_with_headers = _to_response_with_headers(response)
-    return await _to_fast_api_response(request, response_with_headers)
+    return await _to_raw_fast_api_response(request, response, stream=stream)
 
 
 async def responses_cancel(
@@ -204,19 +210,58 @@ async def _to_fast_api_response(
     )
 
 
+async def _to_raw_fast_api_response(
+    request: Request,
+    response: LegacyAPIResponse,
+    *,
+    stream: bool,
+    extra_headers: dict[str, str] | None = None,
+) -> FastAPIResponse:
+    """
+    Passes the upstream body through as received, without parsing
+    it into the SDK models and serializing it back.
+    """
+    http_response = response.http_response
+    headers = {
+        **_strip_content_headers(http_response.headers),
+        **(extra_headers or {}),
+    }
+
+    if stream:
+        app_config = get_request_app_config(request)
+        return await create_sse_passthrough_response(
+            iter_sse_events(http_response),
+            headers=headers,
+            sse_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
+        )
+
+    content = await http_response.aread()
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"response: {content.decode(errors='replace')}")
+    return FastAPIResponse(
+        content=content,
+        status_code=http_response.status_code,
+        headers=headers,
+        media_type="application/json",
+    )
+
+
+def _strip_content_headers(headers: httpx.Headers) -> httpx.Headers:
+    # Reformatting of the chunks may invalidate content length.
+    # We don't recompress the response, therefore,
+    # the content encoding may invalidate too.
+    for header in ("content-length", "content-encoding"):
+        if header in headers:
+            del headers[header]
+    return headers
+
+
 def _to_response_with_headers(
     response: LegacyAPIResponse[_ResponsesPayloadT],
     *,
     extra_headers: dict[str, str] | None = None,
 ) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
-    response_headers = response.http_response.headers
-
-    # Reformatting of the chunks may invalidate content length.
-    # We don't recompress the response, therefore,
-    # the content encoding may invalidate too.
-    for header in ("content-length", "content-encoding"):
-        if header in response_headers:
-            del response_headers[header]
+    response_headers = _strip_content_headers(response.http_response.headers)
 
     parsed_response = response.parse()
 
