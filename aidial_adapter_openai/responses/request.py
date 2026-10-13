@@ -65,7 +65,8 @@ class AttachmentRule:
     src_field: str
     dst_field: str | None = None
 
-    async def apply(self, file_storage: FileStorage, request: Any) -> None:
+    async def apply(self, file_storage: FileStorage, request: Any) -> bool:
+        replaced = False
         for obj in _compile_jmespath(self.path).search(request) or []:
             if not isinstance(obj, dict):
                 continue
@@ -73,11 +74,13 @@ class AttachmentRule:
             if data_url := await _download_url_field(
                 file_storage, obj, self.src_field
             ):
+                replaced = True
                 if self.dst_field is None:
                     obj[self.src_field] = data_url
                 else:
                     obj.pop(self.src_field, None)
                     obj[self.dst_field] = data_url
+        return replaced
 
 
 _attachment_rules = [
@@ -107,10 +110,18 @@ _T = TypeVar("_T")
 async def download_dial_urls_in_request(
     file_storage: FileStorage | None, request: _T
 ) -> _T:
-    if file_storage is None:
-        return request
-
-    for rule in _attachment_rules:
-        await rule.apply(file_storage, request)
-
+    await download_dial_urls(file_storage, request)
     return request
+
+
+async def download_dial_urls(
+    file_storage: FileStorage | None, request: Any
+) -> bool:
+    """Replaces DIAL URLs in the request in place; True if any was replaced."""
+    if file_storage is None:
+        return False
+
+    replaced = False
+    for rule in _attachment_rules:
+        replaced |= await rule.apply(file_storage, request)
+    return replaced
