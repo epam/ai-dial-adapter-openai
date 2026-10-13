@@ -1962,6 +1962,7 @@ Deployments that do not fall into any of the categories are considered to suppor
 |HTTP_MAX_CONNECTIONS|1000|Maximum number of concurrent connections the upstream HTTP client opens. The limit applies per worker process and is shared across all upstreams. Requests above the limit wait for a free connection|
 |HTTP_MAX_KEEPALIVE_CONNECTIONS|100|Maximum number of idle connections the upstream HTTP client keeps open for reuse|
 |HTTP_POOL_TIMEOUT|10|How long in seconds a request waits for a free upstream connection when `HTTP_MAX_CONNECTIONS` is reached. On timeout the adapter returns 503|
+|HTTP_TRANSPORT|aiohttp|Connection pool of the upstream HTTP client: `aiohttp` or `httpx`. httpcore's pool behind `httpx` scans every pooled connection on each request event, which costs CPU with hundreds of concurrent streams. `aiohttp` doesn't apply `HTTP_MAX_KEEPALIVE_CONNECTIONS`|
 |SSE_HEARTBEAT_INTERVAL||If set, the adapter inserts ping comments into streaming chat completion responses after the connection has been idle for the specified number of seconds, helping prevent read timeouts when the upstream is unresponsive.|
 |CLAUDE_DEFAULT_MAX_TOKENS|1536|The default value of `max_tokens` chat completion parameter if it is not provided in the request.<br>**:warning: Using the variable is discouraged**.<br>Consider configuring the default in the DIAL Core Config instead as demonstrated in the [example below](#default-max_tokens-for-claude-models).|
 
