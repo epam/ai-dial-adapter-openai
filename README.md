@@ -1959,6 +1959,9 @@ Deployments that do not fall into any of the categories are considered to suppor
 |WEB_CONCURRENCY|1|Number of [worker](https://www.uvicorn.org/deployment/#built-in) processes to spawn in the Uvicorn server. Find the details in the section about [performance](#server-performance-configuration).|
 |THREAD_POOL_SIZE||The size of a thread pool for CPU-heavy tasks such as tokenization and image analysis. The [default](https://github.com/python/cpython/blob/3.11/Lib/concurrent/futures/thread.py#L142) is `min(32, #logicalCPUs + 4)`. Find the details in the section about [performance](#server-performance-configuration).|
 |TIMEOUT_KEEP_ALIVE|70|How long in seconds the server keeps an idle HTTP keep-alive connection open before closing it. Must be greater than the caller's pooled-connection timeout. Find the details in the section about [keep-alive timeout](#keep-alive-timeout).|
+|HTTP_MAX_CONNECTIONS|1000|Maximum number of concurrent connections the upstream HTTP client opens. The limit applies per worker process and is shared across all upstreams. Requests above the limit wait for a free connection|
+|HTTP_MAX_KEEPALIVE_CONNECTIONS|100|Maximum number of idle connections the upstream HTTP client keeps open for reuse|
+|HTTP_POOL_TIMEOUT|10|How long in seconds a request waits for a free upstream connection when `HTTP_MAX_CONNECTIONS` is reached. On timeout the adapter returns 503|
 |SSE_HEARTBEAT_INTERVAL||If set, the adapter inserts ping comments into streaming chat completion responses after the connection has been idle for the specified number of seconds, helping prevent read timeouts when the upstream is unresponsive.|
 |CLAUDE_DEFAULT_MAX_TOKENS|1536|The default value of `max_tokens` chat completion parameter if it is not provided in the request.<br>**:warning: Using the variable is discouraged**.<br>Consider configuring the default in the DIAL Core Config instead as demonstrated in the [example below](#default-max_tokens-for-claude-models).|
 
