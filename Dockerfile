@@ -35,8 +35,9 @@ RUN apk upgrade --no-cache libexpat
 RUN pip install setuptools==83.0.0
 # fix CVE-2026-24049
 RUN pip install wheel==0.46.2
-# pip is not needed at runtime; removing it fixes all pip CVEs (incl. its vendored
-# msgpack, urllib3 and setuptools). Must stay after the last pip usage.
+# pip is not needed at runtime; removing it fixes all pip CVEs, incl. those in its
+# vendored copies of msgpack, urllib3 and pkg_resources (setuptools 70.3.0, not the
+# standalone setuptools installed above). Must stay after the last pip usage.
 RUN pip uninstall -y pip
 # fix CVE-2025-6965 and CVE-2026-22184 and CVE-2026-40200
 RUN apk upgrade --no-cache sqlite-libs zlib musl musl-utils
