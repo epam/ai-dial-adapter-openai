@@ -1230,6 +1230,25 @@ socks = ["socksio (==1.*)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
+name = "httpx-aiohttp"
+version = "0.2.0"
+description = "Aiohttp transport for HTTPX"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "httpx_aiohttp-0.2.0-py3-none-any.whl", hash = "sha256:ccd6eb19ba18805476096e8ef0b369a6beda3955db145a538979eface2fce7ff"},
+    {file = "httpx_aiohttp-0.2.0.tar.gz", hash = "sha256:d4796b981f04734f1d1db9b4d9326ea16bc994f126460b93b69036262cd4a9d8"},
+]
+
+[package.dependencies]
+aiohttp = ">=3.10.0,<4"
+httpx = ">=0.27.0"
+
+[package.extras]
+httpx2 = ["httpx2 (>=2,<3)"]
+
+[[package]]
 name = "identify"
 version = "2.6.18"
 description = "File identification library for Python"
@@ -1689,9 +1708,11 @@ files = [
 ]
 
 [package.dependencies]
+aiohttp = {version = ">=3.14.1", optional = true, markers = "python_version >= \"3.10\" and extra == \"aiohttp\""}
 anyio = ">=3.5.0,<5"
 distro = ">=1.7.0,<2"
 httpx = ">=0.23.0,<1"
+httpx-aiohttp = {version = ">=0.1.9", optional = true, markers = "python_version >= \"3.10\" and extra == \"aiohttp\""}
 jiter = ">=0.10.0,<1"
 pydantic = ">=1.9.0,<3"
 sniffio = "*"
@@ -3922,4 +3943,4 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "2a8882eb023abd05a92bec315a534681704b4f62c6b41efda3ee3e1850b6e624"
+content-hash = "ad4be625e5c6d5c2a2119703c313d35eb6268a4e901e4f7c37dbe317ca92fb89"
