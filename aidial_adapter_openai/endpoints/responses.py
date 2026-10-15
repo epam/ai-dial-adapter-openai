@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from openai import (
     AsyncStream,
 )
 from openai._legacy_response import LegacyAPIResponse
+from openai._models import FinalRequestOptions
 from openai.types.responses import Response
 from openai.types.responses.input_token_count_response import (
     InputTokenCountResponse,
@@ -33,6 +35,7 @@ from aidial_adapter_openai.dial_api.storage import (
     create_file_storage,
 )
 from aidial_adapter_openai.responses.request import (
+    download_dial_urls,
     download_dial_urls_in_request,
 )
 from aidial_adapter_openai.utils.caching import (
@@ -45,7 +48,6 @@ from aidial_adapter_openai.utils.parsers import (
     parse_body,
     responses_parser,
 )
-from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.request import get_request_app_config
 from aidial_adapter_openai.utils.sse_stream import iter_sse_events
 from aidial_adapter_openai.utils.streaming import (
@@ -110,15 +112,25 @@ async def responses_create(request: Request) -> FastAPIResponse:
     )
 
     file_storage = create_file_storage(request.headers)
-    request_body = await download_dial_urls_in_request(
-        file_storage, request_body
-    )
+    # The received bytes are sent unless an attachment was inlined:
+    # the SDK re-encoding a large prompt costs more CPU than the rest
+    # of the request. Unknown fields reach the upstream as they are.
+    if await download_dial_urls(file_storage, request_body):
+        content = json.dumps(request_body).encode()
+    else:
+        content = await request.body()
 
     stream = bool(request_body.get("stream"))
-    response: LegacyAPIResponse[
-        Response | AsyncStream[ResponseStreamEvent]
-    ] = await call_with_extra_body(
-        context.client.responses.with_raw_response.create, request_body
+    response = await context.client.request(
+        cast_to=httpx.Response,
+        options=FinalRequestOptions.construct(
+            method="post",
+            url="/responses",
+            content=content,
+            headers={"Content-Type": "application/json"},
+        ),
+        stream=stream,
+        stream_cls=None,
     )
 
     return await _to_raw_fast_api_response(
@@ -148,7 +160,9 @@ async def responses_retrieve(
         stream=stream,
         extra_query=context.query_params,
     )
-    return await _to_raw_fast_api_response(request, response, stream=stream)
+    return await _to_raw_fast_api_response(
+        request, response.http_response, stream=stream
+    )
 
 
 async def responses_cancel(
@@ -212,7 +226,7 @@ async def _to_fast_api_response(
 
 async def _to_raw_fast_api_response(
     request: Request,
-    response: LegacyAPIResponse,
+    http_response: httpx.Response,
     *,
     stream: bool,
     extra_headers: dict[str, str] | None = None,
@@ -221,7 +235,6 @@ async def _to_raw_fast_api_response(
     Passes the upstream body through as received, without parsing
     it into the SDK models and serializing it back.
     """
-    http_response = response.http_response
     headers = {
         **_strip_content_headers(http_response.headers),
         **(extra_headers or {}),

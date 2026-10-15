@@ -1,16 +1,22 @@
-import functools
 import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
 from aidial_sdk.exceptions import InvalidRequestError
 
+_signatures: dict[Callable, inspect.Signature] = {}
 
-@functools.lru_cache(maxsize=64)
+
 def _inspect_signature(
     func: Callable[..., Awaitable[Any]],
 ) -> inspect.Signature:
-    return inspect.signature(func)
+    # Keyed by the underlying function: the SDK methods arrive bound to
+    # a client created per request, or wrapped anew on every access.
+    target = inspect.unwrap(func)
+    key = getattr(target, "__func__", target)
+    if (signature := _signatures.get(key)) is None:
+        signature = _signatures[key] = inspect.signature(func)
+    return signature
 
 
 T = TypeVar("T")

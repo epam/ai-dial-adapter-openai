@@ -1,5 +1,6 @@
 import base64
 import copy
+import json
 import re
 from dataclasses import dataclass
 from unittest.mock import patch
@@ -315,3 +316,39 @@ class TestDownloadDialUrlsInRequestFailure:
                 "type": "invalid_request_error",
             }
         }
+
+
+class TestInlinedAttachmentForwarded:
+    UPSTREAM_ENDPOINT = "http://test-upstream-hostname/openai/v1/responses"
+
+    @pytest.fixture
+    def router(self):
+        with respx.mock(assert_all_called=False, assert_all_mocked=False) as m:
+            m.get(_DIAL_URL + "/v1/" + _IMAGE_URL).respond(text="file-content")
+            yield m
+
+    @pytest.fixture(autouse=True)
+    def mock_file_storage(self, file_storage):
+        with patch(
+            "aidial_adapter_openai.endpoints.responses.create_file_storage",
+            return_value=file_storage,
+        ):
+            yield
+
+    async def test_upstream_gets_inlined_attachment(
+        self,
+        router: respx.MockRouter,
+        create_openai_client: OpenAIClientFactory,
+    ):
+        upstream = router.post(self.UPSTREAM_ENDPOINT).respond(
+            json=MockServer.mock_responses_api_response("text.txt")
+            .parse(False)
+            .json
+        )
+
+        client = create_openai_client(upstream_endpoint=self.UPSTREAM_ENDPOINT)
+        await client.responses.create(**_message([_image(_IMAGE_URL)], True))
+
+        body = json.loads(upstream.calls.last.request.content)
+        part = body["input"][0]["content"][0]
+        UrlCase(_IMAGE_URL, "image/jpeg", True).check_image(part)

@@ -284,6 +284,31 @@ class TestResponsesEndpoint:
         )  # type: ignore
 
     @respx.mock
+    async def test_request_body_forwarded_as_received(
+        self, test_app: httpx.AsyncClient, stream: bool
+    ):
+        # The client's own formatting and key order, and a field
+        # unknown to the SDK: the upstream gets the very same bytes.
+        content = (
+            '{ "input" : "Test content", "x-vendor": {"b": 1, "a": 2},\n'
+            f'  "model": "{self.UPSTREAM_MODEL}", "stream": {str(stream).lower()} }}'
+        ).encode()
+        self.mock_upstream_response(self.MOCK_RESPONSE)
+
+        response = await test_app.post(
+            "/openai/v1/responses",
+            content=content,
+            headers={
+                "Content-Type": "application/json",
+                "X-UPSTREAM-KEY": self.UPSTREAM_KEY,
+                "X-UPSTREAM-ENDPOINT": self.UPSTREAM_ENDPOINT,
+            },
+        )
+
+        assert response.status_code == 200
+        assert respx.calls.last.request.content == content
+
+    @respx.mock
     async def test_sse_heartbeat_interval(
         self, sse_heartbeat_interval_1, client: AsyncOpenAI
     ):
