@@ -12,3 +12,8 @@ excludes:
     - pattern: "test"
       reason: "TEST_DEPENDENCY_OF"
       comment: "Packages for testing only."
+resolutions:
+  rule_violations:
+    - message: '.*PyPI::httpx-aiohttp:0\.2\.0.*'
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "BSD-3-Clause: https://github.com/karpetrosyan/httpx-aiohttp/blob/main/LICENSE (the package metadata has only a copyright line in its License field)"
