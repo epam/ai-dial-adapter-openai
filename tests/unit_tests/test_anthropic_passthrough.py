@@ -74,3 +74,44 @@ async def test_messages_passthrough_relays_upstream_response(
     upstream_request = route.calls.last.request
     assert json.loads(upstream_request.content) == _MESSAGES_REQUEST
     assert upstream_request.headers[auth_header] == _UPSTREAM_KEY
+
+
+@respx.mock
+async def test_messages_passthrough_forwards_prompt_fields_as_received():
+    # The prompt fields ("messages", "system", "tools") are large, so the
+    # passthrough sends them in their source text instead of re-encoding them.
+    # Whitespace, key order and \u escapes would all change in a re-encode.
+    messages = (
+        '[ {"text": "caf\u00e9", "role" : "user",\n   "content":"Say hello."} ]'
+    )
+    system = '[{"type":"text",  "text":"Be brief."}]'
+    body = (
+        '{"max_tokens": 1024, "messages": '
+        + messages
+        + ', "model" : "claude-opus-4-5", "system":'
+        + system
+        + "}"
+    ).encode()
+
+    route = respx.post(url__regex=rf"{_ANTHROPIC_BASE}/v1/messages.*").respond(
+        status_code=200,
+        content_type="application/json",
+        content=json.dumps(_MESSAGES_RESPONSE),
+    )
+
+    async with create_test_client(ApplicationConfig()) as client:
+        response = await client.post(
+            "/anthropic/v1/messages",
+            content=body,
+            headers={
+                **_headers(_ANTHROPIC_BASE),
+                "Content-Type": "application/json",
+            },
+        )
+
+    assert response.status_code == 200
+
+    upstream_content = route.calls.last.request.content
+    assert messages.encode() in upstream_content
+    assert system.encode() in upstream_content
+    assert json.loads(upstream_content) == json.loads(body)
