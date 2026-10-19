@@ -27,7 +27,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 fastapi = "0.136.3"
-openai = "2.48.0"
+openai = { version = "2.48.0", extras = ["aiohttp"] }
 tiktoken = "0.12.0"
 uvicorn = { version = "0.23.2", extras = ["standard"] }
 wrapt = "1.16.0"
@@ -41,7 +41,7 @@ azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
 aiohttp = "3.14.3"
 aidial-sdk = { version = "0.45.0", extras = ["telemetry"] }
-aidial-adapter-anthropic = "0.18.0"
+aidial-adapter-anthropic = "0.19.1"
 anthropic = "0.105.0"
 jmespath = "1.1.0"
 aidial-client = "0.16.1"
@@ -72,7 +72,8 @@ python-dotenv = "^1.2.2"
 
 [tool.pytest.ini_options]
 addopts = "-n=auto --asyncio-mode=auto --timeout=300 --alluredir=allure-results --clean-alluredir"
-env = ["PYDANTIC_V2=1"]
+# respx mocks the httpx transport, not the default aiohttp one
+env = ["PYDANTIC_V2=1", "HTTP_TRANSPORT=httpx"]
 testpaths = ["tests"]
 filterwarnings = [
   "error",
