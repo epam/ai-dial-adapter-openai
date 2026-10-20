@@ -20,9 +20,7 @@ def _inspect_signature(
     # `with_raw_response` ones wrap such a method: neither is a usable cache
     # key, while the method they share is.
     method = func if hasattr(func, "__func__") else inspect.unwrap(func)
-    if (unbound := getattr(method, "__func__", None)) is None:
-        return inspect.signature(func)
-    return _method_signature(unbound)
+    return _method_signature(method.__func__)
 
 
 T = TypeVar("T")
