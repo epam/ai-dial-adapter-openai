@@ -1,5 +1,6 @@
 import base64
 import copy
+import json
 import re
 from dataclasses import dataclass
 from unittest.mock import patch
@@ -190,18 +191,19 @@ class TestDownloadDialUrlsInRequestSuccess:
     async def test_download_dial_urls_noop(
         self, file_storage, req: ResponseCreateParamsBase
     ):
-        result = await download_dial_urls_in_request(
-            file_storage, copy.deepcopy(req)
-        )
-        assert req == result
+        request = copy.deepcopy(req)
+
+        assert not await download_dial_urls_in_request(file_storage, request)
+        assert request == req
 
     async def test_download_dial_urls_in_request_message_image(
         self, file_storage, with_type: bool, url_case: UrlCase
     ):
         request = _message([_image(url_case.url)], with_type)
 
-        result = await download_dial_urls_in_request(file_storage, request)
-        part: dict = result["input"][0]["content"][0]  # type: ignore
+        inlined = await download_dial_urls_in_request(file_storage, request)
+        assert inlined == url_case.is_dial
+        part: dict = request["input"][0]["content"][0]  # type: ignore
 
         url_case.check_image(part)
 
@@ -210,8 +212,9 @@ class TestDownloadDialUrlsInRequestSuccess:
     ):
         request = _message([_file(url_case.url)], with_type)
 
-        result = await download_dial_urls_in_request(file_storage, request)
-        part: dict = result["input"][0]["content"][0]  # type: ignore
+        inlined = await download_dial_urls_in_request(file_storage, request)
+        assert inlined == url_case.is_dial
+        part: dict = request["input"][0]["content"][0]  # type: ignore
 
         url_case.check_file(part)
 
@@ -220,8 +223,9 @@ class TestDownloadDialUrlsInRequestSuccess:
     ):
         request = _function_call([_image_content(url_case.url)])
 
-        result = await download_dial_urls_in_request(file_storage, request)
-        part: dict = result["input"][0]["output"][0]  # type: ignore
+        inlined = await download_dial_urls_in_request(file_storage, request)
+        assert inlined == url_case.is_dial
+        part: dict = request["input"][0]["output"][0]  # type: ignore
 
         url_case.check_image(part)
 
@@ -230,8 +234,9 @@ class TestDownloadDialUrlsInRequestSuccess:
     ):
         request = _function_call([_file_content(url_case.url)])
 
-        result = await download_dial_urls_in_request(file_storage, request)
-        part: dict = result["input"][0]["output"][0]  # type: ignore
+        inlined = await download_dial_urls_in_request(file_storage, request)
+        assert inlined == url_case.is_dial
+        part: dict = request["input"][0]["output"][0]  # type: ignore
 
         url_case.check_file(part)
 
@@ -240,8 +245,9 @@ class TestDownloadDialUrlsInRequestSuccess:
     ):
         request = _custom_tool_call([_image(url_case.url)])
 
-        result = await download_dial_urls_in_request(file_storage, request)
-        part: dict = result["input"][0]["output"][0]  # type: ignore
+        inlined = await download_dial_urls_in_request(file_storage, request)
+        assert inlined == url_case.is_dial
+        part: dict = request["input"][0]["output"][0]  # type: ignore
 
         url_case.check_image(part)
 
@@ -250,8 +256,9 @@ class TestDownloadDialUrlsInRequestSuccess:
     ):
         request = _custom_tool_call([_file(url_case.url)])
 
-        result = await download_dial_urls_in_request(file_storage, request)
-        part: dict = result["input"][0]["output"][0]  # type: ignore
+        inlined = await download_dial_urls_in_request(file_storage, request)
+        assert inlined == url_case.is_dial
+        part: dict = request["input"][0]["output"][0]  # type: ignore
 
         url_case.check_file(part)
 
@@ -315,3 +322,48 @@ class TestDownloadDialUrlsInRequestFailure:
                 "type": "invalid_request_error",
             }
         }
+
+
+class TestInlinedAttachmentForwarded:
+    UPSTREAM_ENDPOINT = "http://test-upstream-hostname/openai/v1/responses"
+
+    @pytest.fixture
+    def router(self):
+        with respx.mock(
+            assert_all_called=False, assert_all_mocked=False
+        ) as router:
+            router.get(_DIAL_URL + "/v1/" + _IMAGE_URL).respond(
+                text="file-content"
+            )
+            yield router
+
+    @pytest.fixture(autouse=True)
+    def mock_file_storage(self, file_storage):
+        with patch(
+            "aidial_adapter_openai.endpoints.responses.create_file_storage",
+            return_value=file_storage,
+        ):
+            yield
+
+    async def test_upstream_gets_inlined_attachment(
+        self,
+        router: respx.MockRouter,
+        create_openai_client: OpenAIClientFactory,
+    ):
+        """
+        The counterpart of forwarding the body as received: once an
+        attachment has been inlined, the upstream gets the edited body.
+        """
+        upstream = router.post(self.UPSTREAM_ENDPOINT).respond(
+            json=MockServer.mock_responses_api_response("text.txt")
+            .parse(False)
+            .json
+        )
+
+        client = create_openai_client(upstream_endpoint=self.UPSTREAM_ENDPOINT)
+        await client.responses.create(**_message([_image(_IMAGE_URL)], True))
+
+        body = json.loads(upstream.calls.last.request.content)
+        part = body["input"][0]["content"][0]
+
+        UrlCase(_IMAGE_URL, "image/jpeg", is_dial=True).check_image(part)

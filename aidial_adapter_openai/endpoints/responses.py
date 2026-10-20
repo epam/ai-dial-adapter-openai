@@ -1,24 +1,18 @@
+import logging
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
-from typing import Self, TypeVar, cast
+from dataclasses import dataclass, replace
+from http import HTTPStatus
+from typing import Any, Self, cast
 
-from fastapi import Request
+import httpx
+from fastapi import Request as FastAPIRequest
 from fastapi.responses import Response as FastAPIResponse
-from openai import (
-    AsyncAzureOpenAI,
-    AsyncBedrockOpenAI,
-    AsyncOpenAI,
-    AsyncStream,
-)
-from openai._legacy_response import LegacyAPIResponse
-from openai.types.responses import Response
-from openai.types.responses.input_token_count_response import (
-    InputTokenCountResponse,
-)
+from fastapi.responses import StreamingResponse
+from openai import AsyncAzureOpenAI, AsyncBedrockOpenAI, AsyncOpenAI
+from openai._models import FinalRequestOptions
 from openai.types.responses.response_create_params import (
     ResponseCreateParamsBase,
 )
-from openai.types.responses.response_stream_event import ResponseStreamEvent
 
 from aidial_adapter_openai.configuration.app_config import DeploymentAPIType
 from aidial_adapter_openai.configuration.deployment_type import (
@@ -38,36 +32,104 @@ from aidial_adapter_openai.utils.caching import (
     get_responses_breakpoint_path,
 )
 from aidial_adapter_openai.utils.client import get_client
+from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.parsers import (
     parse_body,
     responses_parser,
 )
-from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.request import get_request_app_config
-from aidial_adapter_openai.utils.streaming import (
-    ResponseWithHeaders,
-    create_server_response,
-    debug_print,
-    map_stream,
-)
+from aidial_adapter_openai.utils.sse_stream import chunk_sse_events
+from aidial_adapter_openai.utils.streaming import add_sse_bytes_heartbeat
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
 
-_ResponsesPayload = (
-    Response | InputTokenCountResponse | AsyncStream[ResponseStreamEvent]
-)
-_ResponsesPayloadT = TypeVar("_ResponsesPayloadT", bound=_ResponsesPayload)
+_PATH = "/responses"
+
+# The upstream body is relayed decoded - the SSE framing has to be legible to
+# re-chunk it - so the upstream's content framing no longer describes it.
+_DROPPED_HEADERS = ("content-length", "content-encoding")
+
+
+def _to_text(content: bytes) -> str:
+    return content.decode(errors="replace")
+
+
+async def _iter_sse_events(response: httpx.Response) -> AsyncIterator[bytes]:
+    try:
+        async for event in chunk_sse_events(response.aiter_bytes()):
+            yield event
+    finally:
+        await response.aclose()
+
+
+async def _log_events(stream: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
+    async for event in stream:
+        logger.debug(f"event: {_to_text(event)}")
+        yield event
+
+
+@dataclass
+class _Response:
+    content: AsyncIterator[bytes] | bytes
+    status_code: int
+    headers: dict[str, str]
+
+    def add_debug_logs(self) -> Self:
+        if not logger.isEnabledFor(logging.DEBUG):
+            return self
+
+        if isinstance(self.content, bytes):
+            logger.debug(f"response: {_to_text(self.content)}")
+            return self
+        else:
+            return replace(self, content=_log_events(self.content))
+
+    def add_heartbeat(self, interval: float | None) -> Self:
+        # Only a stream has gaps to hold open; `add_sse_bytes_heartbeat`
+        # takes care of the heartbeat being switched off.
+        if isinstance(self.content, bytes):
+            return self
+        else:
+            return replace(
+                self, content=add_sse_bytes_heartbeat(self.content, interval)
+            )
+
+    def to_fastapi_response(self) -> FastAPIResponse:
+        if isinstance(self.content, bytes):
+            return FastAPIResponse(
+                content=self.content,
+                status_code=self.status_code,
+                headers=self.headers,
+            )
+        else:
+            return StreamingResponse(
+                content=self.content,
+                status_code=self.status_code,
+                headers=self.headers,
+            )
+
+
+async def _modify_generation_request(
+    request: FastAPIRequest, request_body: dict[str, Any]
+) -> dict[str, Any] | bytes:
+    file_storage = create_file_storage(request.headers)
+    request_modified = await download_dial_urls_in_request(
+        file_storage, request_body
+    )
+
+    return request_body if request_modified else await request.body()
 
 
 @dataclass
 class _ResponsesContext:
+    request: FastAPIRequest
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI
     query_params: dict[str, str]
 
     @classmethod
     async def from_request(
-        cls, request: Request, *, model: str | None = None
+        cls, request: FastAPIRequest, *, model: str | None = None
     ) -> Self:
         headers = request.headers
         upstream_endpoint = get_upstream_endpoint(headers)
@@ -95,149 +157,102 @@ class _ResponsesContext:
                 f"Unexpected client for the deployment backed by Responses API - {type(client)}"
             )
 
-        return cls(client=client, query_params=query_params)
+        return cls(request=request, client=client, query_params=query_params)
+
+    async def proxy(
+        self,
+        path: str,
+        *,
+        body: dict | bytes | None = None,
+        stream: bool = False,
+        dial_caching_headers: dict[str, str] | None = None,
+    ) -> FastAPIResponse:
+        response = await self.client.request(
+            cast_to=httpx.Response,
+            options=FinalRequestOptions.construct(
+                method=self.request.method.lower(),
+                url=path,
+                json_data=body,
+                params=self.query_params,
+            ),
+            stream=stream,
+        )
+
+        app_config = get_request_app_config(self.request)
+        headers = {
+            k: v
+            for k, v in response.headers.items()
+            if k not in _DROPPED_HEADERS
+        }
+        if response.status_code == HTTPStatus.OK:
+            headers |= dial_caching_headers or {}
+
+        content = (
+            _iter_sse_events(response) if stream else await response.aread()
+        )
+
+        return (
+            _Response(
+                content=content,
+                status_code=response.status_code,
+                headers=headers,
+            )
+            .add_debug_logs()
+            .add_heartbeat(app_config.SSE_HEARTBEAT_INTERVAL)
+            .to_fastapi_response()
+        )
 
 
-async def responses_create(request: Request) -> FastAPIResponse:
+async def responses_create(request: FastAPIRequest) -> FastAPIResponse:
     request_body = await parse_body(request)
     context = await _ResponsesContext.from_request(
         request, model=request_body.get("model")
     )
 
-    file_storage = create_file_storage(request.headers)
-    request_body = await download_dial_urls_in_request(
-        file_storage, request_body
-    )
-
-    response: LegacyAPIResponse[
-        Response | AsyncStream[ResponseStreamEvent]
-    ] = await call_with_extra_body(
-        context.client.responses.with_raw_response.create, request_body
-    )
-
-    response_with_headers = _to_response_with_headers(
-        response,
-        # Reported for a successful generation only, since
-        # the SDK raises on a 4xx/5xx upstream response
-        extra_headers=await build_cache_headers(
+    return await context.proxy(
+        _PATH,
+        body=await _modify_generation_request(request, request_body),
+        stream=request_body.get("stream") is True,
+        dial_caching_headers=await build_cache_headers(
             request_headers=request.headers,
             breakpoint_path=get_responses_breakpoint_path(
                 cast(ResponseCreateParamsBase, request_body)
             ),
         ),
     )
-    return await _to_fast_api_response(request, response_with_headers)
 
 
 async def responses_retrieve(
-    responses_id: str, request: Request
+    responses_id: str, request: FastAPIRequest
 ) -> FastAPIResponse:
     context = await _ResponsesContext.from_request(request)
-    stream: bool = context.query_params.get("stream") == "true"
-    response: LegacyAPIResponse[
-        Response | AsyncStream[ResponseStreamEvent]
-    ] = await context.client.responses.with_raw_response.retrieve(
-        responses_id,
-        stream=stream,
-        extra_query=context.query_params,
+    return await context.proxy(
+        f"{_PATH}/{responses_id}",
+        stream=context.query_params.get("stream") == "true",
     )
-    response_with_headers = _to_response_with_headers(response)
-    return await _to_fast_api_response(request, response_with_headers)
 
 
 async def responses_cancel(
-    responses_id: str, request: Request
+    responses_id: str, request: FastAPIRequest
 ) -> FastAPIResponse:
     context = await _ResponsesContext.from_request(request)
-    response = await context.client.responses.with_raw_response.cancel(
-        responses_id,
-        extra_query=context.query_params,
-    )
-    response_with_headers = _to_response_with_headers(response)  # type: ignore
-    return await _to_fast_api_response(request, response_with_headers)
+    return await context.proxy(f"{_PATH}/{responses_id}/cancel")
 
 
 async def responses_delete(
-    responses_id: str, request: Request
+    responses_id: str, request: FastAPIRequest
 ) -> FastAPIResponse:
     context = await _ResponsesContext.from_request(request)
-    response = await context.client.responses.with_raw_response.delete(
-        responses_id,
-        extra_query=context.query_params,
-    )
-    return FastAPIResponse(
-        content=response.http_response.content,
-        headers=response.http_response.headers,
-        status_code=response.http_response.status_code,
-    )
+    return await context.proxy(f"{_PATH}/{responses_id}")
 
 
-async def responses_input_tokens(request: Request):
+async def responses_input_tokens(request: FastAPIRequest) -> FastAPIResponse:
     request_body = await parse_body(request)
     context = await _ResponsesContext.from_request(
         request, model=request_body.get("model")
     )
-    file_storage = create_file_storage(request.headers)
-    request_body = await download_dial_urls_in_request(
-        file_storage, request_body
+
+    return await context.proxy(
+        f"{_PATH}/input_tokens",
+        body=await _modify_generation_request(request, request_body),
     )
-
-    response = (
-        await context.client.responses.with_raw_response.input_tokens.count(
-            **request_body
-        )
-    )
-
-    response_with_headers = _to_response_with_headers(response)
-    return await _to_fast_api_response(request, response_with_headers)
-
-
-async def _to_fast_api_response(
-    request: Request, response: ResponseWithHeaders[dict | AsyncIterator[dict]]
-) -> FastAPIResponse:
-    app_config = get_request_app_config(request)
-    return await create_server_response(
-        response,
-        emulate_streaming=False,
-        sse_stream_format="responses",
-        sse_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
-    )
-
-
-def _to_response_with_headers(
-    response: LegacyAPIResponse[_ResponsesPayloadT],
-    *,
-    extra_headers: dict[str, str] | None = None,
-) -> ResponseWithHeaders[dict | AsyncIterator[dict]]:
-    response_headers = response.http_response.headers
-
-    # Reformatting of the chunks may invalidate content length.
-    # We don't recompress the response, therefore,
-    # the content encoding may invalidate too.
-    for header in ("content-length", "content-encoding"):
-        if header in response_headers:
-            del response_headers[header]
-
-    parsed_response = response.parse()
-
-    if isinstance(parsed_response, AsyncStream):
-        body = map_stream(_to_dict, parsed_response)
-    else:
-        body = _to_dict(parsed_response)
-
-    return ResponseWithHeaders(
-        headers={**response_headers, **(extra_headers or {})}, body=body
-    )
-
-
-def _to_dict(
-    obj: ResponseStreamEvent | Response | InputTokenCountResponse,
-) -> dict:
-    ret = obj.to_dict()
-    title = (
-        "response"
-        if isinstance(obj, Response | InputTokenCountResponse)
-        else f"event[{obj.type}]"
-    )
-    debug_print(title, ret)
-    return ret

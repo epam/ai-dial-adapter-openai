@@ -229,6 +229,160 @@ class TestResponsesEndpoint:
         )
 
     @respx.mock
+    async def test_sse_heartbeat_never_splits_an_event(
+        self, sse_heartbeat_interval_1, client: AsyncOpenAI
+    ):
+        """
+        The upstream goes quiet in the middle of an event. The heartbeat has
+        to wait for that event to end instead of splicing itself into it.
+        """
+        expected = self.MOCK_RESPONSE.parse_stream()
+
+        @self.mock_upstream_response
+        async def _handler(body, **kwargs):
+            text = expected.text
+            # A cut inside the JSON payload of a `data:` line
+            cut = text.index("data: ") + len("data: ") + 5
+
+            async def _stream() -> AsyncIterator[bytes]:
+                yield text[:cut].encode()
+                await asyncio.sleep(2)
+                yield text[cut:].encode()
+
+            return httpx.Response(status_code=200, content=_stream())
+
+        response = await client.responses.with_raw_response.create(
+            **self.test_request, stream=True
+        )  # type: ignore
+
+        actual_content = await response.http_response.aread()
+        actual = ResponsesAPIMockResponse(actual_content).parse_stream()
+
+        assert "comment ping" in actual.signature()
+        assert actual.text.replace(": ping\n\n", "") == expected.text
+
+    @respx.mock
+    async def test_stream_events_passed_through_as_received(
+        self, client: AsyncOpenAI
+    ):
+        # An event type and a field unknown to the SDK, the upstream's own
+        # JSON formatting, a comment and a `data: [DONE]` sentinel: all of it
+        # reaches the client intact, since nothing is interpreted.
+        events = (
+            ": upstream keep-alive\n\n"
+            "event: response.vendor_specific\n"
+            'data: {"type": "response.vendor_specific", "x": 1}\n\n'
+            "event: response.completed\n"
+            'data: {"type":"response.completed","sequence_number":2}\n\n'
+            "data: [DONE]\n\n"
+        )
+
+        @self.mock_upstream_response
+        def _handler(**kwargs):
+            return httpx.Response(
+                status_code=200,
+                headers={"content-type": "text/event-stream"},
+                content=events.encode(),
+            )
+
+        response = await client.responses.with_raw_response.create(
+            **self.test_request, stream=True
+        )  # type: ignore
+
+        assert response.headers["content-type"].startswith("text/event-stream")
+        assert (await response.http_response.aread()).decode() == events
+
+    @respx.mock
+    async def test_stream_error_payload_passed_through(
+        self, client: AsyncOpenAI
+    ):
+        # An upstream error payload is relayed like any other event, rather
+        # than being turned into an adapter error that ends the stream.
+        events = (
+            b"event: response.created\n"
+            b'data: {"type":"response.created"}\n\n'
+            b'data: {"error":{"message":"upstream failed"}}\n\n'
+            b"event: response.completed\n"
+            b'data: {"type":"response.completed"}\n\n'
+        )
+
+        @self.mock_upstream_response
+        def _handler(**kwargs):
+            return httpx.Response(
+                status_code=200,
+                headers={"content-type": "text/event-stream"},
+                content=events,
+            )
+
+        response = await client.responses.with_raw_response.create(
+            **self.test_request, stream=True
+        )  # type: ignore
+
+        assert await response.http_response.aread() == events
+
+    @respx.mock
+    async def test_stream_broken_mid_way(self, client: AsyncOpenAI):
+        # An upstream that breaks mid-stream breaks this one too: the client
+        # is left with the events that made it, and no adapter error event.
+        created = (
+            b'event: response.created\ndata: {"type":"response.created"}\n\n'
+        )
+
+        @self.mock_upstream_response
+        def _handler(**kwargs):
+            async def _stream() -> AsyncIterator[bytes]:
+                yield created
+                raise httpx.ReadError("connection reset")
+
+            return httpx.Response(
+                status_code=200,
+                headers={"content-type": "text/event-stream"},
+                content=_stream(),
+            )
+
+        response = await client.responses.with_raw_response.create(
+            **self.test_request, stream=True
+        )  # type: ignore
+
+        assert response.status_code == 200
+        assert await response.http_response.aread() == created
+
+    @respx.mock
+    async def test_request_body_forwarded_as_received(
+        self, test_app: httpx.AsyncClient, stream: bool
+    ):
+        # Spacing, key order and a field unknown to the SDK, all preserved:
+        # a request with no attachment to inline is never re-serialized.
+        body = (
+            f'{{"input": "Test content", "model": "{self.UPSTREAM_MODEL}",'
+            f' "stream": {str(stream).lower()}, "brand_new_field": 42}}'
+        )
+
+        @respx.post(self.UPSTREAM_ENDPOINT)
+        def _handler(request: httpx.Request):
+            assert request.content.decode() == body
+            return httpx.Response(
+                status_code=200,
+                content=self.MOCK_RESPONSE.parse(stream).text,
+            )
+
+        response = await test_app.post(
+            "/openai/v1/responses",
+            content=body.encode(),
+            headers={
+                "Api-Key": "test-adapter-api-key",
+                "Content-Type": "application/json",
+                "X-UPSTREAM-KEY": self.UPSTREAM_KEY,
+                "X-UPSTREAM-ENDPOINT": self.UPSTREAM_ENDPOINT,
+            },
+        )
+
+        # A 200 means the upstream handler ran and its assertion held: an
+        # AssertionError inside it would surface as a 500.
+        assert response.status_code == 200
+        assert response.text == self.MOCK_RESPONSE.parse(stream).text
+
+    @respx.mock
     async def test_proxies_extra_headers(self, client: AsyncOpenAI):
         client = client.with_options(
             default_headers={
@@ -283,9 +437,8 @@ class TestResponsesEndpoint:
         actual_content = await response.http_response.aread()
 
         assert response.status_code == 200
-        assert actual_content == (
-            b'{"input_tokens":123,"object":"response.input_tokens"}'
-        )
+        # Relayed verbatim, down to the upstream's key order and spacing
+        assert actual_content == upstream_response_body
 
     @respx.mock
     async def test_retrieve_response(self, client: AsyncOpenAI, stream: bool):
