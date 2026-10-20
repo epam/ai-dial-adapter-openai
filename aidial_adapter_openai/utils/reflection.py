@@ -7,9 +7,9 @@ from aidial_sdk.exceptions import InvalidRequestError
 
 
 @lru_cache(maxsize=1024)
-def _method_signature(cls: type, name: str) -> inspect.Signature:
-    signature = inspect.signature(getattr(cls, name))
-    # The class attribute is unbound, unlike the method the callers inspect
+def _method_signature(func: Callable[..., Any]) -> inspect.Signature:
+    signature = inspect.signature(func)
+    # `func` is the unbound method, unlike the one the callers inspect
     return signature.replace(parameters=list(signature.parameters.values())[1:])
 
 
@@ -18,11 +18,11 @@ def _inspect_signature(
 ) -> inspect.Signature:
     # The SDK methods are bound to a client created per request, and the
     # `with_raw_response` ones wrap such a method: neither is a usable cache
-    # key, while the class and the name of the method are.
-    method = func if hasattr(func, "__self__") else inspect.unwrap(func)
-    if (receiver := getattr(method, "__self__", None)) is None:
+    # key, while the method they share is.
+    method = func if hasattr(func, "__func__") else inspect.unwrap(func)
+    if (unbound := getattr(method, "__func__", None)) is None:
         return inspect.signature(func)
-    return _method_signature(type(receiver), method.__name__)
+    return _method_signature(unbound)
 
 
 T = TypeVar("T")
