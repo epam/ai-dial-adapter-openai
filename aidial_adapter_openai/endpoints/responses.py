@@ -86,8 +86,6 @@ class _Response:
             return replace(self, content=_log_events(self.content))
 
     def add_heartbeat(self, interval: float | None) -> Self:
-        # Only a stream has gaps to hold open; `add_sse_bytes_heartbeat`
-        # takes care of the heartbeat being switched off.
         if isinstance(self.content, bytes):
             return self
         else:
