@@ -1,16 +1,28 @@
-import functools
 import inspect
 from collections.abc import Awaitable, Callable
+from functools import lru_cache
 from typing import Any, TypeVar
 
 from aidial_sdk.exceptions import InvalidRequestError
 
 
-@functools.lru_cache(maxsize=64)
+@lru_cache(maxsize=1024)
+def _method_signature(cls: type, name: str) -> inspect.Signature:
+    signature = inspect.signature(getattr(cls, name))
+    # The class attribute is unbound, unlike the method the callers inspect
+    return signature.replace(parameters=list(signature.parameters.values())[1:])
+
+
 def _inspect_signature(
     func: Callable[..., Awaitable[Any]],
 ) -> inspect.Signature:
-    return inspect.signature(func)
+    # The SDK methods are bound to a client created per request, and the
+    # `with_raw_response` ones wrap such a method: neither is a usable cache
+    # key, while the class and the name of the method are.
+    method = func if hasattr(func, "__self__") else inspect.unwrap(func)
+    if (receiver := getattr(method, "__self__", None)) is None:
+        return inspect.signature(func)
+    return _method_signature(type(receiver), method.__name__)
 
 
 T = TypeVar("T")
