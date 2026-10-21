@@ -137,6 +137,30 @@ async def test_passthrough_auto_caching(
 
 
 @respx.mock
+async def test_passthrough_auto_caching_on_non_200_success(
+    create_openai_client: OpenAIClientFactory, stream: bool
+):
+    """
+    Cache affinity is reported for a 200 only. A 2xx that isn't one never
+    raises on the client, so nothing else keeps the headers off it.
+    """
+    respx.post(_UPSTREAM_ENDPOINT).respond(
+        status_code=202, json={"id": "resp_1", "status": "queued"}
+    )
+    client = create_openai_client(upstream_endpoint=_UPSTREAM_ENDPOINT)
+
+    response = await client.responses.with_raw_response.create(
+        model="upstream-model-name",
+        input=RESPONSES_INPUT,  # type: ignore[arg-type]
+        stream=stream,
+        extra_headers=_caching_headers(caching_enabled=True),
+    )
+
+    assert response.status_code == 202
+    _assert_breakpoint_path(response, None)
+
+
+@respx.mock
 async def test_adapter_auto_caching(
     test_app: httpx.AsyncClient, stream: bool, caching_enabled: bool
 ):

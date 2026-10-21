@@ -1,29 +1,46 @@
 import json
+import re
 from collections.abc import AsyncIterator
-from typing import Literal
 
 from aidial_adapter_openai.utils.adapter_exception import AdapterException
 
-SSEStreamFormat = Literal["chat-completions", "responses"]
+# An event ends at a blank line.
+# https://html.spec.whatwg.org/multipage/server-sent-events.html
+_EVENT_END = re.compile(rb"\r\n\r\n|\n\n")
 
 
-def _format_chunk(data: dict, event: str | None = None) -> str:
-    event_part = "" if event is None else f"event: {event}\n"
-    data_part = "data: " + json.dumps(data, separators=(",", ":"))
-    return event_part + data_part + "\n\n"
+def _format_chunk(data: dict) -> str:
+    return "data: " + json.dumps(data, separators=(",", ":")) + "\n\n"
 
 
 async def to_sse_stream(
-    stream: AsyncIterator[dict | AdapterException], format: SSEStreamFormat
+    stream: AsyncIterator[dict | AdapterException],
 ) -> AsyncIterator[str]:
     async for chunk in stream:
-        if isinstance(chunk, Exception):
-            yield _format_chunk(chunk.json_error())
-        else:
-            event = None
-            if format == "responses":
-                event = chunk.get("type")
-            yield _format_chunk(chunk, event)
+        yield _format_chunk(
+            chunk.json_error() if isinstance(chunk, Exception) else chunk
+        )
 
-    if format == "chat-completions":
-        yield "data: [DONE]\n\n"
+    yield "data: [DONE]\n\n"
+
+
+async def chunk_sse_events(
+    stream: AsyncIterator[bytes],
+) -> AsyncIterator[bytes]:
+    """
+    Re-chunk a raw SSE stream so that every yielded item is a whole event.
+
+    The bytes are untouched - only the chunk boundaries move - which is what
+    gives the heartbeat a safe place to splice itself into: a transport-level
+    chunk may end in the middle of an event, a yielded item never does.
+    """
+    buffer = b""
+
+    async for chunk in stream:
+        buffer += chunk
+        while match := _EVENT_END.search(buffer):
+            event, buffer = buffer[: match.end()], buffer[match.end() :]
+            yield event
+
+    if buffer:
+        yield buffer

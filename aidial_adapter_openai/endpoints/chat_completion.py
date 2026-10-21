@@ -315,6 +315,5 @@ async def chat_completion(deployment_id: DeploymentId, request: Request):
             app_config=app_config,
         ),
         emulate_streaming=emulate_streaming,
-        sse_stream_format="chat-completions",
         sse_heartbeat_interval=app_config.SSE_HEARTBEAT_INTERVAL,
     )

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cache
-from typing import Any, TypeVar, assert_never
+from typing import Any, assert_never
 
 import jmespath
 from openai.types.chat.completion_create_params import ResponseFormat
@@ -65,7 +65,9 @@ class AttachmentRule:
     src_field: str
     dst_field: str | None = None
 
-    async def apply(self, file_storage: FileStorage, request: Any) -> None:
+    async def apply(self, file_storage: FileStorage, request: Any) -> bool:
+        request_modified = False
+
         for obj in _compile_jmespath(self.path).search(request) or []:
             if not isinstance(obj, dict):
                 continue
@@ -78,6 +80,9 @@ class AttachmentRule:
                 else:
                     obj.pop(self.src_field, None)
                     obj[self.dst_field] = data_url
+                request_modified = True
+
+        return request_modified
 
 
 _attachment_rules = [
@@ -101,16 +106,15 @@ _attachment_rules = [
     ),
 ]
 
-_T = TypeVar("_T")
-
 
 async def download_dial_urls_in_request(
-    file_storage: FileStorage | None, request: _T
-) -> _T:
+    file_storage: FileStorage | None, request: Any
+) -> bool:
     if file_storage is None:
-        return request
+        return False
 
+    request_modified = False
     for rule in _attachment_rules:
-        await rule.apply(file_storage, request)
+        request_modified |= await rule.apply(file_storage, request)
 
-    return request
+    return request_modified

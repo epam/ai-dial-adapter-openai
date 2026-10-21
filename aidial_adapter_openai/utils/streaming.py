@@ -26,11 +26,12 @@ from aidial_adapter_openai.utils.chat_completion_response import (
 )
 from aidial_adapter_openai.utils.json import remove_nones
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.sse_stream import (
-    SSEStreamFormat,
-    to_sse_stream,
-)
+from aidial_adapter_openai.utils.sse_stream import to_sse_stream
 from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
+
+# An SSE comment: conformant clients ignore it, so it holds the connection
+# open without showing up in the event stream.
+_HEARTBEAT = ": ping\n\n"
 
 
 def generate_id() -> str:
@@ -283,7 +284,6 @@ async def create_server_response(
     response: ChatResponse,
     *,
     emulate_streaming: bool,
-    sse_stream_format: SSEStreamFormat,
     sse_heartbeat_interval: float | None,
 ) -> Response:
     if isinstance(response, ResponseWithHeaders):
@@ -300,7 +300,7 @@ async def create_server_response(
             return item.to_fastapi_response()
         else:
             stream = prepend(item, stream)
-            stream = to_sse_stream(stream, sse_stream_format)
+            stream = to_sse_stream(stream)
             stream = add_sse_heartbeat(stream, sse_heartbeat_interval)
             return StreamingResponse(
                 content=stream,
@@ -405,5 +405,18 @@ def add_sse_heartbeat(
     return add_heartbeat(
         stream,
         heartbeat_interval=heartbeat_interval,
-        heartbeat_object=": ping\n\n",
+        heartbeat_object=_HEARTBEAT,
+    )
+
+
+def add_sse_bytes_heartbeat(
+    stream: AsyncIterator[bytes], heartbeat_interval: float | None
+) -> AsyncIterator[bytes]:
+    if heartbeat_interval is None:
+        return stream
+
+    return add_heartbeat(
+        stream,
+        heartbeat_interval=heartbeat_interval,
+        heartbeat_object=_HEARTBEAT.encode(),
     )
