@@ -108,7 +108,7 @@ class _Response:
             )
 
 
-async def _modify_generation_request(
+async def _prepare_request_body(
     request: FastAPIRequest, request_body: dict[str, Any]
 ) -> dict[str, Any] | bytes:
     file_storage = create_file_storage(request.headers)
@@ -209,7 +209,7 @@ async def responses_create(request: FastAPIRequest) -> FastAPIResponse:
 
     return await context.proxy(
         _PATH,
-        body=await _modify_generation_request(request, request_body),
+        body=await _prepare_request_body(request, request_body),
         stream=request_body.get("stream") is True,
         dial_caching_headers=await build_cache_headers(
             request_headers=request.headers,
@@ -252,5 +252,5 @@ async def responses_input_tokens(request: FastAPIRequest) -> FastAPIResponse:
 
     return await context.proxy(
         f"{_PATH}/input_tokens",
-        body=await _modify_generation_request(request, request_body),
+        body=await _prepare_request_body(request, request_body),
     )
