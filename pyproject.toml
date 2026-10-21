@@ -36,12 +36,12 @@ httpx = "0.28.1"
 # required by openai embeddings; avoiding openai[datalib],
 # since it also depends on pandas
 numpy = "2.3.3"
-pillow = "12.3.0"
+pillow = "13.0.0"
 azure-identity = "1.16.1"
 # The default async transport in `azure-identity` is `aiohttp`
 aiohttp = "3.14.4"
 aidial-sdk = { version = "0.45.0", extras = ["telemetry"] }
-aidial-adapter-anthropic = "0.19.1"
+aidial-adapter-anthropic = "0.20.0"
 anthropic = "0.105.0"
 jmespath = "1.1.0"
 aidial-client = "0.16.1"
