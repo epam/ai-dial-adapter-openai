@@ -31,8 +31,8 @@ RUN apk add --no-cache ca-certificates mailcap && update-ca-certificates
 
 # fix CVE-2023-52425
 RUN apk upgrade --no-cache libexpat
-# fix CVE-2026-23949
-RUN pip install setuptools==83.0.0
+# fix CVE-2026-23949 and GHSA-xmj3-9gf7-h52w
+RUN pip install setuptools==84.2.1
 # fix CVE-2026-24049
 RUN pip install wheel==0.46.2
 # pip is not needed at runtime; removing it fixes all pip CVEs, incl. those in its
