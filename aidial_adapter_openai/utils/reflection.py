@@ -5,6 +5,8 @@ from typing import Any, TypeVar
 
 from aidial_sdk.exceptions import InvalidRequestError
 
+from aidial_adapter_openai.utils.validation import ensure_dict
+
 
 @lru_cache(maxsize=64)
 def _method_signature(func: Callable[..., Any]) -> inspect.Signature:
@@ -38,7 +40,7 @@ async def call_with_extra_body(
             f"Extra arguments aren't supported: {extra_args}."
         )
 
-    arg["extra_body"] = arg.get("extra_body") or {}
+    arg["extra_body"] = ensure_dict("extra_body", arg.get("extra_body") or {})
 
     for extra_arg in extra_args:
         arg["extra_body"][extra_arg] = arg[extra_arg]

@@ -8,7 +8,7 @@ from collections.abc import Callable, Coroutine
 from functools import cached_property
 from typing import Any, Generic, TypeVar
 
-from aidial_sdk.exceptions import InternalServerError
+from aidial_sdk.exceptions import InvalidRequestError
 from tiktoken import Encoding, encoding_for_model
 from tiktoken.model import MODEL_PREFIX_TO_ENCODING
 
@@ -29,6 +29,11 @@ from aidial_adapter_openai.utils.image_tokenizer import (
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
+from aidial_adapter_openai.utils.validation import (
+    ensure_dict,
+    ensure_list,
+    ensure_str,
+)
 
 MessageType = TypeVar("MessageType")
 
@@ -135,8 +140,11 @@ class BaseTokenizer(ABC, Generic[MessageType]):
                 tokens += await self._tokenize_object(func)
 
         if original_request.get("tool_choice") != "none":
-            for tool in original_request.get("tools") or []:
-                tokens += await self._tokenize_object(tool.get("function"))
+            for tool in ensure_list(
+                "tools", original_request.get("tools") or []
+            ):
+                function = ensure_dict("tool", tool).get("function")
+                tokens += await self._tokenize_object(function)
 
         tokens += sum(
             [
@@ -180,17 +188,12 @@ async def _tokenize_message(
                 case str():
                     tokens += await tokenize_text(value)
                 case _:
-                    raise InternalServerError(
+                    raise InvalidRequestError(
                         f"Unexpected type of content in message: {type(value)}"
                     )
 
         elif key == "role":
-            if isinstance(value, str):
-                tokens += await tokenize_text(value)
-            else:
-                raise InternalServerError(
-                    f"Unexpected type of 'role' field in message: {type(value)}"
-                )
+            tokens += await tokenize_text(ensure_str("role", value))
     return tokens
 
 

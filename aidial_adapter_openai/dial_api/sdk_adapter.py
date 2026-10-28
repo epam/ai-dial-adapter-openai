@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from aidial_adapter_openai.dial_api.storage import DIAL_URL
 from aidial_adapter_openai.exceptions.handlers import dial_exception_decorator
+from aidial_adapter_openai.utils.validation import request_validation
 
 
 async def sdk_adapter(
@@ -18,11 +19,12 @@ async def sdk_adapter(
         [DIALRequest, DIALResponse], Coroutine[None, None, None]
     ],
 ) -> StreamingResponse | dict:
-    dial_request = await DIALRequest.from_request(
-        request=request,
-        deployment_id=deployment_id,
-        base_url=DIAL_URL,
-    )
+    with request_validation():
+        dial_request = await DIALRequest.from_request(
+            request=request,
+            deployment_id=deployment_id,
+            base_url=DIAL_URL,
+        )
 
     response = DIALResponse(request=dial_request)
 

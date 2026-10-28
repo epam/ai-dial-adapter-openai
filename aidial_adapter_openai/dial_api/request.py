@@ -10,6 +10,11 @@ from fastapi import Depends, Header, Request
 from pydantic import BaseModel, ValidationError
 
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.validation import (
+    MISSING,
+    ensure_dict,
+    ensure_str,
+)
 
 _T = TypeVar("_T", bound=BaseModel)
 
@@ -38,8 +43,8 @@ def collect_message_text_content(message: dict) -> str:
             text += content
         elif isinstance(content, list):
             for item in content:
-                if item.get("type") == "text":
-                    text += item["text"]
+                if ensure_dict("content part", item).get("type") == "text":
+                    text += ensure_str("text", item.get("text", MISSING))
     return text
 
 

@@ -9,6 +9,7 @@ from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.resource.base import Resource
 from aidial_adapter_openai.utils.text import truncate_string
 from aidial_adapter_openai.utils.url import download_public_file
+from aidial_adapter_openai.utils.validation import request_validation
 
 
 class ValidationError(Exception):
@@ -111,7 +112,8 @@ def parse_attachment(attachment_dict: dict) -> Attachment:
 
     This helper works around this issue.
     """
-    attachment = Attachment.model_validate(attachment_dict)
+    with request_validation("attachment"):
+        attachment = Attachment.model_validate(attachment_dict)
     if "type" not in attachment_dict:
         attachment.type = None
     return attachment

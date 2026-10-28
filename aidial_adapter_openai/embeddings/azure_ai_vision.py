@@ -44,6 +44,7 @@ from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.validation import request_validation
 
 # The latest Image Analysis API offers two models:
 # * version 2023-04-15 which supports text search in many languages,
@@ -75,7 +76,8 @@ async def embeddings(
     endpoint: str,
     file_storage: FileStorage | None,
 ) -> EmbeddingResponse:
-    body = EmbeddingsRequest.model_validate(request)
+    with request_validation():
+        body = EmbeddingsRequest.model_validate(request)
     inputs = await download_embedding_inputs(body, file_storage)
 
     headers = _get_auth_headers(creds)

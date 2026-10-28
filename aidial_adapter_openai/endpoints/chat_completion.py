@@ -85,6 +85,11 @@ from aidial_adapter_openai.utils.tokenizer import (
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
+from aidial_adapter_openai.utils.validation import (
+    MISSING,
+    ensure_dict,
+    ensure_list,
+)
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
 )
@@ -290,6 +295,11 @@ async def call_chat_completion(
 async def chat_completion(deployment_id: DeploymentId, request: Request):
     app_config = get_request_app_config(request)
     request_body = await parse_body(request)
+
+    for message in ensure_list(
+        "messages", request_body.get("messages", MISSING)
+    ):
+        ensure_dict("message", message, "role")
 
     is_stream = bool(request_body.get("stream"))
 

@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import pytest
+from aidial_sdk.exceptions import InvalidRequestError
 
 from aidial_adapter_openai.chat_completions.gpt_audio import (
     extract_audio_content,
@@ -117,6 +118,33 @@ class TestNonStreamingAudio:
             "attachments"
         ][0]
         assert attachment["type"] == expected_type
+
+    @pytest.mark.parametrize(
+        "audio,message",
+        [
+            ("mp3", "'audio' expected to be dict, but got str"),
+            ({"format": 1}, "'audio.format' expected to be str, but got int"),
+            (
+                {"format": None},
+                "'audio.format' expected to be str, but got null",
+            ),
+        ],
+        ids=["audio-not-dict", "format-not-str", "format-null"],
+    )
+    def test_invalid_audio(self, audio: object, message: str) -> None:
+        response = _make_response({"data": "test"})
+        with pytest.raises(InvalidRequestError) as e:
+            extract_audio_content(response, {"audio": audio})
+        assert e.value.message == message
+
+    def test_null_audio(self) -> None:
+        response = _make_response({"data": "test"})
+        result = extract_audio_content(response, {"audio": None})
+
+        attachment = result["choices"][0]["message"]["custom_content"][
+            "attachments"
+        ][0]
+        assert attachment["type"] == "audio/mpeg"
 
     def test_default_audio_format(self) -> None:
         """Test mp3 is used as default when format not specified."""

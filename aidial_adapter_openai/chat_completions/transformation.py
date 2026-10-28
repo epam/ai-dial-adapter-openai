@@ -1,6 +1,5 @@
 import asyncio
 from dataclasses import dataclass
-from typing import assert_never
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai.types.chat import (
@@ -32,11 +31,13 @@ from aidial_adapter_openai.utils.resource.file import FileResource
 from aidial_adapter_openai.utils.resource.image import ImageResource
 from aidial_adapter_openai.utils.text import decapitalize
 from aidial_adapter_openai.utils.validation import (
+    MISSING,
     ensure_dict,
     ensure_list,
     ensure_list_or_str,
     ensure_str,
     ensure_str_or_none,
+    invalid_value,
 )
 
 
@@ -137,9 +138,9 @@ class MessageTransformer:
     async def download_image_content_part(
         self, part: ChatCompletionContentPartImageParam
     ) -> ChatCompletionContentPartImageParam | None:
-        image_url = ensure_dict("image_url", part["image_url"])
+        image_url = ensure_dict("image_url", part.get("image_url", MISSING))
         detail = ensure_str_or_none("image_url.detail", image_url.get("detail"))
-        url = ensure_str("image_url.url", image_url.get("url"))
+        url = ensure_str("image_url.url", image_url.get("url", MISSING))
 
         dial_resource = URLResource(url=url, entity_name="image content part")
         if not (resource := await self.try_download_resource(dial_resource)):
@@ -152,9 +153,13 @@ class MessageTransformer:
     def parse_audio_content_part(
         self, part: ChatCompletionContentPartInputAudioParam
     ) -> ChatCompletionContentPartInputAudioParam:
-        input_audio = ensure_dict("input_audio", part["input_audio"])
-        data = ensure_str("input_audio.data", input_audio.get("data"))
-        fmt = ensure_str("input_audio.format", input_audio.get("format"))
+        input_audio = ensure_dict(
+            "input_audio", part.get("input_audio", MISSING)
+        )
+        data = ensure_str("input_audio.data", input_audio.get("data", MISSING))
+        fmt = ensure_str(
+            "input_audio.format", input_audio.get("format", MISSING)
+        )
         resource = Resource.from_base64(type=f"audio/{fmt}", data_base64=data)
         self.audios.append(AudioResource.from_resource(resource))
         return part
@@ -162,16 +167,21 @@ class MessageTransformer:
     async def download_content_part(
         self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
     ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart | None:
-        ensure_dict("content part", part)
+        ensure_dict("content part", part, "type")
         match part["type"]:
             case "image_url":
                 return await self.download_image_content_part(part)
             case "input_audio":
                 return self.parse_audio_content_part(part)
-            case "text" | "refusal" | "file":
-                return part
+            case "text":
+                ensure_str("text", part.get("text", MISSING))
+            case "refusal":
+                ensure_str("refusal", part.get("refusal", MISSING))
+            case "file":
+                ensure_dict("file", part.get("file", MISSING))
             case _:
-                assert_never(part)
+                raise invalid_value("content part type", part["type"])
+        return part
 
     async def download_content(
         self,

@@ -130,6 +130,13 @@ from aidial_adapter_openai.responses.response import (
     get_web_search_action_content,
 )
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.validation import (
+    MISSING,
+    ensure_dict,
+    ensure_list,
+    ensure_list_or_str,
+    invalid_value,
+)
 
 _NO_REFUSAL = "Refusal messages aren't yet supported."
 
@@ -210,26 +217,35 @@ def convert_tool_choice(
         return tool_choice
 
     if isinstance(tool_choice, dict):
+        ensure_dict("tool_choice", tool_choice, "type")
         match tool_choice["type"]:
             case "allowed_tools":
+                allowed_tools = tool_choice.get("allowed_tools", MISSING)
+                ensure_dict("allowed_tools", allowed_tools, "mode", "tools")
                 return ToolChoiceAllowedParam(
                     type="allowed_tools",
                     mode=tool_choice["allowed_tools"]["mode"],
                     tools=tool_choice["allowed_tools"]["tools"],
                 )
             case "function":
+                ensure_dict(
+                    "function", tool_choice.get("function", MISSING), "name"
+                )
                 return ToolChoiceFunctionParam(
                     type="function",
                     name=tool_choice["function"]["name"],
                 )
             case "custom":
+                ensure_dict(
+                    "custom", tool_choice.get("custom", MISSING), "name"
+                )
                 return ToolChoiceCustomParam(
                     type="custom", name=tool_choice["custom"]["name"]
                 )
             case _:
-                assert_never(tool_choice["type"])
+                raise invalid_value("tool_choice.type", tool_choice["type"])
 
-    assert_never(tool_choice)
+    raise invalid_value("tool_choice", tool_choice)
 
 
 _InputToolParam = ChatCompletionToolParam | dict
@@ -239,9 +255,12 @@ def convert_tools(tools: list[_InputToolParam]) -> list[ToolParam]:
     _allowed_static_function_names = {"web_search"}
 
     def _convert_tool(tool: _InputToolParam) -> ToolParam:
+        ensure_dict("tool", tool, "type")
         match tool["type"]:
             case "static_function":
-                static_function = tool.get("static_function")
+                static_function = ensure_dict(
+                    "static_function", tool.get("static_function") or {}
+                )
                 if not static_function:
                     raise RequestValidationError(
                         "Required field 'static_function' is empty or not found."
@@ -255,12 +274,15 @@ def convert_tools(tools: list[_InputToolParam]) -> list[ToolParam]:
                     )
                     raise RequestValidationError(msg)
 
+                configuration = static_function.get("configuration") or {}
                 return WebSearchToolParam(
                     type="web_search",
-                    **static_function.get("configuration", {}),
+                    **ensure_dict("configuration", configuration),
                 )
             case _:
-                function = tool["function"]
+                function = ensure_dict(
+                    "function", tool.get("function", MISSING), "name"
+                )
                 return FunctionToolParam(
                     type="function",
                     name=function["name"],
@@ -305,7 +327,7 @@ def _convert_fun_call_part(
             raise RequestValidationError("Audio messages aren't supported")
 
         case _:
-            assert_never(part["type"])
+            raise invalid_value("content part type", part["type"])
 
 
 def _to_output_content_param(
@@ -321,7 +343,7 @@ def _to_output_content_param(
                 type="output_text", text=part["text"], annotations=[]
             )
         case _:
-            assert_never(part["type"])
+            raise invalid_value("content part type", part["type"])
 
 
 def _to_input_content_param(
@@ -358,14 +380,21 @@ def _to_input_content_param(
             raise RequestValidationError("Audio messages aren't supported")
 
         case _:
-            assert_never(part["type"])
+            raise invalid_value("content part type", part["type"])
 
 
 def _convert_tool_call(
     tool_call: ChatCompletionMessageToolCallUnionParam,
 ) -> ResponseFunctionToolCallParam | ResponseCustomToolCallParam:
+    ensure_dict("tool_call", tool_call, "type", "id")
     match tool_call["type"]:
         case "function":
+            ensure_dict(
+                "function",
+                tool_call.get("function", MISSING),
+                "name",
+                "arguments",
+            )
             function = tool_call["function"]
             return ResponseFunctionToolCallParam(
                 type="function_call",
@@ -374,6 +403,9 @@ def _convert_tool_call(
                 arguments=function["arguments"],
             )
         case "custom":
+            ensure_dict(
+                "custom", tool_call.get("custom", MISSING), "name", "input"
+            )
             custom = tool_call["custom"]
             return ResponseCustomToolCallParam(
                 type="custom_tool_call",
@@ -382,7 +414,7 @@ def _convert_tool_call(
                 input=custom["input"],
             )
         case _:
-            assert_never(tool_call["type"])
+            raise invalid_value("tool_call.type", tool_call["type"])
 
 
 def _convert_message(
@@ -390,7 +422,9 @@ def _convert_message(
 ) -> Generator[ResponseInputItemParam, None, None]:
     match message["role"]:
         case "system" | "developer" | "user":
-            content = message["content"]
+            content = ensure_list_or_str(
+                "content", message.get("content", MISSING)
+            )
             if isinstance(content, str):
                 res_content = content
             else:
@@ -409,7 +443,9 @@ def _convert_message(
                 raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
             if tool_calls := message.get("tool_calls"):
-                yield from map(_convert_tool_call, tool_calls)
+                yield from map(
+                    _convert_tool_call, ensure_list("tool_calls", tool_calls)
+                )
 
             if (content := message.get("content")) is None:
                 return
@@ -425,7 +461,10 @@ def _convert_message(
             yield EasyInputMessageParam(role=role, content=res_content)  # type: ignore
 
         case "tool":
-            content = message["content"]
+            ensure_dict("message", message, "tool_call_id")
+            content = ensure_list_or_str(
+                "content", message.get("content", MISSING)
+            )
             if isinstance(content, str):
                 output = content
             else:
@@ -441,7 +480,7 @@ def _convert_message(
             raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
         case _:
-            assert_never(message)
+            raise invalid_value("role", message["role"])
 
 
 def convert_messages(
@@ -471,12 +510,13 @@ async def chat_completions_to_responses_request(
 
     res_tools = []
     if tools := request.get("tools"):
-        res_tools.extend(convert_tools(tools))
+        res_tools.extend(convert_tools(ensure_list("tools", tools)))
 
     if "web_search_options" in request:
-        res_tools.append(
-            {"type": "web_search", **request["web_search_options"]}
+        web_search_options = ensure_dict(
+            "web_search_options", request["web_search_options"]
         )
+        res_tools.append({"type": "web_search", **web_search_options})
 
     res_tool_choice: ToolChoice | Omit = omit
     if tool_choice := request.get("tool_choice"):

@@ -12,6 +12,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.streaming import map_stream
+from aidial_adapter_openai.utils.validation import ensure_dict, ensure_str
 
 _AUDIO_FORMAT_TO_CONTENT_TYPE = {
     "mp3": "audio/mpeg",
@@ -130,7 +131,8 @@ def extract_audio_content(response: _T, request_body: dict) -> _T:
     - Placing audio transcripts in a dedicated "Audio transcript" stage
     - Preserving the main response content
     """
-    audio_format = request_body.get("audio", {}).get("format", "mp3")
+    audio = ensure_dict("audio", request_body.get("audio") or {})
+    audio_format = ensure_str("audio.format", audio.get("format", "mp3"))
 
     if isinstance(response, dict):
         return _AudioResponseTransformer(
