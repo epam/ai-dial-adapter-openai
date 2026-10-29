@@ -14,8 +14,8 @@ from aidial_adapter_openai.utils.validation import RequestValue
 _T = TypeVar("_T", bound=BaseModel)
 
 
-def parse_configuration(cls: type[_T], request: RequestValue) -> _T | None:
-    if (cf := request.get("custom_fields")) is None:
+def parse_configuration(cls: type[_T], data: RequestValue) -> _T | None:
+    if (cf := data.get("custom_fields")) is None:
         return None
 
     if (conf := cf.get("configuration")) is None:

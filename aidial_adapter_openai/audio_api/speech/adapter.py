@@ -35,7 +35,9 @@ async def chat_completion(
             f"The deployment doesn't support request.n parameter other than 1, but got {n}."
         )
 
-    messages = request_body["messages"]
+    if not (messages := request_body["messages"]):
+        raise RequestValidationError("The request doesn't contain any messages")
+
     prompt = collect_message_text_content(messages[-1]).strip()
     prompt_tokens = await tokenizer.tokenize_text(prompt)
 

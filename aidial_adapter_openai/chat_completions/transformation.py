@@ -79,7 +79,7 @@ class MessageTransformer:
             return None
 
     async def download_attachments(
-        self, attachments: list[RequestValue]
+        self, attachments: Iterable[RequestValue]
     ) -> list[
         ChatCompletionContentPartImageParam
         | ChatCompletionContentPartInputAudioParam
@@ -187,11 +187,10 @@ class MessageTransformer:
         content = message.get("content")
         content = content.to_str_or_list() if content else ""
 
-        attachments: list[RequestValue] = []
+        attachments: RequestValue | None = None
         if custom_content := message.pop("custom_content"):
             custom_content = custom_content.copy()
-            if value := custom_content.pop("attachments"):
-                attachments = value.to_list()
+            attachments = custom_content.pop("attachments")
             if custom_content:
                 message["custom_content"] = custom_content
 
@@ -200,7 +199,7 @@ class MessageTransformer:
 
         content_parts, attachment_parts = await asyncio.gather(
             self.download_content(content),
-            self.download_attachments(attachments),
+            self.download_attachments(attachments or []),
         )
 
         return MultiModalMessage(
