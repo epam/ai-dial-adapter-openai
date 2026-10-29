@@ -5,6 +5,7 @@ from aidial_sdk.exceptions import (
 )
 
 from aidial_adapter_openai.utils.truncate_prompt import truncate_prompt
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 def _message(role: str, tokens: int) -> dict:
@@ -32,7 +33,7 @@ async def _truncate_prompt(
         LengthTokenizerStub(),
         {"per_request_tokens": per_request_tokens},
         messages,
-        lambda m: m,
+        RequestValue,
         max_prompt_tokens,
     )
 
@@ -138,7 +139,7 @@ class TestTruncatePrompt:
             tokenizer,
             {"per_request_tokens": 2},
             messages,
-            lambda m: m,
+            RequestValue,
             12,
         )
 

@@ -105,8 +105,7 @@ async def call_chat_completion(
 ) -> ChatResponse:
     # Guarding against receiving an arbitrary model identifier from the user request.
     # Replacing it with the deployment id coming from the adapter endpoint.
-    # FIX_NOW: add API to allow assignments as it was before
-    request_body.unwrap_dict()["model"] = deployment_id
+    request_body["model"] = deployment_id
 
     upstream_endpoint = get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
@@ -293,25 +292,17 @@ async def chat_completion(deployment_id: DeploymentId, request: Request):
     app_config = get_request_app_config(request)
     request_body = await parse_body(request)
 
-    # FIX_NOW: avoid preventive validation. Validation
-    # should happen at a place that really needs it.
-    for message in request_body["messages"].to_list():
-        message["role"].to_str()
-
-    # FIX_NOW: validate with a method that returns `bool | None`
-    is_stream = bool(request_body.get("stream"))
+    is_stream = bool(request_body.get_bool("stream"))
 
     emulate_streaming = (
         deployment_id in app_config.NON_STREAMING_DEPLOYMENTS and is_stream
     )
 
     if emulate_streaming:
-        # FIX_NOW: add an API for assignments
-        request_body.unwrap_dict()["stream"] = False
+        request_body["stream"] = False
 
-    if not is_stream and request_body.get("stream_options") is not None:
-        # FIX_NOW: add an API for pop
-        request_body.unwrap_dict().pop("stream_options")
+    if not is_stream:
+        request_body.pop("stream_options")
 
     api_version = get_api_version(request)
 

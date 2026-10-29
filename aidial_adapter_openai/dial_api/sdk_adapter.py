@@ -20,10 +20,10 @@ async def sdk_adapter(
         [DIALRequest, DIALResponse], Coroutine[None, None, None]
     ],
 ) -> StreamingResponse | dict:
-    # Parsed upfront to report an invalid request body with the exact path,
-    # since the DIAL SDK raises a bare pydantic error on it
-    # FIX_NOW: do we really need it? How did it work before? Indeed SDK should have
-    # report the parsing validation error and I'm fine with it.
+    # The DIAL SDK raises a bare pydantic error on an invalid request body,
+    # which surfaces as 500, hence the upfront validation reporting 400
+    # FIX_NOW: we should rather solve it by catching pydantic errors
+    # in a exception handler and convert them to 400 to cover more cases.
     RequestValue(await request.json()).to_model(ChatCompletionRequest)
 
     dial_request = await DIALRequest.from_request(

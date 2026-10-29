@@ -77,7 +77,7 @@ async def test_input_audio_converted_to_audio_url():
     result = transform_audio(general)
 
     assert len(result) == 1
-    content = result[0].raw_message["content"]
+    content = result[0].raw_message["content"].unwrap()
     assert len(content) == 2
     assert content[0] == {"type": "text", "text": "transcribe this"}
     assert content[1]["type"] == "audio_url"

@@ -101,8 +101,7 @@ async def embeddings(
     n = len(vectors)
     usage = Usage(prompt_tokens=n, total_tokens=n)
 
-    # FIX_NOW: request["model"].to_str()
-    model_name = request.unwrap_dict()["model"]
+    model_name = request["model"].to_str()
     return EmbeddingResponse(model=model_name, data=vectors, usage=usage)
 
 

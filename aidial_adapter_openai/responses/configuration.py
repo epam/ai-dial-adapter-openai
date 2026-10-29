@@ -1,5 +1,5 @@
-from openai.types.shared_params import Reasoning
-from pydantic import Field
+from openai.types.shared_params import Reasoning, ReasoningEffort
+from pydantic import BaseModel, Field
 
 from aidial_adapter_openai.dial_api.request import parse_configuration
 from aidial_adapter_openai.utils.log_config import logger
@@ -14,18 +14,19 @@ class ResponsesConfig(ExtraAllowedModel):
     )
 
 
+class _ChatCompletionReasoning(BaseModel):
+    reasoning_effort: ReasoningEffort = None
+
+
 def get_configuration(request: RequestValue) -> ResponsesConfig:
     configuration = (
         parse_configuration(ResponsesConfig, request) or ResponsesConfig()
     )
 
     if configuration.reasoning is None and (
-        reasoning_effort := request.get("reasoning_effort")
+        effort := request.to_model(_ChatCompletionReasoning).reasoning_effort
     ):
-        # FIX_NOW: here we need to throw an invalid request exception if
-        # reasoning_effort.unwrap() cannot be parsed into Reasoning.effort.
-        # Currently, it would read to just runtime error, I believe.
-        configuration.reasoning = Reasoning(effort=reasoning_effort.unwrap())
+        configuration.reasoning = Reasoning(effort=effort)
 
     logger.debug(f"configuration: {configuration.model_dump_json()}")
     return configuration

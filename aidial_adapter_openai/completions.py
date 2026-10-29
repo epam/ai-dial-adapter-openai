@@ -46,22 +46,19 @@ async def chat_completion(
     if (request.get_int("n") or 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
-    if not (messages := request["messages"].to_list()):
+    messages = request.pop("messages")
+    if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
+    # FIX_ME: replace with a helper that gets a text content (even from content parts)
     content = messages[-1].get("content")
     prompt = content.unwrap() if content else ""
 
     if prompt_template is not None:
         prompt = prompt_template.format(prompt=prompt)
 
-    raw_request = request.unwrap_dict()
-    # FIX_NOW: add API for pop
-    raw_request.pop("messages")
-    response = await call_with_extra_body(
-        client.completions.create,
-        {"prompt": prompt, **raw_request},
-    )
+    request["prompt"] = prompt
+    response = await call_with_extra_body(client.completions.create, request)
 
     if isinstance(response, AsyncStream):
         return map_stream(

@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, LiteralString, TypeVar
 
@@ -57,6 +58,12 @@ class RequestValue:
     def unwrap_dict(self) -> dict[str, Any]:
         return self._ensure(dict)
 
+    def __iter__(self) -> Iterator["RequestValue"]:
+        return iter(self.to_list())
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self._ensure(dict)[key] = value
+
     def __getitem__(self, key: int | str) -> "RequestValue":
         """A list item by index (negative counts from the end)
         or a required dict field by key."""
@@ -82,11 +89,30 @@ class RequestValue:
         value = self._ensure(dict).get(key)
         return None if value is None else self._child(key, value)
 
+    def pop(self, key: str) -> "RequestValue | None":
+        """Removes an optional dict field: None when it's missing or null."""
+        value = self._ensure(dict).pop(key, None)
+        return None if value is None else self._child(key, value)
+
+    def copy(self) -> "RequestValue":
+        """A shallow copy of a dict value."""
+        return RequestValue(self._ensure(dict).copy(), self.path)
+
     def get_str(self, key: str) -> str | None:
         return None if (value := self.get(key)) is None else value.to_str()
 
     def get_int(self, key: str) -> int | None:
         return None if (value := self.get(key)) is None else value.to_int()
+
+    def get_float(self, key: str) -> float | None:
+        return None if (value := self.get(key)) is None else value.to_float()
+
+    def get_bool(self, key: str) -> bool | None:
+        return None if (value := self.get(key)) is None else value.to_bool()
+
+    def get_dict(self, key: str) -> dict[str, Any] | None:
+        """An optional dict field as is."""
+        return None if (value := self.get(key)) is None else value.unwrap_dict()
 
     def to_list(self) -> list["RequestValue"]:
         return [self._child(i, v) for i, v in enumerate(self._ensure(list))]
@@ -99,6 +125,12 @@ class RequestValue:
 
     def to_int(self) -> int:
         return self._ensure(int)
+
+    def to_float(self) -> float:
+        return self._ensure((int, float))
+
+    def to_bool(self) -> bool:
+        return self._ensure(bool)
 
     def to_str_or_list(self) -> str | list["RequestValue"]:
         value = self._ensure((str, list))

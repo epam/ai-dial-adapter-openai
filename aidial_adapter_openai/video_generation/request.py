@@ -35,8 +35,7 @@ def validate_request(request: RequestValue) -> None:
     if not (messages := request.get("messages")):
         errors.append("The request doesn't contain any messages.")
 
-    # FIX_NOW: add API to enable iteration `for message in messages` without the need to call .to_list
-    for message in messages.to_list() if messages else []:
+    for message in messages or []:
         if message.get("role") in ("system", "developer"):
             errors.append("System and developer messages aren't supported")
             break

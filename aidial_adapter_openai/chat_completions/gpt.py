@@ -54,9 +54,7 @@ async def truncate_gpt_prompt(
         is_system_message=lambda message: message.raw_message["role"]
         == "system",
         max_prompt_tokens=max_prompt_tokens,
-        initial_prompt_tokens=await tokenizer.tokenize_request(
-            request.unwrap_dict(), []
-        ),
+        initial_prompt_tokens=await tokenizer.tokenize_request(request, []),
     )
 
 
@@ -73,11 +71,10 @@ async def chat_completion(
     n = request.get_int("n") or 1
     model_name = request["model"].to_str()
 
-    raw_request = request.unwrap_dict()
     # Computed upfront: the path must address the request body
     # as DIAL Core has sent it, before the truncation reindexes messages.
     breakpoint_path = get_chat_completions_breakpoint_path(
-        cast(CompletionCreateParamsBase, raw_request)
+        cast(CompletionCreateParamsBase, request.unwrap_dict())
     )
 
     max_prompt_tokens = extract_max_prompt_tokens(request)
@@ -111,21 +108,21 @@ async def chat_completion(
 
         async def get_prompt_tokens() -> int:
             prompt_tokens = await tokenizer.tokenize_request(
-                raw_request, multi_modal_messages
+                request, multi_modal_messages
             )
             logger.debug(f"estimated prompt tokens: {prompt_tokens}")
             return prompt_tokens
 
-    raw_request["messages"] = [m.raw_message for m in multi_modal_messages]
+    request["messages"] = [m.raw_message.unwrap() for m in multi_modal_messages]
 
     # The upstream-specific rewrites go last, once the request is final
     vendor_adapter.transform_chat_completions_request(
-        cast(ChatCompletionRequest, raw_request)
+        cast(ChatCompletionRequest, request.unwrap_dict())
     )
 
     response: (
         AsyncStream[ChatCompletionChunk] | ChatCompletion
-    ) = await call_with_extra_body(client.chat.completions.create, raw_request)
+    ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
         response_headers = await build_cache_headers(

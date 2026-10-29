@@ -29,7 +29,7 @@ def _user(content: object) -> dict:
             "'messages' expected to be list, but got null",
         ),
         (
-            _GPT,
+            _RESPONSES,
             {"messages": [{"content": "2+3=?"}]},
             "Missing required parameter: 'messages[0].role'",
         ),
@@ -45,10 +45,10 @@ def _user(content: object) -> dict:
             "'messages[0].role' expected to be str, but got null",
         ),
         (
-            _GPT,
+            _RESPONSES,
             {"messages": [_user([{"type": "video_url"}])]},
             "Invalid value of 'messages[0].content[0].type': 'video_url'. "
-            "Supported values: 'image_url', 'input_audio', 'text', 'refusal', 'file'",
+            "Supported values: 'text', 'image_url', 'file', 'input_audio'",
         ),
         (
             _GPT,
@@ -57,12 +57,18 @@ def _user(content: object) -> dict:
         ),
         (
             _GPT,
-            {"messages": [_user([{"type": "text"}])]},
+            {
+                "messages": [_user([{"type": "text"}])],
+                "max_prompt_tokens": 100,
+            },
             "Missing required parameter: 'messages[0].content[0].text'",
         ),
         (
             _GPT,
-            {"messages": [_user([{"type": "text", "text": None}])]},
+            {
+                "messages": [_user([{"type": "text", "text": None}])],
+                "max_prompt_tokens": 100,
+            },
             "'messages[0].content[0].text' expected to be str, but got null",
         ),
         (
@@ -152,6 +158,12 @@ def _user(content: object) -> dict:
             {"messages": [_user("2+3=?")], "extra_body": "x", "foo": 1},
             "'extra_body' expected to be dict, but got str",
         ),
+        (
+            _RESPONSES,
+            {"messages": [_user("2+3=?")], "reasoning_effort": "huge"},
+            "Invalid request. Path: 'reasoning_effort', error: Input should be "
+            "'none', 'minimal', 'low', 'medium', 'high', 'xhigh' or 'max'",
+        ),
     ],
     ids=[
         "no-messages",
@@ -172,6 +184,7 @@ def _user(content: object) -> dict:
         "static-function-not-dict",
         "static-function-configuration-not-dict",
         "extra-body-not-dict",
+        "unknown-reasoning-effort",
     ],
 )
 @respx.mock

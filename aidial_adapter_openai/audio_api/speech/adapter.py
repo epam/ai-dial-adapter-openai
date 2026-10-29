@@ -11,6 +11,7 @@ from aidial_adapter_openai.audio_api.speech.configuration import Configuration
 from aidial_adapter_openai.dial_api.attachment import create_dial_attachment
 from aidial_adapter_openai.dial_api.request import (
     collect_message_text_content,
+    collect_system_messages,
     parse_configuration,
 )
 from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
@@ -18,14 +19,6 @@ from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import generate_created, generate_id
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
 from aidial_adapter_openai.utils.validation import RequestValue
-
-
-def _collect_system_messages(messages: list[RequestValue]) -> str | None:
-    ret = ""
-    for message in messages:
-        if message.get("role") in ("system", "developer"):
-            ret += collect_message_text_content(message)
-    return ret.strip() or None
 
 
 async def chat_completion(
@@ -50,7 +43,7 @@ async def chat_completion(
 
     config = parse_configuration(Configuration, request_body) or Configuration()
 
-    if system_message := _collect_system_messages(messages):
+    if system_message := collect_system_messages(messages):
         config.instructions = (
             system_message + "\n" + (config.instructions or "")
         ).strip() or None

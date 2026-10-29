@@ -24,11 +24,10 @@ def _inspect_signature(
 T = TypeVar("T")
 
 
-# FIX_NOW: let's the method deal with RequestValue from the get-go:
-# func: Callable[..., Awaitable[T]], arg: RequestValue
 async def call_with_extra_body(
-    func: Callable[..., Awaitable[T]], arg: dict
+    func: Callable[..., Awaitable[T]], request: RequestValue
 ) -> T:
+    arg = request.unwrap_dict()
     if has_kwargs_argument(func):
         return await func(**arg)
 
@@ -42,13 +41,10 @@ async def call_with_extra_body(
             f"Extra arguments aren't supported: {extra_args}."
         )
 
-    # FIX_NOW: extremely convoluted; think about simplifying
-    extra_body = RequestValue(arg).get("extra_body")
-    arg["extra_body"] = extra_body.unwrap_dict() if extra_body else {}
-
+    extra_body = request.get_dict("extra_body") or {}
     for extra_arg in extra_args:
-        arg["extra_body"][extra_arg] = arg[extra_arg]
-        del arg[extra_arg]
+        extra_body[extra_arg] = arg.pop(extra_arg)
+    arg["extra_body"] = extra_body
 
     return await func(**arg)
 

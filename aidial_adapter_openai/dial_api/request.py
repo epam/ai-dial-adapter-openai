@@ -38,15 +38,20 @@ def collect_message_text_content(message: RequestValue) -> str:
             )
 
 
+def collect_system_messages(messages: list[RequestValue]) -> str | None:
+    ret = ""
+    for message in messages:
+        if message.get("role") in ("system", "developer"):
+            ret += collect_message_text_content(message)
+    return ret.strip() or None
+
+
 def extract_max_prompt_tokens(request: RequestValue) -> int | None:
-    # FIX_NOW: add .pop method to request to make the code as closely looking as
-    # the original version
-    raw_request = request.unwrap_dict()
-    if (
-        max_prompt_tokens := raw_request.pop("max_prompt_tokens", None)
-    ) is None:
+    # FIX_NOW: add pop_int method
+    if (value := request.pop("max_prompt_tokens")) is None:
         return None
 
+    max_prompt_tokens = value.unwrap()
     if not isinstance(max_prompt_tokens, int):
         raise InvalidRequestError(
             f"'{max_prompt_tokens}' is not of type 'integer'",

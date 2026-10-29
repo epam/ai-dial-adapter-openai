@@ -47,7 +47,7 @@ async def _transform_messages(
 async def transform_vllm_messages(
     messages: list[RequestValue],
     file_storage: FileStorage | None,
-) -> list[dict]:
+) -> list[RequestValue]:
     """Apply the DIAL-to-OpenAI multimodal transformation expected by vLLM."""
     return [
         m.raw_message for m in await _transform_messages(messages, file_storage)
@@ -60,7 +60,7 @@ async def truncate_vllm_prompt(
     file_storage: FileStorage | None,
     max_prompt_tokens: int,
     tokenizer: VllmTokenizer,
-) -> tuple[list[dict], DiscardedMessages, TruncatedTokens]:
+) -> tuple[list[RequestValue], DiscardedMessages, TruncatedTokens]:
     transformed = await transform_vllm_messages(
         request["messages"].to_list(), file_storage
     )
@@ -104,22 +104,17 @@ async def chat_completion(
         )
         discarded_messages = None
 
-    # FIX_NOW: It's too early to unwrap the dict here - you should do it
-    # only when the body is passed to `call_with_extra_body`
-    raw_request = request.unwrap_dict()
-    raw_request["messages"] = messages
+    request["messages"] = [m.unwrap() for m in messages]
 
     # vLLM includes usage in stream mode only if stream_options.include_usage=true.
-    if raw_request.get("stream"):
-        stream_options = raw_request.get("stream_options")
-        if not isinstance(stream_options, dict):
-            stream_options = {}
+    if request.get_bool("stream"):
+        stream_options = request.get_dict("stream_options") or {}
         stream_options["include_usage"] = True
-        raw_request["stream_options"] = stream_options
+        request["stream_options"] = stream_options
 
     response: (
         AsyncStream[ChatCompletionChunk] | ChatCompletion
-    ) = await call_with_extra_body(client.chat.completions.create, raw_request)
+    ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
         body = add_statistics_to_response(

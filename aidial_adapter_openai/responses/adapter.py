@@ -113,19 +113,18 @@ async def _truncate_prompt(
         case _:
             assert_never(vendor)
 
-    raw_request = request.unwrap_dict()
     (
         messages,
         discarded_messages,
         prompt_tokens,
     ) = await truncate_prompt(
         tokenizer=tokenizer,
-        original_request=raw_request,
-        messages=raw_request["messages"],
+        original_request=request.unwrap_dict(),
+        messages=request["messages"].to_list(),
         get_raw_message=lambda m: m,
         max_prompt_tokens=max_prompt_tokens,
     )
-    raw_request["messages"] = messages
+    request["messages"] = [m.unwrap() for m in messages]
     logger.debug(
         f"Responses estimated prompt tokens after truncation: {prompt_tokens}, "
         f"discarded messages indices: {discarded_messages}"

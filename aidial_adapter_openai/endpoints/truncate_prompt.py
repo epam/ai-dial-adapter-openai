@@ -81,7 +81,7 @@ class _RequestTokenizerTruncator:
     tokenizer: RequestTokenizer
 
     async def tokenize(self, request: dict) -> int:
-        return await self.tokenizer.tokenize_raw_request(request)
+        return await self.tokenizer.tokenize_raw_request(RequestValue(request))
 
     async def truncate(
         self, max_prompt_tokens: int, request: ChatCompletionRequest
@@ -91,7 +91,7 @@ class _RequestTokenizerTruncator:
             tokenizer=self,
             original_request=request_dict,
             messages=request_dict["messages"],
-            get_raw_message=lambda m: m,
+            get_raw_message=RequestValue,
             max_prompt_tokens=max_prompt_tokens,
         )
         return discarded

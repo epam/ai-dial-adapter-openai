@@ -1,6 +1,5 @@
 import asyncio
 from dataclasses import dataclass
-from typing import assert_never
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai.types.chat import (
@@ -157,25 +156,13 @@ class MessageTransformer:
     async def download_content_part(
         self, part: RequestValue
     ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart | None:
-        # FIX_NOW: (1) no need to validate for the literal - only the string
-        # (2) do enough only to distinguish "image_url" from "input_audio" and let
-        # the other cases remain unchanged
-        part_type = part["type"].to_literal(
-            "image_url", "input_audio", "text", "refusal", "file"
-        )
-        match part_type:
+        match part["type"].to_str():
             case "image_url":
                 return await self.download_image_content_part(part)
             case "input_audio":
                 return self.parse_audio_content_part(part)
-            case "text":
-                # The tokenizer counts the tokens of the text
-                part["text"].to_str()
-            case "refusal" | "file":
-                pass
             case _:
-                assert_never(part_type)
-        return part.unwrap()
+                return part.unwrap()
 
     async def download_content(
         self, content: str | list[RequestValue]
@@ -194,38 +181,33 @@ class MessageTransformer:
     async def transform_message(
         self, message: RequestValue
     ) -> MultiModalMessage:
-        # FIX_NOW: (1) add RequestValue.copy() (2) make sure that there is no this raw_messages/message distinction - this the original code, it should be mush simpler.
-        raw_message = message.unwrap_dict().copy()
+        message = message.copy()
+
         content = message.get("content")
-        content = "" if content is None else content.to_str_or_list()
+        content = content.to_str_or_list() if content else ""
 
         attachments: list[RequestValue] = []
-        raw_message.pop("custom_content", None)
-        if (custom_content := message.get("custom_content")) is not None:
-            if (value := custom_content.get("attachments")) is not None:
-                logger.debug(f"original attachments: {value}")
+        if custom_content := message.pop("custom_content"):
+            custom_content = custom_content.copy()
+            if value := custom_content.pop("attachments"):
                 attachments = value.to_list()
-            rest = custom_content.unwrap_dict().copy()
-            rest.pop("attachments", None)
-            if rest:
-                raw_message["custom_content"] = rest
+            if custom_content:
+                message["custom_content"] = custom_content.unwrap()
 
         if isinstance(content, str) and not attachments:
-            return MultiModalMessage(raw_message=raw_message)
+            return MultiModalMessage(raw_message=message)
 
         content_parts, attachment_parts = await asyncio.gather(
             self.download_content(content),
             self.download_attachments(attachments),
         )
+        message["content"] = content_parts + attachment_parts
 
         return MultiModalMessage(
             images=self.images,
             files=self.files,
             audios=self.audios,
-            raw_message={
-                **raw_message,
-                "content": content_parts + attachment_parts,
-            },
+            raw_message=message,
         )
 
 

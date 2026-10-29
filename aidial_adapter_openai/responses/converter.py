@@ -244,10 +244,9 @@ def convert_tools(tools: RequestValue) -> list[ToolParam]:
                     )
                     raise RequestValidationError(msg)
 
-                configuration = static_function.get("configuration")
                 return WebSearchToolParam(
                     type="web_search",
-                    **(configuration.unwrap_dict() if configuration else {}),
+                    **(static_function.get_dict("configuration") or {}),
                 )
             case _:
                 function = tool["function"]
@@ -260,7 +259,7 @@ def convert_tools(tools: RequestValue) -> list[ToolParam]:
                     description=raw_function.get("description"),
                 )
 
-    return [_convert_tool(tool) for tool in tools.to_list()]
+    return [_convert_tool(tool) for tool in tools]
 
 
 def _convert_fun_call_part(
@@ -411,7 +410,7 @@ def _convert_message(
                 raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
             if (tool_calls := message.get("tool_calls")) is not None:
-                yield from map(_convert_tool_call, tool_calls.to_list())
+                yield from map(_convert_tool_call, tool_calls)
 
             if (content := message.get("content")) is None:
                 return
@@ -454,54 +453,38 @@ def convert_messages(messages: list[RequestValue]) -> ResponseInputParam:
 async def chat_completions_to_responses_request(
     request: RequestValue, file_storage: FileStorage | None
 ) -> tuple[_TokenizeResponsesRequest, _CreateResponsesRequest]:
-    raw_request = request.unwrap_dict()
     is_stream = bool(request.get("stream"))
-    # FIX_NOW: request["model"].to_str()
-    model_name = raw_request["model"]
-    messages = request["messages"].to_list()
+    model_name = request["model"].to_str()
 
     transformed_messages = await ResourceProcessor(
         file_storage=file_storage,
-    ).transform_messages(messages)
+    ).transform_messages(request["messages"].to_list())
 
-    # The transformation keeps the order of messages,
-    # so the transformed ones keep the paths of the original ones
     input_messages = convert_messages(
-        [
-            RequestValue(transformed.raw_message, message.path)
-            for transformed, message in zip(
-                transformed_messages, messages, strict=True
-            )
-        ]
+        [message.raw_message for message in transformed_messages]
     )
 
     res_tools = []
     if tools := request.get("tools"):
         res_tools.extend(convert_tools(tools))
 
-    if (web_search_options := request.get("web_search_options")) is not None:
-        res_tools.append(
-            {"type": "web_search", **web_search_options.unwrap_dict()}
-        )
+    if (
+        web_search_options := request.get_dict("web_search_options")
+    ) is not None:
+        res_tools.append({"type": "web_search", **web_search_options})
 
     res_tool_choice: ToolChoice | Omit = omit
     if tool_choice := request.get("tool_choice"):
         res_tool_choice = convert_tool_choice(tool_choice)
 
-    # FIX_NOW: use request
     max_output_tokens = (
-        raw_request.get("max_tokens")
-        or raw_request.get("max_completion_tokens")
+        request.get_int("max_tokens")
+        or request.get_int("max_completion_tokens")
         or omit
     )
 
     configuration = get_configuration(request)
-    # FIX_NOW: use request
-    parallel_tool_calls = (
-        raw_request["parallel_tool_calls"]
-        if raw_request.get("parallel_tool_calls") is not None
-        else omit
-    )
+    parallel_tool_calls = request.get_bool("parallel_tool_calls")
 
     text: ResponseTextConfigParam | Omit = omit
     if response_format := request.get("response_format"):
@@ -514,15 +497,16 @@ async def chat_completions_to_responses_request(
         "input": input_messages,
         "tools": res_tools or omit,
         "tool_choice": res_tool_choice,
-        "parallel_tool_calls": parallel_tool_calls,
+        "parallel_tool_calls": (
+            omit if parallel_tool_calls is None else parallel_tool_calls
+        ),
         "text": text,
     }
     create_request: _CreateResponsesRequest = {
         **tokenize_request,
         "stream": is_stream,
-        # FIX_NOW: use request
-        "top_p": raw_request.get("top_p") or omit,
-        "temperature": raw_request.get("temperature") or omit,
+        "top_p": request.get_float("top_p") or omit,
+        "temperature": request.get_float("temperature") or omit,
         "max_output_tokens": max_output_tokens,
         "reasoning": configuration.reasoning or omit,
     }

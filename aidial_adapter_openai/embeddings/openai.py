@@ -18,6 +18,4 @@ async def embeddings(
         {**creds, "api_version": api_version, "headers": headers or {}}
     )
 
-    return await call_with_extra_body(
-        client.embeddings.create, request.unwrap_dict()
-    )
+    return await call_with_extra_body(client.embeddings.create, request)

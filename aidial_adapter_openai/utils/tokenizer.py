@@ -8,7 +8,6 @@ from collections.abc import Callable, Coroutine
 from functools import cached_property
 from typing import Any, Generic, TypeVar
 
-from aidial_sdk.exceptions import InvalidRequestError
 from tiktoken import Encoding, encoding_for_model
 from tiktoken.model import MODEL_PREFIX_TO_ENCODING
 
@@ -126,22 +125,17 @@ class BaseTokenizer(ABC, Generic[MessageType]):
             return -1
         return 1
 
-    # FIX_NOW: the method should deal with the RequestValue from the get-go
-    # async def tokenize_request(
-    #     self, original_request: RequestValue, messages: list[MessageType]
-    # ) -> int:
     async def tokenize_request(
-        self, original_request: dict, messages: list[MessageType]
+        self, original_request: RequestValue, messages: list[MessageType]
     ) -> int:
         tokens = self.TOKENS_PER_REQUEST
 
         if original_request.get("function_call") != "none":
             for func in original_request.get("function") or []:
-                tokens += await self._tokenize_object(func)
+                tokens += await self._tokenize_object(func.unwrap())
 
-        tools = RequestValue(original_request).get("tools")
-        if tools is not None and original_request.get("tool_choice") != "none":
-            for tool in tools.to_list():
+        if original_request.get("tool_choice") != "none":
+            for tool in original_request.get("tools") or []:
                 function = tool.unwrap_dict().get("function")
                 tokens += await self._tokenize_object(function)
 
@@ -160,40 +154,34 @@ class BaseTokenizer(ABC, Generic[MessageType]):
 
 
 async def _tokenize_message(
-    message: dict,
+    message: RequestValue,
     tokens_per_name: int,
     tokenize_text: Callable[[str], Coroutine[None, None, int]],
     tokenize_multi_modal_content_part: Callable[
-        [Any], Coroutine[None, None, int]
+        [RequestValue], Coroutine[None, None, int]
     ],
 ) -> int:
     tokens = 0
-    for key, value in message.items():
+    for key, value in message.to_dict().items():
         if key == "name":
             tokens += tokens_per_name
 
-        elif key == "content":
-            match value:
-                case None:
-                    pass
-                case list():
-                    for content_part in value:
+        elif key == "content" and value.unwrap() is not None:
+            match value.to_str_or_list():
+                case str() as text:
+                    tokens += await tokenize_text(text)
+                case content_parts:
+                    for content_part in content_parts:
                         if content_part["type"] == "text":
-                            tokens += await tokenize_text(content_part["text"])
+                            text = content_part["text"].to_str()
+                            tokens += await tokenize_text(text)
                         else:
                             tokens += await tokenize_multi_modal_content_part(
                                 content_part
                             )
-                case str():
-                    tokens += await tokenize_text(value)
-                case _:
-                    raise InvalidRequestError(
-                        f"Unexpected type of content in message: {type(value)}"
-                    )
 
         elif key == "role":
-            # The chat completion endpoint has validated the role
-            tokens += await tokenize_text(value)
+            tokens += await tokenize_text(value.to_str())
     return tokens
 
 
@@ -208,8 +196,10 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
         self.image_tokenizer = image_tokenizer
         self.warnings = set()
 
-    async def _on_multi_modal_content_part(self, content_part: dict) -> int:
-        ty = content_part.get("type")
+    async def _on_multi_modal_content_part(
+        self, content_part: RequestValue
+    ) -> int:
+        ty = content_part["type"].unwrap()
         if ty == "image_url" and self.image_tokenizer is None:
             env_vars = " or ".join(IMAGE_SUPPORTING_DEPLOYMENTS)
             self.warnings.add(
@@ -248,7 +238,7 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
         return tokens
 
     async def tokenize_request(
-        self, original_request: dict, messages: list[MultiModalMessage]
+        self, original_request: RequestValue, messages: list[MultiModalMessage]
     ) -> int:
         tokens = await super().tokenize_request(original_request, messages)
 

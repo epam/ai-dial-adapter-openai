@@ -28,9 +28,7 @@ class ImageGenPrompt(BaseModel):
         images: list[Resource] = []
 
         for message in result:
-            text_prompt += collect_message_text_content(
-                RequestValue(message.raw_message)
-            )
+            text_prompt += collect_message_text_content(message.raw_message)
 
             for image in message.images:
                 images.append(image.image)

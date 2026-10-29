@@ -14,9 +14,7 @@ async def chat_completion(
 ) -> AsyncIterator[dict] | dict:
     response: (
         AsyncStream[ChatCompletionChunk] | ChatCompletion
-    ) = await call_with_extra_body(
-        client.chat.completions.create, request.unwrap_dict()
-    )
+    ) = await call_with_extra_body(client.chat.completions.create, request)
 
     if isinstance(response, AsyncStream):
         return map_stream(chunk_to_dict, response)

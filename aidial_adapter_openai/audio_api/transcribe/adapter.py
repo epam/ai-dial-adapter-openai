@@ -126,8 +126,7 @@ async def chat_completion(
         model=deployment_id,
         stream=is_stream,
         response_format=response_format,
-        # FIX_NOW: temperature = request_body.get_float("temperature", omit)
-        temperature=request_body.unwrap_dict().get("temperature") or omit,
+        temperature=request_body.get_float("temperature") or omit,
         **extra_body,
     )
 
