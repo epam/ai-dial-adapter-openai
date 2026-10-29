@@ -5,12 +5,14 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types import Completion
 
+from aidial_adapter_openai.dial_api.request import collect_message_text_content
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     build_chunk,
     debug_print,
     map_stream,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 def sanitize_text(text: str) -> str:
@@ -38,25 +40,25 @@ def convert_to_chat_completions_response(
 
 async def chat_completion(
     *,
-    request: dict[str, Any],
+    request: RequestValue,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     prompt_template: str | None,
 ) -> AsyncIterator[dict] | dict:
-    if (request.get("n") or 1) > 1:
+    if (request.get_int("n") or 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
     messages = request.pop("messages")
     if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
-    prompt = messages[-1].get("content") or ""
+    prompt = collect_message_text_content(messages[-1])
 
     if prompt_template is not None:
         prompt = prompt_template.format(prompt=prompt)
 
     response = await call_with_extra_body(
         client.completions.create,
-        {"prompt": prompt, **request},
+        request.update(prompt=prompt),
     )
 
     if isinstance(response, AsyncStream):

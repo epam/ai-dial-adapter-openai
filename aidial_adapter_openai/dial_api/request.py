@@ -1,57 +1,53 @@
-from collections.abc import Mapping
-from typing import Annotated, Any, TypeVar
+from collections.abc import Iterable, Mapping
+from typing import Annotated, TypeVar
 
 from aidial_sdk.exceptions import (
     InternalServerError,
     InvalidRequestError,
-    RequestValidationError,
 )
 from fastapi import Depends, Header, Request
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.validation import RequestValue
 
 _T = TypeVar("_T", bound=BaseModel)
 
 
-def parse_configuration(cls: type[_T], data: Any) -> _T | None:
+def parse_configuration(cls: type[_T], data: RequestValue) -> _T | None:
     if (cf := data.get("custom_fields")) is None:
         return None
 
     if (conf := cf.get("configuration")) is None:
         return None
 
-    try:
-        return cls.model_validate(conf)
-    except ValidationError as e:
-        error = e.errors()[0]
-        path = ".".join(map(str, error["loc"]))
-        msg = f"Invalid request. Path: 'custom_field.configuration.{path}', error: {error['msg']}"
-
-        raise RequestValidationError(msg)
+    return conf.to_model(cls)
 
 
-def collect_message_text_content(message: dict) -> str:
+def collect_message_text_content(message: RequestValue) -> str:
     text = ""
     if content := message.get("content"):
+        content = content.to_str_or_list()
         if isinstance(content, str):
             text += content
-        elif isinstance(content, list):
+        else:
             for item in content:
                 if item.get("type") == "text":
-                    text += item["text"]
+                    text += item["text"].to_str()
     return text
 
 
-def extract_max_prompt_tokens(request: dict) -> int | None:
-    if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
-        return None
+def collect_system_messages(messages: Iterable[RequestValue]) -> str | None:
+    ret = ""
+    for message in messages:
+        if message.get("role") in ("system", "developer"):
+            ret += collect_message_text_content(message)
+    return ret.strip() or None
 
-    if not isinstance(max_prompt_tokens, int):
-        raise InvalidRequestError(
-            f"'{max_prompt_tokens}' is not of type 'integer'",
-            param="max_prompt_tokens",
-        )
+
+def extract_max_prompt_tokens(request: RequestValue) -> int | None:
+    if (max_prompt_tokens := request.pop_int("max_prompt_tokens")) is None:
+        return None
 
     if max_prompt_tokens < 1:
         raise InvalidRequestError(

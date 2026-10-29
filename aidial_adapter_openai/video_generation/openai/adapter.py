@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 from collections.abc import Callable
-from typing import Any, assert_never
+from typing import assert_never
 
 import fastapi
 from aidial_sdk.chat_completion import Choice, Stage
@@ -18,6 +18,7 @@ from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.timer import Timer
+from aidial_adapter_openai.utils.validation import RequestValue
 from aidial_adapter_openai.video_generation.openai.configuration import (
     VideoGenerationConfig,
 )
@@ -25,7 +26,7 @@ from aidial_adapter_openai.video_generation.openai.prompt import VideoGenPrompt
 from aidial_adapter_openai.video_generation.request import validate_request
 
 
-def _parse_configuration(request: dict) -> VideoGenerationConfig:
+def _parse_configuration(request: RequestValue) -> VideoGenerationConfig:
     configuration = (
         parse_configuration(VideoGenerationConfig, request)
         or VideoGenerationConfig()
@@ -127,7 +128,7 @@ def _timed_stage(stage: Stage):
 async def chat_completion(
     *,
     request: fastapi.Request,
-    request_body: dict[str, Any],
+    request_body: RequestValue,
     client: AsyncOpenAI,
     deployment_id: str,
     file_storage: FileStorage | None,

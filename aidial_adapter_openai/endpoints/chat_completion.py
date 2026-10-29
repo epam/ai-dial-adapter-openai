@@ -85,6 +85,7 @@ from aidial_adapter_openai.utils.tokenizer import (
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
 )
@@ -98,7 +99,7 @@ async def call_chat_completion(
     app_config: ApplicationConfig,
     deployment_id: str,
     request: fastapi.Request,
-    request_body: dict,
+    request_body: RequestValue,
     request_headers: Mapping[str, str],
     api_version: str | None,
 ) -> ChatResponse:
@@ -291,7 +292,7 @@ async def chat_completion(deployment_id: DeploymentId, request: Request):
     app_config = get_request_app_config(request)
     request_body = await parse_body(request)
 
-    is_stream = bool(request_body.get("stream"))
+    is_stream = bool(request_body.get_bool("stream"))
 
     emulate_streaming = (
         deployment_id in app_config.NON_STREAMING_DEPLOYMENTS and is_stream

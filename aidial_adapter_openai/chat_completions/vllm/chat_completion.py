@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
@@ -31,10 +31,11 @@ from aidial_adapter_openai.utils.truncation_types import (
     DiscardedMessages,
     TruncatedTokens,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 async def _transform_messages(
-    messages: list[dict],
+    messages: Iterable[RequestValue],
     file_storage: FileStorage | None,
 ) -> list[MultiModalMessage]:
     multi_modal_messages = await ResourceProcessor(
@@ -44,9 +45,9 @@ async def _transform_messages(
 
 
 async def transform_vllm_messages(
-    messages: list[dict],
+    messages: Iterable[RequestValue],
     file_storage: FileStorage | None,
-) -> list[dict]:
+) -> list[RequestValue]:
     """Apply the DIAL-to-OpenAI multimodal transformation expected by vLLM."""
     return [
         m.raw_message for m in await _transform_messages(messages, file_storage)
@@ -55,11 +56,11 @@ async def transform_vllm_messages(
 
 async def truncate_vllm_prompt(
     *,
-    request: dict,
+    request: RequestValue,
     file_storage: FileStorage | None,
     max_prompt_tokens: int,
     tokenizer: VllmTokenizer,
-) -> tuple[list[dict], DiscardedMessages, TruncatedTokens]:
+) -> tuple[list[RequestValue], DiscardedMessages, TruncatedTokens]:
     transformed = await transform_vllm_messages(
         request["messages"], file_storage
     )
@@ -74,7 +75,7 @@ async def truncate_vllm_prompt(
 
 async def chat_completion(
     *,
-    request: dict,
+    request: RequestValue,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
     tokenizer: VllmTokenizer,
@@ -106,10 +107,8 @@ async def chat_completion(
     request["messages"] = messages
 
     # vLLM includes usage in stream mode only if stream_options.include_usage=true.
-    if request.get("stream"):
-        stream_options = request.get("stream_options")
-        if not isinstance(stream_options, dict):
-            stream_options = {}
+    if request.get_bool("stream"):
+        stream_options = request.get_dict("stream_options") or {}
         stream_options["include_usage"] = True
         request["stream_options"] = stream_options
 

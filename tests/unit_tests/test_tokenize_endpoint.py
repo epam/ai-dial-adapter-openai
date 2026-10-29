@@ -386,7 +386,7 @@ async def test_tokenize_forwards_proxied_headers(
 
 
 @pytest.mark.asyncio
-async def test_tokenize_invalid_inputs_raises_422(
+async def test_tokenize_invalid_inputs_raises_400(
     vllm_client: httpx.AsyncClient,
 ):
     response = await vllm_client.post(
@@ -397,11 +397,11 @@ async def test_tokenize_invalid_inputs_raises_422(
         ),
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_tokenize_invalid_input_type_returns_422(
+async def test_tokenize_invalid_input_type_returns_400(
     vllm_client: httpx.AsyncClient,
 ):
     response = await vllm_client.post(
@@ -412,7 +412,7 @@ async def test_tokenize_invalid_input_type_returns_422(
         ),
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 @respx.mock

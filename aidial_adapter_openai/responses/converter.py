@@ -8,19 +8,11 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai import Omit, omit
 from openai.types.chat import (
     ChatCompletion,
-    ChatCompletionContentPartParam,
     ChatCompletionMessage,
-    ChatCompletionMessageParam,
     ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallUnion,
-    ChatCompletionMessageToolCallUnionParam,
-    ChatCompletionToolChoiceOptionParam,
-    ChatCompletionToolParam,
 )
 from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_assistant_message_param import (
-    ContentArrayOfContentPart,
-)
 from openai.types.chat.chat_completion_message import (
     Annotation,
     AnnotationURLCitation,
@@ -130,6 +122,7 @@ from aidial_adapter_openai.responses.response import (
     get_web_search_action_content,
 )
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.validation import RequestValue
 
 _NO_REFUSAL = "Refusal messages aren't yet supported."
 
@@ -203,43 +196,39 @@ def parse_response_url_citation(
         return None
 
 
-def convert_tool_choice(
-    tool_choice: ChatCompletionToolChoiceOptionParam,
-) -> ToolChoice:
-    if isinstance(tool_choice, str):
-        return tool_choice
+def convert_tool_choice(tool_choice: RequestValue) -> ToolChoice:
+    if isinstance(tool_choice.unwrap(), str):
+        return tool_choice.unwrap()
 
-    if isinstance(tool_choice, dict):
-        match tool_choice["type"]:
-            case "allowed_tools":
-                return ToolChoiceAllowedParam(
-                    type="allowed_tools",
-                    mode=tool_choice["allowed_tools"]["mode"],
-                    tools=tool_choice["allowed_tools"]["tools"],
-                )
-            case "function":
-                return ToolChoiceFunctionParam(
-                    type="function",
-                    name=tool_choice["function"]["name"],
-                )
-            case "custom":
-                return ToolChoiceCustomParam(
-                    type="custom", name=tool_choice["custom"]["name"]
-                )
-            case _:
-                assert_never(tool_choice["type"])
-
-    assert_never(tool_choice)
-
-
-_InputToolParam = ChatCompletionToolParam | dict
+    tool_choice_type = tool_choice["type"].to_literal(
+        "allowed_tools", "function", "custom"
+    )
+    match tool_choice_type:
+        case "allowed_tools":
+            allowed_tools = tool_choice["allowed_tools"]
+            return ToolChoiceAllowedParam(
+                type="allowed_tools",
+                mode=allowed_tools["mode"].unwrap(),
+                tools=allowed_tools["tools"].unwrap(),
+            )
+        case "function":
+            return ToolChoiceFunctionParam(
+                type="function",
+                name=tool_choice["function"]["name"].unwrap(),
+            )
+        case "custom":
+            return ToolChoiceCustomParam(
+                type="custom", name=tool_choice["custom"]["name"].unwrap()
+            )
+        case _:
+            assert_never(tool_choice_type)
 
 
-def convert_tools(tools: list[_InputToolParam]) -> list[ToolParam]:
+def convert_tools(tools: RequestValue) -> list[ToolParam]:
     _allowed_static_function_names = {"web_search"}
 
-    def _convert_tool(tool: _InputToolParam) -> ToolParam:
-        match tool["type"]:
+    def _convert_tool(tool: RequestValue) -> ToolParam:
+        match tool["type"].unwrap():
             case "static_function":
                 static_function = tool.get("static_function")
                 if not static_function:
@@ -247,7 +236,7 @@ def convert_tools(tools: list[_InputToolParam]) -> list[ToolParam]:
                         "Required field 'static_function' is empty or not found."
                     )
 
-                static_function_name = static_function.get("name")
+                static_function_name = static_function.get_str("name")
                 if static_function_name not in _allowed_static_function_names:
                     msg = (
                         f"Provided static function name ('{static_function_name}') is not supported yet. "
@@ -257,43 +246,47 @@ def convert_tools(tools: list[_InputToolParam]) -> list[ToolParam]:
 
                 return WebSearchToolParam(
                     type="web_search",
-                    **static_function.get("configuration", {}),
+                    **(static_function.get_dict("configuration") or {}),
                 )
             case _:
                 function = tool["function"]
+                raw_function = function.unwrap_dict()
                 return FunctionToolParam(
                     type="function",
-                    name=function["name"],
-                    parameters=function.get("parameters"),
-                    strict=function.get("strict"),
-                    description=function.get("description"),
+                    name=function["name"].unwrap(),
+                    parameters=raw_function.get("parameters"),
+                    strict=raw_function.get("strict"),
+                    description=raw_function.get("description"),
                 )
 
     return [_convert_tool(tool) for tool in tools]
 
 
 def _convert_fun_call_part(
-    part: ChatCompletionContentPartParam | ContentArrayOfContentPart,
+    part: RequestValue,
 ) -> ResponseFunctionCallOutputItemParam:
-    match part["type"]:
+    part_type = part["type"].to_literal(
+        "refusal", "text", "image_url", "file", "input_audio"
+    )
+    match part_type:
         case "refusal":
             raise RequestValidationError(_NO_REFUSAL)
 
         case "text":
             return ResponseInputTextContentParam(
-                type="input_text", text=part["text"]
+                type="input_text", text=part["text"].unwrap()
             )
 
         case "image_url":
             image_url = part["image_url"]
             return ResponseInputImageContentParam(
                 type="input_image",
-                image_url=image_url["url"],
-                detail=image_url.get("detail", "auto"),
+                image_url=image_url["url"].unwrap(),
+                detail=image_url.unwrap_dict().get("detail", "auto"),
             )
 
         case "file":
-            file = part["file"]
+            file = part["file"].unwrap_dict()
             return ResponseInputFileContentParam(
                 type="input_file",
                 file_id=file.get("file_id"),
@@ -305,42 +298,44 @@ def _convert_fun_call_part(
             raise RequestValidationError("Audio messages aren't supported")
 
         case _:
-            assert_never(part["type"])
+            assert_never(part_type)
 
 
-def _to_output_content_param(
-    part: ContentArrayOfContentPart,
-) -> ResponseOutputContentParam:
-    match part["type"]:
+def _to_output_content_param(part: RequestValue) -> ResponseOutputContentParam:
+    part_type = part["type"].to_literal("refusal", "text")
+    match part_type:
         case "refusal":
             return ResponseOutputRefusalParam(
-                type="refusal", refusal=part["refusal"]
+                type="refusal", refusal=part["refusal"].unwrap()
             )
         case "text":
             return ResponseOutputTextParam(
-                type="output_text", text=part["text"], annotations=[]
+                type="output_text", text=part["text"].unwrap(), annotations=[]
             )
         case _:
-            assert_never(part["type"])
+            assert_never(part_type)
 
 
-def _to_input_content_param(
-    part: ChatCompletionContentPartParam,
-) -> ResponseInputContentParam:
-    match part["type"]:
+def _to_input_content_param(part: RequestValue) -> ResponseInputContentParam:
+    part_type = part["type"].to_literal(
+        "text", "image_url", "file", "input_audio"
+    )
+    match part_type:
         case "text":
-            return ResponseInputTextParam(type="input_text", text=part["text"])
+            return ResponseInputTextParam(
+                type="input_text", text=part["text"].unwrap()
+            )
 
         case "image_url":
             image_url = part["image_url"]
             return ResponseInputImageParam(
                 type="input_image",
-                image_url=image_url["url"],
-                detail=image_url.get("detail", "auto"),
+                image_url=image_url["url"].unwrap(),
+                detail=image_url.unwrap_dict().get("detail", "auto"),
             )
 
         case "file":
-            file = part["file"]
+            file = part["file"].unwrap_dict()
             item = ResponseInputFileParam(
                 type="input_file",
                 file_id=file.get("file_id"),
@@ -358,39 +353,43 @@ def _to_input_content_param(
             raise RequestValidationError("Audio messages aren't supported")
 
         case _:
-            assert_never(part["type"])
+            assert_never(part_type)
 
 
 def _convert_tool_call(
-    tool_call: ChatCompletionMessageToolCallUnionParam,
+    tool_call: RequestValue,
 ) -> ResponseFunctionToolCallParam | ResponseCustomToolCallParam:
-    match tool_call["type"]:
+    tool_call_type = tool_call["type"].to_literal("function", "custom")
+    match tool_call_type:
         case "function":
             function = tool_call["function"]
             return ResponseFunctionToolCallParam(
                 type="function_call",
-                call_id=tool_call["id"],
-                name=function["name"],
-                arguments=function["arguments"],
+                call_id=tool_call["id"].unwrap(),
+                name=function["name"].unwrap(),
+                arguments=function["arguments"].unwrap(),
             )
         case "custom":
             custom = tool_call["custom"]
             return ResponseCustomToolCallParam(
                 type="custom_tool_call",
-                call_id=tool_call["id"],
-                name=custom["name"],
-                input=custom["input"],
+                call_id=tool_call["id"].unwrap(),
+                name=custom["name"].unwrap(),
+                input=custom["input"].unwrap(),
             )
         case _:
-            assert_never(tool_call["type"])
+            assert_never(tool_call_type)
 
 
 def _convert_message(
-    idx: int, message: ChatCompletionMessageParam
+    idx: int, message: RequestValue
 ) -> Generator[ResponseInputItemParam, None, None]:
-    match message["role"]:
+    role = message["role"].to_literal(
+        "system", "developer", "user", "assistant", "tool", "function"
+    )
+    match role:
         case "system" | "developer" | "user":
-            content = message["content"]
+            content = message["content"].to_str_or_list()
             if isinstance(content, str):
                 res_content = content
             else:
@@ -398,11 +397,12 @@ def _convert_message(
                     _to_input_content_param(part) for part in content
                 ]
 
-            role = message["role"]
             yield EasyInputMessageParam(role=role, content=res_content)
 
         case "assistant":
-            if state_content := get_message_content_from_state(idx, message):
+            if state_content := get_message_content_from_state(
+                idx, message.unwrap()
+            ):
                 yield from state_content
 
             if message.get("function_call"):
@@ -414,7 +414,7 @@ def _convert_message(
             if (content := message.get("content")) is None:
                 return
 
-            role = message["role"]
+            content = content.to_str_or_list()
             if isinstance(content, str):
                 res_content = content
             else:
@@ -425,14 +425,14 @@ def _convert_message(
             yield EasyInputMessageParam(role=role, content=res_content)  # type: ignore
 
         case "tool":
-            content = message["content"]
+            content = message["content"].to_str_or_list()
             if isinstance(content, str):
                 output = content
             else:
                 output = [_convert_fun_call_part(part) for part in content]
 
             yield FunctionCallOutput(
-                call_id=message["tool_call_id"],
+                call_id=message["tool_call_id"].unwrap(),
                 type="function_call_output",
                 output=output,
             )
@@ -441,12 +441,10 @@ def _convert_message(
             raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
         case _:
-            assert_never(message)
+            assert_never(role)
 
 
-def convert_messages(
-    messages: list[ChatCompletionMessageParam],
-) -> ResponseInputParam:
+def convert_messages(messages: list[RequestValue]) -> ResponseInputParam:
     return [
         param
         for idx, message in enumerate(messages)
@@ -455,10 +453,10 @@ def convert_messages(
 
 
 async def chat_completions_to_responses_request(
-    request: dict[str, Any], file_storage: FileStorage | None
+    request: RequestValue, file_storage: FileStorage | None
 ) -> tuple[_TokenizeResponsesRequest, _CreateResponsesRequest]:
-    is_stream = bool(request.get("stream"))
-    model_name = request["model"]
+    is_stream = bool(request.get_bool("stream"))
+    model_name = request["model"].to_str()
     messages = request["messages"]
 
     transformed_messages = await ResourceProcessor(
@@ -466,31 +464,31 @@ async def chat_completions_to_responses_request(
     ).transform_messages(messages)
 
     input_messages = convert_messages(
-        [m.raw_message for m in transformed_messages]  # type: ignore
+        [m.raw_message for m in transformed_messages]
     )
 
     res_tools = []
     if tools := request.get("tools"):
         res_tools.extend(convert_tools(tools))
 
-    if "web_search_options" in request:
-        res_tools.append(
-            {"type": "web_search", **request["web_search_options"]}
-        )
+    if (
+        web_search_options := request.get_dict("web_search_options")
+    ) is not None:
+        res_tools.append({"type": "web_search", **web_search_options})
 
     res_tool_choice: ToolChoice | Omit = omit
     if tool_choice := request.get("tool_choice"):
         res_tool_choice = convert_tool_choice(tool_choice)
 
     max_output_tokens = (
-        request.get("max_tokens")
-        or request.get("max_completion_tokens")
+        request.get_int("max_tokens")
+        or request.get_int("max_completion_tokens")
         or omit
     )
 
     configuration = get_configuration(request)
     parallel_tool_calls = (
-        request["parallel_tool_calls"]
+        request["parallel_tool_calls"].unwrap()
         if request.get("parallel_tool_calls") is not None
         else omit
     )
@@ -512,8 +510,8 @@ async def chat_completions_to_responses_request(
     create_request: _CreateResponsesRequest = {
         **tokenize_request,
         "stream": is_stream,
-        "top_p": request.get("top_p") or omit,
-        "temperature": request.get("temperature") or omit,
+        "top_p": request.get_float("top_p") or omit,
+        "temperature": request.get_float("temperature") or omit,
         "max_output_tokens": max_output_tokens,
         "reasoning": configuration.reasoning or omit,
     }

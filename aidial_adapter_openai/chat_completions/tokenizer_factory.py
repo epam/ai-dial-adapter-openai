@@ -41,6 +41,7 @@ from aidial_adapter_openai.utils.tokenizer import (
     Tokenizer,
     create_tiktoken_tokenizer,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 class RequestTokenizer(Protocol):
@@ -50,7 +51,7 @@ class RequestTokenizer(Protocol):
 
     async def tokenize_request(self, request: ChatCompletionRequest) -> int: ...
 
-    async def tokenize_raw_request(self, request: dict) -> int: ...
+    async def tokenize_raw_request(self, request: RequestValue) -> int: ...
 
 
 @dataclass
@@ -69,14 +70,14 @@ class _VllmRequestTokenizer:
 
     async def tokenize_request(self, request: ChatCompletionRequest) -> int:
         return await self.tokenize_raw_request(
-            request.model_dump(exclude_none=True)
+            RequestValue(request.model_dump(exclude_none=True))
         )
 
-    async def tokenize_raw_request(self, request: dict) -> int:
+    async def tokenize_raw_request(self, request: RequestValue) -> int:
         request["messages"] = await transform_vllm_messages(
             request["messages"], self.file_storage
         )
-        return await self.tokenizer.tokenize(request)
+        return await self.tokenizer.tokenize(request.unwrap_dict())
 
 
 @dataclass
@@ -89,17 +90,17 @@ class _TiktokenRequestTokenizer:
 
     async def tokenize_request(self, request: ChatCompletionRequest) -> int:
         return await self.tokenize_raw_request(
-            request.model_dump(exclude_none=True)
+            RequestValue(request.model_dump(exclude_none=True))
         )
 
-    async def tokenize_raw_request(self, request: dict) -> int:
+    async def tokenize_raw_request(self, request: RequestValue) -> int:
         messages = await ResourceProcessor(
             file_storage=self.file_storage
         ).transform_messages(request["messages"])
         return await self.tokenizer.tokenize_request(request, messages)
 
     async def tokenize(self, request: dict) -> int:
-        return await self.tokenize_raw_request(request)
+        return await self.tokenize_raw_request(RequestValue(request))
 
 
 @dataclass
@@ -113,7 +114,7 @@ class _AnthropicRequestTokenizer:
         adapter_request = AdapterRequest.create(request)
         return await self.adapter.count_prompt_tokens(adapter_request)
 
-    async def tokenize_raw_request(self, request: dict) -> int:
+    async def tokenize_raw_request(self, request: RequestValue) -> int:
         raise ValueError("Raw request tokenization isn't supported")
 
 
