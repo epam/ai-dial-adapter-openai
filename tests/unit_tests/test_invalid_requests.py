@@ -31,37 +31,39 @@ def _user(content: object) -> dict:
         (
             _GPT,
             {"messages": [{"content": "2+3=?"}]},
-            "Missing required parameter: 'message.role'",
+            "Missing required parameter: 'messages[0].role'",
         ),
         (
             _RESPONSES,
             {"messages": [{"role": "userr", "content": "2+3=?"}]},
-            "Invalid value of 'role': 'userr'",
+            "Invalid value of 'messages[0].role': 'userr'. Supported values: "
+            "'system', 'developer', 'user', 'assistant', 'tool', 'function'",
         ),
         (
             _RESPONSES,
             {"messages": [{"role": None, "content": "2+3=?"}]},
-            "Invalid value of 'role': null",
+            "'messages[0].role' expected to be str, but got null",
         ),
         (
             _GPT,
             {"messages": [_user([{"type": "video_url"}])]},
-            "Invalid value of 'content part type': 'video_url'",
+            "Invalid value of 'messages[0].content[0].type': 'video_url'. "
+            "Supported values: 'image_url', 'input_audio', 'text', 'refusal', 'file'",
         ),
         (
             _GPT,
             {"messages": [_user([{"text": "2+3=?"}])]},
-            "Missing required parameter: 'content part.type'",
+            "Missing required parameter: 'messages[0].content[0].type'",
         ),
         (
             _GPT,
             {"messages": [_user([{"type": "text"}])]},
-            "Missing required parameter: 'text'",
+            "Missing required parameter: 'messages[0].content[0].text'",
         ),
         (
             _GPT,
             {"messages": [_user([{"type": "text", "text": None}])]},
-            "'text' expected to be str, but got null",
+            "'messages[0].content[0].text' expected to be str, but got null",
         ),
         (
             _GPT,
@@ -74,7 +76,8 @@ def _user(content: object) -> dict:
                     }
                 ]
             },
-            "Invalid request. Path: 'attachment', error: Value error, "
+            "Invalid request. Path: 'messages[0].custom_content.attachments[0]', "
+            "error: Value error, "
             "Attachment must have either 'data' or 'url', but it's missing both",
         ),
         (
@@ -88,12 +91,13 @@ def _user(content: object) -> dict:
                     },
                 ]
             },
-            "Missing required parameter: 'tool_call.id'",
+            "Missing required parameter: 'messages[1].tool_calls[0].id'",
         ),
         (
             _RESPONSES,
             {"messages": [_user("2+3=?")], "tool_choice": {"type": "foo"}},
-            "Invalid value of 'tool_choice.type': 'foo'",
+            "Invalid value of 'tool_choice.type': 'foo'. "
+            "Supported values: 'allowed_tools', 'function', 'custom'",
         ),
         (
             _RESPONSES,
@@ -106,7 +110,7 @@ def _user(content: object) -> dict:
         (
             _ANTHROPIC,
             {"messages": [{"role": "userr", "content": "2+3=?"}]},
-            "Invalid request. Path: 'messages.0.role', error: Input should be "
+            "Invalid request. Path: 'messages[0].role', error: Input should be "
             "'system', 'developer', 'user', 'assistant', 'function' or 'tool'",
         ),
         (
@@ -116,7 +120,7 @@ def _user(content: object) -> dict:
                 "max_prompt_tokens": 100,
                 "tools": ["x"],
             },
-            "'tool' expected to be dict, but got str",
+            "'tools[0]' expected to be dict, but got str",
         ),
         (
             _RESPONSES,
@@ -124,7 +128,7 @@ def _user(content: object) -> dict:
                 "messages": [_user("2+3=?")],
                 "tools": [{"type": "static_function", "static_function": "x"}],
             },
-            "'static_function' expected to be dict, but got str",
+            "'tools[0].static_function' expected to be dict, but got str",
         ),
         (
             _RESPONSES,
@@ -140,7 +144,8 @@ def _user(content: object) -> dict:
                     }
                 ],
             },
-            "'configuration' expected to be dict, but got str",
+            "'tools[0].static_function.configuration' expected to be dict, "
+            "but got str",
         ),
         (
             _GPT,

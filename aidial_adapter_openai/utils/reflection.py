@@ -5,7 +5,7 @@ from typing import Any, TypeVar
 
 from aidial_sdk.exceptions import InvalidRequestError
 
-from aidial_adapter_openai.utils.validation import ensure_dict
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 @lru_cache(maxsize=64)
@@ -24,6 +24,8 @@ def _inspect_signature(
 T = TypeVar("T")
 
 
+# FIX_NOW: let's the method deal with RequestValue from the get-go:
+# func: Callable[..., Awaitable[T]], arg: RequestValue
 async def call_with_extra_body(
     func: Callable[..., Awaitable[T]], arg: dict
 ) -> T:
@@ -40,7 +42,9 @@ async def call_with_extra_body(
             f"Extra arguments aren't supported: {extra_args}."
         )
 
-    arg["extra_body"] = ensure_dict("extra_body", arg.get("extra_body") or {})
+    # FIX_NOW: extremely convoluted; think about simplifying
+    extra_body = RequestValue(arg).get("extra_body")
+    arg["extra_body"] = extra_body.unwrap_dict() if extra_body else {}
 
     for extra_arg in extra_args:
         arg["extra_body"][extra_arg] = arg[extra_arg]

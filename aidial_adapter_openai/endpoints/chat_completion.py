@@ -85,11 +85,7 @@ from aidial_adapter_openai.utils.tokenizer import (
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
-from aidial_adapter_openai.utils.validation import (
-    MISSING,
-    ensure_dict,
-    ensure_list,
-)
+from aidial_adapter_openai.utils.validation import RequestValue
 from aidial_adapter_openai.video_generation.azure.adapter import (
     chat_completion as azure_video_gen,
 )
@@ -103,13 +99,14 @@ async def call_chat_completion(
     app_config: ApplicationConfig,
     deployment_id: str,
     request: fastapi.Request,
-    request_body: dict,
+    request_body: RequestValue,
     request_headers: Mapping[str, str],
     api_version: str | None,
 ) -> ChatResponse:
     # Guarding against receiving an arbitrary model identifier from the user request.
     # Replacing it with the deployment id coming from the adapter endpoint.
-    request_body["model"] = deployment_id
+    # FIX_NOW: add API to allow assignments as it was before
+    request_body.unwrap_dict()["model"] = deployment_id
 
     upstream_endpoint = get_upstream_endpoint(request_headers)
     file_storage = create_file_storage(request_headers)
@@ -296,11 +293,12 @@ async def chat_completion(deployment_id: DeploymentId, request: Request):
     app_config = get_request_app_config(request)
     request_body = await parse_body(request)
 
-    for message in ensure_list(
-        "messages", request_body.get("messages", MISSING)
-    ):
-        ensure_dict("message", message, "role")
+    # FIX_NOW: avoid preventive validation. Validation
+    # should happen at a place that really needs it.
+    for message in request_body["messages"].to_list():
+        message["role"].to_str()
 
+    # FIX_NOW: validate with a method that returns `bool | None`
     is_stream = bool(request_body.get("stream"))
 
     emulate_streaming = (
@@ -308,10 +306,12 @@ async def chat_completion(deployment_id: DeploymentId, request: Request):
     )
 
     if emulate_streaming:
-        request_body["stream"] = False
+        # FIX_NOW: add an API for assignments
+        request_body.unwrap_dict()["stream"] = False
 
     if not is_stream and request_body.get("stream_options") is not None:
-        request_body.pop("stream_options")
+        # FIX_NOW: add an API for pop
+        request_body.unwrap_dict().pop("stream_options")
 
     api_version = get_api_version(request)
 

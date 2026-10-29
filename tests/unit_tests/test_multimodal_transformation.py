@@ -10,6 +10,7 @@ from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.resource.base import Resource
 from aidial_adapter_openai.utils.resource.file import FileResource
 from aidial_adapter_openai.utils.resource.image import ImageResource
+from aidial_adapter_openai.utils.validation import RequestValue
 from tests.utils.images import data_url, pic_1_1, pic_2_2, pic_3_3
 from tests.utils.storage import DummyFileStorage
 
@@ -122,7 +123,9 @@ async def test_transform_to_content_parts(
     message,
     expected_content,
 ):
-    result = await mock_message_transformer.transform_message(message)
+    result = await mock_message_transformer.transform_message(
+        RequestValue(message)
+    )
 
     assert isinstance(result, MultiModalMessage)
     assert result.raw_message.get("custom_content") is None
@@ -146,7 +149,9 @@ async def test_transform_messages_not_found(
     ]
 
     with pytest.raises(DialException) as exc:
-        await mock_resource_processor.transform_messages(messages)
+        await mock_resource_processor.transform_messages(
+            RequestValue(messages).to_list()
+        )
 
     assert (
         exc.value.message
@@ -166,7 +171,7 @@ async def test_transform_message_not_found(
         "content": "",
         "custom_content": {"attachments": [{"url": "not_found.jpg"}]},
     }
-    await mock_message_transformer.transform_message(message)
+    await mock_message_transformer.transform_message(RequestValue(message))
     assert mock_message_transformer.errors is not None
     assert len(mock_message_transformer.errors) == 1
     image_fail = list(mock_message_transformer.errors)[0]
@@ -366,7 +371,9 @@ async def test_transform_to_unified_messages(
     messages,
     expected_transformations,
 ):
-    result = await mock_resource_processor.transform_messages(messages)
+    result = await mock_resource_processor.transform_messages(
+        RequestValue(messages).to_list()
+    )
     assert result == expected_transformations
 
 
@@ -385,7 +392,9 @@ async def test_audio_in_content_part(
             ],
         },
     ]
-    result = await mock_resource_processor.transform_messages(messages)
+    result = await mock_resource_processor.transform_messages(
+        RequestValue(messages).to_list()
+    )
     assert len(result) == 1
     content = result[0].raw_message["content"]
     assert len(content) == 2
@@ -407,7 +416,9 @@ async def test_audio_in_attachments(
             "attachments": [attachment(_audio_wav)],
         },
     }
-    result = await mock_message_transformer.transform_message(message)
+    result = await mock_message_transformer.transform_message(
+        RequestValue(message)
+    )
 
     assert isinstance(result, MultiModalMessage)
     assert len(result.audios) == 1

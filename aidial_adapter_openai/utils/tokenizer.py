@@ -29,11 +29,7 @@ from aidial_adapter_openai.utils.image_tokenizer import (
 )
 from aidial_adapter_openai.utils.log_config import logger
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
-from aidial_adapter_openai.utils.validation import (
-    ensure_dict,
-    ensure_list,
-    ensure_str,
-)
+from aidial_adapter_openai.utils.validation import RequestValue
 
 MessageType = TypeVar("MessageType")
 
@@ -130,6 +126,10 @@ class BaseTokenizer(ABC, Generic[MessageType]):
             return -1
         return 1
 
+    # FIX_NOW: the method should deal with the RequestValue from the get-go
+    # async def tokenize_request(
+    #     self, original_request: RequestValue, messages: list[MessageType]
+    # ) -> int:
     async def tokenize_request(
         self, original_request: dict, messages: list[MessageType]
     ) -> int:
@@ -139,11 +139,10 @@ class BaseTokenizer(ABC, Generic[MessageType]):
             for func in original_request.get("function") or []:
                 tokens += await self._tokenize_object(func)
 
-        if original_request.get("tool_choice") != "none":
-            for tool in ensure_list(
-                "tools", original_request.get("tools") or []
-            ):
-                function = ensure_dict("tool", tool).get("function")
+        tools = RequestValue(original_request).get("tools")
+        if tools is not None and original_request.get("tool_choice") != "none":
+            for tool in tools.to_list():
+                function = tool.unwrap_dict().get("function")
                 tokens += await self._tokenize_object(function)
 
         tokens += sum(
@@ -193,7 +192,8 @@ async def _tokenize_message(
                     )
 
         elif key == "role":
-            tokens += await tokenize_text(ensure_str("role", value))
+            # The chat completion endpoint has validated the role
+            tokens += await tokenize_text(value)
     return tokens
 
 

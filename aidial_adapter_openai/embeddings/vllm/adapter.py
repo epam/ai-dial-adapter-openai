@@ -14,7 +14,7 @@ from aidial_adapter_openai.embeddings.vllm.qwen3_vl_api import (
     Qwen3VLEmbeddingsAdapter,
 )
 from aidial_adapter_openai.utils.auth import OpenAICreds
-from aidial_adapter_openai.utils.validation import request_validation
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 def _create_adapter(
@@ -48,7 +48,7 @@ def _create_adapter(
 
 async def embeddings(
     *,
-    request: dict,
+    request: RequestValue,
     creds: OpenAICreds,
     endpoint: str,
     file_storage: FileStorage | None,
@@ -56,8 +56,7 @@ async def embeddings(
     vllm_api_type: EmbeddingAPIType,
     model: str,
 ) -> EmbeddingResponse:
-    with request_validation():
-        body = EmbeddingsRequest.model_validate(request)
+    body = request.to_model(EmbeddingsRequest)
     inputs = await download_embedding_inputs(body, file_storage)
     adapter = _create_adapter(
         vllm_api_type,

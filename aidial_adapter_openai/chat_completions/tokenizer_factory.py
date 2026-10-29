@@ -41,6 +41,7 @@ from aidial_adapter_openai.utils.tokenizer import (
     Tokenizer,
     create_tiktoken_tokenizer,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 class RequestTokenizer(Protocol):
@@ -74,7 +75,7 @@ class _VllmRequestTokenizer:
 
     async def tokenize_raw_request(self, request: dict) -> int:
         request["messages"] = await transform_vllm_messages(
-            request["messages"], self.file_storage
+            RequestValue(request)["messages"].to_list(), self.file_storage
         )
         return await self.tokenizer.tokenize(request)
 
@@ -95,7 +96,7 @@ class _TiktokenRequestTokenizer:
     async def tokenize_raw_request(self, request: dict) -> int:
         messages = await ResourceProcessor(
             file_storage=self.file_storage
-        ).transform_messages(request["messages"])
+        ).transform_messages(RequestValue(request)["messages"].to_list())
         return await self.tokenizer.tokenize_request(request, messages)
 
     async def tokenize(self, request: dict) -> int:
@@ -113,6 +114,8 @@ class _AnthropicRequestTokenizer:
         adapter_request = AdapterRequest.create(request)
         return await self.adapter.count_prompt_tokens(adapter_request)
 
+    # FIX_NOW:
+    # async def tokenize_raw_request(self, request: RequestValue) -> int:
     async def tokenize_raw_request(self, request: dict) -> int:
         raise ValueError("Raw request tokenization isn't supported")
 

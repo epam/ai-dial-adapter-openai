@@ -1,7 +1,7 @@
 import json
 import logging
 from collections.abc import AsyncIterator, Mapping
-from typing import Any, assert_never, cast
+from typing import assert_never, cast
 
 from aidial_sdk.exceptions import RequestValidationError
 from openai import (
@@ -40,12 +40,13 @@ from aidial_adapter_openai.utils.truncate_prompt import truncate_prompt
 from aidial_adapter_openai.utils.truncation_types import (
     DiscardedMessages,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
-def _validate_request(request: dict[str, Any]) -> None:
+def _validate_request(request: RequestValue) -> None:
     errors: list[str] = []
 
-    if (n := request.get("n")) not in [None, 1]:
+    if (n := request.get_int("n")) not in [None, 1]:
         errors.append(
             f"The deployment doesn't support request.n parameter other than 1, but got {n}."
         )
@@ -89,7 +90,7 @@ def _to_dict(x: BaseModel) -> dict:
 
 async def _truncate_prompt(
     max_prompt_tokens: int,
-    request: dict[str, Any],
+    request: RequestValue,
     vendor: Vendor,
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
@@ -112,18 +113,19 @@ async def _truncate_prompt(
         case _:
             assert_never(vendor)
 
+    raw_request = request.unwrap_dict()
     (
         messages,
         discarded_messages,
         prompt_tokens,
     ) = await truncate_prompt(
         tokenizer=tokenizer,
-        original_request=request,
-        messages=request["messages"],
+        original_request=raw_request,
+        messages=raw_request["messages"],
         get_raw_message=lambda m: m,
         max_prompt_tokens=max_prompt_tokens,
     )
-    request["messages"] = messages
+    raw_request["messages"] = messages
     logger.debug(
         f"Responses estimated prompt tokens after truncation: {prompt_tokens}, "
         f"discarded messages indices: {discarded_messages}"
@@ -133,7 +135,7 @@ async def _truncate_prompt(
 
 async def chat_completion(
     *,
-    request: dict[str, Any],
+    request: RequestValue,
     request_headers: Mapping[str, str],
     client: AsyncAzureOpenAI | AsyncOpenAI | AsyncBedrockOpenAI,
     file_storage: FileStorage | None,
@@ -146,7 +148,7 @@ async def chat_completion(
     response_headers = await build_cache_headers(
         request_headers=request_headers,
         breakpoint_path=get_chat_completions_breakpoint_path(
-            cast(CompletionCreateParamsBase, request)
+            cast(CompletionCreateParamsBase, request.unwrap_dict())
         ),
     )
 

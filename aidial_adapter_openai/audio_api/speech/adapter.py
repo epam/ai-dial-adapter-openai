@@ -1,5 +1,4 @@
 import base64
-from typing import Any
 
 import fastapi
 from aidial_sdk.chat_completion import Request as DIALRequest
@@ -18,22 +17,10 @@ from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.streaming import generate_created, generate_id
 from aidial_adapter_openai.utils.tokenizer import Tokenizer
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
-def create_assistant_message(data: bytes, content_type: str) -> dict:
-    data_base64 = base64.b64encode(data).decode()
-    return {
-        "role": "assistant",
-        "content": "",
-        "custom_content": {
-            "attachments": [
-                {"title": "Audio", "type": content_type, "data": data_base64}
-            ]
-        },
-    }
-
-
-def collect_system_messages(messages: list[dict]) -> str | None:
+def _collect_system_messages(messages: list[RequestValue]) -> str | None:
     ret = ""
     for message in messages:
         if message.get("role") in ("system", "developer"):
@@ -44,7 +31,7 @@ def collect_system_messages(messages: list[dict]) -> str | None:
 async def chat_completion(
     *,
     request: fastapi.Request,
-    request_body: Any,
+    request_body: RequestValue,
     deployment_id: str,
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
@@ -55,7 +42,7 @@ async def chat_completion(
             f"The deployment doesn't support request.n parameter other than 1, but got {n}."
         )
 
-    if not (messages := request_body.get("messages")):
+    if not (messages := request_body["messages"].to_list()):
         raise RequestValidationError("The request doesn't contain any messages")
 
     prompt = collect_message_text_content(messages[-1]).strip()
@@ -63,7 +50,7 @@ async def chat_completion(
 
     config = parse_configuration(Configuration, request_body) or Configuration()
 
-    if system_message := collect_system_messages(messages):
+    if system_message := _collect_system_messages(messages):
         config.instructions = (
             system_message + "\n" + (config.instructions or "")
         ).strip() or None

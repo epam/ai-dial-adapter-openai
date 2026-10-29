@@ -9,6 +9,7 @@ from aidial_sdk.exceptions import InvalidRequestError
 from aidial_adapter_openai.chat_completions.gpt_audio import (
     extract_audio_content,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 from tests.utils.stream import single_choice_chunk
 
 
@@ -75,7 +76,7 @@ class TestNonStreamingAudio:
         """Test various combinations of audio data and transcript."""
         request_body = {"audio": {"format": "mp3"}}
         response = _make_response(audio_obj)
-        result = extract_audio_content(response, request_body)
+        result = extract_audio_content(response, RequestValue(request_body))
 
         message = result["choices"][0]["message"]
         if audio_obj:
@@ -112,7 +113,7 @@ class TestNonStreamingAudio:
         """Test different audio format content type mappings."""
         request_body = {"audio": {"format": audio_format}}
         response = _make_response({"data": "test"})
-        result = extract_audio_content(response, request_body)
+        result = extract_audio_content(response, RequestValue(request_body))
 
         attachment = result["choices"][0]["message"]["custom_content"][
             "attachments"
@@ -124,22 +125,21 @@ class TestNonStreamingAudio:
         [
             ("mp3", "'audio' expected to be dict, but got str"),
             ({"format": 1}, "'audio.format' expected to be str, but got int"),
-            (
-                {"format": None},
-                "'audio.format' expected to be str, but got null",
-            ),
         ],
-        ids=["audio-not-dict", "format-not-str", "format-null"],
+        ids=["audio-not-dict", "format-not-str"],
     )
     def test_invalid_audio(self, audio: object, message: str) -> None:
         response = _make_response({"data": "test"})
         with pytest.raises(InvalidRequestError) as e:
-            extract_audio_content(response, {"audio": audio})
+            extract_audio_content(response, RequestValue({"audio": audio}))
         assert e.value.message == message
 
-    def test_null_audio(self) -> None:
+    @pytest.mark.parametrize(
+        "audio", [None, {"format": None}], ids=["null-audio", "null-format"]
+    )
+    def test_null_audio(self, audio: object) -> None:
         response = _make_response({"data": "test"})
-        result = extract_audio_content(response, {"audio": None})
+        result = extract_audio_content(response, RequestValue({"audio": audio}))
 
         attachment = result["choices"][0]["message"]["custom_content"][
             "attachments"
@@ -149,7 +149,7 @@ class TestNonStreamingAudio:
     def test_default_audio_format(self) -> None:
         """Test mp3 is used as default when format not specified."""
         response = _make_response({"data": "test"})
-        result = extract_audio_content(response, {})
+        result = extract_audio_content(response, RequestValue({}))
 
         attachment = result["choices"][0]["message"]["custom_content"][
             "attachments"
@@ -180,7 +180,7 @@ class TestNonStreamingAudio:
             ],
         }
 
-        result = extract_audio_content(response, request_body)
+        result = extract_audio_content(response, RequestValue(request_body))
 
         for i, choice in enumerate(result["choices"]):
             cc = choice["message"]["custom_content"]
@@ -208,7 +208,7 @@ class TestStreamingAudio:
         results = [
             chunk
             async for chunk in extract_audio_content(
-                mock_stream(), request_body
+                mock_stream(), RequestValue(request_body)
             )
         ]
 
@@ -246,7 +246,7 @@ class TestStreamingAudio:
         results = [
             chunk
             async for chunk in extract_audio_content(
-                mock_stream(), request_body
+                mock_stream(), RequestValue(request_body)
             )
         ]
 
@@ -279,7 +279,7 @@ class TestStreamingAudio:
         results = [
             chunk
             async for chunk in extract_audio_content(
-                mock_stream(), request_body
+                mock_stream(), RequestValue(request_body)
             )
         ]
 
@@ -342,7 +342,7 @@ class TestStreamingAudio:
         results = [
             chunk
             async for chunk in extract_audio_content(
-                mock_stream(), request_body
+                mock_stream(), RequestValue(request_body)
             )
         ]
 
@@ -379,7 +379,7 @@ class TestStreamingAudio:
         results = [
             chunk
             async for chunk in extract_audio_content(
-                mock_stream(), request_body
+                mock_stream(), RequestValue(request_body)
             )
         ]
 

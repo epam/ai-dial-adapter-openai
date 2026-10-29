@@ -35,31 +35,34 @@ from aidial_adapter_openai.utils.truncation_types import (
     DiscardedMessages,
     TruncatedTokens,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 async def truncate_gpt_prompt(
     *,
-    request: dict,
+    request: RequestValue,
     file_storage: FileStorage | None,
     max_prompt_tokens: int,
     tokenizer: Tokenizer,
 ) -> tuple[list[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     multi_modal_messages = await ResourceProcessor(
         file_storage=file_storage
-    ).transform_messages(request["messages"])
+    ).transform_messages(request["messages"].to_list())
     return await truncate_messages(
         messages=multi_modal_messages,
         message_tokens=tokenizer.tokenize_request_message,
         is_system_message=lambda message: message.raw_message["role"]
         == "system",
         max_prompt_tokens=max_prompt_tokens,
-        initial_prompt_tokens=await tokenizer.tokenize_request(request, []),
+        initial_prompt_tokens=await tokenizer.tokenize_request(
+            request.unwrap_dict(), []
+        ),
     )
 
 
 async def chat_completion(
     *,
-    request: dict,
+    request: RequestValue,
     request_headers: Mapping[str, str],
     client: AsyncAzureOpenAI | AsyncOpenAI,
     file_storage: FileStorage | None,
@@ -67,13 +70,14 @@ async def chat_completion(
     eliminate_empty_choices: bool,
     vendor_adapter: VendorAdapter,
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
-    n: int = request.get("n") or 1
-    model_name = request["model"]
+    n = request.get_int("n") or 1
+    model_name = request["model"].to_str()
 
+    raw_request = request.unwrap_dict()
     # Computed upfront: the path must address the request body
     # as DIAL Core has sent it, before the truncation reindexes messages.
     breakpoint_path = get_chat_completions_breakpoint_path(
-        cast(CompletionCreateParamsBase, request)
+        cast(CompletionCreateParamsBase, raw_request)
     )
 
     max_prompt_tokens = extract_max_prompt_tokens(request)
@@ -102,26 +106,26 @@ async def chat_completion(
     else:
         multi_modal_messages = await ResourceProcessor(
             file_storage=file_storage
-        ).transform_messages(request["messages"])
+        ).transform_messages(request["messages"].to_list())
         discarded_messages = None
 
         async def get_prompt_tokens() -> int:
             prompt_tokens = await tokenizer.tokenize_request(
-                request, multi_modal_messages
+                raw_request, multi_modal_messages
             )
             logger.debug(f"estimated prompt tokens: {prompt_tokens}")
             return prompt_tokens
 
-    request["messages"] = [m.raw_message for m in multi_modal_messages]
+    raw_request["messages"] = [m.raw_message for m in multi_modal_messages]
 
     # The upstream-specific rewrites go last, once the request is final
     vendor_adapter.transform_chat_completions_request(
-        cast(ChatCompletionRequest, request)
+        cast(ChatCompletionRequest, raw_request)
     )
 
     response: (
         AsyncStream[ChatCompletionChunk] | ChatCompletion
-    ) = await call_with_extra_body(client.chat.completions.create, request)
+    ) = await call_with_extra_body(client.chat.completions.create, raw_request)
 
     if isinstance(response, AsyncStream):
         response_headers = await build_cache_headers(

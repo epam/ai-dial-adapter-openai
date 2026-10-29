@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass
+from typing import assert_never
 
 from aidial_sdk.exceptions import InvalidRequestError
 from openai.types.chat import (
@@ -30,15 +31,7 @@ from aidial_adapter_openai.utils.resource.base import Resource
 from aidial_adapter_openai.utils.resource.file import FileResource
 from aidial_adapter_openai.utils.resource.image import ImageResource
 from aidial_adapter_openai.utils.text import decapitalize
-from aidial_adapter_openai.utils.validation import (
-    MISSING,
-    ensure_dict,
-    ensure_list,
-    ensure_list_or_str,
-    ensure_str,
-    ensure_str_or_none,
-    invalid_value,
-)
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 @dataclass(order=True, frozen=True)
@@ -86,7 +79,7 @@ class MessageTransformer:
             return None
 
     async def download_attachments(
-        self, attachments: list[dict]
+        self, attachments: list[RequestValue]
     ) -> list[
         ChatCompletionContentPartImageParam
         | ChatCompletionContentPartInputAudioParam
@@ -106,7 +99,7 @@ class MessageTransformer:
         return ret
 
     async def download_attachment(
-        self, attachment: dict
+        self, attachment: RequestValue
     ) -> (
         ChatCompletionContentPartImageParam
         | ChatCompletionContentPartInputAudioParam
@@ -136,89 +129,89 @@ class MessageTransformer:
         return result.to_content_part()
 
     async def download_image_content_part(
-        self, part: ChatCompletionContentPartImageParam
+        self, part: RequestValue
     ) -> ChatCompletionContentPartImageParam | None:
-        image_url = ensure_dict("image_url", part.get("image_url", MISSING))
-        detail = ensure_str_or_none("image_url.detail", image_url.get("detail"))
-        url = ensure_str("image_url.url", image_url.get("url", MISSING))
+        image_url = part["image_url"]
+        url = image_url["url"].to_str()
+        detail = image_url.get("detail")
+        detail = detail.to_literal("auto", "low", "high") if detail else None
 
         dial_resource = URLResource(url=url, entity_name="image content part")
         if not (resource := await self.try_download_resource(dial_resource)):
             return None
 
-        result = await ImageResource.from_resource(resource, detail)  # type: ignore
+        result = await ImageResource.from_resource(resource, detail)
         self.images.append(result)
         return result.to_content_part()
 
     def parse_audio_content_part(
-        self, part: ChatCompletionContentPartInputAudioParam
+        self, part: RequestValue
     ) -> ChatCompletionContentPartInputAudioParam:
-        input_audio = ensure_dict(
-            "input_audio", part.get("input_audio", MISSING)
-        )
-        data = ensure_str("input_audio.data", input_audio.get("data", MISSING))
-        fmt = ensure_str(
-            "input_audio.format", input_audio.get("format", MISSING)
-        )
+        input_audio = part["input_audio"]
+        data = input_audio["data"].to_str()
+        fmt = input_audio["format"].to_str()
         resource = Resource.from_base64(type=f"audio/{fmt}", data_base64=data)
         self.audios.append(AudioResource.from_resource(resource))
-        return part
+        return part.unwrap()
 
     async def download_content_part(
-        self, part: ChatCompletionContentPartParam | ContentArrayOfContentPart
+        self, part: RequestValue
     ) -> ChatCompletionContentPartParam | ContentArrayOfContentPart | None:
-        ensure_dict("content part", part, "type")
-        match part["type"]:
+        # FIX_NOW: (1) no need to validate for the literal - only the string
+        # (2) do enough only to distinguish "image_url" from "input_audio" and let
+        # the other cases remain unchanged
+        part_type = part["type"].to_literal(
+            "image_url", "input_audio", "text", "refusal", "file"
+        )
+        match part_type:
             case "image_url":
                 return await self.download_image_content_part(part)
             case "input_audio":
                 return self.parse_audio_content_part(part)
             case "text":
-                ensure_str("text", part.get("text", MISSING))
-            case "refusal":
-                ensure_str("refusal", part.get("refusal", MISSING))
-            case "file":
-                ensure_dict("file", part.get("file", MISSING))
+                # The tokenizer counts the tokens of the text
+                part["text"].to_str()
+            case "refusal" | "file":
+                pass
             case _:
-                raise invalid_value("content part type", part["type"])
-        return part
+                assert_never(part_type)
+        return part.unwrap()
 
     async def download_content(
-        self,
-        content: (
-            str
-            | list[ChatCompletionContentPartParam | ContentArrayOfContentPart]
-        ),
+        self, content: str | list[RequestValue]
     ) -> list[ChatCompletionContentPartParam | ContentArrayOfContentPart]:
         if isinstance(content, str):
-            parts = [create_text_content_part(content)]
-        else:
-            parts = content
+            return [create_text_content_part(content)]
 
         ret: list[
             ChatCompletionContentPartParam | ContentArrayOfContentPart
         ] = []
-        for part in parts:
+        for part in content:
             if result := await self.download_content_part(part):
                 ret.append(result)
         return ret
 
-    async def transform_message(self, message: dict) -> MultiModalMessage:
-        message = ensure_dict("message", message).copy()
+    async def transform_message(
+        self, message: RequestValue
+    ) -> MultiModalMessage:
+        # FIX_NOW: (1) add RequestValue.copy() (2) make sure that there is no this raw_messages/message distinction - this the original code, it should be mush simpler.
+        raw_message = message.unwrap_dict().copy()
+        content = message.get("content")
+        content = "" if content is None else content.to_str_or_list()
 
-        content = ensure_list_or_str("content", message.get("content") or "")
-        custom_content = ensure_dict(
-            "custom_content", message.pop("custom_content", None) or {}
-        ).copy()
-        attachments = ensure_list(
-            "attachments", custom_content.pop("attachments", None) or []
-        )
-
-        if custom_content:
-            message["custom_content"] = custom_content
+        attachments: list[RequestValue] = []
+        raw_message.pop("custom_content", None)
+        if (custom_content := message.get("custom_content")) is not None:
+            if (value := custom_content.get("attachments")) is not None:
+                logger.debug(f"original attachments: {value}")
+                attachments = value.to_list()
+            rest = custom_content.unwrap_dict().copy()
+            rest.pop("attachments", None)
+            if rest:
+                raw_message["custom_content"] = rest
 
         if isinstance(content, str) and not attachments:
-            return MultiModalMessage(raw_message=message)
+            return MultiModalMessage(raw_message=raw_message)
 
         content_parts, attachment_parts = await asyncio.gather(
             self.download_content(content),
@@ -230,7 +223,7 @@ class MessageTransformer:
             files=self.files,
             audios=self.audios,
             raw_message={
-                **message,
+                **raw_message,
                 "content": content_parts + attachment_parts,
             },
         )
@@ -241,7 +234,7 @@ class ResourceProcessor:
     file_storage: FileStorage | None
 
     async def transform_messages(
-        self, messages: list[dict]
+        self, messages: list[RequestValue]
     ) -> list[MultiModalMessage]:
         errors: set[Error] = set()
         transformations = [

@@ -1,9 +1,9 @@
-from typing import Any
-
 from aidial_sdk.exceptions import RequestValidationError
 
+from aidial_adapter_openai.utils.validation import RequestValue
 
-def validate_request(request: dict[str, Any]) -> None:
+
+def validate_request(request: RequestValue) -> None:
     errors: list[str] = []
 
     if (n := request.get("n")) not in [None, 1]:
@@ -35,7 +35,8 @@ def validate_request(request: dict[str, Any]) -> None:
     if not (messages := request.get("messages")):
         errors.append("The request doesn't contain any messages.")
 
-    for message in messages or []:
+    # FIX_NOW: add API to enable iteration `for message in messages` without the need to call .to_list
+    for message in messages.to_list() if messages else []:
         if message.get("role") in ("system", "developer"):
             errors.append("System and developer messages aren't supported")
             break

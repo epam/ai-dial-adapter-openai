@@ -43,6 +43,7 @@ from aidial_adapter_openai.utils.streaming import add_sse_bytes_heartbeat
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 _PATH = "/responses"
 
@@ -109,14 +110,15 @@ class _Response:
 
 
 async def _prepare_request_body(
-    request: FastAPIRequest, request_body: dict[str, Any]
+    request: FastAPIRequest, request_body: RequestValue
 ) -> dict[str, Any] | bytes:
     file_storage = create_file_storage(request.headers)
+    raw_body = request_body.unwrap_dict()
     request_modified = await download_dial_urls_in_request(
-        file_storage, request_body
+        file_storage, raw_body
     )
 
-    return request_body if request_modified else await request.body()
+    return raw_body if request_modified else await request.body()
 
 
 @dataclass
@@ -204,17 +206,18 @@ class _ResponsesContext:
 async def responses_create(request: FastAPIRequest) -> FastAPIResponse:
     request_body = await parse_body(request)
     context = await _ResponsesContext.from_request(
-        request, model=request_body.get("model")
+        request, model=request_body.get_str("model")
     )
 
     return await context.proxy(
         _PATH,
         body=await _prepare_request_body(request, request_body),
-        stream=request_body.get("stream") is True,
+        # FIX_NOW: request_body.get_bool("stream") is True,
+        stream=request_body.unwrap_dict().get("stream") is True,
         dial_caching_headers=await build_cache_headers(
             request_headers=request.headers,
             breakpoint_path=get_responses_breakpoint_path(
-                cast(ResponseCreateParamsBase, request_body)
+                cast(ResponseCreateParamsBase, request_body.unwrap_dict())
             ),
         ),
     )
@@ -247,7 +250,7 @@ async def responses_delete(
 async def responses_input_tokens(request: FastAPIRequest) -> FastAPIResponse:
     request_body = await parse_body(request)
     context = await _ResponsesContext.from_request(
-        request, model=request_body.get("model")
+        request, model=request_body.get_str("model")
     )
 
     return await context.proxy(

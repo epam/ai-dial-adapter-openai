@@ -1,38 +1,31 @@
 from dataclasses import dataclass
 from functools import cache
-from typing import Any
+from typing import Any, assert_never
 
 import jmespath
-from openai.types.chat.completion_create_params import ResponseFormat
 from openai.types.responses import (
     ResponseFormatTextConfigParam,
     ResponseFormatTextJSONSchemaConfigParam,
 )
-from openai.types.shared_params.response_format_json_schema import JSONSchema
 
 from aidial_adapter_openai.dial_api.resource import URLResource
 from aidial_adapter_openai.dial_api.storage import FileStorage
-from aidial_adapter_openai.utils.validation import (
-    MISSING,
-    ensure_dict,
-    invalid_value,
-)
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 def convert_response_format(
-    response_format: ResponseFormat,
+    response_format: RequestValue,
 ) -> ResponseFormatTextConfigParam:
-    ensure_dict("response_format", response_format, "type")
-    match response_format["type"]:
+    response_format_type = response_format["type"].to_literal(
+        "text", "json_object", "json_schema"
+    )
+    match response_format_type:
         case "text":
-            return response_format
+            return response_format.unwrap()
         case "json_object":
-            return response_format
+            return response_format.unwrap()
         case "json_schema":
-            ensure_dict(
-                "json_schema", response_format.get("json_schema", MISSING)
-            )
-            json_schema: JSONSchema = response_format["json_schema"]
+            json_schema = response_format["json_schema"].unwrap_dict()
 
             ret = ResponseFormatTextJSONSchemaConfigParam(
                 type="json_schema",
@@ -46,7 +39,7 @@ def convert_response_format(
 
             return ret
         case _:
-            raise invalid_value("response_format.type", response_format["type"])
+            assert_never(response_format_type)
 
 
 async def _download_url_field(

@@ -3,11 +3,12 @@ from openai.types.create_embedding_response import CreateEmbeddingResponse
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.parsers import embeddings_parser
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 async def embeddings(
     *,
-    request: dict,
+    request: RequestValue,
     creds: OpenAICreds,
     endpoint: str,
     api_version: str | None,
@@ -17,4 +18,6 @@ async def embeddings(
         {**creds, "api_version": api_version, "headers": headers or {}}
     )
 
-    return await call_with_extra_body(client.embeddings.create, request)
+    return await call_with_extra_body(
+        client.embeddings.create, request.unwrap_dict()
+    )

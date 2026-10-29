@@ -7,6 +7,7 @@ from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.responses.converter import (
     chat_completions_to_responses_request,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 @dataclass
@@ -27,7 +28,7 @@ class ResponsesRequestTokenizer:
 
     async def tokenize_raw_request(self, request: dict) -> int:
         tokenize_request, _ = await chat_completions_to_responses_request(
-            request=request, file_storage=self.file_storage
+            request=RequestValue(request), file_storage=self.file_storage
         )
         response = await self.client.responses.input_tokens.count(
             **tokenize_request

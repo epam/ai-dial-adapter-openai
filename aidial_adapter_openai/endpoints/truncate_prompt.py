@@ -49,6 +49,7 @@ from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 class Truncator(Protocol):
@@ -67,7 +68,7 @@ class _GptTruncator:
     ) -> DiscardedMessages:
         request_dict = request.model_dump(exclude_none=True)
         _, discarded, _ = await truncate_gpt_prompt(
-            request=request_dict,
+            request=RequestValue(request_dict),
             file_storage=self.file_storage,
             max_prompt_tokens=max_prompt_tokens,
             tokenizer=self.tokenizer,

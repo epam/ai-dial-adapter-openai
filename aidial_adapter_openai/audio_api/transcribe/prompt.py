@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import mimetypes
-from typing import Any
 
 from aidial_sdk.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -12,9 +11,10 @@ from aidial_adapter_openai.chat_completions.transformation import (
 from aidial_adapter_openai.dial_api.request import collect_message_text_content
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.audio import normalize_audio_type
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
-def _collect_system_messages(messages: list[dict]) -> str | None:
+def _collect_system_messages(messages: list[RequestValue]) -> str | None:
     ret = ""
     for message in messages:
         if message.get("role") in ("system", "developer"):
@@ -30,14 +30,14 @@ class TranscribePrompt(BaseModel):
 
     @classmethod
     async def from_request(
-        cls, request: Any, file_storage: FileStorage | None
+        cls, request: RequestValue, file_storage: FileStorage | None
     ) -> TranscribePrompt:
         if (n := request.get("n")) not in [None, 1]:
             raise RequestValidationError(
                 f"The deployment doesn't support request.n parameter other than 1, but got {n}."
             )
 
-        messages = request["messages"]
+        messages = request["messages"].to_list()
 
         if not messages:
             raise RequestValidationError(
@@ -48,6 +48,8 @@ class TranscribePrompt(BaseModel):
             file_storage=file_storage
         ).transform_messages(messages[-1:])
 
+        # FIX_NOW: move _collect_system_messages to aidial_adapter_openai/dial_api/request.py as collect_system_messages,
+        # then reuse in two modules that make use of _collect_system_messages
         system_message = _collect_system_messages(messages)
 
         audios = [audio for message in result for audio in message.audios]

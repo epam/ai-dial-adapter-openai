@@ -13,6 +13,7 @@ from openai.types.responses.response_usage import (
 from aidial_adapter_openai.responses.converter import (
     chat_completions_to_responses_request,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 from tests.utils.mock_server import MockServer
 
 _UPSTREAM_ENDPOINT = "https://api.openai.com/v1/responses"
@@ -281,22 +282,24 @@ async def test_usage_reports_cache_tokens(test_app: httpx.AsyncClient):
 
 async def test_assistant_message_content_parts():
     _, create_request = await chat_completions_to_responses_request(
-        {
-            "model": "test-model",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": "Hello"}],
-                },
-                {
-                    "role": "assistant",
-                    "content": [
-                        {"type": "text", "text": "Hi"},
-                        {"type": "refusal", "refusal": "No way"},
-                    ],
-                },
-            ],
-        },
+        RequestValue(
+            {
+                "model": "test-model",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": "Hello"}],
+                    },
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "Hi"},
+                            {"type": "refusal", "refusal": "No way"},
+                        ],
+                    },
+                ],
+            }
+        ),
         file_storage=None,
     )
 

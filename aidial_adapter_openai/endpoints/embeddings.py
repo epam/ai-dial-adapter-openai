@@ -33,7 +33,8 @@ async def embedding(deployment_id: DeploymentId, request: Request):
 
     # Guarding against receiving an arbitrary model identifier from the user request.
     # Replacing it with the deployment id coming from the adapter endpoint.
-    request_body["model"] = deployment_id
+    # FIX_NOW: add API for assignment
+    request_body.unwrap_dict()["model"] = deployment_id
 
     vendor = Vendor.AZURE if app_config.is_azure(deployment_id) else Vendor.VLLM
     creds = await get_credentials(

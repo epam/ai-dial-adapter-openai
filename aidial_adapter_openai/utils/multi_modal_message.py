@@ -26,4 +26,5 @@ class MultiModalMessage(BaseModel):
     images: list[ImageResource] = []
     files: list[FileResource] = []
     audios: list[AudioResource] = []
+    # FIX_NOW: lets replace dict with RequestValue
     raw_message: dict

@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Literal
+from typing import Literal, assert_never
 
 from openai.types.chat import ChatCompletionContentPartImageParam
 from PIL import Image
@@ -7,7 +7,6 @@ from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.concurrency import run_in_threadpool
 from aidial_adapter_openai.utils.resource.base import Resource
-from aidial_adapter_openai.utils.validation import invalid_value
 
 DetailLevel = Literal["low", "high"]
 ImageDetail = DetailLevel | Literal["auto"]
@@ -25,7 +24,7 @@ def resolve_detail_level(
         case "high":
             return "high"
         case _:
-            raise invalid_value("image detail", detail)
+            assert_never(detail)
 
 
 class ImageResource(BaseModel):

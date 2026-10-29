@@ -1,55 +1,50 @@
 from collections.abc import Mapping
-from typing import Annotated, Any, TypeVar
+from typing import Annotated, TypeVar
 
 from aidial_sdk.exceptions import (
     InternalServerError,
     InvalidRequestError,
-    RequestValidationError,
 )
 from fastapi import Depends, Header, Request
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.log_config import logger
-from aidial_adapter_openai.utils.validation import (
-    MISSING,
-    ensure_dict,
-    ensure_str,
-)
+from aidial_adapter_openai.utils.validation import RequestValue
 
 _T = TypeVar("_T", bound=BaseModel)
 
 
-def parse_configuration(cls: type[_T], data: Any) -> _T | None:
-    if (cf := data.get("custom_fields")) is None:
+def parse_configuration(cls: type[_T], request: RequestValue) -> _T | None:
+    if (cf := request.get("custom_fields")) is None:
         return None
 
     if (conf := cf.get("configuration")) is None:
         return None
 
-    try:
-        return cls.model_validate(conf)
-    except ValidationError as e:
-        error = e.errors()[0]
-        path = ".".join(map(str, error["loc"]))
-        msg = f"Invalid request. Path: 'custom_field.configuration.{path}', error: {error['msg']}"
-
-        raise RequestValidationError(msg)
+    return conf.to_model(cls)
 
 
-def collect_message_text_content(message: dict) -> str:
-    text = ""
-    if content := message.get("content"):
-        if isinstance(content, str):
-            text += content
-        elif isinstance(content, list):
-            for item in content:
-                if ensure_dict("content part", item).get("type") == "text":
-                    text += ensure_str("text", item.get("text", MISSING))
-    return text
+def collect_message_text_content(message: RequestValue) -> str:
+    if (content := message.get("content")) is None:
+        return ""
+    match content.to_str_or_list():
+        case str() as text:
+            return text
+        case parts:
+            return "".join(
+                part["text"].to_str()
+                for part in parts
+                if part.get("type") == "text"
+            )
 
 
-def extract_max_prompt_tokens(request: dict) -> int | None:
-    if (max_prompt_tokens := request.pop("max_prompt_tokens", None)) is None:
+def extract_max_prompt_tokens(request: RequestValue) -> int | None:
+    # FIX_NOW: add .pop method to request to make the code as closely looking as
+    # the original version
+    raw_request = request.unwrap_dict()
+    if (
+        max_prompt_tokens := raw_request.pop("max_prompt_tokens", None)
+    ) is None:
         return None
 
     if not isinstance(max_prompt_tokens, int):

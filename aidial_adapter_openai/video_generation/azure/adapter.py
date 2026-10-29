@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, assert_never
+from typing import assert_never
 
 import fastapi
 from aidial_sdk.chat_completion import Choice, Stage
@@ -15,6 +15,7 @@ from aidial_adapter_openai.dial_api.sdk_adapter import sdk_adapter
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.log_config import logger
+from aidial_adapter_openai.utils.validation import RequestValue
 from aidial_adapter_openai.video_generation.azure.client import (
     AzureVideoAPIClient,
 )
@@ -32,7 +33,7 @@ from aidial_adapter_openai.video_generation.azure.types import (
 from aidial_adapter_openai.video_generation.request import validate_request
 
 
-def _get_configuration(request: dict) -> VideoGenerationConfig:
+def _get_configuration(request: RequestValue) -> VideoGenerationConfig:
     configuration = (
         parse_configuration(VideoGenerationConfig, request)
         or VideoGenerationConfig()
@@ -134,7 +135,7 @@ async def _download_videos(
 async def chat_completion(
     *,
     request: fastapi.Request,
-    request_body: dict[str, Any],
+    request_body: RequestValue,
     creds: OpenAICreds,
     deployment_id: str,
     upstream_endpoint: str,

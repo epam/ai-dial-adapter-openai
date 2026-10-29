@@ -41,6 +41,7 @@ async def truncate_prompt(
     tokenizer: Tokenizer,
     original_request: dict,
     messages: list[_T],
+    # FIX_NOW: get_raw_message: Callable[[_T], RequestValue]
     get_raw_message: Callable[[_T], dict],
     max_prompt_tokens: int,
 ) -> tuple[list[_T], DiscardedMessages, TruncatedTokens]:
