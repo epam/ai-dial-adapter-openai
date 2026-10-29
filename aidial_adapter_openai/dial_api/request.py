@@ -47,16 +47,8 @@ def collect_system_messages(messages: list[RequestValue]) -> str | None:
 
 
 def extract_max_prompt_tokens(request: RequestValue) -> int | None:
-    # FIX_NOW: add pop_int method
-    if (value := request.pop("max_prompt_tokens")) is None:
+    if (max_prompt_tokens := request.pop_int("max_prompt_tokens")) is None:
         return None
-
-    max_prompt_tokens = value.unwrap()
-    if not isinstance(max_prompt_tokens, int):
-        raise InvalidRequestError(
-            f"'{max_prompt_tokens}' is not of type 'integer'",
-            param="max_prompt_tokens",
-        )
 
     if max_prompt_tokens < 1:
         raise InvalidRequestError(

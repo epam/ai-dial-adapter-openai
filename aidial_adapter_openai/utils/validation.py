@@ -30,6 +30,16 @@ def _repr(value: object) -> str:
     return "null" if value is None else repr(value)
 
 
+def to_request_error(
+    e: pydantic.ValidationError, path: _Path = ()
+) -> InvalidRequestError:
+    error = e.errors()[0]
+    location = _format_path((*path, *error["loc"]))
+    return InvalidRequestError(
+        f"Invalid request. Path: '{location}', error: {error['msg']}"
+    )
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class RequestValue:
     """A value of an unvalidated request together with its path in the request.
@@ -98,6 +108,9 @@ class RequestValue:
         """A shallow copy of a dict value."""
         return RequestValue(self._ensure(dict).copy(), self.path)
 
+    def pop_int(self, key: str) -> int | None:
+        return None if (value := self.pop(key)) is None else value.to_int()
+
     def get_str(self, key: str) -> str | None:
         return None if (value := self.get(key)) is None else value.to_str()
 
@@ -149,11 +162,7 @@ class RequestValue:
         try:
             return cls.model_validate(self.obj)
         except pydantic.ValidationError as e:
-            error = e.errors()[0]
-            location = _format_path((*self.path, *error["loc"]))
-            raise InvalidRequestError(
-                f"Invalid request. Path: '{location}', error: {error['msg']}"
-            ) from e
+            raise to_request_error(e, self.path) from e
 
     def invalid(self, *supported: str) -> InvalidRequestError:
         """For the catch-all case of a match over the value."""

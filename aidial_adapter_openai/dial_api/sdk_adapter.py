@@ -3,13 +3,11 @@ from collections.abc import Callable, Coroutine
 import fastapi
 from aidial_sdk.chat_completion import Request as DIALRequest
 from aidial_sdk.chat_completion import Response as DIALResponse
-from aidial_sdk.chat_completion.request import ChatCompletionRequest
 from aidial_sdk.utils.streaming import to_block_response, to_streaming_response
 from fastapi.responses import StreamingResponse
 
 from aidial_adapter_openai.dial_api.storage import DIAL_URL
 from aidial_adapter_openai.exceptions.handlers import dial_exception_decorator
-from aidial_adapter_openai.utils.validation import RequestValue
 
 
 async def sdk_adapter(
@@ -20,12 +18,6 @@ async def sdk_adapter(
         [DIALRequest, DIALResponse], Coroutine[None, None, None]
     ],
 ) -> StreamingResponse | dict:
-    # The DIAL SDK raises a bare pydantic error on an invalid request body,
-    # which surfaces as 500, hence the upfront validation reporting 400
-    # FIX_NOW: we should rather solve it by catching pydantic errors
-    # in a exception handler and convert them to 400 to cover more cases.
-    RequestValue(await request.json()).to_model(ChatCompletionRequest)
-
     dial_request = await DIALRequest.from_request(
         request=request,
         deployment_id=deployment_id,

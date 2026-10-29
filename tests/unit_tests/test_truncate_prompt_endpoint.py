@@ -294,7 +294,7 @@ async def test_truncate_prompt_anthropic_over_budget(
 
 
 @pytest.mark.asyncio
-async def test_truncate_prompt_invalid_inputs_returns_422(
+async def test_truncate_prompt_invalid_inputs_returns_400(
     gpt_client: httpx.AsyncClient,
 ):
     response = await gpt_client.post(
@@ -303,4 +303,4 @@ async def test_truncate_prompt_invalid_inputs_returns_422(
         headers=_headers(_GPT_UPSTREAM_ENDPOINT),
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 400

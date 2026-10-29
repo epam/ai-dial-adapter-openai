@@ -14,7 +14,6 @@ from aidial_sdk.deployment.truncate_prompt import (
 from aidial_sdk.exceptions import RequestValidationError, ResourceNotFoundError
 from anthropic import AsyncAnthropic
 from fastapi import Request
-from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.anthropic import create_adapter
 from aidial_adapter_openai.chat_completions.gpt import truncate_gpt_prompt
@@ -112,25 +111,11 @@ class _AnthropicTruncator:
         return discarded or []
 
 
-async def _load_truncate_prompt_request(
-    request: Request, deployment_id: str
-) -> TruncatePromptRequest:
-    try:
-        return await TruncatePromptRequest.from_request(
-            request, deployment_id, base_url=None
-        )
-    except ValidationError as e:
-        error = e.errors()[0]
-        path = ".".join(map(str, error["loc"]))
-        msg = f"Invalid request. Path: '{path}', error: {error['msg']}"
-        raise RequestValidationError(msg) from e
-
-
 async def truncate_prompt(
     deployment_id: DeploymentId, request: Request
 ) -> TruncatePromptResponse:
-    truncate_prompt_request = await _load_truncate_prompt_request(
-        request, deployment_id
+    truncate_prompt_request = await TruncatePromptRequest.from_request(
+        request, deployment_id, base_url=None
     )
 
     app_config = get_request_app_config(request)
