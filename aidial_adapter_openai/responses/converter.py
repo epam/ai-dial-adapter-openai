@@ -455,7 +455,7 @@ def convert_messages(messages: list[RequestValue]) -> ResponseInputParam:
 async def chat_completions_to_responses_request(
     request: RequestValue, file_storage: FileStorage | None
 ) -> tuple[_TokenizeResponsesRequest, _CreateResponsesRequest]:
-    is_stream = bool(request.get("stream"))
+    is_stream = bool(request.get_bool("stream"))
     model_name = request["model"].to_str()
     messages = request["messages"]
 
