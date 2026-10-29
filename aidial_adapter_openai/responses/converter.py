@@ -231,7 +231,7 @@ def convert_tools(tools: RequestValue) -> list[ToolParam]:
         match tool["type"].unwrap():
             case "static_function":
                 static_function = tool.get("static_function")
-                if static_function is None or not static_function.unwrap_dict():
+                if not static_function:
                     raise RequestValidationError(
                         "Required field 'static_function' is empty or not found."
                     )
@@ -359,14 +359,13 @@ def _to_input_content_param(part: RequestValue) -> ResponseInputContentParam:
 def _convert_tool_call(
     tool_call: RequestValue,
 ) -> ResponseFunctionToolCallParam | ResponseCustomToolCallParam:
-    call_id = tool_call["id"].unwrap()
     tool_call_type = tool_call["type"].to_literal("function", "custom")
     match tool_call_type:
         case "function":
             function = tool_call["function"]
             return ResponseFunctionToolCallParam(
                 type="function_call",
-                call_id=call_id,
+                call_id=tool_call["id"].unwrap(),
                 name=function["name"].unwrap(),
                 arguments=function["arguments"].unwrap(),
             )
@@ -374,7 +373,7 @@ def _convert_tool_call(
             custom = tool_call["custom"]
             return ResponseCustomToolCallParam(
                 type="custom_tool_call",
-                call_id=call_id,
+                call_id=tool_call["id"].unwrap(),
                 name=custom["name"].unwrap(),
                 input=custom["input"].unwrap(),
             )
@@ -406,19 +405,22 @@ def _convert_message(
             ):
                 yield from state_content
 
-            if message.get("function_call") is not None:
+            if message.get("function_call"):
                 raise RequestValidationError(_DEPRECATED_FUNCTION_API)
 
-            if (tool_calls := message.get("tool_calls")) is not None:
+            if tool_calls := message.get("tool_calls"):
                 yield from map(_convert_tool_call, tool_calls)
 
             if (content := message.get("content")) is None:
                 return
 
-            if isinstance(parts := content.to_str_or_list(), str):
-                res_content = parts
+            content = content.to_str_or_list()
+            if isinstance(content, str):
+                res_content = content
             else:
-                res_content = [_to_output_content_param(part) for part in parts]
+                res_content = [
+                    _to_output_content_param(part) for part in content
+                ]
 
             yield EasyInputMessageParam(role=role, content=res_content)  # type: ignore
 
@@ -455,13 +457,14 @@ async def chat_completions_to_responses_request(
 ) -> tuple[_TokenizeResponsesRequest, _CreateResponsesRequest]:
     is_stream = bool(request.get("stream"))
     model_name = request["model"].to_str()
+    messages = request["messages"]
 
     transformed_messages = await ResourceProcessor(
         file_storage=file_storage,
-    ).transform_messages(request["messages"].to_list())
+    ).transform_messages(messages)
 
     input_messages = convert_messages(
-        [message.raw_message for message in transformed_messages]
+        [m.raw_message for m in transformed_messages]
     )
 
     res_tools = []
@@ -484,7 +487,11 @@ async def chat_completions_to_responses_request(
     )
 
     configuration = get_configuration(request)
-    parallel_tool_calls = request.get_bool("parallel_tool_calls")
+    parallel_tool_calls = (
+        request["parallel_tool_calls"].unwrap()
+        if request.get("parallel_tool_calls") is not None
+        else omit
+    )
 
     text: ResponseTextConfigParam | Omit = omit
     if response_format := request.get("response_format"):
@@ -497,9 +504,7 @@ async def chat_completions_to_responses_request(
         "input": input_messages,
         "tools": res_tools or omit,
         "tool_choice": res_tool_choice,
-        "parallel_tool_calls": (
-            omit if parallel_tool_calls is None else parallel_tool_calls
-        ),
+        "parallel_tool_calls": parallel_tool_calls,
         "text": text,
     }
     create_request: _CreateResponsesRequest = {

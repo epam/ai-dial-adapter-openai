@@ -41,10 +41,11 @@ async def call_with_extra_body(
             f"Extra arguments aren't supported: {extra_args}."
         )
 
-    extra_body = request.get_dict("extra_body") or {}
+    arg["extra_body"] = request.get_dict("extra_body") or {}
+
     for extra_arg in extra_args:
-        extra_body[extra_arg] = arg.pop(extra_arg)
-    arg["extra_body"] = extra_body
+        arg["extra_body"][extra_arg] = arg[extra_arg]
+        del arg[extra_arg]
 
     return await func(**arg)
 

@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from aidial_sdk.exceptions import InvalidRequestError
@@ -192,7 +193,7 @@ class MessageTransformer:
             if value := custom_content.pop("attachments"):
                 attachments = value.to_list()
             if custom_content:
-                message["custom_content"] = custom_content.unwrap()
+                message["custom_content"] = custom_content
 
         if isinstance(content, str) and not attachments:
             return MultiModalMessage(raw_message=message)
@@ -201,13 +202,14 @@ class MessageTransformer:
             self.download_content(content),
             self.download_attachments(attachments),
         )
-        message["content"] = content_parts + attachment_parts
 
         return MultiModalMessage(
             images=self.images,
             files=self.files,
             audios=self.audios,
-            raw_message=message,
+            raw_message=message.update(
+                content=content_parts + attachment_parts
+            ),
         )
 
 
@@ -216,7 +218,7 @@ class ResourceProcessor:
     file_storage: FileStorage | None
 
     async def transform_messages(
-        self, messages: list[RequestValue]
+        self, messages: Iterable[RequestValue]
     ) -> list[MultiModalMessage]:
         errors: set[Error] = set()
         transformations = [

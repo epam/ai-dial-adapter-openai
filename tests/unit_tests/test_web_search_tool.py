@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 from aidial_sdk.exceptions import RequestValidationError
-from openai.types.responses import Response
+from openai.types.responses import Response, ToolParam
 from openai.types.responses.response_function_web_search import (
     ActionSearch,
     ActionSearchSource,
@@ -318,54 +318,47 @@ async def test_web_search_streaming_annotations_and_attachments(
     assert chunks[7]["choices"][0]["finish_reason"] == "stop"
 
 
+def _convert_tools(tools: list[dict]) -> list[ToolParam]:
+    return convert_tools(RequestValue(tools))
+
+
 def test_convert_tools_web_search():
-    tools = convert_tools(
-        RequestValue(
-            [
-                {
-                    "type": "static_function",
-                    "static_function": {"name": "web_search"},
-                }
-            ]
-        )
+    tools = _convert_tools(
+        [{"type": "static_function", "static_function": {"name": "web_search"}}]
     )
     assert tools == [{"type": "web_search"}]
 
 
 def test_convert_tools_web_search_with_extra_fields():
-    tools = convert_tools(
-        RequestValue(
-            [
-                {
-                    "type": "static_function",
-                    "static_function": {
-                        "name": "web_search",
-                        "configuration": {"search_context_size": "high"},
-                    },
-                }
-            ]
-        )
+    tools = _convert_tools(
+        [
+            {
+                "type": "static_function",
+                "static_function": {
+                    "name": "web_search",
+                    "configuration": {"search_context_size": "high"},
+                },
+            }
+        ]
     )
     assert tools == [{"type": "web_search", "search_context_size": "high"}]
 
 
 def test_convert_tools_web_search_with_unsupported_name():
     with pytest.raises(RequestValidationError):
-        convert_tools(
-            RequestValue(
-                [
-                    {
-                        "type": "static_function",
-                        "static_function": {"name": "web_search_preview"},
-                    }
-                ]
-            )
+        _convert_tools(
+            [
+                {
+                    "type": "static_function",
+                    "static_function": {"name": "web_search_preview"},
+                }
+            ]
         )
 
 
 def test_convert_tools_web_search_without_static_function_payload():
     with pytest.raises(RequestValidationError):
-        convert_tools(RequestValue([{"type": "static_function"}]))
+        _convert_tools([{"type": "static_function"}])
 
 
 def test_convert_response_with_web_search_call():

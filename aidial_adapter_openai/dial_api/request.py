@@ -25,17 +25,16 @@ def parse_configuration(cls: type[_T], request: RequestValue) -> _T | None:
 
 
 def collect_message_text_content(message: RequestValue) -> str:
-    if (content := message.get("content")) is None:
-        return ""
-    match content.to_str_or_list():
-        case str() as text:
-            return text
-        case parts:
-            return "".join(
-                part["text"].to_str()
-                for part in parts
-                if part.get("type") == "text"
-            )
+    text = ""
+    if content := message.get("content"):
+        content = content.to_str_or_list()
+        if isinstance(content, str):
+            text += content
+        else:
+            for item in content:
+                if item.get("type") == "text":
+                    text += item["text"].to_str()
+    return text
 
 
 def collect_system_messages(messages: Iterable[RequestValue]) -> str | None:

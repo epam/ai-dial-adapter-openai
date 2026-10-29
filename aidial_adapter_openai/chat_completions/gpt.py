@@ -47,7 +47,7 @@ async def truncate_gpt_prompt(
 ) -> tuple[list[MultiModalMessage], DiscardedMessages, TruncatedTokens]:
     multi_modal_messages = await ResourceProcessor(
         file_storage=file_storage
-    ).transform_messages(request["messages"].to_list())
+    ).transform_messages(request["messages"])
     return await truncate_messages(
         messages=multi_modal_messages,
         message_tokens=tokenizer.tokenize_request_message,
@@ -103,7 +103,7 @@ async def chat_completion(
     else:
         multi_modal_messages = await ResourceProcessor(
             file_storage=file_storage
-        ).transform_messages(request["messages"].to_list())
+        ).transform_messages(request["messages"])
         discarded_messages = None
 
         async def get_prompt_tokens() -> int:
@@ -113,7 +113,7 @@ async def chat_completion(
             logger.debug(f"estimated prompt tokens: {prompt_tokens}")
             return prompt_tokens
 
-    request["messages"] = [m.raw_message.unwrap() for m in multi_modal_messages]
+    request["messages"] = [m.raw_message for m in multi_modal_messages]
 
     # The upstream-specific rewrites go last, once the request is final
     vendor_adapter.transform_chat_completions_request(

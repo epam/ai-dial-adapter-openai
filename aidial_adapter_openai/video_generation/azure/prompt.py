@@ -25,9 +25,9 @@ class VideoGenPrompt(BaseModel):
 
     @classmethod
     async def from_request(
-        cls, request: RequestValue, file_storage: FileStorage | None
+        cls, data: RequestValue, file_storage: FileStorage | None
     ) -> VideoGenPrompt:
-        last_message = request["messages"][-1]
+        last_message = data["messages"][-1]
 
         prompt = collect_message_text_content(last_message).strip()
         if not prompt:

@@ -301,7 +301,7 @@ async def chat_completion(deployment_id: DeploymentId, request: Request):
     if emulate_streaming:
         request_body["stream"] = False
 
-    if not is_stream:
+    if not is_stream and request_body.get("stream_options") is not None:
         request_body.pop("stream_options")
 
     api_version = get_api_version(request)

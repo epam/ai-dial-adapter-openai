@@ -18,11 +18,11 @@ class ImageGenPrompt(BaseModel):
 
     @classmethod
     async def from_request(
-        cls, request: RequestValue, file_storage: FileStorage | None
+        cls, data: RequestValue, file_storage: FileStorage | None
     ) -> ImageGenPrompt:
         result = await ResourceProcessor(
             file_storage=file_storage
-        ).transform_messages(request["messages"].to_list())
+        ).transform_messages(data["messages"])
 
         text_prompt = ""
         images: list[Resource] = []

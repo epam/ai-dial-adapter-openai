@@ -33,7 +33,7 @@ def _text_part(text: str) -> dict:
 async def _general_transform(messages: list[dict]) -> list[MultiModalMessage]:
     return await ResourceProcessor(
         file_storage=DummyFileStorage(),
-    ).transform_messages(RequestValue(messages).to_list())
+    ).transform_messages(RequestValue(messages))
 
 
 @pytest.mark.parametrize(

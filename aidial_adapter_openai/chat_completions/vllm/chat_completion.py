@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
@@ -35,7 +35,7 @@ from aidial_adapter_openai.utils.validation import RequestValue
 
 
 async def _transform_messages(
-    messages: list[RequestValue],
+    messages: Iterable[RequestValue],
     file_storage: FileStorage | None,
 ) -> list[MultiModalMessage]:
     multi_modal_messages = await ResourceProcessor(
@@ -45,7 +45,7 @@ async def _transform_messages(
 
 
 async def transform_vllm_messages(
-    messages: list[RequestValue],
+    messages: Iterable[RequestValue],
     file_storage: FileStorage | None,
 ) -> list[RequestValue]:
     """Apply the DIAL-to-OpenAI multimodal transformation expected by vLLM."""
@@ -62,7 +62,7 @@ async def truncate_vllm_prompt(
     tokenizer: VllmTokenizer,
 ) -> tuple[list[RequestValue], DiscardedMessages, TruncatedTokens]:
     transformed = await transform_vllm_messages(
-        request["messages"].to_list(), file_storage
+        request["messages"], file_storage
     )
     return await truncate_prompt(
         tokenizer=tokenizer,
@@ -100,11 +100,11 @@ async def chat_completion(
         )
     else:
         messages = await transform_vllm_messages(
-            request["messages"].to_list(), file_storage
+            request["messages"], file_storage
         )
         discarded_messages = None
 
-    request["messages"] = [m.unwrap() for m in messages]
+    request["messages"] = messages
 
     # vLLM includes usage in stream mode only if stream_options.include_usage=true.
     if request.get_bool("stream"):

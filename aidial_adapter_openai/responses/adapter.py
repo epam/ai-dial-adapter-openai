@@ -124,7 +124,7 @@ async def _truncate_prompt(
         get_raw_message=lambda m: m,
         max_prompt_tokens=max_prompt_tokens,
     )
-    request["messages"] = [m.unwrap() for m in messages]
+    request["messages"] = messages
     logger.debug(
         f"Responses estimated prompt tokens after truncation: {prompt_tokens}, "
         f"discarded messages indices: {discarded_messages}"

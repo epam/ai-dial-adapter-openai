@@ -72,7 +72,8 @@ class RequestValue:
         return iter(self.to_list())
 
     def __setitem__(self, key: str, value: Any) -> None:
-        self._ensure(dict)[key] = value
+        """Request values (and lists of them) are stored as their raw values."""
+        self._ensure(dict)[key] = _unwrap(value)
 
     @overload
     def __getitem__(self, key: int | str) -> "RequestValue": ...
@@ -206,3 +207,11 @@ class RequestValue:
             f"{self._location!r} expected to be {expected_names}, "
             f"but got {_type_name(type(self.obj))}"
         )
+
+
+def _unwrap(value: Any) -> Any:
+    if isinstance(value, RequestValue):
+        return value.obj
+    if isinstance(value, list):
+        return [_unwrap(item) for item in value]
+    return value

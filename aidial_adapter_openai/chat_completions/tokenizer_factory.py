@@ -74,10 +74,9 @@ class _VllmRequestTokenizer:
         )
 
     async def tokenize_raw_request(self, request: RequestValue) -> int:
-        messages = await transform_vllm_messages(
-            request["messages"].to_list(), self.file_storage
+        request["messages"] = await transform_vllm_messages(
+            request["messages"], self.file_storage
         )
-        request["messages"] = [m.unwrap() for m in messages]
         return await self.tokenizer.tokenize(request.unwrap_dict())
 
 
@@ -97,7 +96,7 @@ class _TiktokenRequestTokenizer:
     async def tokenize_raw_request(self, request: RequestValue) -> int:
         messages = await ResourceProcessor(
             file_storage=self.file_storage
-        ).transform_messages(request["messages"].to_list())
+        ).transform_messages(request["messages"])
         return await self.tokenizer.tokenize_request(request, messages)
 
     async def tokenize(self, request: dict) -> int:

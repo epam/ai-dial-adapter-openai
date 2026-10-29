@@ -149,9 +149,7 @@ async def test_transform_messages_not_found(
     ]
 
     with pytest.raises(DialException) as exc:
-        await mock_resource_processor.transform_messages(
-            RequestValue(messages).to_list()
-        )
+        await mock_resource_processor.transform_messages(RequestValue(messages))
 
     assert (
         exc.value.message
@@ -390,7 +388,7 @@ async def test_transform_to_unified_messages(
     expected_transformations,
 ):
     result = await mock_resource_processor.transform_messages(
-        RequestValue(messages).to_list()
+        RequestValue(messages)
     )
     assert result == expected_transformations
 
@@ -411,7 +409,7 @@ async def test_audio_in_content_part(
         },
     ]
     result = await mock_resource_processor.transform_messages(
-        RequestValue(messages).to_list()
+        RequestValue(messages)
     )
     assert len(result) == 1
     content = result[0].raw_message["content"].unwrap()

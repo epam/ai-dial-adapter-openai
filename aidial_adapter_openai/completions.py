@@ -56,8 +56,10 @@ async def chat_completion(
     if prompt_template is not None:
         prompt = prompt_template.format(prompt=prompt)
 
-    request["prompt"] = prompt
-    response = await call_with_extra_body(client.completions.create, request)
+    response = await call_with_extra_body(
+        client.completions.create,
+        request.update(prompt=prompt),
+    )
 
     if isinstance(response, AsyncStream):
         return map_stream(
