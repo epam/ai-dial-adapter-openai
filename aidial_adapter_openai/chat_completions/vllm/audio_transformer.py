@@ -25,8 +25,7 @@ def transform_audio(
             result.append(message)
             continue
 
-        raw_message = message.raw_message.copy()
-        content = raw_message.unwrap_dict().get("content")
+        content = message.raw_message.unwrap_dict().get("content")
         new_content = [
             p
             for p in (content if isinstance(content, list) else [])
@@ -35,14 +34,13 @@ def transform_audio(
         new_content.extend(
             _audio_url_part(a.audio.to_data_url()) for a in message.audios
         )
-        raw_message["content"] = new_content
 
         result.append(
             MultiModalMessage(
                 images=message.images,
                 files=message.files,
                 audios=message.audios,
-                raw_message=raw_message,
+                raw_message=message.raw_message.update(content=new_content),
             )
         )
     return result

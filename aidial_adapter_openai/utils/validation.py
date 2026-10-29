@@ -1,6 +1,6 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, LiteralString, TypeVar
+from typing import Any, LiteralString, TypeVar, overload
 
 import pydantic
 from aidial_sdk.exceptions import InvalidRequestError
@@ -74,9 +74,20 @@ class RequestValue:
     def __setitem__(self, key: str, value: Any) -> None:
         self._ensure(dict)[key] = value
 
-    def __getitem__(self, key: int | str) -> "RequestValue":
-        """A list item by index (negative counts from the end)
-        or a required dict field by key."""
+    @overload
+    def __getitem__(self, key: int | str) -> "RequestValue": ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list["RequestValue"]: ...
+
+    def __getitem__(
+        self, key: int | str | slice
+    ) -> "RequestValue | list[RequestValue]":
+        """A list item by index (negative counts from the end),
+        list items by slice or a required dict field by key."""
+        if isinstance(key, slice):
+            return self.to_list()[key]
+
         if isinstance(key, int):
             items = self._ensure(list)
             index = key if key >= 0 else len(items) + key
@@ -107,6 +118,10 @@ class RequestValue:
     def copy(self) -> "RequestValue":
         """A shallow copy of a dict value."""
         return RequestValue(self._ensure(dict).copy(), self.path)
+
+    def update(self, **fields: Any) -> "RequestValue":
+        """A shallow copy of a dict value with the given fields replaced."""
+        return RequestValue({**self._ensure(dict), **fields}, self.path)
 
     def pop_int(self, key: str) -> int | None:
         return None if (value := self.pop(key)) is None else value.to_int()

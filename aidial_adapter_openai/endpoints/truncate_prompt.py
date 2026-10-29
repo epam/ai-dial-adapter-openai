@@ -85,12 +85,12 @@ class _RequestTokenizerTruncator:
     async def truncate(
         self, max_prompt_tokens: int, request: ChatCompletionRequest
     ) -> DiscardedMessages:
-        request_dict = request.model_dump(exclude_none=True)
+        request_value = RequestValue(request.model_dump(exclude_none=True))
         _, discarded, _ = await truncate_prompt_with_tokenizer(
             tokenizer=self,
-            original_request=request_dict,
-            messages=request_dict["messages"],
-            get_raw_message=RequestValue,
+            original_request=request_value,
+            messages=request_value["messages"].to_list(),
+            get_raw_message=lambda m: m,
             max_prompt_tokens=max_prompt_tokens,
         )
         return discarded

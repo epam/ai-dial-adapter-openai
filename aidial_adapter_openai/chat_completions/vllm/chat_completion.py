@@ -66,7 +66,7 @@ async def truncate_vllm_prompt(
     )
     return await truncate_prompt(
         tokenizer=tokenizer,
-        original_request=request.unwrap_dict(),
+        original_request=request,
         messages=transformed,
         get_raw_message=lambda m: m,
         max_prompt_tokens=max_prompt_tokens,

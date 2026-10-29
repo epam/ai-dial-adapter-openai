@@ -35,7 +35,7 @@ async def chat_completion(
             f"The deployment doesn't support request.n parameter other than 1, but got {n}."
         )
 
-    if not (messages := request_body["messages"].to_list()):
+    if not (messages := request_body["messages"]):
         raise RequestValidationError("The request doesn't contain any messages")
 
     prompt = collect_message_text_content(messages[-1]).strip()

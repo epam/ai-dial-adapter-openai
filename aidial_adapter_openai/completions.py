@@ -5,6 +5,7 @@ from aidial_sdk.exceptions import RequestValidationError
 from openai import AsyncAzureOpenAI, AsyncOpenAI, AsyncStream
 from openai.types import Completion
 
+from aidial_adapter_openai.dial_api.request import collect_message_text_content
 from aidial_adapter_openai.utils.reflection import call_with_extra_body
 from aidial_adapter_openai.utils.streaming import (
     build_chunk,
@@ -50,9 +51,7 @@ async def chat_completion(
     if not messages:
         raise RequestValidationError("The request doesn't contain any messages")
 
-    # FIX_ME: replace with a helper that gets a text content (even from content parts)
-    content = messages[-1].get("content")
-    prompt = content.unwrap() if content else ""
+    prompt = collect_message_text_content(messages[-1])
 
     if prompt_template is not None:
         prompt = prompt_template.format(prompt=prompt)

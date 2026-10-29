@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Annotated, TypeVar
 
 from aidial_sdk.exceptions import (
@@ -38,7 +38,7 @@ def collect_message_text_content(message: RequestValue) -> str:
             )
 
 
-def collect_system_messages(messages: list[RequestValue]) -> str | None:
+def collect_system_messages(messages: Iterable[RequestValue]) -> str | None:
     ret = ""
     for message in messages:
         if message.get("role") in ("system", "developer"):

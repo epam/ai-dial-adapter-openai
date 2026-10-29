@@ -31,7 +31,7 @@ async def _truncate_prompt(
 ):
     return await truncate_prompt(
         LengthTokenizerStub(),
-        {"per_request_tokens": per_request_tokens},
+        RequestValue({"per_request_tokens": per_request_tokens}),
         messages,
         RequestValue,
         max_prompt_tokens,
@@ -137,7 +137,7 @@ class TestTruncatePrompt:
 
         await truncate_prompt(
             tokenizer,
-            {"per_request_tokens": 2},
+            RequestValue({"per_request_tokens": 2}),
             messages,
             RequestValue,
             12,

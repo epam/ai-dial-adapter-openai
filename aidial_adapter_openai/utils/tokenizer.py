@@ -199,7 +199,7 @@ class Tokenizer(BaseTokenizer[MultiModalMessage]):
     async def _on_multi_modal_content_part(
         self, content_part: RequestValue
     ) -> int:
-        ty = content_part["type"].unwrap()
+        ty = content_part["type"].to_str()
         if ty == "image_url" and self.image_tokenizer is None:
             env_vars = " or ".join(IMAGE_SUPPORTING_DEPLOYMENTS)
             self.warnings.add(

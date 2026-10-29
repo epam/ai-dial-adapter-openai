@@ -119,7 +119,7 @@ async def _truncate_prompt(
         prompt_tokens,
     ) = await truncate_prompt(
         tokenizer=tokenizer,
-        original_request=request.unwrap_dict(),
+        original_request=request,
         messages=request["messages"].to_list(),
         get_raw_message=lambda m: m,
         max_prompt_tokens=max_prompt_tokens,

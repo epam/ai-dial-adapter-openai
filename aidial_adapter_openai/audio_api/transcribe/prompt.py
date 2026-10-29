@@ -29,7 +29,7 @@ class TranscribePrompt(BaseModel):
                 f"The deployment doesn't support request.n parameter other than 1, but got {n}."
             )
 
-        messages = request["messages"].to_list()
+        messages = request["messages"]
 
         if not messages:
             raise RequestValidationError(
