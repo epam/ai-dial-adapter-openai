@@ -32,8 +32,7 @@ async def chat_completion(
 ) -> StreamingResponse | dict:
     prompt = await ImageGenPrompt.from_request(request_body, file_storage)
 
-    n = request_body.get_int("n")
-    n = 1 if n is None else n
+    n = request_body.get_int("n", 1)
 
     config_cls = model.get_configuration()
     response_format = model.get_response_format()

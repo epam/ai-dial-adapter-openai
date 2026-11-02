@@ -55,6 +55,7 @@ from openai.types.responses import (
     ToolChoiceAllowedParam,
     ToolChoiceCustomParam,
     ToolChoiceFunctionParam,
+    ToolChoiceOptions,
     ToolParam,
     WebSearchToolParam,
 )
@@ -197,8 +198,8 @@ def parse_response_url_citation(
 
 
 def convert_tool_choice(tool_choice: RequestValue) -> ToolChoice:
-    if isinstance(tool_choice.unwrap(), str):
-        return tool_choice.unwrap()
+    if isinstance(value := tool_choice.unwrap(), str):
+        return cast(ToolChoiceOptions, value)
 
     tool_choice_type = tool_choice["type"].to_literal(
         "allowed_tools", "function", "custom"
@@ -455,7 +456,7 @@ def convert_messages(messages: list[RequestValue]) -> ResponseInputParam:
 async def chat_completions_to_responses_request(
     request: RequestValue, file_storage: FileStorage | None
 ) -> tuple[_TokenizeResponsesRequest, _CreateResponsesRequest]:
-    is_stream = bool(request.get_bool("stream"))
+    is_stream = request.get_bool("stream", False)
     model_name = request["model"].to_str()
     messages = request["messages"]
 

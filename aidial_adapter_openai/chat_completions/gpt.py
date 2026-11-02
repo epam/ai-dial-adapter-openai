@@ -68,7 +68,7 @@ async def chat_completion(
     eliminate_empty_choices: bool,
     vendor_adapter: VendorAdapter,
 ) -> ResponseWithHeaders[AsyncIterator[dict] | dict]:
-    n = request.get_int("n") or 1
+    n = request.get_int("n", 1)
     model_name = request["model"].to_str()
 
     # Computed upfront: the path must address the request body

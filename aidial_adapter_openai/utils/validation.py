@@ -12,7 +12,7 @@ _Literal = TypeVar("_Literal", bound=LiteralString)
 
 
 def _format_path(path: _Path) -> str:
-    """("messages", 0, "content") -> "messages[0].content\" """
+    # ("messages", 0, "content") -> "messages[0].content"
     ret = ""
     for segment in path:
         if isinstance(segment, int):
@@ -130,14 +130,26 @@ class RequestValue:
     def get_str(self, key: str) -> str | None:
         return None if (value := self.get(key)) is None else value.to_str()
 
-    def get_int(self, key: str) -> int | None:
-        return None if (value := self.get(key)) is None else value.to_int()
+    @overload
+    def get_int(self, key: str) -> int | None: ...
+
+    @overload
+    def get_int(self, key: str, default: int) -> int: ...
+
+    def get_int(self, key: str, default: int | None = None) -> int | None:
+        return default if (value := self.get(key)) is None else value.to_int()
 
     def get_float(self, key: str) -> float | None:
         return None if (value := self.get(key)) is None else value.to_float()
 
-    def get_bool(self, key: str) -> bool | None:
-        return None if (value := self.get(key)) is None else value.to_bool()
+    @overload
+    def get_bool(self, key: str) -> bool | None: ...
+
+    @overload
+    def get_bool(self, key: str, default: bool) -> bool: ...
+
+    def get_bool(self, key: str, default: bool | None = None) -> bool | None:
+        return default if (value := self.get(key)) is None else value.to_bool()
 
     def get_dict(self, key: str) -> dict[str, Any] | None:
         """An optional dict field as is."""

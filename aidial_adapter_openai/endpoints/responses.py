@@ -212,7 +212,7 @@ async def responses_create(request: FastAPIRequest) -> FastAPIResponse:
     return await context.proxy(
         _PATH,
         body=await _prepare_request_body(request, request_body),
-        stream=request_body.get_bool("stream") is True,
+        stream=request_body.get_bool("stream", False),
         dial_caching_headers=await build_cache_headers(
             request_headers=request.headers,
             breakpoint_path=get_responses_breakpoint_path(

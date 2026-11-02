@@ -292,7 +292,7 @@ async def chat_completion(deployment_id: DeploymentId, request: Request):
     app_config = get_request_app_config(request)
     request_body = await parse_body(request)
 
-    is_stream = bool(request_body.get_bool("stream"))
+    is_stream = request_body.get_bool("stream", False)
 
     emulate_streaming = (
         deployment_id in app_config.NON_STREAMING_DEPLOYMENTS and is_stream

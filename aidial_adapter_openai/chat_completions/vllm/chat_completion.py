@@ -107,7 +107,7 @@ async def chat_completion(
     request["messages"] = messages
 
     # vLLM includes usage in stream mode only if stream_options.include_usage=true.
-    if request.get_bool("stream"):
+    if request.get_bool("stream", False):
         stream_options = request.get_dict("stream_options") or {}
         stream_options["include_usage"] = True
         request["stream_options"] = stream_options

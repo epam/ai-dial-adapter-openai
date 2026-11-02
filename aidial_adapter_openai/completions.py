@@ -44,7 +44,7 @@ async def chat_completion(
     client: AsyncAzureOpenAI | AsyncOpenAI,
     prompt_template: str | None,
 ) -> AsyncIterator[dict] | dict:
-    if (request.get_int("n") or 1) > 1:
+    if request.get_int("n", 1) > 1:
         raise RequestValidationError("The deployment doesn't support n > 1")
 
     messages = request.pop("messages")
