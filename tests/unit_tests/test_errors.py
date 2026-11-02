@@ -1175,7 +1175,7 @@ async def test_error_invalid_image_url(stream: bool):
         assert response.status_code == 400
         assert response.json() == {
             "error": {
-                "message": "'image_url' expected to be dict, but got str",
+                "message": "'messages[0].content[1].image_url' expected to be dict, but got str",
                 "type": "invalid_request_error",
                 "code": "400",
             }

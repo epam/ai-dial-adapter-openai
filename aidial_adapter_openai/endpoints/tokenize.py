@@ -8,9 +8,7 @@ from aidial_sdk.deployment.tokenize import (
     TokenizeResponse,
     TokenizeSuccess,
 )
-from aidial_sdk.exceptions import RequestValidationError
 from fastapi import Request
-from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.tokenizer_factory import (
     RequestTokenizer,
@@ -46,24 +44,12 @@ async def _tokenize_input(
             assert_never(unreachable)
 
 
-async def _load_tokenize_request(
-    request: Request, deployment_id: str
-) -> TokenizeRequest:
-    try:
-        return await TokenizeRequest.from_request(
-            request, deployment_id, base_url=None
-        )
-    except ValidationError as e:
-        error = e.errors()[0]
-        path = ".".join(map(str, error["loc"]))
-        msg = f"Invalid request. Path: '{path}', error: {error['msg']}"
-        raise RequestValidationError(msg) from e
-
-
 async def tokenize(
     deployment_id: DeploymentId, request: Request
 ) -> TokenizeResponse:
-    tokenize_request = await _load_tokenize_request(request, deployment_id)
+    tokenize_request = await TokenizeRequest.from_request(
+        request, deployment_id, base_url=None
+    )
 
     app_config = get_request_app_config(request)
     upstream_endpoint = get_upstream_endpoint(request.headers)

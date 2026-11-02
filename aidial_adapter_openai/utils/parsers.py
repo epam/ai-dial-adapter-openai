@@ -1,7 +1,7 @@
 import re
 from http import HTTPStatus
 from json import JSONDecodeError
-from typing import Any, Literal, assert_never
+from typing import Literal, assert_never
 from urllib.parse import urlparse
 
 from aidial_sdk.exceptions import HTTPException, InvalidRequestError
@@ -17,6 +17,7 @@ from aidial_adapter_openai.utils.http_client import (
     get_http_client,
 )
 from aidial_adapter_openai.utils.pydantic import ExtraForbidModel
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 class OpenAIParams(TypedDict, total=False):
@@ -307,7 +308,7 @@ openai_video_api_parser = EndpointParser(name="videos")
 anthropic_messages_parser = AnthropicEndpointParser()
 
 
-async def parse_body(request: Request) -> dict[str, Any]:
+async def parse_body(request: Request) -> RequestValue:
     try:
         data = await request.json()
     except JSONDecodeError as e:
@@ -318,7 +319,7 @@ async def parse_body(request: Request) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise InvalidRequestError(str(data) + " is not of type 'object'")
 
-    return data
+    return RequestValue(data)
 
 
 def bad_upstream_endpoint(message: str = "") -> HTTPException:

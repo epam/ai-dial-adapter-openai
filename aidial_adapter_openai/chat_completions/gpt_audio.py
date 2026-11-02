@@ -12,6 +12,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from aidial_adapter_openai.utils.streaming import map_stream
+from aidial_adapter_openai.utils.validation import RequestValue
 
 _AUDIO_FORMAT_TO_CONTENT_TYPE = {
     "mp3": "audio/mpeg",
@@ -123,14 +124,15 @@ class _AudioResponseTransformer(BaseModel):
 _T = TypeVar("_T", bound=AsyncIterator[dict] | dict)
 
 
-def extract_audio_content(response: _T, request_body: dict) -> _T:
+def extract_audio_content(response: _T, request_body: RequestValue) -> _T:
     """
     Transform OpenAI audio response format into DIAL format by:
     - Creating attachments for audio data
     - Placing audio transcripts in a dedicated "Audio transcript" stage
     - Preserving the main response content
     """
-    audio_format = request_body.get("audio", {}).get("format", "mp3")
+    audio = request_body.get("audio")
+    audio_format = (audio.get_str("format") if audio else None) or "mp3"
 
     if isinstance(response, dict):
         return _AudioResponseTransformer(

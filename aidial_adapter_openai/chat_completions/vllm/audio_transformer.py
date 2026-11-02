@@ -25,7 +25,7 @@ def transform_audio(
             result.append(message)
             continue
 
-        content = message.raw_message.get("content")
+        content = message.raw_message.unwrap_dict().get("content")
         new_content = [
             p
             for p in (content if isinstance(content, list) else [])
@@ -40,7 +40,7 @@ def transform_audio(
                 images=message.images,
                 files=message.files,
                 audios=message.audios,
-                raw_message={**message.raw_message, "content": new_content},
+                raw_message=message.raw_message.update(content=new_content),
             )
         )
     return result

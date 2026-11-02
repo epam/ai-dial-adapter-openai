@@ -14,7 +14,6 @@ from aidial_sdk.deployment.truncate_prompt import (
 from aidial_sdk.exceptions import RequestValidationError, ResourceNotFoundError
 from anthropic import AsyncAnthropic
 from fastapi import Request
-from pydantic import ValidationError
 
 from aidial_adapter_openai.chat_completions.anthropic import create_adapter
 from aidial_adapter_openai.chat_completions.gpt import truncate_gpt_prompt
@@ -49,6 +48,7 @@ from aidial_adapter_openai.utils.truncation_types import DiscardedMessages
 from aidial_adapter_openai.utils.upstream_headers import (
     get_upstream_extra_headers,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 class Truncator(Protocol):
@@ -67,7 +67,7 @@ class _GptTruncator:
     ) -> DiscardedMessages:
         request_dict = request.model_dump(exclude_none=True)
         _, discarded, _ = await truncate_gpt_prompt(
-            request=request_dict,
+            request=RequestValue(request_dict),
             file_storage=self.file_storage,
             max_prompt_tokens=max_prompt_tokens,
             tokenizer=self.tokenizer,
@@ -80,16 +80,16 @@ class _RequestTokenizerTruncator:
     tokenizer: RequestTokenizer
 
     async def tokenize(self, request: dict) -> int:
-        return await self.tokenizer.tokenize_raw_request(request)
+        return await self.tokenizer.tokenize_raw_request(RequestValue(request))
 
     async def truncate(
         self, max_prompt_tokens: int, request: ChatCompletionRequest
     ) -> DiscardedMessages:
-        request_dict = request.model_dump(exclude_none=True)
+        request_value = RequestValue(request.model_dump(exclude_none=True))
         _, discarded, _ = await truncate_prompt_with_tokenizer(
             tokenizer=self,
-            original_request=request_dict,
-            messages=request_dict["messages"],
+            original_request=request_value,
+            messages=request_value["messages"].to_list(),
             get_raw_message=lambda m: m,
             max_prompt_tokens=max_prompt_tokens,
         )
@@ -111,25 +111,11 @@ class _AnthropicTruncator:
         return discarded or []
 
 
-async def _load_truncate_prompt_request(
-    request: Request, deployment_id: str
-) -> TruncatePromptRequest:
-    try:
-        return await TruncatePromptRequest.from_request(
-            request, deployment_id, base_url=None
-        )
-    except ValidationError as e:
-        error = e.errors()[0]
-        path = ".".join(map(str, error["loc"]))
-        msg = f"Invalid request. Path: '{path}', error: {error['msg']}"
-        raise RequestValidationError(msg) from e
-
-
 async def truncate_prompt(
     deployment_id: DeploymentId, request: Request
 ) -> TruncatePromptResponse:
-    truncate_prompt_request = await _load_truncate_prompt_request(
-        request, deployment_id
+    truncate_prompt_request = await TruncatePromptRequest.from_request(
+        request, deployment_id, base_url=None
     )
 
     app_config = get_request_app_config(request)

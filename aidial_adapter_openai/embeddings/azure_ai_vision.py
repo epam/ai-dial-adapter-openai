@@ -44,6 +44,7 @@ from aidial_adapter_openai.utils.auth import OpenAICreds
 from aidial_adapter_openai.utils.http_client import get_http_client
 from aidial_adapter_openai.utils.pydantic import ExtraAllowedModel
 from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.validation import RequestValue
 
 # The latest Image Analysis API offers two models:
 # * version 2023-04-15 which supports text search in many languages,
@@ -70,12 +71,12 @@ class VectorizeResponse(ExtraAllowedModel):
 
 async def embeddings(
     *,
-    request: dict,
+    request: RequestValue,
     creds: OpenAICreds,
     endpoint: str,
     file_storage: FileStorage | None,
 ) -> EmbeddingResponse:
-    body = EmbeddingsRequest.model_validate(request)
+    body = request.to_model(EmbeddingsRequest)
     inputs = await download_embedding_inputs(body, file_storage)
 
     headers = _get_auth_headers(creds)
@@ -100,7 +101,7 @@ async def embeddings(
     n = len(vectors)
     usage = Usage(prompt_tokens=n, total_tokens=n)
 
-    model_name = request["model"]
+    model_name = request["model"].to_str()
     return EmbeddingResponse(model=model_name, data=vectors, usage=usage)
 
 

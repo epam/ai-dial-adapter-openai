@@ -24,6 +24,7 @@ from aidial_adapter_openai.utils.truncation_types import (
     DiscardedMessages,
     TruncatedTokens,
 )
+from aidial_adapter_openai.utils.validation import RequestValue
 
 _T = TypeVar("_T")
 
@@ -39,9 +40,9 @@ class Tokenizer(Protocol):
 
 async def truncate_prompt(
     tokenizer: Tokenizer,
-    original_request: dict,
+    original_request: RequestValue,
     messages: list[_T],
-    get_raw_message: Callable[[_T], dict],
+    get_raw_message: Callable[[_T], RequestValue],
     max_prompt_tokens: int,
 ) -> tuple[list[_T], DiscardedMessages, TruncatedTokens]:
     """Truncate *messages* to fit within *max_prompt_tokens*.
@@ -66,12 +67,12 @@ async def truncate_prompt(
         Object implementing :class:`Tokenizer` — i.e. exposes
         ``async def tokenize(self, request: dict) -> int``.
     original_request:
-        The base chat completion request dict (without ``messages``).
+        The base chat completion request (its ``messages`` are replaced).
         Tools, functions, and other top-level fields are preserved.
     messages:
         Ordered list of message holders to truncate.
     get_raw_message:
-        Callable that extracts the plain ``dict`` message from a holder.
+        Callable that extracts the raw message from a holder.
     max_prompt_tokens:
         Hard upper bound on total token count.
     """
@@ -83,9 +84,9 @@ async def truncate_prompt(
 
     def _build_request(indices: set[int]) -> dict:
         raw_messages: list[dict] = [
-            get_raw_message(messages[i]) for i in sorted(indices)
+            get_raw_message(messages[i]).unwrap() for i in sorted(indices)
         ]
-        return {**original_request, "messages": raw_messages}
+        return {**original_request.unwrap_dict(), "messages": raw_messages}
 
     # Fast path
     prompt_tokens = await tokenizer.tokenize(_build_request(all_indices))
@@ -95,7 +96,7 @@ async def truncate_prompt(
     system_indices: list[int] = []
     non_system_indices: list[int] = []
     for idx, msg in enumerate(messages):
-        if get_raw_message(msg).get("role") == "system":
+        if get_raw_message(msg).get("role") in ("system", "developer"):
             system_indices.append(idx)
         else:
             non_system_indices.append(idx)

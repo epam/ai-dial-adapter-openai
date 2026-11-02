@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 import fastapi
+import pydantic
 from aidial_adapter_anthropic.passthrough import mount_anthropic_api
 from aidial_client import AsyncDialClientPool
 from aidial_sdk.exceptions import HTTPException as DialException
@@ -72,7 +73,7 @@ def create_app(
 
     app.add_exception_handler(fastapi.HTTPException, fastapi_exception_handler)
 
-    for exc_class in [OpenAIError, DialException]:
+    for exc_class in [OpenAIError, DialException, pydantic.ValidationError]:
         app.add_exception_handler(exc_class, adapter_exception_handler)
 
     return app

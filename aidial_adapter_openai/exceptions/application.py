@@ -1,4 +1,5 @@
 import httpx
+import pydantic
 from aidial_adapter_anthropic.adapter import UserError, ValidationError
 from aidial_sdk.exceptions import HTTPException as DialException
 
@@ -6,6 +7,7 @@ from aidial_adapter_openai.utils.adapter_exception import (
     AdapterException,
     parse_adapter_exception,
 )
+from aidial_adapter_openai.utils.validation import to_request_error
 
 
 def convert_application_errors(e: Exception) -> AdapterException | None:
@@ -27,6 +29,9 @@ def convert_application_errors(e: Exception) -> AdapterException | None:
 
         case DialException():
             return e
+
+        case pydantic.ValidationError():
+            return to_request_error(e)
 
         case _:
             return None

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import mimetypes
-from typing import Any
 
 from aidial_sdk.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -9,17 +8,10 @@ from pydantic import BaseModel
 from aidial_adapter_openai.chat_completions.transformation import (
     ResourceProcessor,
 )
-from aidial_adapter_openai.dial_api.request import collect_message_text_content
+from aidial_adapter_openai.dial_api.request import collect_system_messages
 from aidial_adapter_openai.dial_api.storage import FileStorage
 from aidial_adapter_openai.utils.audio import normalize_audio_type
-
-
-def _collect_system_messages(messages: list[dict]) -> str | None:
-    ret = ""
-    for message in messages:
-        if message.get("role") in ("system", "developer"):
-            ret += collect_message_text_content(message)
-    return ret.strip() or None
+from aidial_adapter_openai.utils.validation import RequestValue
 
 
 class TranscribePrompt(BaseModel):
@@ -30,7 +22,7 @@ class TranscribePrompt(BaseModel):
 
     @classmethod
     async def from_request(
-        cls, request: Any, file_storage: FileStorage | None
+        cls, request: RequestValue, file_storage: FileStorage | None
     ) -> TranscribePrompt:
         if (n := request.get("n")) not in [None, 1]:
             raise RequestValidationError(
@@ -48,7 +40,7 @@ class TranscribePrompt(BaseModel):
             file_storage=file_storage
         ).transform_messages(messages[-1:])
 
-        system_message = _collect_system_messages(messages)
+        system_message = collect_system_messages(messages)
 
         audios = [audio for message in result for audio in message.audios]
 

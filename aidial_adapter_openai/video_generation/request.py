@@ -1,9 +1,9 @@
-from typing import Any
-
 from aidial_sdk.exceptions import RequestValidationError
 
+from aidial_adapter_openai.utils.validation import RequestValue
 
-def validate_request(request: dict[str, Any]) -> None:
+
+def validate_request(request: RequestValue) -> None:
     errors: list[str] = []
 
     if (n := request.get("n")) not in [None, 1]:

@@ -8,6 +8,7 @@ from aidial_adapter_openai.chat_completions.vllm.audio_transformer import (
 )
 from aidial_adapter_openai.utils.multi_modal_message import MultiModalMessage
 from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.validation import RequestValue
 from tests.utils.storage import DummyFileStorage
 
 _audio_wav = Resource(type="audio/wav", data=b"RIFF\x00\x00\x00\x00WAVEfmt ")
@@ -32,7 +33,7 @@ def _text_part(text: str) -> dict:
 async def _general_transform(messages: list[dict]) -> list[MultiModalMessage]:
     return await ResourceProcessor(
         file_storage=DummyFileStorage(),
-    ).transform_messages(messages)
+    ).transform_messages(RequestValue(messages))
 
 
 @pytest.mark.parametrize(
@@ -76,7 +77,7 @@ async def test_input_audio_converted_to_audio_url():
     result = transform_audio(general)
 
     assert len(result) == 1
-    content = result[0].raw_message["content"]
+    content = result[0].raw_message["content"].unwrap()
     assert len(content) == 2
     assert content[0] == {"type": "text", "text": "transcribe this"}
     assert content[1]["type"] == "audio_url"

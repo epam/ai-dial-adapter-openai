@@ -10,6 +10,7 @@ from aidial_adapter_openai.dial_api.resource import (
     parse_attachment,
 )
 from aidial_adapter_openai.utils.resource.base import Resource
+from aidial_adapter_openai.utils.validation import RequestValue
 from tests.utils.images import data_url, pic_1_1
 from tests.utils.storage import DummyFileStorage
 
@@ -224,7 +225,7 @@ async def test_download_attachment_image(
     expected_result: Resource | Error,
 ):
     resource = AttachmentResource(
-        attachment=parse_attachment(attachment),
+        attachment=parse_attachment(RequestValue(attachment)),
         entity_name="image",
         supported_types=["image/png"],
     )
