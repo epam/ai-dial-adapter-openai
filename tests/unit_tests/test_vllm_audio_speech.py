@@ -32,6 +32,7 @@ def _request(
     headers = {
         "X-UPSTREAM-ENDPOINT": _UPSTREAM_ENDPOINT,
         "Api-Key": "dial-key",
+        "X-DIAL-DEPLOYMENT-ID": _DEPLOYMENT,
     }
     if upstream_key is not None:
         headers["X-UPSTREAM-KEY"] = upstream_key

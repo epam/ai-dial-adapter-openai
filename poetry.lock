@@ -43,18 +43,21 @@ pydantic = ">=1.10,<3"
 
 [[package]]
 name = "aidial-sdk"
-version = "0.46.0"
+version = "0.47.0"
 description = "Framework to create applications and model adapters for AI DIAL"
 optional = false
-python-versions = "<4.0,>=3.10"
+python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "aidial_sdk-0.46.0-py3-none-any.whl", hash = "sha256:a681e8753fdb14fe8cf930a8aaf444bdbfd5e2df232f4926c64a980b76785cf4"},
-    {file = "aidial_sdk-0.46.0.tar.gz", hash = "sha256:1fe075f71bcfac25af0657449f1a1c178b03a604a8290f8724de4fee7536056c"},
+    {file = "aidial_sdk-0.47.0-py3-none-any.whl", hash = "sha256:2cd7eebf25921086dc861a950bb1165f26306dd0a96cc0c2026b097e4a79047c"},
+    {file = "aidial_sdk-0.47.0.tar.gz", hash = "sha256:1fd54aa360f7c54b73a50c30b67c835f468131b1caae0918e8f74b074d52cf85"},
 ]
 
 [package.dependencies]
+anthropic = {version = ">=0.105.0,<1.0", optional = true, markers = "extra == \"translators\""}
 fastapi = ">=0.51,<1.0"
+httpx = {version = ">=0.25.0,<1.0", optional = true, markers = "extra == \"translators\""}
+openai = {version = ">=2.46.0,<3.0", optional = true, markers = "extra == \"translators\""}
 opentelemetry-api = {version = ">=1.22.0,<2.0", optional = true, markers = "extra == \"telemetry\""}
 opentelemetry-exporter-otlp-proto-grpc = {version = ">=1.22.0,<2.0", optional = true, markers = "extra == \"telemetry\""}
 opentelemetry-exporter-prometheus = {version = ">=0.64b0", optional = true, markers = "extra == \"telemetry\""}
@@ -74,6 +77,7 @@ wrapt = ">=1.10,<3"
 [package.extras]
 httpx = ["httpx (>=0.25.0,<1.0)"]
 telemetry = ["opentelemetry-api (>=1.22.0,<2.0)", "opentelemetry-exporter-otlp-proto-grpc (>=1.22.0,<2.0)", "opentelemetry-exporter-prometheus (>=0.64b0)", "opentelemetry-instrumentation-aiohttp-client (>=0.64b0)", "opentelemetry-instrumentation-fastapi (>=0.64b0)", "opentelemetry-instrumentation-httpx (>=0.64b0)", "opentelemetry-instrumentation-logging (>=0.64b0)", "opentelemetry-instrumentation-requests (>=0.64b0)", "opentelemetry-instrumentation-system-metrics (>=0.64b0)", "opentelemetry-instrumentation-urllib (>=0.64b0)", "opentelemetry-sdk (>=1.22.0,<2.0)", "prometheus-client (>=0.17.1,<1.0)"]
+translators = ["anthropic (>=0.105.0,<1.0)", "httpx (>=0.25.0,<1.0)", "openai (>=2.46.0,<3.0)"]
 
 [[package]]
 name = "aiofiles"
@@ -3999,4 +4003,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "2bc2f8bd63365fd4fc3044e541efe046b92803ee9cb0ef6ccfdd9e848e409379"
+content-hash = "36d370e6d73158f78af31957258ebd4b829602feb5b9977d7027a679d5d35049"

@@ -142,7 +142,10 @@ class DeploymentConfig(BaseModel, Generic[_T]):
 
     @property
     def upstream_headers(self) -> dict[str, str]:
-        headers = {"X-UPSTREAM-ENDPOINT": self.upstream_endpoint}
+        headers = {
+            "X-UPSTREAM-ENDPOINT": self.upstream_endpoint,
+            "X-DIAL-DEPLOYMENT-ID": self.id_,
+        }
         if self.upstream_api_key is not None:
             headers["X-UPSTREAM-KEY"] = self.upstream_api_key
         if self.override_name is not None:

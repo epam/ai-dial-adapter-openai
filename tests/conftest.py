@@ -94,7 +94,7 @@ def create_azure_openai_client(
         upstream_key: str | None = "test-upstream-api-key",
         upstream_extra_data: dict[str, Any] | None = None,
     ) -> AsyncAzureOpenAI:
-        default_headers: dict[str, str] = {}
+        default_headers = {"X-DIAL-DEPLOYMENT-ID": azure_deployment}
         if upstream_key is not None:
             default_headers["X-UPSTREAM-KEY"] = upstream_key
         if upstream_endpoint is not None:

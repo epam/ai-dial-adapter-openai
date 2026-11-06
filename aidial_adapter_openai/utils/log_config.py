@@ -25,6 +25,7 @@ def configure_loggers():
     for name in [
         "aidial_adapter_openai",
         "aidial_adapter_anthropic",
+        "aidial_sdk",
         "uvicorn",
     ]:
         logging.getLogger(name).setLevel(app_log_level)

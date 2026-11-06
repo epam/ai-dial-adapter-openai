@@ -49,6 +49,7 @@
   - [Reasoning content](#reasoning-content)
   - [Anthropic API Passthrough](#anthropic-api-passthrough)
     - [Using Claude Code with the adapter](#using-claude-code-with-the-adapter)
+  - [Anthropic Messages to Chat Completions translator](#anthropic-messages-to-chat-completions-translator)
   - [Tokenization of chat completion requests/responses](#tokenization-of-chat-completion-requestsresponses)
     - [How to minimize adapter-side tokenization](#how-to-minimize-adapter-side-tokenization)
     - [Tokenization algorithm](#tokenization-algorithm)
@@ -1351,6 +1352,43 @@ set -a && source .env.claude && set +a
 claude --model claude-opus-4-5
 ```
 
+### Anthropic Messages to Chat Completions translator
+
+The `${ADAPTER_ORIGIN}/openaiChatCompletions` base URL exposes the [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages) on top of any Chat Completions model available in DIAL Core. The translator converts a Messages request into a Chat Completions request, calls DIAL Core back at `DIAL_URL` and converts the response back into the Messages format. It is unavailable when `DIAL_URL` is unset.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${UPSTREAM_DEPLOYMENT_ID}",
+      "interfaces": {
+        "openaiChatCompletions": {
+          "base_url": "${ADAPTER_ORIGIN}"
+        },
+        "anthropicMessages": {
+          "base_url": "${ADAPTER_ORIGIN}/openaiChatCompletions"
+        }
+      },
+      "upstreams": [
+        {
+          "endpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/chat/completions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+Set `LOG_LEVEL=DEBUG` to log inbound requests and outgoing responses or SSE chunks through the SDK's `aidial_sdk` logger.
+
+See the [translation guide](https://github.com/epam/ai-dial-sdk/blob/0.47.0/docs/messages-to-chat-translation.md) for the details and limitations.
+
 ### Tokenization of chat completion requests/responses
 
 The adapter guarantees that all chat completion responses include token-usage information *(the number of prompt and completion tokens consumed)*.
@@ -1944,7 +1982,8 @@ Deployments that do not fall into any of the categories are considered to suppor
 |---|---|---|
 |LOG_LEVEL|INFO|Application log level. Use DEBUG for dev purposes and INFO in prod|
 |TIKTOKEN_MODEL_MAPPING|`{}`|A JSON dictionary from the request deployment id to a [tiktoken model name](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py). It's used for [tokenization](#tokenization-of-chat-completion-requestsresponses) of chat completion requests on the adapter side. Example: `{"my-gpt-deployment":"gpt-3.5-turbo","my-gpt-o3-deployment":"o3"}`. The tokenizer for `gpt-4o` is used as a default.|
-|DIAL_URL||URL of the [DIAL Core](https://github.com/epam/ai-dial-core/) server. When set, it enables uploading and downloading of DIAL Files to and from DIAL Storage.|
+|DIAL_URL||URL of the [DIAL Core](https://github.com/epam/ai-dial-core/) server. When set, it enables uploading and downloading of DIAL Files to and from DIAL Storage. The same URL is called back by the [Anthropic Messages to Chat Completions translator](#anthropic-messages-to-chat-completions-translator), which is unavailable when the variable is unset.|
+|DIAL_API_VERSION|2025-01-01-preview|The `api-version` query parameter that the [translator](#anthropic-messages-to-chat-completions-translator) sends to DIAL Core on its legacy `/openaiChatCompletions/legacy` endpoint|
 |NON_STREAMING_DEPLOYMENTS|``|Comma-separated list of deployments that do not support streaming. The adapter will emulate streaming by calling the model and converting its response into a single-chunk stream. Example: `"o1-mini,o1-preview"`|
 |ACCESS_TOKEN_EXPIRATION_WINDOW|10|The Azure access token is renewed this many seconds before its actual expiration time. The buffer ensures that the token does not expire in the middle of an operation due to processing time and potential network delays.|
 |AZURE_OPEN_AI_SCOPE||Provided scope of access token to Azure OpenAI services. Default: `https://cognitiveservices.azure.com/.default`|
