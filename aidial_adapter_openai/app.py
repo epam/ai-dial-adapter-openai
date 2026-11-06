@@ -1,12 +1,16 @@
 from contextlib import asynccontextmanager
 
 import fastapi
+import httpx
 import pydantic
 from aidial_adapter_anthropic.passthrough import mount_anthropic_api
 from aidial_client import AsyncDialClientPool
 from aidial_sdk.exceptions import HTTPException as DialException
 from aidial_sdk.telemetry.init import init_telemetry as sdk_init_telemetry
 from aidial_sdk.telemetry.types import TelemetryConfig
+from aidial_sdk.translators.messages_to_chat_completions import (
+    mount_translator,
+)
 from fastapi import FastAPI
 from openai import OpenAIError
 
@@ -53,6 +57,10 @@ async def lifespan(app: FastAPI):
     await get_sts_client.clear()
 
 
+async def _get_dial_client(_: fastapi.Request) -> httpx.AsyncClient:
+    return get_http_client()
+
+
 def create_app(
     app_config: ApplicationConfig | None = None,
     init_telemetry: bool = True,
@@ -70,6 +78,7 @@ def create_app(
 
     mount_openai_api(app, path="/openai")
     mount_anthropic_api(app, get_anthropic_client, path="/anthropic")
+    mount_translator(app, _get_dial_client, path="/openaiChatCompletions")
 
     app.add_exception_handler(fastapi.HTTPException, fastapi_exception_handler)
 

@@ -54,6 +54,7 @@ async def test_dial_chat_completion_via_messages_api(
                 "X-UPSTREAM-ENDPOINT": f"{upstream_base}/v1/messages",
                 "X-UPSTREAM-KEY": _UPSTREAM_KEY,
                 "Api-Key": "test-adapter-key",
+                "X-DIAL-DEPLOYMENT-ID": "claude-opus-4-5",
             },
         )
 

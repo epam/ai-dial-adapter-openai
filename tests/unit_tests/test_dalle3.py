@@ -127,6 +127,7 @@ async def test_dalle3_configuration_success(
             "X-UPSTREAM-KEY": "dummy-upstream-api-key",
             "X-UPSTREAM-ENDPOINT": upstream_endpoint,
             "api-key": "dummy-api-key",
+            "X-DIAL-DEPLOYMENT-ID": "test-dall-e-3",
         },
     )
 
