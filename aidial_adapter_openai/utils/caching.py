@@ -1,5 +1,6 @@
 import time
 from collections.abc import Callable, Coroutine, Mapping
+from typing import Any
 
 from openai.types.chat.completion_create_params import (
     CompletionCreateParamsBase,
@@ -52,6 +53,34 @@ def get_responses_breakpoint_path(
     return None
 
 
+def get_decisions_breakpoint_path(request: Mapping[str, Any]) -> str | None:
+    input = request.get("input")
+    explicit = (request.get("prompt_cache_options") or {}).get(
+        "mode"
+    ) == "explicit"
+
+    if not explicit:
+        if isinstance(input, str):
+            return "prefix.body.input[0]"
+        if isinstance(input, list) and input:
+            return f"prefix.body.input[{len(input) - 1}]"
+        return None
+
+    # Explicit mode disables the implicit breakpoint:
+    # only the last item marked with `prompt_cache_breakpoint` is cached.
+    if isinstance(input, list):
+        for i in reversed(range(len(input))):
+            item = input[i]
+            content = item.get("content") if isinstance(item, dict) else None
+            if isinstance(content, list) and any(
+                isinstance(part, dict) and "prompt_cache_breakpoint" in part
+                for part in content
+            ):
+                return f"prefix.body.input[{i}]"
+
+    return None
+
+
 async def build_cache_headers(
     *,
     request_headers: Mapping[str, str],
@@ -59,6 +88,7 @@ async def build_cache_headers(
     get_request_tokens: (
         Callable[[], Coroutine[None, None, int]] | None
     ) = None,
+    ttl_sec: int = _DEFAULT_TTL_SEC,
 ) -> dict[str, str] | None:
     # DIAL Core always sends this header if the deployment
     # is marked in listing as supporting auto-caching
@@ -76,5 +106,5 @@ async def build_cache_headers(
 
     return {
         _DIAL_CACHE_BREAKPOINT_PATH: breakpoint_path,
-        _DIAL_CACHE_EXPIRE_AT: str(int(time.time()) + _DEFAULT_TTL_SEC),
+        _DIAL_CACHE_EXPIRE_AT: str(int(time.time()) + ttl_sec),
     }

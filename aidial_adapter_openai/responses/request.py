@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache
 from typing import Any, assert_never
@@ -110,13 +111,15 @@ _attachment_rules = [
 
 
 async def download_dial_urls_in_request(
-    file_storage: FileStorage | None, request: Any
+    file_storage: FileStorage | None,
+    request: Any,
+    rules: Sequence[AttachmentRule] = _attachment_rules,
 ) -> bool:
     if file_storage is None:
         return False
 
     request_modified = False
-    for rule in _attachment_rules:
+    for rule in rules:
         request_modified |= await rule.apply(file_storage, request)
 
     return request_modified

@@ -279,6 +279,7 @@ class ApplicationConfig(ExtraForbidModel):
                 | D.AUDIO_TRANSCRIPTIONS_API
                 | D.OPENAI_VIDEO_API
                 | D.ANTHROPIC_MESSAGES_API
+                | D.DECISIONS_API
             ):
                 pass
             case _:
