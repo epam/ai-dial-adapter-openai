@@ -29,7 +29,7 @@ def convert_response_format(
 
             ret = ResponseFormatTextJSONSchemaConfigParam(
                 type="json_schema",
-                name="json_schema_name",  # invented name since response_format doesn't provide one
+                name=json_schema.get("name") or "json_schema_name",
                 schema=json_schema.get("schema"),  # type: ignore
                 strict=json_schema.get("strict"),
             )

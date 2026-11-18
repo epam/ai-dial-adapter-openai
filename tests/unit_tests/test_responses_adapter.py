@@ -316,3 +316,62 @@ async def test_assistant_message_content_parts():
             ],
         },
     ]
+
+
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "FieldForName": {"type": "string"},
+        "FieldForSurname": {"type": "string"},
+    },
+}
+
+
+@pytest.mark.parametrize(
+    "json_schema, expected_format",
+    [
+        (
+            {
+                "name": "SchemaName",
+                "description": "Name and surname",
+                "schema": _SCHEMA,
+                "strict": True,
+            },
+            {
+                "type": "json_schema",
+                "name": "SchemaName",
+                "description": "Name and surname",
+                "schema": _SCHEMA,
+                "strict": True,
+            },
+        ),
+        (
+            {"schema": _SCHEMA},
+            {
+                "type": "json_schema",
+                "name": "json_schema_name",
+                "schema": _SCHEMA,
+                "strict": None,
+            },
+        ),
+    ],
+    ids=["with_name", "without_name"],
+)
+async def test_response_format_json_schema(
+    json_schema: dict, expected_format: dict
+):
+    _, create_request = await chat_completions_to_responses_request(
+        RequestValue(
+            {
+                "model": "test-model",
+                "messages": [{"role": "user", "content": "Hello"}],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": json_schema,
+                },
+            }
+        ),
+        file_storage=None,
+    )
+
+    assert create_request.get("text") == {"format": expected_format}
