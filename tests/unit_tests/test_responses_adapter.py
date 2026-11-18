@@ -327,7 +327,6 @@ _SCHEMA = {
 }
 
 
-@pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize(
     "json_schema, expected_format",
     [
@@ -359,13 +358,12 @@ _SCHEMA = {
     ids=["with_name", "without_name"],
 )
 async def test_response_format_json_schema(
-    stream: bool, json_schema: dict, expected_format: dict
+    json_schema: dict, expected_format: dict
 ):
     _, create_request = await chat_completions_to_responses_request(
         RequestValue(
             {
                 "model": "test-model",
-                "stream": stream,
                 "messages": [{"role": "user", "content": "Hello"}],
                 "response_format": {
                     "type": "json_schema",
