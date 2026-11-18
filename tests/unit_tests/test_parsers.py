@@ -11,6 +11,7 @@ from aidial_adapter_openai.utils.parsers import (
     chat_completions_optional_parser,
     chat_completions_parser,
     completions_parser,
+    decisions_parser,
     openai_video_api_parser,
     responses_parser,
 )
@@ -307,3 +308,42 @@ async def test_openai_video_api_only_v1_api_supported(stream: bool):
                 "message": "Invalid upstream endpoint format: Only v1 API upstream endpoints are supported for OpenAI video generation deployments",
             }
         }
+
+
+DECISIONS_CASES = [
+    (
+        "https://api.openai.com/v1/decisions",
+        OpenAIEndpoint(openai_base_url="https://api.openai.com/v1"),
+    ),
+    (
+        "https://r.openai.azure.com/openai/v1/decisions",
+        OpenAIEndpoint(openai_base_url="https://r.openai.azure.com/openai/v1"),
+    ),
+    (
+        "https://r.cognitiveservices.azure.com/openai/v1/decisions",
+        OpenAIEndpoint(
+            openai_base_url="https://r.cognitiveservices.azure.com/openai/v1"
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize("endpoint, parsed", DECISIONS_CASES)
+def test_decisions_parser(endpoint, parsed):
+    result = decisions_parser.parse(endpoint)
+    assert result == parsed
+
+
+def test_decisions_parser_invalid():
+    with pytest.raises(DialException) as exc_info:
+        decisions_parser.parse("https://api.openai.com/v1/responses")
+    assert exc_info.value.status_code == 502
+
+
+@pytest.mark.parametrize("endpoint, _parsed", DECISIONS_CASES)
+def test_decisions_not_a_chat_completion_deployment(endpoint, _parsed):
+    with pytest.raises(DialException) as exc_info:
+        ApplicationConfig().get_chat_completion_deployment_type(
+            "decisions", endpoint
+        )
+    assert exc_info.value.status_code == 502

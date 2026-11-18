@@ -9,6 +9,11 @@ from aidial_adapter_openai.configuration.app_config import ApplicationConfig
 from aidial_adapter_openai.configuration.deployment_type import (
     ChatCompletionDeploymentType,
 )
+from aidial_adapter_openai.utils import caching
+from aidial_adapter_openai.utils.caching import (
+    build_cache_headers,
+    get_decisions_breakpoint_path,
+)
 from tests.conftest import create_test_client
 from tests.utils.stream import OpenAIStream, single_choice_chunk
 
@@ -167,3 +172,115 @@ async def test_auto_caching(gpt4o_client: httpx.AsyncClient, ts: TestCase):
     else:
         assert cache_path is None
         assert expire_at is None
+
+
+def _msg(text: str, breakpoint: bool = False) -> dict:
+    part: dict = {"type": "input_text", "text": text}
+    if breakpoint:
+        part["prompt_cache_breakpoint"] = {}
+    return {"role": "user", "content": [part]}
+
+
+_explicit = {"prompt_cache_options": {"mode": "explicit"}}
+
+
+@pytest.mark.parametrize(
+    "request_body, expected",
+    [
+        ({"input": "text"}, "prefix.body.input[0]"),
+        (
+            {"input": [_msg("m0"), _msg("m1"), _msg("m2")]},
+            "prefix.body.input[2]",
+        ),
+        ({"input": []}, None),
+        ({}, None),
+        (
+            {"input": "text", "prompt_cache_options": {"mode": "implicit"}},
+            "prefix.body.input[0]",
+        ),
+        (
+            {"input": "text", "prompt_cache_options": None},
+            "prefix.body.input[0]",
+        ),
+        ({"input": "text", **_explicit}, None),
+        ({"input": [_msg("m0"), _msg("m1")], **_explicit}, None),
+        (
+            {
+                "input": [
+                    _msg("m0", breakpoint=True),
+                    _msg("m1"),
+                    _msg("m2", breakpoint=True),
+                    _msg("m3"),
+                ],
+                **_explicit,
+            },
+            "prefix.body.input[2]",
+        ),
+        (
+            {
+                "input": [
+                    "m0",
+                    {"type": "function_call_output", "output": "x"},
+                    _msg("m2", breakpoint=True),
+                    42,
+                    {"role": "user", "content": "plain string"},
+                    {"role": "user", "content": ["not a dict"]},
+                ],
+                **_explicit,
+            },
+            "prefix.body.input[2]",
+        ),
+    ],
+)
+def test_decisions_breakpoint_path(request_body: dict, expected: str | None):
+    assert get_decisions_breakpoint_path(request_body) == expected
+
+
+_cache_request_headers = {"X-DIAL-CACHE-BREAKPOINT-PATH": "whatever"}
+
+
+async def test_build_cache_headers_custom_ttl(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(caching.time, "time", lambda: 1_000_000.5)
+
+    headers = await build_cache_headers(
+        request_headers=_cache_request_headers,
+        breakpoint_path="prefix.body.input[0]",
+        ttl_sec=1800,
+    )
+
+    assert headers == {
+        "X-DIAL-CACHE-BREAKPOINT-PATH": "prefix.body.input[0]",
+        "X-DIAL-CACHE-EXPIRE-AT": str(1_000_000 + 1800),
+    }
+
+
+async def test_build_cache_headers_default_ttl(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(caching.time, "time", lambda: 1_000_000.5)
+
+    headers = await build_cache_headers(
+        request_headers=_cache_request_headers,
+        breakpoint_path="prefix.body.input[0]",
+    )
+
+    assert headers == {
+        "X-DIAL-CACHE-BREAKPOINT-PATH": "prefix.body.input[0]",
+        "X-DIAL-CACHE-EXPIRE-AT": str(1_000_000 + 300),
+    }
+
+
+@pytest.mark.parametrize(
+    "tokens, expected_headers", [(1023, False), (1024, True)]
+)
+async def test_build_cache_headers_threshold(
+    tokens: int, expected_headers: bool
+):
+    async def get_tokens() -> int:
+        return tokens
+
+    headers = await build_cache_headers(
+        request_headers=_cache_request_headers,
+        breakpoint_path="prefix.body.input[0]",
+        get_request_tokens=get_tokens,
+    )
+
+    assert (headers is not None) == expected_headers

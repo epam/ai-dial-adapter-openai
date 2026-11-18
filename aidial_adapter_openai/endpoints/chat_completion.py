@@ -267,6 +267,11 @@ async def call_chat_completion(
                 "Anthropic API endpoint must have resulted in Anthropic client"
             )
 
+        case D.DECISIONS_API:
+            raise RuntimeError(
+                "Decisions API is never served by the chat completions endpoint"
+            )
+
         case D.GPT4O | D.GPT4O_MINI | D.GPT_GENERIC:
             response = await gpt_chat_completion(
                 request=request_body,

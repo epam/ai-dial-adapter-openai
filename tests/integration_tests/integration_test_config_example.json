@@ -385,6 +385,32 @@
                 "image/*",
                 "application/pdf"
             ]
+        },
+        "decisions-azure": {
+            "overrideName": "gpt-6-luna",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://azure-foundry-name.cognitiveservices.azure.com/openai/v1/decisions",
+                    "key": "optional-api-key"
+                }
+            ],
+            "features": {
+                "autoCachingSupported": true
+            }
+        },
+        "decisions-openai": {
+            "overrideName": "gpt-6-luna",
+            "type": "chat",
+            "upstreams": [
+                {
+                    "endpoint": "https://api.openai.com/v1/decisions",
+                    "key": "openai-api-key"
+                }
+            ],
+            "features": {
+                "autoCachingSupported": true
+            }
         }
     }
 }
