@@ -108,6 +108,26 @@ async def test_aiohttp_pool_exhaustion_is_pool_timeout(unused_tcp_port: int):
             await client.aclose()
 
 
+async def test_aiohttp_honors_proxy_env_vars(
+    unused_tcp_port: int, monkeypatch: pytest.MonkeyPatch
+):
+    async def _proxy(request: web.Request) -> web.Response:
+        return web.Response(text=f"proxied {request.url}")
+
+    async with _local_server(unused_tcp_port, _proxy) as proxy_url:
+        for name in ["NO_PROXY", "no_proxy", "http_proxy"]:
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("HTTP_PROXY", proxy_url)
+
+        client = httpx.AsyncClient(transport=_AiohttpTransport())
+        try:
+            response = await client.get("http://upstream.invalid/")
+        finally:
+            await client.aclose()
+
+    assert response.text == "proxied http://upstream.invalid/"
+
+
 async def test_aiohttp_connect_timeout_without_queueing_stays_connect_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ):
