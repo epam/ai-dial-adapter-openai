@@ -31,5 +31,6 @@ jobs:
     with:
       images: |
         ${{ github.repository }}
+      osv-image-scan: false
       scan-tag: ${{ inputs.scan-tag }}
       force-image-scan: ${{ inputs.force-image-scan || false }}
