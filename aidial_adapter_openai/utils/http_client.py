@@ -115,6 +115,9 @@ class _AiohttpTransport(AiohttpTransport):
     aiohttp raises the same timeout for a request that waited too long for
     a pooled connection as for a slow connect. The first is reported as
     `httpx.PoolTimeout`, as httpcore does, so it maps to 503.
+
+    httpx ignores the proxy env vars once a transport is passed to it,
+    so aiohttp reads them instead (`trust_env`).
     """
 
     def get_client(self) -> aiohttp.ClientSession:
@@ -124,7 +127,9 @@ class _AiohttpTransport(AiohttpTransport):
             ssl=self.ssl_context,
         )
         return aiohttp.ClientSession(
-            connector=connector, trace_configs=[_trace_config()]
+            connector=connector,
+            trace_configs=[_trace_config()],
+            trust_env=True,
         )
 
     async def handle_async_request(
