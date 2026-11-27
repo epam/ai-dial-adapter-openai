@@ -2,14 +2,14 @@
 
 [[package]]
 name = "aidial-adapter-anthropic"
-version = "0.21.0"
+version = "0.22.0"
 description = "Package implementing adapter from DIAL Chat Completions API to Anthropic API"
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "aidial_adapter_anthropic-0.21.0-py3-none-any.whl", hash = "sha256:52b9a5379fd40330279ee865c7fcb589db50e7e3aaf98f748305b150a60dff6a"},
-    {file = "aidial_adapter_anthropic-0.21.0.tar.gz", hash = "sha256:cf3451126314258b60a007e12561376be1ae5b3936e8d459e7ab0ac30e6d555a"},
+    {file = "aidial_adapter_anthropic-0.22.0-py3-none-any.whl", hash = "sha256:05b056e55e4739c7f49381d6ecc1b79e01585fa7c89e8a74d197878ccd6c9e10"},
+    {file = "aidial_adapter_anthropic-0.22.0.tar.gz", hash = "sha256:3128d22a9b2ae128d0c33e87f70086cfa605aac8ffd2ab7eb207baedefa57ac4"},
 ]
 
 [package.dependencies]
@@ -4073,4 +4073,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "0c4464514306fe795ab67b3c4f6a0342c2b9183c271ca505a35b3567cf66710b"
+content-hash = "ab2d6faf818855a4c35ff7834d617aac623ba81320cd7761bd95760ff1becdda"
