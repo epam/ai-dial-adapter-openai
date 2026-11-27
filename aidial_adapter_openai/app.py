@@ -18,6 +18,7 @@ import aidial_adapter_openai.endpoints as endpoints
 from aidial_adapter_openai.apis.anthropic import get_anthropic_client
 from aidial_adapter_openai.apis.openai import mount_openai_api
 from aidial_adapter_openai.configuration.app_config import ApplicationConfig
+from aidial_adapter_openai.decisions import mount_decisions_api
 from aidial_adapter_openai.exceptions.handlers import (
     adapter_exception_handler,
     fastapi_exception_handler,
@@ -79,6 +80,7 @@ def create_app(
     mount_openai_api(app, path="/openai")
     mount_anthropic_api(app, get_anthropic_client, path="/anthropic")
     mount_translator(app, _get_dial_client, path="/openaiChatCompletions")
+    mount_decisions_api(app, path="/openai")
 
     app.add_exception_handler(fastapi.HTTPException, fastapi_exception_handler)
 

@@ -104,9 +104,17 @@ class EmbeddingsDeploymentType(BaseModel):
     pass
 
 
+class DecisionsDeploymentType(BaseModel):
+    pass
+
+
 _T = TypeVar("_T")
 
-DeploymentType = ChatCompletionDeploymentType | EmbeddingsDeploymentType
+DeploymentType = (
+    ChatCompletionDeploymentType
+    | EmbeddingsDeploymentType
+    | DecisionsDeploymentType
+)
 
 
 def _classify_deployment(
@@ -115,6 +123,11 @@ def _classify_deployment(
     deployment_id: str,
     upstream_endpoint: str,
 ) -> DeploymentType:
+    # DIAL Core declares Decisions deployments as chat models,
+    # yet the chat classification can't parse their upstream
+    if upstream_endpoint.endswith("/decisions"):
+        return DecisionsDeploymentType()
+
     if model_config.type == "chat":
         return app_config.get_chat_completion_deployment_type(
             deployment_id, upstream_endpoint
@@ -274,6 +287,14 @@ class TestDeployments(BaseModel):
     ) -> Generator[DeploymentConfig[EmbeddingsDeploymentType], None, None]:
         for deployment in self.deployments:
             if isinstance(deployment.type_, EmbeddingsDeploymentType):
+                yield deployment  # type: ignore
+
+    @property
+    def decisions_deployments(
+        self,
+    ) -> Generator[DeploymentConfig[DecisionsDeploymentType], None, None]:
+        for deployment in self.deployments:
+            if isinstance(deployment.type_, DecisionsDeploymentType):
                 yield deployment  # type: ignore
 
 

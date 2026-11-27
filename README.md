@@ -67,6 +67,10 @@
     - [OpenAI Platform Responses API](#openai-platform-responses-api)
     - [Amazon Bedrock OpenAI Responses API](#amazon-bedrock-openai-responses-api)
     - [Alibaba Cloud Model Studio Responses API](#alibaba-cloud-model-studio-responses-api)
+- [Decisions API deployments](#decisions-api-deployments)
+  - [Supported upstream Decisions APIs](#supported-upstream-decisions-apis)
+    - [Azure OpenAI Decisions API](#azure-openai-decisions-api)
+    - [OpenAI Platform Decisions API](#openai-platform-decisions-api)
 - [Embedding deployments](#embedding-deployments)
   - [Supported upstream embedding APIs](#supported-upstream-embedding-apis)
     - [Azure OpenAI Embeddings API](#azure-openai-embeddings-api)
@@ -90,6 +94,7 @@
   - [Azure AI Foundry](#azure-ai-foundry)
   - [Alibaba Cloud Model Studio](#alibaba-cloud-model-studio)
   - [Anthropic](#anthropic)
+  - [Decisions API](#decisions-api)
 - [API versioning](#api-versioning)
 - [Server performance configuration](#server-performance-configuration)
   - [Keep-alive timeout](#keep-alive-timeout)
@@ -1793,6 +1798,84 @@ The `extra_data.vendor` field is required to enable the [prompt caching](#alibab
 
 ---
 
+## Decisions API deployments
+
+**Since:** `ai-dial-adapter-openai:0.47.0` AND `ai-dial-core:TBD`
+
+The adapter is able to proxy requests to models supporting [Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create). Successful (`200`) response bodies are relayed as is. In the request, DIAL storage URLs in `input_image.image_url` (in input messages, tool call outputs and question instructions) are downloaded and inlined as base64 data URLs; other URLs are left untouched. Upstream errors keep their status code and `error` fields, but the error body is re-serialized by the adapter, so key order and whitespace may differ from the upstream's.
+
+The following Decisions API endpoint is exposed by the adapter:
+
+```text
+POST ${ADAPTER_ORIGIN}/openai/v1/decisions
+```
+
+Current limitations:
+
+1. Streaming isn't supported. The upstream rejects `"stream": true` with `400`, and the adapter passes the error through.
+2. Only the v1 API is supported. The dated form of the Azure OpenAI API *(`/openai/decisions?api-version=${API_VERSION}`)* isn't exposed by the adapter, and a dated Azure OpenAI upstream endpoint is rejected with `502`.
+3. Only the OpenAI Platform and Azure OpenAI upstreams are supported.
+4. The DIAL caching headers are based on `usage.input_tokens`, which includes the question tokens. Therefore the headers may be returned even if the upstream didn't cache anything. See [Prompt caching for Decisions API](#decisions-api).
+
+### Supported upstream Decisions APIs
+
+> [!WARNING]
+> The DIAL Core config key that routes Decisions API requests to the adapter is **TBD (pending ai-dial-core confirmation)**. The examples below use `decisionsEndpoint` as a placeholder name. The adapter itself doesn't depend on the key: it only reads the `X-UPSTREAM-ENDPOINT` and `X-UPSTREAM-KEY` headers sent by DIAL Core.
+
+#### Azure OpenAI Decisions API
+
+Both `https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/decisions` and `https://${AZURE_OPENAI_SERVICE_NAME}.cognitiveservices.azure.com/openai/v1/decisions` upstream endpoints are supported. The `overrideName` is the Azure OpenAI deployment name. The `key` is optional; when it's missing, the adapter uses an Entra ID token.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "${AZURE_OPENAI_DEPLOYMENT_ID}",
+      "decisionsEndpoint": "${ADAPTER_ORIGIN}/openai/v1/decisions",
+      "upstreams": [
+        {
+          "decisionsEndpoint": "https://${AZURE_OPENAI_SERVICE_NAME}.openai.azure.com/openai/v1/decisions",
+          "key": "${OPTIONAL_API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+#### OpenAI Platform Decisions API
+
+The `key` is required; the adapter returns `401` without it.
+
+<details><summary>DIAL Core Config</summary>
+
+```json
+{
+  "models": {
+    "${DIAL_DEPLOYMENT_ID}": {
+      "type": "chat",
+      "overrideName": "gpt-6-luna",
+      "decisionsEndpoint": "${ADAPTER_ORIGIN}/openai/v1/decisions",
+      "upstreams": [
+        {
+          "decisionsEndpoint": "https://api.openai.com/v1/decisions",
+          "key": "${API_KEY}"
+        }
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+---
+
 ## Embedding deployments
 
 The adapter is able to convert certain upstream APIs to the [DIAL Embeddings API](https://dialx.ai/dial_api#operation/sendEmbeddingsRequest) *(which is an extension of Azure [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create))*.
@@ -2361,6 +2444,28 @@ In the [Responses API](#alibaba-cloud-model-studio-responses-api) deployments, t
 ### Anthropic
 
 See [Automatic prompt caching](#automatic-prompt-caching) and [Explicit prompt caching](#explicit-prompt-caching) in the [Anthropic Messages API](#anthropic-messages-api) section.
+
+### Decisions API
+
+The [Decisions API](#decisions-api-deployments) upstreams cache the shared `input` prefix automatically. The `autoCachingSupported` flag in the DIAL Core config enables the DIAL caching headers for the deployment:
+
+```json
+{
+  "features": {
+    "autoCachingSupported": true
+  }
+}
+```
+
+The adapter returns the `X-DIAL-CACHE-BREAKPOINT-PATH` and `X-DIAL-CACHE-EXPIRE-AT` headers when the upstream responds with `200` and `usage.input_tokens` is at least `1024`. The cache expires in 30 minutes, matching the default `prompt_cache_options.ttl` of the upstream *(`"30m"`)*.
+
+The breakpoint is set at:
+
+- the last `input` item, by default;
+- the last `input` item with a `prompt_cache_breakpoint` content part, when `prompt_cache_options.mode` is `"explicit"`. If there is no such item, no headers are returned, since the upstream caches nothing in this case.
+
+> [!NOTE]
+> `usage.input_tokens` includes the question tokens, whereas the upstream caches only the `input` prefix of at least 1024 tokens. Therefore the headers may be returned for a request whose `input` is too short to be cached.
 
 ---
 
